@@ -1,0 +1,54 @@
+{
+  "name": "@strata/core",
+  "version": "0.0.0",
+  "description": "Core foundation package for Strata. No public API yet.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Andersseen",
+  "homepage": "https://github.com/Andersseen/strata#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Andersseen/strata.git",
+    "directory": "packages/core"
+  },
+  "bugs": {
+    "url": "https://github.com/Andersseen/strata/issues"
+  },
+  "keywords": [
+    "strata",
+    "typescript",
+    "server",
+    "h3",
+    "angular",
+    "analogjs",
+    "nitro",
+    "backend",
+    "framework"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=22"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "dev": "vite build --watch",
+    "build": "vite build",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  }
+}
