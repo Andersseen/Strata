@@ -3,8 +3,11 @@ import { fileURLToPath } from "node:url";
 import dts from "vite-plugin-dts";
 import { defineConfig } from "vitest/config";
 
+import { standardDecorators } from "./vite-plugin-standard-decorators.js";
+
 export default defineConfig({
   plugins: [
+    standardDecorators(),
     dts({
       tsconfigPath: "./tsconfig.build.json",
       include: ["src"],

@@ -1,7 +1,7 @@
 {
   "name": "@strata/core",
   "version": "0.0.0",
-  "description": "Core foundation package for Strata. No public API yet.",
+  "description": "Experimental @Controller/@Get metadata primitive for Strata. No HTTP runtime yet.",
   "type": "module",
   "license": "MIT",
   "author": "Andersseen",
@@ -25,7 +25,7 @@
     "backend",
     "framework"
   ],
-  "sideEffects": false,
+  "sideEffects": true,
   "engines": {
     "node": ">=22"
   },

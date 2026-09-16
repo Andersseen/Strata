@@ -11,23 +11,38 @@ designed with [Angular](https://angular.dev) and
 
 ## Status: early development
 
-This repository currently contains only the **technical foundation**: the
-monorepo, build tooling, linting, testing, and release infrastructure.
+This repository is still in early development. `@strata/core` now has a
+first **experimental** API for declaring controllers and routes, built on
+standard ECMAScript decorators — but there is no HTTP runtime yet, nothing
+is wired up to H3, and nothing is published to npm.
 
-There is **no public API yet**. `@strata/core` exists solely to validate that
-the workspace, TypeScript setup, build pipeline, and test runner work end to
-end. Nothing here should be considered stable, and nothing is published to
-npm yet.
+```ts
+import { Controller, Get } from "@strata/core";
 
-A technical roadmap and the actual framework design (routing, decorators,
-dependency injection, framework integrations, etc.) will follow in later
-iterations.
+@Controller("/users")
+class UsersController {
+  @Get()
+  findAll() {
+    return [];
+  }
+}
+```
+
+`@Controller` and `@Get` only build declarative metadata describing a
+controller's routes; a future `@strata/h3` adapter will be responsible for
+turning that metadata into an actual running server. Nothing here should be
+considered stable — the API can still change in breaking ways before it's
+published.
+
+A technical roadmap and the rest of the framework design (more HTTP methods,
+parameter decorators, dependency injection, framework integrations, etc.)
+will follow in later iterations.
 
 ## Packages
 
-| Package                           | Description                            |
-| --------------------------------- | -------------------------------------- |
-| [`@strata/core`](./packages/core) | Foundation package, no public API yet. |
+| Package                           | Description                                             |
+| --------------------------------- | ------------------------------------------------------- |
+| [`@strata/core`](./packages/core) | Experimental `@Controller` / `@Get` metadata primitive. |
 
 ## Stack
 
