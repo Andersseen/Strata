@@ -17,6 +17,10 @@ export default config(
       // compiled by its own isolated tsc/Vite install, never by this repo's
       // tsconfigs, so it is intentionally outside this repo's lint project.
       "tests/consumer/fixture/**",
+      // Foreign type-compatibility fixtures (SPEC-002): each case is
+      // compiled by its own isolated, per-case tsc install with a runner-
+      // generated tsconfig, never by this repo's tsconfigs.
+      "tests/consumer/type-compatibility/**",
     ],
   },
   js.configs.recommended,

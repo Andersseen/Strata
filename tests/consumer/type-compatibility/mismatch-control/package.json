@@ -1,0 +1,13 @@
+{
+  "name": "strata-mismatch-control",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "dependencies": {
+    "h3": "REPLACED_BY_RUNNER"
+  },
+  "devDependencies": {
+    "@types/node": "REPLACED_BY_RUNNER",
+    "typescript": "REPLACED_BY_RUNNER"
+  }
+}

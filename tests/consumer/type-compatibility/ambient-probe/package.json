@@ -1,0 +1,11 @@
+{
+  "name": "strata-ambient-probe",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "REPLACED_BY_RUNNER",
+    "typescript": "REPLACED_BY_RUNNER"
+  }
+}
