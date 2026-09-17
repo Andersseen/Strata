@@ -3,7 +3,20 @@
 Retrieved 2026-09-17. These are primary sources and design implications, **not executed Strata
 integration results**. Online documentation and `main` branches are mutable and returned differing
 patch snapshots. Pin released artifacts and source commits in each subsequent spike. Direct npm
-registry verification was unavailable in this environment; no npm `latest` claim is made here.
+registry verification was unavailable in the original roadmap audit. The post-SPEC-001 review
+below adds live registry/source verification for H3/crossws/TypeScript; other sections retain
+their earlier research scope and are not new M2 experiments.
+
+## Post-SPEC-001 consumer review
+
+[H3 consumer type compatibility](research/h3-consumer-type-compatibility.md) records current npm
+tags, the post-rc.32 source comparison, upstream override history, published crossws import graph,
+TS 6.0.3 probes and evaluated alternatives. H3 `latest` remains rc.32; crossws is 0.4.12; TypeScript
+`latest` is 7.0.2 while the qualification target stays 6.0.3. No fixed newer H3 release was found.
+
+The Node runtime recipe is demonstrated. Clean declarations remain blocked; stock Vite decorator
+lowering is an observed limitation on the measured tuple. SPEC-002 now owns the bounded type-closure
+experiment. M2 research topics below remain gated, and no public compiler/dependency policy is chosen.
 
 ## H3 and Nitro
 
@@ -114,7 +127,8 @@ parsing, error mapping and execution order itself; no specific validation librar
 
 ## Consequences for the next decisions
 
-1. Establish consumer compilation evidence before creating a public compiler package.
+1. Retain the proven consumer runtime evidence; resolve the strict type-contract blocker in
+   SPEC-002 before M2 or any public compiler package decision.
 2. Resolve the H3-major/Analog mounting mismatch and request-injector access with pinned fixtures.
 3. Attempt strict component graph separation and interactive child hydration early, before broad
    HTTP API expansion. A compiler integration failure is a 1.0 blocker.

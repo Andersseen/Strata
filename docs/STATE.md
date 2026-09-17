@@ -1,9 +1,10 @@
 # Current implementation audit
 
-Inspected on 2026-09-17 at `9d2635e` (`main`). Initial working tree was clean.
+Inspected on 2026-09-17 at `f258fc3` (`main`, merge of SPEC-001 / PR #4). Initial working tree was clean.
 Scope: all tracked source, tests, manifests, build/test/compiler configuration, CI, Changesets,
 root documentation and relevant history; dependency resolution inspected in `pnpm-lock.yaml`.
-There were no existing `docs/`, application fixtures or package-local instructions in this checkout.
+Documentation, packed-consumer fixtures and qualification tooling now exist. No production package
+files changed between `9d2635e` and this checkout.
 
 ## History
 
@@ -12,8 +13,10 @@ There were no existing `docs/`, application fixtures or package-local instructio
 | `fb5038c`                      | OSS workspace/tooling foundation                                 |
 | `80341ea`, merged by `61d0959` | Core controller/GET metadata; TypeScript decorator pre-transform |
 | `b899c59`, merged by `9d2635e` | Real H3 v2 adapter and integration tests                         |
+| `1929957`, merged by `a7fe88c` | Architecture/SDD documentation and SPEC-001                      |
+| `f865fca`, merged by `f258fc3` | SPEC-001 tooling, executed evidence and consumer CI invocation   |
 
-The next slice must not recreate H3 execution: it already exists.
+The next slice must not recreate H3 execution or packed-consumer tooling: both already exist.
 
 ## Implemented contracts
 
@@ -36,23 +39,70 @@ The dynamic-route test proves matching `/users/123`; its handler returns a fixed
 
 Repository pins pnpm 10.30.1, TypeScript 6.0.3, Vite 8.3.0, Vitest 5.0.1; lockfile resolves
 Rolldown 1.2.8. Manifests declare Node `>=22`; CI selects Node 22 and runs lint, typecheck, tests
-and build. That configuration is not evidence of a successful remote CI run or all Node versions.
+and build, then `pnpm test:consumer`. That configuration does not certify all Node versions.
+The [merge CI run](https://github.com/Andersseen/Strata/actions/runs/35225050803/job/105214360278)
+failed at lint (23 unresolved-type errors in adapter source/tests); later steps, including consumer
+qualification, were skipped. Public core exports target `dist`, which a fresh checkout has not built
+before lint. This is a separate workspace bootstrap issue, not remote reproduction of AC2. Local
+`pnpm lint` passes with existing build artifacts. SPEC-002 must make the qualification reachable
+from a clean checkout without disabling rules or aliasing package source.
 
 Both packages contain a private `vite-plugin-standard-decorators.ts`. It invokes TypeScript
 `transpileModule` with ES2023/ESNext before Vite, excludes dependencies and declaration files,
 and only matches IDs ending in `.ts`. It is used by their Vite/Vitest configurations and is not
 exported or shipped as a consumer tool. `transpileModule` does not replace type checking.
 
-Local check in this audit: `pnpm exec vitest run` on Node **22.23.0** passed **34 tests in 6 files**
+Earlier pre-SPEC-001 local check: `pnpm exec vitest run` on Node **22.23.0** passed **34 tests in 6 files**
 (22 core tests, 12 adapter tests). Existing installed dependencies and built core output were used;
 this was not a clean build, tarball installation or deployment test. No production source was
 changed to obtain this result.
+
+## SPEC-001: executed, runtime proven, strict type qualification blocked
+
+The [recorded run](research/consumer-compilation.md) used baseline `a7fe88c`, Node 22.23.0,
+pnpm 10.30.1, TypeScript 6.0.3, Vite 8.3.0 and H3 2.0.1-rc.32. Its implementation was merged in
+[PR #4](https://github.com/Andersseen/Strata/pull/4). Review confirms:
+
+- `tests/consumer/fixture` and `tools/consumer` build/pack both packages, install them outside the
+  workspace and use consumer-local tools and public imports. `workspace:*` becomes `0.0.0`; the
+  fixture's local-tarball override yields one core copy. This does not prove registry publication.
+- Consumer-authored standard decorators compile through `tsc`; emitted JS runs in plain Node.
+  Vite SSR bundling of that JS also runs. Both exercise real in-process H3 requests: sync/async
+  controller routes, instance binding and a native route. Public metadata and preservation of an
+  existing `Symbol.metadata` pass. No listening server or deployment was tested.
+- Strict consumer typecheck exits 2: H3's `HTTPError.isError` uses `static override` without the
+  ambient `Error.isError` in the fixed lib set (TS4113); H3's root declarations import optional
+  `crossws` types even for HTTP-only consumers (TS2307). No diagnostic in this run originates in
+  Strata declarations. Strata nevertheless owns qualification of its exposed dependency contract.
+- JS was emitted because `noEmitOnError` defaults to false. Runtime success does not make the
+  typecheck clean. The consumer does not inherit the workspace's `skipLibCheck: true`.
+- Direct stock Vite builds but retains standard decorator syntax; Node rejects it. The reference
+  `tsc → JS → Vite → Node` path works. This proves a consumer compilation requirement on the
+  measured tuple, not a requirement to publish or reuse Strata's private plugin.
+- The report records AC1/AC3–AC8 Pass and AC2 Blocked. Those are stage-level observations, not
+  acceptance of the complete spec. Remote execution and exact transitive pinning need correction.
+
+Review found the runner reports **workspace** Rolldown 1.2.8 but does not pin/measure the external
+consumer's Rolldown. The retained installation and its npm lock resolve **1.2.9**. Runtime results
+remain useful; an exact 1.2.8 consumer claim is unproven. Version assertions and failure ownership
+must come from the measured graph/diagnostics, not the runner's hard-coded explanations.
+
+Read-only rechecks in this audit reproduced both diagnostics with consumer-local TS 6.0.3
+(`--noEmit --skipLibCheck false`). Adding only `esnext.error` removed TS4113 and left TS2307.
+Node 22.23.0 reports `typeof Error.isError === "undefined"`: that lib supplies types, not a runtime
+polyfill. Registry/source research and alternatives are in
+[H3 consumer type compatibility](research/h3-consumer-type-compatibility.md).
+
+**M1: Blocked, partially proven.** SPEC-001 remains Blocked. The single Ready next slice is
+[SPEC-002](specs/002-h3-consumer-type-closure.md); a clean type contract and reproducible remote
+qualification are still required. No M2 work is authorized.
 
 ## Gaps and review findings
 
 - No Angular/Analog/Nitro dependency, DI integration, non-GET decorators, request API, validation,
   guards/interceptors, logging contract, component compiler, navigation protocol or deployment fixture.
-- No packaged-consumer tests, browser/e2e tests, browser bundle assertions or Cloudflare execution.
+- Packed-consumer runtime tests exist; strict installed-package types are blocked. No browser/e2e
+  tests, browser bundle assertions or Cloudflare execution.
 - Metadata access uses inherited property lookup; route accumulation may reuse an inherited array.
   Undecorated subclasses, decorated siblings, overrides and redecorated subclasses need explicit
   semantics and regression tests. Independent-class tests do not cover inheritance.
@@ -61,8 +111,6 @@ changed to obtain this result.
 - Duplicate routes, registration across repeated calls, partial failure and constructor failures are
   not specified. Do not infer atomicity, conflict handling or stable lifecycle from today's implementation.
 - Handler exceptions, `Response`/stream passthrough and cancellation lack dedicated Strata tests.
-- The README previously promised parameter decorators and future documentation; CONTRIBUTING still
-  described a featureless foundation. This documentation pass aligns those entry points.
 
-These are inputs to M1/M3, not permission for Astra to implement fixes. The selected next spec
-establishes a consumer baseline first; it does not declare the remaining primitive contracts stable.
+These remain inputs to M1/M3, not permission for Astra to implement fixes. SPEC-002 addresses the
+consumer type-contract blocker; it does not declare the remaining primitive contracts stable.

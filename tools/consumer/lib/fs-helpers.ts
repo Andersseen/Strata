@@ -2,11 +2,11 @@ import { createHash } from "node:crypto";
 import { readFileSync, mkdirSync, readdirSync, statSync, copyFileSync } from "node:fs";
 import { join } from "node:path";
 
-export function sha256File(filePath) {
+export function sha256File(filePath: string): string {
   return createHash("sha256").update(readFileSync(filePath)).digest("hex");
 }
 
-export function copyDirRecursive(sourceDir, targetDir) {
+export function copyDirRecursive(sourceDir: string, targetDir: string): void {
   mkdirSync(targetDir, { recursive: true });
 
   for (const entry of readdirSync(sourceDir, { withFileTypes: true })) {
@@ -25,10 +25,14 @@ export function copyDirRecursive(sourceDir, targetDir) {
  * Finds every directory whose path ends in `@strata/core`, so the runner can
  * assert the isolated consumer install resolved exactly one copy.
  */
-export function findScopedPackageDirs(rootNodeModules, scope, name) {
-  const matches = [];
+export function findScopedPackageDirs(
+  rootNodeModules: string,
+  scope: string,
+  name: string,
+): string[] {
+  const matches: string[] = [];
 
-  function walk(dir) {
+  function walk(dir: string): void {
     let entries;
 
     try {

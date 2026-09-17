@@ -1,4 +1,18 @@
-const EXPECTED_DEFINITION = {
+interface RouteDefinition {
+  method: "GET";
+  path: string;
+  handler: string;
+}
+
+interface ControllerDefinition {
+  path: string;
+  routes: RouteDefinition[];
+}
+
+type ExpectedLineKey =
+  "ROOT_STATUS" | "ROOT_BODY" | "ASYNC_STATUS" | "ASYNC_BODY" | "NATIVE_STATUS" | "NATIVE_BODY";
+
+const EXPECTED_DEFINITION: ControllerDefinition = {
   path: "/consumer",
   routes: [
     { method: "GET", path: "/", handler: "root" },
@@ -6,7 +20,7 @@ const EXPECTED_DEFINITION = {
   ],
 };
 
-const EXPECTED_LINES = {
+const EXPECTED_LINES: Record<ExpectedLineKey, string> = {
   ROOT_STATUS: "200",
   ROOT_BODY: '{"greeting":"hello"}',
   ASYNC_STATUS: "200",
@@ -17,7 +31,28 @@ const EXPECTED_LINES = {
 
 export class ConsumerAssertionError extends Error {}
 
-function extractDefinitionJson(stdout) {
+function isControllerDefinition(value: unknown): value is ControllerDefinition {
+  if (!value || typeof value !== "object") return false;
+
+  const candidate = value as { path?: unknown; routes?: unknown };
+
+  return (
+    typeof candidate.path === "string" &&
+    Array.isArray(candidate.routes) &&
+    candidate.routes.every((route): route is RouteDefinition => {
+      if (!route || typeof route !== "object") return false;
+      const candidateRoute = route as { method?: unknown; path?: unknown; handler?: unknown };
+
+      return (
+        candidateRoute.method === "GET" &&
+        typeof candidateRoute.path === "string" &&
+        typeof candidateRoute.handler === "string"
+      );
+    })
+  );
+}
+
+function extractDefinitionJson(stdout: string): ControllerDefinition {
   const start = stdout.indexOf("DEFINITION_JSON_START");
   const end = stdout.indexOf("DEFINITION_JSON_END");
 
@@ -31,10 +66,16 @@ function extractDefinitionJson(stdout) {
     throw new ConsumerAssertionError("Definition JSON block was empty.");
   }
 
-  return JSON.parse(jsonText);
+  const parsed: unknown = JSON.parse(jsonText);
+
+  if (!isControllerDefinition(parsed)) {
+    throw new ConsumerAssertionError("Definition JSON block did not match the expected shape.");
+  }
+
+  return parsed;
 }
 
-function extractLine(stdout, key) {
+function extractLine(stdout: string, key: ExpectedLineKey): string {
   const line = stdout.split("\n").find((candidate) => candidate.startsWith(`${key} `));
 
   if (!line) {
@@ -52,7 +93,7 @@ function extractLine(stdout, key) {
  * failure — this is deliberately not a boolean return, so failures always
  * propagate with a diagnosable reason instead of being silently swallowed.
  */
-export function assertConsumerBehavior(stdout) {
+export function assertConsumerBehavior(stdout: string): void {
   const definition = extractDefinitionJson(stdout);
 
   if (JSON.stringify(definition) !== JSON.stringify(EXPECTED_DEFINITION)) {
@@ -61,7 +102,7 @@ export function assertConsumerBehavior(stdout) {
     );
   }
 
-  for (const [key, expected] of Object.entries(EXPECTED_LINES)) {
+  for (const [key, expected] of Object.entries(EXPECTED_LINES) as [ExpectedLineKey, string][]) {
     const actual = extractLine(stdout, key);
 
     if (actual !== expected) {

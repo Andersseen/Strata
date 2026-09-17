@@ -33,6 +33,27 @@ Adapter packages may depend on core, never the reverse. Angular-related dependen
 an integration boundary, not the existing metadata package. Decide dependency versus peer ranges
 when testing installed packages; today's dependency declarations are not a final release policy.
 
+## Package compilation, consumer compilation and declaration compatibility
+
+These are distinct boundaries. The private TypeScript pre-transform builds/tests Strata packages;
+it is not shipped as a consumer compiler. SPEC-001 independently demonstrated consumer-written
+standard decorators through `tsc → JavaScript → Vite SSR → Node`, including metadata initialization
+and real H3 requests. Stock Vite 8.3.0 directly on that TypeScript retained decorator syntax and
+Node 22.23.0 rejected it. See [measured results](research/consumer-compilation.md) and
+[review limits](STATE.md), including consumer Rolldown drift.
+
+Consequently, consumers need an explicit lowering stage for this measured path. Neither a public
+`@strata/compiler`/`@strata/vite` package nor the safety of the private transform with Angular AOT
+has been established. Public compiler packaging remains open; M2 owns integration experiments.
+
+Runtime evidence does not qualify declarations. The adapter's public `H3` signature exposes H3's
+declaration graph: its `Error.isError` lib assumption and optional `crossws` import currently block
+strict consumers. Keep this requirement at the adapter/consumer compatibility boundary, never in
+core metadata or a decorator transform. A `lib` addition changes ambient type availability without
+polyfilling Node. Peer optionality at installation does not make a root declaration import optional.
+[SPEC-002](specs/002-h3-consumer-type-closure.md) will qualify or reject a narrow published dependency
+closure; no H3 major change, fork, ambient shim or permanent dependency policy is selected here.
+
 ## HTTP domain
 
 H3 remains the HTTP authority. Future Strata request contracts should prefer `Request`, `Response`,

@@ -5,6 +5,7 @@
     "lib": ["ES2023", "esnext.decorators"],
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
+    "allowImportingTsExtensions": true,
     "moduleDetection": "force",
     "verbatimModuleSyntax": true,
     "isolatedModules": true,

@@ -2,7 +2,8 @@
 
 Baseline: [STATE](STATE.md). Milestones are capability gates, not calendar promises or mandatory
 version numbers. M1–M4 may produce experimental 0.x releases; M5 produces release candidates.
-Each future slice gets its spec immediately before implementation. Only SPEC-001 is ready now.
+Each future slice gets its spec immediately before implementation. Only SPEC-002 is Ready now;
+SPEC-001 was executed and remains Blocked.
 
 ```text
 M0 existing core + H3 GET
@@ -29,17 +30,27 @@ implementation assignment. Baseline prototype endpoints are sufficient to exerci
 
 ## M1 — A consumer can compile and run the primitive
 
-**Status:** next; no completion evidence yet.
+**Status:** Blocked, partially proven. SPEC-001 executed; strict consumer types still fail.
 
 - Capability: a fresh external consumer uses packed Strata packages and its own standard-decorated
   controller with a reproducible TypeScript/Vite compilation recipe.
 - Hypothesis: internal test transforms have not hidden broken package exports, symbol initialization,
   metadata emission or consumer build requirements.
-- Work: execute [SPEC-001](specs/001-packed-consumer-compilation.md), record raw Vite behavior and
-  a working baseline; retain an explicit list of primitive semantic gaps from STATE.
+- Evidence: [SPEC-001](specs/001-packed-consumer-compilation.md) proves packed installation,
+  dependency rewriting/single core, standard-decorator metadata and both Node runtime paths with
+  real H3/native requests. Direct Vite retains decorators and fails in Node; that is successful
+  characterization, not a failure of the reference runtime path.
+- Blocker: AC2 remains unsatisfied by H3 declarations (TS4113 lib mismatch and TS2307 optional
+  peer type leakage). Adding `esnext.error` alone is insufficient. Exact external Rolldown pinning
+  also needs repair; remote CI currently stops at pre-build lint, before consumer qualification.
+- Next: [SPEC-002](specs/002-h3-consumer-type-closure.md) tests one bounded hypothesis: a declared,
+  pinned TypeScript/lib/type-dependency closure can qualify the existing H3 v2 consumer without
+  suppression or dependency patches. If falsified, retain an upstream reproduction and keep M1
+  Blocked; completed investigation is not gate completion. Primitive semantic gaps remain in STATE.
 - Gate: installed tarballs, public declarations, executable production output and route behavior
   verified without workspace source aliases. Evidence must distinguish package build from user-code
-  compilation. No public compiler package is needed to pass this gate.
+  compilation. A clean strict typecheck remains mandatory; successful emitted JS cannot replace it.
+  No public compiler package is needed to pass this gate. M2 remains gated on M1.
 - Still changeable: consumer build recipe, package boundaries, distribution and all framework APIs.
 
 ## M2 — Prove the integration path and the hardest UI requirement

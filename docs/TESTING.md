@@ -1,7 +1,8 @@
 # Testing strategy and evidence
 
 Tests should prove observable contracts and failure boundaries. The existing suite is summarized in
-[STATE](STATE.md); everything below is required future evidence, not coverage already available.
+[STATE](STATE.md). The M1 packed-consumer tooling now exists and has executed; later milestone
+requirements below remain future evidence.
 
 ## Progressive gates
 
@@ -12,6 +13,27 @@ Tests should prove observable contracts and failure boundaries. The existing sui
 | M3   | Core semantics; H3 adapter integration; verbs/input validation/errors/guards/interceptors; Angular providers and Analog SSR/serverFn coexistence | Contract tests through public APIs, failure/abort cases, Node/Workers results                                      |
 | M4   | SSR, hydration, incremental hydration/@defer, navigation, serialization, graph assertions and negative leaks                                     | Production browser/e2e reports, client/server graph artifacts and negative-test diagnostics                        |
 | M5   | Node/Cloudflare deployment, package publication, load/cleanup, compatibility matrix and real application e2e                                     | Candidate digest, deployment records, runtime versions/config, consumer revision, operational and rollback results |
+
+## Current M1 evidence and next checks
+
+`pnpm test:consumer` builds/packs both packages and installs an external consumer. SPEC-001 proves
+its metadata and real H3 behavior through both emitted-JS and Vite reference outputs; direct Vite
+fails at Node parsing. The strict typecheck remains a required failing gate, not an expected-failure
+success. See [original evidence](research/consumer-compilation.md).
+
+[SPEC-002](specs/002-h3-consumer-type-closure.md) defines the next exact type-closure controls and
+promotion criteria. A clean typecheck and runtime proof must come from the same allowed candidate;
+`noEmitOnError: true` prevents a failing candidate from being promoted on emitted output alone.
+Diagnostic matrix success or installation of all platform type packages is not compatibility proof.
+
+Use actual consumer-local H3/TS/Vite/Rolldown resolution, effective options, diagnostic origins and
+fresh outputs. SPEC-001's runner reported workspace Rolldown while the consumer resolved a different
+patch. Preserve the historical report and write new evidence separately. Classify unknown compiler
+errors and installation failures without assigning hard-coded upstream blame.
+
+The merge CI stopped at lint before building core's exported declarations; consumer qualification
+was skipped. Build prerequisites before type-aware lint on a fresh checkout, retain all gates, and
+link the remote result. Local lint with preexisting `dist` does not prove that bootstrap path.
 
 ## HTTP and DI
 

@@ -1,9 +1,14 @@
 const preexisting = Symbol("preexisting-metadata-symbol");
-Symbol.metadata = preexisting;
+Object.defineProperty(Symbol, "metadata", {
+  configurable: true,
+  value: preexisting,
+});
 
 const { Controller } = await import("@strata/core");
 
-if (Symbol.metadata !== preexisting) {
+const currentMetadata = Symbol.metadata as symbol | undefined;
+
+if (currentMetadata !== preexisting) {
   console.log("SYMBOL_PRESERVED false");
   process.exit(1);
 }

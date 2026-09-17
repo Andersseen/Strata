@@ -12,6 +12,7 @@ pnpm build
 pnpm test
 pnpm typecheck
 pnpm lint
+pnpm test:consumer # installed consumer qualification; currently blocked on strict H3 types
 ```
 
 Other useful scripts:
@@ -32,7 +33,9 @@ pnpm changeset     # record a changeset for your change
 3. If it affects a published package, run `pnpm changeset` and describe the
    change.
 4. Open a pull request with acceptance-criteria evidence and relevant compatibility
-   results. CI must pass (lint, typecheck, test, build), together with the spec's checks.
+   results. CI must pass (lint, typecheck, test, build, consumer qualification), together with the
+   spec's checks. Build before type-aware lint on a fresh checkout; see STATE for the current CI
+   bootstrap failure and consumer type blocker.
    Astra reviews architectural coherence before the next spec is prepared.
 
 ## Code style
@@ -42,3 +45,6 @@ and `pnpm lint` before opening a PR. Please keep changes focused and avoid
 introducing packages or APIs outside the accepted spec. Architectural constraints
 and open decisions are documented in [docs/](./docs/README.md). Astra maintains
 architecture and specs; implementation agents own code and tests.
+
+Authored executable source and tooling should use TypeScript. Generated JavaScript must not be
+committed as maintained source.
