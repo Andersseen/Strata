@@ -52,9 +52,17 @@ stable API.
 Nothing here should be considered stable — the API can still change in
 breaking ways before it's published.
 
-A technical roadmap and the rest of the framework design (more HTTP methods,
-parameter decorators, dependency injection, request context, framework
-integrations, etc.) will follow in later iterations.
+The [architecture and SDD documentation](./docs/README.md) records the current
+implementation, decisions, risks and [roadmap to 1.0](./docs/ROADMAP.md).
+The next slice is [packed consumer compilation verification](./docs/specs/001-packed-consumer-compilation.md).
+Request-input APIs, Angular DI and Analog integration still require design
+and experimental evidence; Strata will not use legacy parameter decorators.
+
+Strata 1.0 requires production-ready **Server Components** in a real
+Angular/Analog application: server implementations and dependencies excluded
+from browser output, with explicit interactive Angular descendants and a
+tested navigation strategy. This capability is not implemented yet. See the
+[1.0 release gates](./docs/RELEASE-1.0.md).
 
 ## Packages
 
