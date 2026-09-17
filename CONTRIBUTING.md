@@ -1,8 +1,8 @@
 # Contributing to Strata
 
-Strata is in early development. The project is currently just its technical
-foundation — no framework features exist yet, so the most useful
-contributions right now are around tooling, CI, and infrastructure.
+Strata is in early development. Experimental controller/GET metadata and an
+H3 adapter already exist. See the [current implementation audit](./docs/STATE.md)
+and [SDD workflow](./docs/SDD.md) before starting framework work.
 
 ## Getting started
 
@@ -27,14 +27,18 @@ pnpm changeset     # record a changeset for your change
 ## Workflow
 
 1. Create a branch from `main`.
-2. Make your change.
+2. For framework work, use the single ready [implementation spec](./docs/specs/README.md).
+   Keep the change within its scope; report architectural blockers before expanding it.
 3. If it affects a published package, run `pnpm changeset` and describe the
    change.
-4. Open a pull request. CI must pass (lint, typecheck, test, build).
+4. Open a pull request with acceptance-criteria evidence and relevant compatibility
+   results. CI must pass (lint, typecheck, test, build), together with the spec's checks.
+   Astra reviews architectural coherence before the next spec is prepared.
 
 ## Code style
 
 Formatting is enforced by Prettier and linting by ESLint — run `pnpm format`
 and `pnpm lint` before opening a PR. Please keep changes focused and avoid
-introducing new packages or APIs without discussing them first, since the
-project's architecture hasn't been decided yet.
+introducing packages or APIs outside the accepted spec. Architectural constraints
+and open decisions are documented in [docs/](./docs/README.md). Astra maintains
+architecture and specs; implementation agents own code and tests.
