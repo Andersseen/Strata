@@ -11,38 +11,57 @@ designed with [Angular](https://angular.dev) and
 
 ## Status: early development
 
-This repository is still in early development. `@strata/core` now has a
-first **experimental** API for declaring controllers and routes, built on
-standard ECMAScript decorators — but there is no HTTP runtime yet, nothing
-is wired up to H3, and nothing is published to npm.
+This repository is still in early development. `@strata/core` has a first
+**experimental** API for declaring controllers and routes, built on standard
+ECMAScript decorators, and `@strata/h3` now wires that metadata into a real
+[H3](https://h3.dev) app — but nothing here is published to npm yet.
 
 ```ts
+import { H3 } from "h3";
 import { Controller, Get } from "@strata/core";
+import { registerControllers } from "@strata/h3";
 
 @Controller("/users")
 class UsersController {
   @Get()
   findAll() {
-    return [];
+    return [{ id: "1" }];
   }
 }
+
+const app = new H3();
+
+registerControllers(app, [UsersController]);
 ```
 
 `@Controller` and `@Get` only build declarative metadata describing a
-controller's routes; a future `@strata/h3` adapter will be responsible for
-turning that metadata into an actual running server. Nothing here should be
-considered stable — the API can still change in breaking ways before it's
-published.
+controller's routes. `@strata/h3` is a thin adapter on top of that metadata:
+it reads each controller's definition via `@strata/core`'s public
+`getControllerDefinition` API, registers its `@Get()` routes directly on the
+H3 app you pass in, and invokes the matching controller method when H3
+resolves a route. Strata does not replace H3 or own the HTTP runtime — you
+still create and control the `H3` instance yourself, and any routes you
+register on it directly keep working unchanged.
+
+There is no dependency injection or controller lifecycle yet: `@strata/h3`
+instantiates each controller once, with `new ControllerClass()`, at
+registration time. This is a deliberately minimal, provisional placeholder
+until a real lifecycle/DI design lands in a later iteration — it is not a
+stable API.
+
+Nothing here should be considered stable — the API can still change in
+breaking ways before it's published.
 
 A technical roadmap and the rest of the framework design (more HTTP methods,
-parameter decorators, dependency injection, framework integrations, etc.)
-will follow in later iterations.
+parameter decorators, dependency injection, request context, framework
+integrations, etc.) will follow in later iterations.
 
 ## Packages
 
-| Package                           | Description                                             |
-| --------------------------------- | ------------------------------------------------------- |
-| [`@strata/core`](./packages/core) | Experimental `@Controller` / `@Get` metadata primitive. |
+| Package                           | Description                                                         |
+| --------------------------------- | ------------------------------------------------------------------- |
+| [`@strata/core`](./packages/core) | Experimental `@Controller` / `@Get` metadata primitive.             |
+| [`@strata/h3`](./packages/h3)     | Experimental H3 adapter: registers Strata controllers on an H3 app. |
 
 ## Stack
 
