@@ -5,21 +5,51 @@ locally exercised versions, researched candidates and qualified release combinat
 
 ## Baseline and target selection
 
-| Layer           | Evidence today                                                  | Initial qualification policy                                                                                                                                            |
-| --------------- | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Node            | Manifests `>=22`; CI configured for 22; local tests on 22.23.0  | Initially qualify Node 22 at a concrete patch satisfying all consumer engines. Reassess maintained Node lines before RC; `>=22` is not a promise of every future major. |
-| H3              | Adapter range `^2.0.1-rc.1`, lock 2.0.1-rc.32, in-process tests | Initial standalone adapter baseline is the locked v2 RC. Pin exact test resolutions; no v1 claim. Resolve Analog mismatch at M2.                                        |
-| Angular         | Not installed                                                   | First investigate a published Angular 22 tuple compatible with TS 6.0.3; verify exact compiler/SSR/core versions together. No support claim yet.                        |
-| Analog          | Not installed; current source documents 2.x integrations        | Pin a coherent released platform/router/Angular-plugin/Nitro-plugin set in M2. Verify required server-function APIs exist; mutable `main` is not a release.             |
-| Nitro           | Not installed; Analog source currently declares nitropack 2.x   | Test the version Analog actually resolves. Do not substitute Nitro 3 documentation or config without a migration experiment.                                            |
-| TypeScript      | 6.0.3 in repository                                             | M1 baseline 6.0.3; consumer compiler must satisfy Angular's exact peer constraints. No assumption that an Angular 21 app accepts it.                                    |
-| Vite / Rolldown | Vite 8.3.0; Rolldown 1.2.8 locked                               | Qualify dev and production builds on the pinned tuple; broad upstream peers do not validate transform order.                                                            |
-| Cloudflare      | No fixture or deployment                                        | Pin workerd/Wrangler, compatibility date, flags and Nitro preset. Qualify actual Workers execution, including Analog deployment output.                                 |
-| Browser         | No browser tests                                                | Adopt the selected Angular version's browser policy and record tested browser versions in M4/M5.                                                                        |
+| Layer           | Evidence today                                                                               | Initial qualification policy                                                                                                                                            |
+| --------------- | -------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Node            | Manifests `>=22`; CI configured for 22; local tests on 22.23.0                               | Initially qualify Node 22 at a concrete patch satisfying all consumer engines. Reassess maintained Node lines before RC; `>=22` is not a promise of every future major. |
+| H3              | Adapter range `^2.0.1-rc.1`, lock/consumer 2.0.1-rc.32; runtime passes, strict types blocked | Initial standalone adapter baseline is the locked v2 RC. Pin exact test resolutions; no v1 claim. Resolve Analog mismatch at M2.                                        |
+| Angular         | Not installed                                                                                | First investigate a published Angular 22 tuple compatible with TS 6.0.3; verify exact compiler/SSR/core versions together. No support claim yet.                        |
+| Analog          | Not installed; current source documents 2.x integrations                                     | Pin a coherent released platform/router/Angular-plugin/Nitro-plugin set in M2. Verify required server-function APIs exist; mutable `main` is not a release.             |
+| Nitro           | Not installed; Analog source currently declares nitropack 2.x                                | Test the version Analog actually resolves. Do not substitute Nitro 3 documentation or config without a migration experiment.                                            |
+| TypeScript      | 6.0.3 in repository and isolated consumer; explicit libs omit `esnext.error`                 | M1 baseline 6.0.3; consumer compiler must satisfy Angular's exact peer constraints. No assumption that an Angular 21 app accepts it.                                    |
+| Vite / Rolldown | Vite 8.3.0; workspace Rolldown 1.2.8, retained consumer 1.2.9                                | Qualify dev and production builds on the pinned tuple; broad upstream peers do not validate transform order.                                                            |
+| Cloudflare      | No fixture or deployment                                                                     | Pin workerd/Wrangler, compatibility date, flags and Nitro preset. Qualify actual Workers execution, including Analog deployment output.                                 |
+| Browser         | No browser tests                                                                             | Adopt the selected Angular version's browser policy and record tested browser versions in M4/M5.                                                                        |
 
 Upstream constraints and source links are in [RESEARCH](RESEARCH.md). A supported tuple must include
 all these layers together, the Strata candidate digest and the fixture lockfile. Individual compatible
 ranges do not establish that their cross-product is supported.
+
+## Current M1 consumer contract: experimental and blocked
+
+[SPEC-001](specs/001-packed-consumer-compilation.md) proves the external package/runtime path,
+not a clean strict type contract. Its TypeScript 6.0.3 / NodeNext / ES2023 consumer, with libs
+`ES2023`, `DOM`, `DOM.Iterable`, `esnext.decorators` and Node types, fails in H3 rc.32 declarations.
+Workspace `skipLibCheck: true` is not the consumer policy; the installed-package gate must check
+all reachable declarations without suppression.
+
+The [current review](research/h3-consumer-type-compatibility.md) verified that H3 npm `latest` is
+still rc.32 and no later inspected code change fixes this. TypeScript npm `latest` is 7.0.2, but
+Strata remains on 6.0.3: upgrading the compiler is not an established remedy.
+
+- Adding `esnext.error` removes the H3 override error in a measured TS 6.0.3 probe, but does not
+  resolve crossws. It is an eligible **new experimental lib requirement**, not an accepted change
+  to the original SPEC-001 result. It supplies ambient types, not Node runtime implementation.
+- H3's optional crossws peer leaks into the mandatory root declaration graph. crossws 0.4.12 in
+  turn exposes platform adapter types. Neither declaring a peer nor adding a consumer devDependency
+  proves that the graph is closed. Do not impose Bun/Workers ambient environments on a Node GET
+  consumer to call it qualified.
+- [SPEC-002](specs/002-h3-consumer-type-closure.md) fixes the candidate versions and go/no-go rules.
+  It may qualify an explicit temporary consumer recipe; it does not change shipped peer/dependency
+  policy. No clean recipe means an upstream reproduction and continued M1 blocking, not M2 work.
+- Pin and report actual consumer transitive versions. SPEC-001's workspace Rolldown value does
+  not establish its isolated consumer version. Clean-checkout CI must reach the qualification step.
+
+A compatibility claim needs **both** zero strict consumer diagnostics and successful runtime output
+on the same measured tuple. Do not patch dependency declarations, add ambient stubs, cast away the
+H3 boundary or set `skipLibCheck` to satisfy that claim. A release upgrade or declaration repair
+must be independently qualified before changing this temporary blocked disposition.
 
 ## H3 transition
 

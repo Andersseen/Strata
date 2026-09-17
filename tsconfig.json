@@ -4,5 +4,11 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["vitest.config.ts"]
+  "include": [
+    "eslint.config.ts",
+    "tests/consumer/fixture/*.ts",
+    "tools/**/*.ts",
+    "types/**/*.d.ts",
+    "vitest.config.ts"
+  ]
 }

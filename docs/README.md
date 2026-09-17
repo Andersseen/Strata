@@ -27,8 +27,11 @@ linked evidence. Research describes upstream claims, not Strata compatibility.
 
 ## Current handoff
 
-- Audited baseline: `9d2635e`, 2026-09-17. Both packages remain experimental at `0.0.0`.
-- Next: [SPEC-001 — packed consumer compilation baseline](specs/001-packed-consumer-compilation.md).
+- Audited baseline: `f258fc3`, 2026-09-17 (SPEC-001 merged). Both packages remain experimental at `0.0.0`.
+- SPEC-001 executed: packed-consumer runtime passes; strict H3 declarations block M1.
+- Next: [SPEC-002 — H3 consumer type closure](specs/002-h3-consumer-type-closure.md).
+- [Review evidence](research/h3-consumer-type-compatibility.md) includes current upstream research,
+  the consumer Rolldown discrepancy and remote CI failure before consumer qualification.
 - No Angular integration or Server Components implementation exists yet.
 - 1.0 requires production Server Components, automated boundary evidence and a real consumer.
 

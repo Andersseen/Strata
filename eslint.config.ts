@@ -61,11 +61,5 @@ export default config(
     files: ["**/*.config.{js,ts,mjs,cjs}"],
     ...tsConfigs.disableTypeChecked,
   },
-  {
-    // Plain-JS consumer-qualification runner (SPEC-001): no tsconfig covers
-    // it on purpose, since it orchestrates an isolated external install.
-    files: ["tools/consumer/**/*.mjs"],
-    ...tsConfigs.disableTypeChecked,
-  },
   eslintConfigPrettier,
 );

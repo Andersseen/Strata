@@ -54,7 +54,8 @@ breaking ways before it's published.
 
 The [architecture and SDD documentation](./docs/README.md) records the current
 implementation, decisions, risks and [roadmap to 1.0](./docs/ROADMAP.md).
-The next slice is [packed consumer compilation verification](./docs/specs/001-packed-consumer-compilation.md).
+Packed consumer runtime verification has executed; strict H3 declaration compatibility still blocks M1.
+The next slice is [H3 consumer type closure](./docs/specs/002-h3-consumer-type-closure.md).
 Request-input APIs, Angular DI and Analog integration still require design
 and experimental evidence; Strata will not use legacy parameter decorators.
 

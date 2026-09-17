@@ -3,38 +3,58 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { assertConsumerBehavior, ConsumerAssertionError } from "./lib/assert.mjs";
-import { run } from "./lib/exec.mjs";
-import { copyDirRecursive, findScopedPackageDirs, sha256File } from "./lib/fs-helpers.mjs";
-import { renderReport } from "./lib/report.mjs";
+import { assertConsumerBehavior, ConsumerAssertionError } from "./lib/assert.ts";
+import { run } from "./lib/exec.ts";
+import type { CommandResult } from "./lib/exec.ts";
+import { copyDirRecursive, findScopedPackageDirs, sha256File } from "./lib/fs-helpers.ts";
+import { renderReport } from "./lib/report.ts";
+import type { ConsumerReport } from "./lib/report.ts";
+
+type CommandSummary = ConsumerReport["commands"][number];
+type AcceptanceResult = ConsumerReport["acceptance"][string];
+type Blocker = ConsumerReport["blockers"][number];
+type StageExecution = ConsumerReport["reference"]["stage1Execution"];
+type ProcessEvidence = ConsumerReport["reference"]["viteBuild"];
+
+interface ConsumerPackageJson {
+  dependencies: Record<string, string>;
+}
+
+interface PackageJsonWithVersion {
+  version: string;
+}
+
+interface H3PackageJson {
+  dependencies?: Record<string, string>;
+}
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(__dirname, "..", "..");
 const fixtureDir = join(repoRoot, "tests", "consumer", "fixture");
 const reportPath = join(repoRoot, "docs", "research", "consumer-compilation.md");
 
-const commands = [];
-const blockers = [];
+const commands: CommandSummary[] = [];
+const blockers: Blocker[] = [];
 
-function record(label, result) {
+function record(label: string, result: CommandResult): CommandResult {
   commands.push({ label, command: result.command, status: result.status });
   return result;
 }
 
-function tarContents(tarballPath) {
+function tarContents(tarballPath: string): string[] {
   const result = run("tar", ["-tzf", tarballPath]);
   return result.stdout.trim().split("\n").filter(Boolean);
 }
 
-function readJson(path) {
-  return JSON.parse(readFileSync(path, "utf8"));
+function readJson<T>(path: string): T {
+  return JSON.parse(readFileSync(path, "utf8")) as T;
 }
 
-function writeJson(path, value) {
+function writeJson(path: string, value: unknown): void {
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
 }
 
-function classifyStage(execResult, label) {
+function classifyStage(execResult: CommandResult, label: string): StageExecution {
   if (execResult.status !== 0) {
     return {
       assertion: "fail",
@@ -47,11 +67,15 @@ function classifyStage(execResult, label) {
     assertConsumerBehavior(execResult.stdout);
     return { assertion: "pass", error: null, stdoutExcerpt: execResult.stdout };
   } catch (error) {
-    return { assertion: "fail", error: error.message, stdoutExcerpt: execResult.stdout };
+    return {
+      assertion: "fail",
+      error: error instanceof Error ? error.message : String(error),
+      stdoutExcerpt: execResult.stdout,
+    };
   }
 }
 
-function fail(message) {
+function fail(message: string): void {
   console.error(`\n[test:consumer] BLOCKED: ${message}\n`);
 }
 
@@ -61,7 +85,8 @@ let rolldownVersion = "unknown";
 try {
   const lockfile = readFileSync(join(repoRoot, "pnpm-lock.yaml"), "utf8");
   const match = lockfile.match(/rolldown@([0-9.]+(?:-[\w.]+)?)/);
-  if (match) rolldownVersion = match[1];
+  const matchedVersion = match?.[1];
+  if (matchedVersion) rolldownVersion = matchedVersion;
 } catch {
   // Lockfile parse is best-effort evidence only; leave "unknown" on failure.
 }
@@ -69,7 +94,7 @@ try {
 const tmpRoot = mkdtempSync(join(tmpdir(), "strata-consumer-"));
 console.log(`[test:consumer] Temporary workspace: ${tmpRoot}`);
 
-let hardFailureMessage = null;
+let hardFailureMessage: string | null = null;
 
 // --- Step 1: build core + adapter from the checkout -----------------------
 const buildResult = record(
@@ -119,8 +144,8 @@ if (!hardFailureMessage && (!existsSync(corePath) || !existsSync(h3Path))) {
   hardFailureMessage = `Expected tarballs missing after pack: ${corePath}, ${h3Path}.`;
 }
 
-let tarballs = null;
-let dependencyRewrite = null;
+let tarballs: ConsumerReport["tarballs"] | null = null;
+let dependencyRewrite: ConsumerReport["dependencyRewrite"] | null = null;
 
 if (!hardFailureMessage) {
   tarballs = {
@@ -137,7 +162,7 @@ if (!hardFailureMessage) {
   };
 
   const h3PackedPkgJson = run("tar", ["-xOzf", h3Path, "package/package.json"]).stdout;
-  const h3PackedDeps = JSON.parse(h3PackedPkgJson).dependencies ?? {};
+  const h3PackedDeps = (JSON.parse(h3PackedPkgJson) as H3PackageJson).dependencies ?? {};
   const h3PackedCoreDependency = h3PackedDeps["@strata/core"] ?? "(missing)";
 
   dependencyRewrite = {
@@ -156,13 +181,13 @@ if (!hardFailureMessage) {
 
 // --- Step 2: isolated external consumer ------------------------------------
 const consumerDir = join(tmpRoot, "consumer");
-let coreCopyPaths = [];
+let coreCopyPaths: string[] = [];
 let resolvedH3Version = "(not installed)";
 
 if (!hardFailureMessage) {
   copyDirRecursive(fixtureDir, consumerDir);
 
-  const consumerPkg = readJson(join(consumerDir, "package.json"));
+  const consumerPkg = readJson<ConsumerPackageJson>(join(consumerDir, "package.json"));
   consumerPkg.dependencies["@strata/core"] = `file:${corePath}`;
   consumerPkg.dependencies["@strata/h3"] = `file:${h3Path}`;
   writeJson(join(consumerDir, "package.json"), consumerPkg);
@@ -176,7 +201,9 @@ if (!hardFailureMessage) {
     hardFailureMessage = "Isolated consumer `npm install` failed; see command output above.";
   } else {
     coreCopyPaths = findScopedPackageDirs(join(consumerDir, "node_modules"), "@strata", "core");
-    resolvedH3Version = readJson(join(consumerDir, "node_modules", "h3", "package.json")).version;
+    resolvedH3Version = readJson<PackageJsonWithVersion>(
+      join(consumerDir, "node_modules", "h3", "package.json"),
+    ).version;
 
     if (coreCopyPaths.length !== 1) {
       blockers.push({
@@ -189,8 +216,8 @@ if (!hardFailureMessage) {
 }
 
 // --- Steps 4-5: reference recipe (tsc, then Vite, then Node) ---------------
-let reference = null;
-let versions = {
+let reference: ConsumerReport["reference"] | null = null;
+const versions = {
   node: process.version,
   pnpm: pnpmVersion,
   tsc: "(not run)",
@@ -200,8 +227,12 @@ let versions = {
 };
 
 if (!hardFailureMessage) {
-  versions.tsc = readJson(join(consumerDir, "node_modules", "typescript", "package.json")).version;
-  versions.vite = readJson(join(consumerDir, "node_modules", "vite", "package.json")).version;
+  versions.tsc = readJson<PackageJsonWithVersion>(
+    join(consumerDir, "node_modules", "typescript", "package.json"),
+  ).version;
+  versions.vite = readJson<PackageJsonWithVersion>(
+    join(consumerDir, "node_modules", "vite", "package.json"),
+  ).version;
 
   const tscBin = join(consumerDir, "node_modules", ".bin", "tsc");
   const tscResult = record(
@@ -230,7 +261,7 @@ if (!hardFailureMessage) {
   const viteBin = join(consumerDir, "node_modules", ".bin", "vite");
   const viteBuildResult = record(
     "vite build (reference stage 2)",
-    run(viteBin, ["build", "--config", "vite.reference.config.mjs"], { cwd: consumerDir }),
+    run(viteBin, ["build", "--config", "vite.reference.config.ts"], { cwd: consumerDir }),
   );
 
   const refBundlePath = join(consumerDir, "vite-reference-dist", "main.js");
@@ -283,18 +314,18 @@ if (!hardFailureMessage) {
 }
 
 // --- Step 6: direct-Vite characterization -----------------------------------
-let directVite = null;
+let directVite: ConsumerReport["directVite"] | null = null;
 
 if (!hardFailureMessage) {
   const viteBin = join(consumerDir, "node_modules", ".bin", "vite");
   const directBuildResult = record(
     "vite build (direct characterization)",
-    run(viteBin, ["build", "--config", "vite.direct.config.mjs"], { cwd: consumerDir }),
+    run(viteBin, ["build", "--config", "vite.direct.config.ts"], { cwd: consumerDir }),
   );
 
   const directBundlePath = join(consumerDir, "vite-direct-dist", "main.js");
-  let outcome;
-  let execution = { status: null, stdout: "", stderr: "(not run — build failed)" };
+  let outcome: ConsumerReport["directVite"]["outcome"];
+  let execution: ProcessEvidence = { status: null, stdout: "", stderr: "(not run — build failed)" };
 
   if (directBuildResult.status !== 0 || !existsSync(directBundlePath)) {
     outcome = "build_failed";
@@ -329,14 +360,18 @@ if (!hardFailureMessage) {
 }
 
 // --- Guarded Symbol.metadata preservation -----------------------------------
-let symbolPreservation = { status: null, passed: false };
+let symbolPreservation: ConsumerReport["symbolPreservation"] = { status: null, passed: false };
 
 if (!hardFailureMessage) {
   const symResult = record(
     "node (symbol preservation check)",
-    run(process.execPath, [join(consumerDir, "symbol-preservation-check.mjs")], {
-      cwd: consumerDir,
-    }),
+    run(
+      process.execPath,
+      ["--experimental-strip-types", join(consumerDir, "symbol-preservation-check.ts")],
+      {
+        cwd: consumerDir,
+      },
+    ),
   );
 
   symbolPreservation = {
@@ -395,24 +430,24 @@ if (!corruptedResponseDetected) {
 }
 
 // --- Acceptance criteria evaluation -----------------------------------------
-function acPass(evidence) {
+function acPass(evidence: string): AcceptanceResult {
   return { status: "Pass", evidence };
 }
-function acFail(evidence) {
+function acFail(evidence: string): AcceptanceResult {
   return { status: "Fail", evidence };
 }
-function acBlocked(evidence) {
+function acBlocked(evidence: string): AcceptanceResult {
   return { status: "Blocked", evidence };
 }
 
-const acceptance = {};
+const acceptance: ConsumerReport["acceptance"] = {};
 
 if (hardFailureMessage) {
   for (const id of ["AC1", "AC2", "AC3", "AC4", "AC5", "AC6"]) {
     acceptance[id] = acFail(`Not evaluated — infrastructure failure: ${hardFailureMessage}`);
   }
 } else {
-  acceptance.AC1 = tarballs
+  acceptance["AC1"] = tarballs
     ? acPass(
         `Built and packed from checkout; tarballs \`${tarballs.core.fileName}\`, \`${tarballs.h3.fileName}\` with recorded digests.`,
       )
@@ -423,11 +458,11 @@ if (hardFailureMessage) {
   const ac2TypecheckClean = reference && reference.tsc.status === 0;
 
   if (ac2SingleCore && ac2NoWorkspace && ac2TypecheckClean) {
-    acceptance.AC2 = acPass(
+    acceptance["AC2"] = acPass(
       "Single resolved core copy, no workspace: protocol, and tsc typechecked cleanly.",
     );
   } else {
-    acceptance.AC2 = acBlocked(
+    acceptance["AC2"] = acBlocked(
       `Single resolved core copy: ${ac2SingleCore}. No workspace: protocol: ${ac2NoWorkspace}. ` +
         `Clean tsc typecheck: ${ac2TypecheckClean} — see R01/R14 blocker below (root cause isolated to h3's own ` +
         "declaration files, not to @strata/core or @strata/h3).",
@@ -436,7 +471,7 @@ if (hardFailureMessage) {
 
   const ac3Pass =
     reference && reference.stage1Execution.assertion === "pass" && symbolPreservation.passed;
-  acceptance.AC3 = ac3Pass
+  acceptance["AC3"] = ac3Pass
     ? acPass(
         "tsc-emitted JS reports the expected definition/routes and preserves a preexisting Symbol.metadata.",
       )
@@ -448,7 +483,7 @@ if (hardFailureMessage) {
     reference &&
     reference.stage1Execution.assertion === "pass" &&
     reference.stage2Execution.assertion === "pass";
-  acceptance.AC4 = ac4Pass
+  acceptance["AC4"] = ac4Pass
     ? acPass(
         "Both tsc-emitted JS and the Vite-bundled reference output return the expected sync/async/native responses.",
       )
@@ -456,24 +491,24 @@ if (hardFailureMessage) {
         `stage1: ${reference?.stage1Execution.assertion ?? "not run"}; stage2: ${reference?.stage2Execution.assertion ?? "not run"}.`,
       );
 
-  acceptance.AC5 = directVite
+  acceptance["AC5"] = directVite
     ? acPass(
         `Direct-Vite outcome recorded as "${directVite.outcome}" with build/execution diagnostics captured.`,
       )
     : acFail("Direct-Vite arm did not run.");
 
   const ac6Pass = missingTarballTriggered && corruptedResponseDetected;
-  acceptance.AC6 = ac6Pass
+  acceptance["AC6"] = ac6Pass
     ? acPass("Missing-tarball install and corrupted-response assertion both failed as required.")
     : acFail(
         `missingTarballTriggered=${missingTarballTriggered}, corruptedResponseDetected=${corruptedResponseDetected}.`,
       );
 }
 
-acceptance.AC7 = acPass(
+acceptance["AC7"] = acPass(
   "`.github/workflows/ci.yml` runs `pnpm test:consumer` on the repository's Node 22/pnpm 10.30.1 runner after building; this report documents the two-stage recipe and excludes Angular/Analog claims.",
 );
-acceptance.AC8 = acPass(
+acceptance["AC8"] = acPass(
   "No production source, package manifest, or private transform was modified by this slice; this report maps every acceptance ID to evidence and lists blockers below.",
 );
 

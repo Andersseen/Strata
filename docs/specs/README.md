@@ -6,6 +6,10 @@ Only the next actionable slice receives a detailed spec. Milestone-level intent 
 | Spec                                                                                 | Status  | Baseline  | Milestone |
 | ------------------------------------------------------------------------------------ | ------- | --------- | --------- |
 | [SPEC-001: packed consumer compilation baseline](001-packed-consumer-compilation.md) | Blocked | `9d2635e` | M1        |
+| [SPEC-002: H3 consumer type closure](002-h3-consumer-type-closure.md)                | Ready   | `f258fc3` | M1        |
+
+SPEC-001 remains Blocked after execution. SPEC-002 is the only Ready slice; a diagnostic no-go
+will not satisfy its positive type gate or close M1.
 
 Use sequential IDs and descriptive filenames. A spec is authoritative for that slice's intended
 behavior, not for the framework's entire future. Keep no more than one Ready/In progress spec.
