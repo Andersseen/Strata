@@ -1,0 +1,58 @@
+{
+  "name": "@strata/h3",
+  "version": "0.0.0",
+  "description": "Experimental H3 adapter for @strata/core — registers Strata controllers on an H3 app.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Andersseen",
+  "homepage": "https://github.com/Andersseen/strata#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Andersseen/strata.git",
+    "directory": "packages/h3"
+  },
+  "bugs": {
+    "url": "https://github.com/Andersseen/strata/issues"
+  },
+  "keywords": [
+    "strata",
+    "typescript",
+    "server",
+    "h3",
+    "angular",
+    "analogjs",
+    "nitro",
+    "backend",
+    "framework"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=22"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "dev": "vite build --watch",
+    "build": "vite build",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@strata/core": "workspace:*",
+    "h3": "^2.0.1-rc.1"
+  }
+}
