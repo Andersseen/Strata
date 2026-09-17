@@ -13,6 +13,10 @@ export default config(
       "**/.turbo/**",
       "**/node_modules/**",
       "pnpm-lock.yaml",
+      // Fixture source for a fully external Strata consumer (SPEC-001):
+      // compiled by its own isolated tsc/Vite install, never by this repo's
+      // tsconfigs, so it is intentionally outside this repo's lint project.
+      "tests/consumer/fixture/**",
     ],
   },
   js.configs.recommended,
@@ -55,6 +59,12 @@ export default config(
   },
   {
     files: ["**/*.config.{js,ts,mjs,cjs}"],
+    ...tsConfigs.disableTypeChecked,
+  },
+  {
+    // Plain-JS consumer-qualification runner (SPEC-001): no tsconfig covers
+    // it on purpose, since it orchestrates an isolated external install.
+    files: ["tools/consumer/**/*.mjs"],
     ...tsConfigs.disableTypeChecked,
   },
   eslintConfigPrettier,

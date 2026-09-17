@@ -1,0 +1,19 @@
+{
+  "name": "strata-consumer-fixture",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "dependencies": {
+    "@strata/core": "REPLACED_BY_RUNNER",
+    "@strata/h3": "REPLACED_BY_RUNNER",
+    "h3": "2.0.1-rc.32"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.3",
+    "typescript": "6.0.3",
+    "vite": "8.3.0"
+  },
+  "overrides": {
+    "@strata/core": "$@strata/core"
+  }
+}

@@ -3,9 +3,9 @@
 Only the next actionable slice receives a detailed spec. Milestone-level intent lives in
 [ROADMAP](../ROADMAP.md); workflow and authority live in [SDD](../SDD.md).
 
-| Spec                                                                                 | Status                 | Baseline  | Milestone |
-| ------------------------------------------------------------------------------------ | ---------------------- | --------- | --------- |
-| [SPEC-001: packed consumer compilation baseline](001-packed-consumer-compilation.md) | Ready; not implemented | `9d2635e` | M1        |
+| Spec                                                                                 | Status  | Baseline  | Milestone |
+| ------------------------------------------------------------------------------------ | ------- | --------- | --------- |
+| [SPEC-001: packed consumer compilation baseline](001-packed-consumer-compilation.md) | Blocked | `9d2635e` | M1        |
 
 Use sequential IDs and descriptive filenames. A spec is authoritative for that slice's intended
 behavior, not for the framework's entire future. Keep no more than one Ready/In progress spec.
