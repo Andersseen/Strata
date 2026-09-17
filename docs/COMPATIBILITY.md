@@ -43,6 +43,16 @@ Strata remains on 6.0.3: upgrading the compiler is not an established remedy.
 - [SPEC-002](specs/002-h3-consumer-type-closure.md) fixes the candidate versions and go/no-go rules.
   It may qualify an explicit temporary consumer recipe; it does not change shipped peer/dependency
   policy. No clean recipe means an upstream reproduction and continued M1 blocking, not M2 work.
+- **SPEC-002 executed: measured no-go.** Declaring `crossws@0.4.12` as an explicit dependency (case C)
+  does not close the graph — crossws's own root declarations unconditionally import `bun` and
+  `cloudflare:workers`/`@cloudflare/workers-types` from internal chunk files, regardless of whether the
+  HTTP-only consumer ever touches WebSockets. Installing Bun/Workers type providers without activating
+  them (case D-node-only) still fails, because crossws's `"bun"` import is resolved by ordinary module
+  resolution, not by TypeScript's `types` filtering. Activating those providers (case D-full-providers)
+  is disqualified by policy for a Node-only consumer regardless of outcome, and independently produces
+  125 diagnostics from `@cloudflare/workers-types` redeclaring DOM/Node globals. See
+  [measured evidence](research/consumer-type-closure.md) and
+  [SPEC-002's implementation result](specs/002-h3-consumer-type-closure.md#implementation-result).
 - Pin and report actual consumer transitive versions. SPEC-001's workspace Rolldown value does
   not establish its isolated consumer version. Clean-checkout CI must reach the qualification step.
 

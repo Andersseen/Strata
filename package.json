@@ -14,6 +14,7 @@
     "build": "turbo run build",
     "test": "turbo run test",
     "test:consumer": "node --experimental-strip-types tools/consumer/run.ts",
+    "test:consumer:types": "node --experimental-strip-types tools/consumer/type-closure/run.ts",
     "test:watch": "vitest",
     "typecheck": "turbo run typecheck",
     "lint": "eslint .",

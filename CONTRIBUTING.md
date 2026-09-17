@@ -12,6 +12,7 @@ pnpm build
 pnpm test
 pnpm typecheck
 pnpm lint
+pnpm test:consumer:types # SPEC-002 H3 declaration-closure experiment; no eligible candidate found
 pnpm test:consumer # installed consumer qualification; currently blocked on strict H3 types
 ```
 
@@ -33,9 +34,9 @@ pnpm changeset     # record a changeset for your change
 3. If it affects a published package, run `pnpm changeset` and describe the
    change.
 4. Open a pull request with acceptance-criteria evidence and relevant compatibility
-   results. CI must pass (lint, typecheck, test, build, consumer qualification), together with the
-   spec's checks. Build before type-aware lint on a fresh checkout; see STATE for the current CI
-   bootstrap failure and consumer type blocker.
+   results. CI must pass (build, lint, typecheck, test, consumer type-closure experiment, consumer
+   qualification), together with the spec's checks. CI builds before type-aware lint on a fresh
+   checkout; see STATE for the consumer type blocker.
    Astra reviews architectural coherence before the next spec is prepared.
 
 ## Code style

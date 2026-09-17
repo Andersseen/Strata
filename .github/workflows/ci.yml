@@ -29,6 +29,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Build before type-aware lint/typecheck: lint uses typescript-eslint's
+      # projectService, which resolves `@strata/core`/`@strata/h3` through
+      # their package.json `exports` (pointing at `dist`). On a clean
+      # checkout those declarations don't exist until packages are built, so
+      # lint must run after build, not before (see docs/STATE.md).
+      - name: Build
+        run: pnpm build
+
       - name: Lint
         run: pnpm lint
 
@@ -38,8 +46,8 @@ jobs:
       - name: Test
         run: pnpm test
 
-      - name: Build
-        run: pnpm build
+      - name: Consumer type-closure experiment (SPEC-002)
+        run: pnpm test:consumer:types
 
       - name: Consumer qualification
         run: pnpm test:consumer

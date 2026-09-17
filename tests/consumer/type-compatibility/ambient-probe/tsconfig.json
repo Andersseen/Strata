@@ -1,0 +1,12 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["REPLACED_BY_RUNNER"],
+    "types": ["REPLACED_BY_RUNNER"],
+    "strict": true,
+    "noEmit": true
+  },
+  "include": ["src"]
+}
