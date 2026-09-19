@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.app.json",
+  "include": [
+    "src/**/*.d.ts",
+    "src/app/pages/**/*.page.ts",
+    "src/server/middleware/**/*.ts",
+    "src/probes/angular-graph/pages/**/*.page.ts"
+  ]
+}

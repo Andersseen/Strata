@@ -1,0 +1,6 @@
+{
+  "extends": "./tsconfig.probe.app.json",
+  "compilerOptions": {
+    "experimentalDecorators": false
+  }
+}

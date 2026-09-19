@@ -4,3 +4,14 @@ packages:
 
 onlyBuiltDependencies:
   - unrs-resolver
+
+# @analogjs/vite-plugin-nitro@2.7.2 imports `h3` (createEvent, ...) but does not
+# declare it. Under pnpm's default hoisting the bare import resolves to whichever
+# `h3` is hoisted — in this workspace @strata/h3's H3 v2, which lacks the H3 v1
+# API Analog/Nitro 2 expects (`createEvent`). Declare the H3 major Nitro 2 uses
+# so the plugin resolves the same h3 as nitropack. See
+# docs/research/analog-integration-baseline.md.
+packageExtensions:
+  "@analogjs/vite-plugin-nitro":
+    dependencies:
+      h3: ^1.15.11

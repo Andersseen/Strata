@@ -21,6 +21,11 @@ export default config(
       // compiled by its own isolated, per-case tsc install with a runner-
       // generated tsconfig, never by this repo's tsconfigs.
       "tests/consumer/type-compatibility/**",
+      // Analog integration fixture (apps/analog-fixture): compiled by Analog's
+      // own Angular/Nitro pipelines with the stock `experimentalDecorators`
+      // tsconfig, never by this repo's tsconfigs. Its authored TypeScript is
+      // still covered by Prettier.
+      "apps/analog-fixture/**",
     ],
   },
   js.configs.recommended,
