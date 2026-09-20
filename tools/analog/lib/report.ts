@@ -1,4 +1,4 @@
-import { CLIENT_MARKER, SERVER_MARKER } from "./constants.ts";
+import { CLIENT_MARKER, CONTROLLER_MARKER, SERVER_MARKER } from "./constants.ts";
 
 export type Outcome = "A" | "B" | "C" | "D";
 
@@ -61,6 +61,34 @@ export interface MarkerScan {
   serverMarker: string[];
   clientControlMarker: string[];
   coreInternalSymbol: string[];
+  controllerMarker: string[];
+  analogAdapterSymbol: string[];
+  h3AdapterSymbol: string[];
+}
+
+export interface RouteRow {
+  route: string;
+  mode: string;
+  status: number;
+  contentType: string | null;
+  body: string;
+}
+
+/** Observations about `@strata/analog` itself and the fixture that consumes it. */
+export interface AdapterReport {
+  manifest: {
+    dependencies: Record<string, string>;
+    peerDependencies: Record<string, string>;
+    devDependencies: Record<string, string>;
+    engines: string;
+  };
+  /** Bare module specifiers imported by the built package (JS and declarations). */
+  builtImports: { file: string; specifiers: string[] }[];
+  /** Every specifier the fixture uses to reach `@strata/analog`. */
+  fixtureImports: string[];
+  build: { status: number | null; artifacts: { path: string; exists: boolean }[] };
+  routes: RouteRow[];
+  typecheck: { command: string; status: number | null; note: string };
 }
 
 export interface AnalogReport {
@@ -89,6 +117,7 @@ export interface AnalogReport {
     verdict: string;
   };
   markerScans: MarkerScan[];
+  adapter: AdapterReport;
   checks: Check[];
   preWorkaroundFailure: string;
   upstreamMetadata: string;
@@ -132,8 +161,10 @@ it reflects the most recent execution against baseline \`${report.baselineCommit
 
 **Scope.** One question: how does the current \`@strata/core\` / \`@strata/h3\` fit inside a real
 Angular + Analog application (\`apps/analog-fixture\`), built and run with the stock Analog
-pipeline? No Strata Vite plugin, no decorator transform, no \`@strata/analog\`. It makes no claim
-beyond the single tuple below and the two modes exercised (dev server, production server).
+pipeline? No Strata Vite plugin and no decorator transform. \`@strata/core\` decorators are used
+in \`src/server/**\`, and \`@strata/analog\` registers a controller on the Nitro router through Nitro's
+public plugin API. It makes no claim beyond the single tuple below and the two modes exercised (dev
+server, production server).
 
 **Result of this run:** ${failed.length === 0 ? "every recorded expectation held" : `${failed.length} recorded expectation(s) did not hold — see Checks`}.
 
@@ -254,6 +285,52 @@ The Nitro \`h3App\` has \`.on\`: **${yesNo(report.seam.snapshot.h3App.hasOn)}**.
 \`App\`, and passing it to a function typed for the H3 v2 \`H3\` class would need an unsafe cast
 between majors, a fake H3 instance, or a second router — all ruled out for this experiment.
 
+## \`@strata/analog\`: a Strata controller through the public Nitro router seam
+
+\`src/server/plugins/strata.ts\` is a Nitro server plugin that calls
+\`registerControllers(nitroApp.router, [UsersController])\`. \`UsersController\` (\`@Controller("/api/strata/users")\`
+with two \`@Get()\` routes) is **not** reachable from any file under \`src/server/routes/**\`: no
+file-system route wraps it. The routes below exist only because \`@strata/analog\` read its
+\`@strata/core\` metadata and registered it on \`nitroApp.router\`.
+
+${table(
+  ["Route", "Mode", "Status", "Content-Type", "Body"],
+  report.adapter.routes.map((row) => [
+    code(row.route),
+    row.mode,
+    String(row.status),
+    row.contentType ?? "none",
+    code(row.body),
+  ]),
+)}
+
+The native Analog route (\`/api/native\`, above) answers in the same run, on the same router.
+
+**Package boundary.** \`@strata/analog\` declares:
+
+${table(
+  ["Field", "Value"],
+  [
+    ["dependencies", code(JSON.stringify(report.adapter.manifest.dependencies))],
+    ["peerDependencies", code(JSON.stringify(report.adapter.manifest.peerDependencies))],
+    ["devDependencies", code(JSON.stringify(report.adapter.manifest.devDependencies))],
+    ["engines.node", code(report.adapter.manifest.engines)],
+  ],
+)}
+
+Bare module specifiers in the built package (what a consumer's bundler and \`tsc\` must resolve):
+
+${table(
+  ["Built file", "Imports"],
+  report.adapter.builtImports.map((row) => [code(row.file), files(row.specifiers)]),
+)}
+
+The fixture reaches the package only through ${report.adapter.fixtureImports.map(code).join(", ")}
+(its \`exports\` entry, built \`dist\`).
+
+**Type check against Nitro's real types.** ${report.adapter.typecheck.note}
+Command: ${code(report.adapter.typecheck.command)} (exit ${String(report.adapter.typecheck.status)}).
+
 ## Server/client module graph baseline
 
 \`${SERVER_MARKER}\` is used only from \`src/server/strata/hello.controller.ts\` (imported by Nitro
@@ -270,9 +347,27 @@ ${table(
   ]),
 )}
 
-Expected and observed: server output contains the server-only marker; \`dist/client\`,
-\`dist/analog/public\` and \`dist/ssr\` do not. This is only a baseline — nothing here is a Server
-Component or a guarantee for future code.
+\`${CONTROLLER_MARKER}\` is used only by the controller registered through \`@strata/analog\`
+(\`src/server/strata/users.controller.ts\`, imported only by the Nitro plugin):
+
+${table(
+  [
+    "Output",
+    "Registered-controller marker",
+    "`@strata/analog` (error class name)",
+    "`@strata/h3` (error class name)",
+  ],
+  report.markerScans.map((scan) => [
+    `${scan.label} (${code(scan.directory)})`,
+    files(scan.controllerMarker),
+    files(scan.analogAdapterSymbol),
+    files(scan.h3AdapterSymbol),
+  ]),
+)}
+
+Expected and observed: server output contains the server-only markers and the adapter; \`dist/client\`,
+\`dist/analog/public\` and \`dist/ssr\` do not; no \`@strata/h3\` code is in any output. This is only a
+baseline — nothing here is a Server Component or a guarantee for future code.
 
 ## Commands
 
@@ -296,7 +391,9 @@ ${table(
 
 1. **H3 major mismatch at the seam.** Analog 2.7.2 → \`nitropack\` ${report.nitro.version} → H3 v1. The only
    public H3 handle (\`nitroApp.h3App\`) is an H3 v1 \`App\` with no \`.on()\`. \`@strata/h3\` needs an H3 v2
-   \`H3\` instance, so it cannot mount directly (Outcome ${report.seam.outcome}).
+   \`H3\` instance, so it cannot mount directly (Outcome ${report.seam.outcome}). Resolved for Analog without
+   touching it: \`@strata/analog\` is a sibling adapter on \`nitroApp.router\` and does not depend on
+   \`@strata/h3\`. \`@strata/h3\` stays an H3 v2-only adapter.
 2. **Phantom \`h3\` dependency in \`@analogjs/vite-plugin-nitro@2.7.2\`.** It imports \`h3\` without declaring
    it. Under pnpm's default hoisting, in a workspace that also contains \`@strata/h3\`, the bare import
    resolved to H3 v2 and the Vite config failed to load. This repo now declares the H3 major Nitro 2
@@ -312,10 +409,11 @@ ${indent(fence(report.preWorkaroundFailure), "   ")}
    (\`importHelpers: true\`); Nitro traces only \`tslib\`'s \`module\`-condition files, so Node's
    \`import\` + \`node\` resolution of \`tslib/modules/index.js\` fails at runtime. SSR then returns HTTP 200
    with an empty router outlet — a silent failure. Not investigated further or fixed here.
-5. **Repo-wide Node floor.** \`@angular/build@22\` and \`create-analog@2.7.2\` require Node
-   \`^22.22.3 || ^24.15.0 || >=26\`; the repo declares \`>=22\` and sets \`engine-strict=true\`, so
-   \`pnpm install\` now fails on Node 22.0–22.22.2 for every contributor, not only for the fixture.
-   CI is unchanged (\`node-version: 22\`); whether its resolved patch satisfies this was not verified.
+5. **Repo-wide Node floor (addressed).** \`@angular/build@22\` and \`create-analog@2.7.2\` require Node
+   \`^22.22.3 || ^24.15.0 || >=26\`, and \`engine-strict=true\` makes \`pnpm install\` fail below that. The
+   root/workspace development floor is now \`>=22.22.3\`. The public \`engines\` of \`@strata/core\`,
+   \`@strata/h3\` and \`@strata/analog\` stay \`>=22\`: only the Angular fixture needs the higher patch.
+   CI (\`node-version: 22\`) resolves the latest 22.x; that it satisfies the floor was not verified.
 6. **Unchanged, not attempted:** the H3 v2 / crossws declaration blocker from SPEC-001/SPEC-002. The
    fixture never imports \`@strata/h3\`, so it neither triggers nor hides it.
 

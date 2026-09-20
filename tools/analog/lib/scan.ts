@@ -24,3 +24,24 @@ export function findFilesContaining(root: string, needle: string): string[] {
 
   return matches.sort();
 }
+
+/** Every file under `root`, as paths relative to `root`, sorted. */
+export function listFiles(root: string): string[] {
+  const files: string[] = [];
+
+  function walk(dir: string): void {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const fullPath = join(dir, entry.name);
+
+      if (entry.isDirectory()) {
+        walk(fullPath);
+      } else if (entry.isFile()) {
+        files.push(relative(root, fullPath));
+      }
+    }
+  }
+
+  walk(root);
+
+  return files.sort();
+}

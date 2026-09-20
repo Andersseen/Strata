@@ -1,4 +1,12 @@
-import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -6,11 +14,16 @@ import { run } from "../consumer/lib/exec.ts";
 import type { CommandResult } from "../consumer/lib/exec.ts";
 
 import {
+  ANALOG_ADAPTER_SYMBOL,
   CLIENT_MARKER,
+  CONTROLLER_MARKER,
   CORE_INTERNAL_SYMBOL,
   EXPECTED_HELLO_DEFINITION,
   EXPECTED_PROBE_DEFINITION,
+  EXPECTED_USER_BODY,
+  EXPECTED_USERS_BODY,
   FIXTURE_PACKAGE,
+  H3_ADAPTER_SYMBOL,
   SERVER_MARKER,
 } from "./lib/constants.ts";
 import { fingerprintH3, lockfileVersions, requirePackage } from "./lib/graph.ts";
@@ -19,6 +32,7 @@ import { findFreePort, httpGet, spawnManaged, waitForHttp } from "./lib/process.
 import type { ManagedProcess } from "./lib/process.ts";
 import { renderReport } from "./lib/report.ts";
 import type {
+  AdapterReport,
   AnalogReport,
   Arm,
   Check,
@@ -27,13 +41,15 @@ import type {
   H3Resolution,
   MarkerScan,
   Outcome,
+  RouteRow,
   SeamSnapshot,
 } from "./lib/report.ts";
-import { findFilesContaining } from "./lib/scan.ts";
+import { findFilesContaining, listFiles } from "./lib/scan.ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(__dirname, "..", "..");
 const fixtureDir = join(repoRoot, "apps", "analog-fixture");
+const analogDir = join(repoRoot, "packages", "analog");
 const distDir = join(fixtureDir, "dist");
 const reportPath = join(repoRoot, "docs", "research", "analog-integration-baseline.md");
 const previewArgs = ["dist/analog/server/index.mjs"];
@@ -160,16 +176,24 @@ async function withDevServer<T>(
   }
 }
 
-async function getJson<T>(url: string): Promise<{ status: number; body: string; json: T | null }> {
+interface JsonResponse<T> {
+  status: number;
+  contentType: string | null;
+  body: string;
+  json: T | null;
+}
+
+async function getJson<T>(url: string): Promise<JsonResponse<T>> {
   const result = await httpGet(url);
+  const { status, contentType } = result;
 
   try {
     const json = JSON.parse(result.body) as T;
 
     // Dev servers pretty-print JSON; compact it so both modes compare and read alike.
-    return { status: result.status, body: JSON.stringify(json), json };
+    return { status, contentType, body: JSON.stringify(json), json };
   } catch {
-    return { status: result.status, body: result.body, json: null };
+    return { status, contentType, body: result.body, json: null };
   }
 }
 
@@ -187,25 +211,61 @@ interface SeamBody {
   snapshot?: SeamSnapshot | null;
 }
 
+interface Observed {
+  status: number;
+  contentType: string | null;
+  body: string;
+  ok: boolean;
+}
+
 interface RouteObservation {
-  native: { status: number; body: string; ok: boolean };
-  strataCore: { status: number; body: string; ok: boolean };
+  native: Observed;
+  strataCore: Observed;
+  /** `GET /api/strata/users`: registered only through `@strata/analog`. */
+  users: Observed;
+  /** `GET /api/strata/users/:id`: same controller, dynamic route. */
+  user: Observed;
   seam: SeamSnapshot | null;
 }
+
+const isJson = (contentType: string | null): boolean =>
+  contentType?.includes("application/json") ?? false;
 
 async function observeRoutes(baseUrl: string): Promise<RouteObservation> {
   const native = await getJson<NativeBody>(`${baseUrl}/api/native`);
   const strata = await getJson<StrataCoreBody>(`${baseUrl}/api/strata-core`);
   const seam = await getJson<SeamBody>(`${baseUrl}/api/seam`);
+  const users = await getJson<unknown>(`${baseUrl}/api/strata/users`);
+  const user = await getJson<unknown>(`${baseUrl}/api/strata/users/42`);
 
   return {
     native: {
       status: native.status,
+      contentType: native.contentType,
       body: native.body,
       ok: native.status === 200 && native.json?.source === "analog",
     },
+    users: {
+      status: users.status,
+      contentType: users.contentType,
+      body: users.body,
+      ok:
+        users.status === 200 &&
+        isJson(users.contentType) &&
+        users.body === JSON.stringify(EXPECTED_USERS_BODY),
+    },
+    user: {
+      status: user.status,
+      contentType: user.contentType,
+      body: user.body,
+      ok:
+        user.status === 200 &&
+        isJson(user.contentType) &&
+        user.body === JSON.stringify(EXPECTED_USER_BODY),
+    },
     strataCore: {
       status: strata.status,
+      contentType: strata.contentType,
       body: strata.body,
       ok:
         strata.status === 200 &&
@@ -231,6 +291,86 @@ async function probePageObservation(
   };
 }
 
+/** Bare (non-relative) module specifiers imported by a JS or declaration file. */
+function bareImports(source: string): string[] {
+  const specifiers = new Set<string>();
+
+  for (const match of source.matchAll(/\b(?:from|import)\s*\(?\s*["']([^"']+)["']/g)) {
+    const specifier = match[1];
+
+    if (specifier && !specifier.startsWith(".")) specifiers.add(specifier);
+  }
+
+  return [...specifiers].sort();
+}
+
+interface PackageManifest {
+  dependencies?: Record<string, string>;
+  peerDependencies?: Record<string, string>;
+  optionalDependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+  engines?: { node?: string };
+}
+
+/**
+ * Type-checks the real `defineNitroPlugin` + `@strata/analog` call against
+ * Nitro's own published types (the `nitropack` Analog resolves — the fixture
+ * does not declare a second copy). `nitroApp.router` must be accepted as-is
+ * and, as a negative control, the H3 v1 `nitroApp.h3App` must be rejected:
+ * the `@ts-expect-error` makes the check fail if the parameter were `any`.
+ *
+ * The probe and its tsconfig are generated (the nitropack path is a
+ * store-specific absolute path) and removed afterwards.
+ */
+function typecheckAgainstNitro(nitropackDir: string): CommandResult {
+  const probeDir = join(fixtureDir, ".strata-typecheck");
+
+  rmSync(probeDir, { recursive: true, force: true });
+  mkdirSync(probeDir);
+
+  try {
+    writeFileSync(
+      join(probeDir, "probe.ts"),
+      [
+        'import { registerControllers } from "@strata/analog";',
+        'import { defineNitroPlugin } from "nitropack/runtime";',
+        "",
+        'import { UsersController } from "../src/server/strata/users.controller";',
+        "",
+        "export default defineNitroPlugin((nitroApp) => {",
+        "  registerControllers(nitroApp.router, [UsersController]);",
+        "  // @ts-expect-error the H3 v1 app is not the Nitro router seam",
+        "  registerControllers(nitroApp.h3App, [UsersController]);",
+        "});",
+        "",
+      ].join("\n"),
+    );
+    writeFileSync(
+      join(probeDir, "tsconfig.json"),
+      JSON.stringify({
+        extends: "../tsconfig.json",
+        compilerOptions: {
+          noEmit: true,
+          // The fixture's stock `experimentalDecorators: true` is the Angular
+          // graph's problem (arm G1); Nitro server code uses standard decorators.
+          experimentalDecorators: false,
+          baseUrl: "..",
+          rootDir: "..",
+          paths: { "nitropack/runtime": [join(nitropackDir, "runtime.d.ts")] },
+        },
+        files: ["probe.ts"],
+      }),
+    );
+
+    return record(
+      "Type-check `@strata/analog` against Nitro's types",
+      run("pnpm", ["exec", "tsc", "-p", ".strata-typecheck/tsconfig.json"], { cwd: fixtureDir }),
+    );
+  } finally {
+    rmSync(probeDir, { recursive: true, force: true });
+  }
+}
+
 async function main(): Promise<void> {
   const generatedAt = new Date().toISOString();
   const baselineCommit = run("git", ["rev-parse", "HEAD"], { cwd: repoRoot }).stdout.trim();
@@ -244,6 +384,16 @@ async function main(): Promise<void> {
 
   if (coreBuild.status !== 0) {
     throw new Error(`@strata/core failed to build:\n${coreBuild.stderr}`);
+  }
+
+  console.log("Preparing @strata/analog (the fixture consumes its built dist)…");
+  const analogBuild = record(
+    "Build @strata/analog",
+    run("pnpm", ["--filter", "@strata/analog", "run", "build"], { cwd: repoRoot }),
+  );
+
+  if (analogBuild.status !== 0) {
+    throw new Error(`@strata/analog failed to build:\n${analogBuild.stderr}`);
   }
 
   // ---- Dependency graph -------------------------------------------------
@@ -366,6 +516,130 @@ async function main(): Promise<void> {
     "No Nitro 3 (`nitro` package) in the workspace graph",
     !lockfile.some((row) => row.name === "nitro" && row.versions.length > 0),
     "lockfile scan",
+  );
+
+  // ---- @strata/analog: package boundary ---------------------------------
+  console.log("Inspecting the @strata/analog package boundary…");
+  const analogManifest = readJson<PackageManifest>(join(analogDir, "package.json"));
+  const analogDist = join(analogDir, "dist");
+  const analogArtifacts = [
+    "packages/analog/dist/index.js",
+    "packages/analog/dist/index.d.ts",
+    "packages/analog/dist/register-controllers.d.ts",
+  ].map((path) => ({ path, exists: existsSync(join(repoRoot, path)) }));
+  const builtImports = listFiles(analogDist)
+    .filter((file) => /\.(js|d\.ts)$/.test(file))
+    .map((file) => ({
+      file: `packages/analog/dist/${file}`,
+      specifiers: bareImports(readFileSync(join(analogDist, file), "utf8")),
+    }));
+  const builtSpecifiers = [...new Set(builtImports.flatMap((row) => row.specifiers))].sort();
+  const analogDependencyNames = Object.keys(analogManifest.dependencies ?? {});
+  const analogEveryDependencyName = [
+    ...analogDependencyNames,
+    ...Object.keys(analogManifest.peerDependencies ?? {}),
+    ...Object.keys(analogManifest.optionalDependencies ?? {}),
+    ...Object.keys(analogManifest.devDependencies ?? {}),
+  ];
+  const publicEngines = ["core", "h3", "analog"].map((name) => ({
+    name,
+    node: readJson<PackageManifest>(join(repoRoot, "packages", name, "package.json")).engines?.node,
+  }));
+
+  check(
+    "@strata/analog builds (JS + declarations)",
+    analogBuild.status === 0 && analogArtifacts.every((artifact) => artifact.exists),
+    analogArtifacts
+      .filter((artifact) => !artifact.exists)
+      .map((artifact) => artifact.path)
+      .join(", "),
+  );
+  check(
+    "@strata/analog depends only on @strata/core at runtime and declares no peers",
+    analogDependencyNames.join() === "@strata/core" &&
+      Object.keys(analogManifest.peerDependencies ?? {}).length === 0,
+    JSON.stringify({
+      dependencies: analogManifest.dependencies,
+      peerDependencies: analogManifest.peerDependencies,
+    }),
+  );
+  check(
+    "@strata/analog does not depend on @strata/h3 (in any dependency field)",
+    !analogEveryDependencyName.includes("@strata/h3"),
+    analogEveryDependencyName.join(", "),
+  );
+  check(
+    "The built @strata/analog (JS and .d.ts) imports only @strata/core — no h3, nitropack or Analog",
+    builtSpecifiers.join() === "@strata/core",
+    builtSpecifiers.join(", ") || "none",
+  );
+  check(
+    "Public package engines are not raised to the fixture's Node floor",
+    publicEngines.every((entry) => entry.node === ">=22"),
+    publicEngines.map((entry) => `${entry.name}: ${entry.node}`).join(", "),
+  );
+
+  // ---- @strata/analog: consumer boundary --------------------------------
+  const fixtureSourceFiles = listFiles(join(fixtureDir, "src")).filter((file) =>
+    /\.(ts|tsx)$/.test(file),
+  );
+  const fixtureImports = [
+    ...new Set(
+      fixtureSourceFiles
+        .flatMap((file) => bareImports(readFileSync(join(fixtureDir, "src", file), "utf8")))
+        .filter((specifier) => specifier.includes("strata/analog")),
+    ),
+  ].sort();
+  const fixtureConfigs = [
+    "package.json",
+    "vite.config.ts",
+    "vite.probe.config.ts",
+    ...readdirSync(fixtureDir).filter((file) => /^tsconfig.*\.json$/.test(file)),
+  ];
+  const sourceAliases = fixtureConfigs.filter((file) =>
+    /packages\/analog/.test(readFileSync(join(fixtureDir, file), "utf8")),
+  );
+  const fixtureAnalog = requirePackage(fixtureDir, "@strata/analog");
+  const pluginSource = readFileSync(
+    join(fixtureDir, "src", "server", "plugins", "strata.ts"),
+    "utf8",
+  );
+  const wrapperFiles = ["src/server/routes", "src/app"].flatMap((directory) =>
+    ["UsersController", "users.controller"].flatMap((needle) =>
+      findFilesContaining(join(fixtureDir, directory), needle).map(
+        (file) => `${directory}/${file}`,
+      ),
+    ),
+  );
+
+  check(
+    "The fixture imports only the public `@strata/analog` entry (no deep imports)",
+    fixtureImports.join() === "@strata/analog",
+    fixtureImports.join(", ") || "none",
+  );
+  check(
+    "The fixture has no alias or path into packages/analog source",
+    sourceAliases.length === 0 &&
+      !findFilesContaining(join(fixtureDir, "src"), "packages/analog").length,
+    sourceAliases.join(", "),
+  );
+  check(
+    "The fixture resolves @strata/analog to the workspace package (via its package.json exports)",
+    fixtureAnalog.dir === realpathSync(analogDir),
+    `${fixtureAnalog.dir} vs ${realpathSync(analogDir)}`,
+  );
+  check(
+    "The Strata route is registered by the Nitro plugin, not by a file-system route wrapper",
+    /registerControllers\(\s*nitroApp\.router\b/.test(pluginSource) && wrapperFiles.length === 0,
+    wrapperFiles.join(", ") || "plugin calls registerControllers(nitroApp.router, …)",
+  );
+
+  const typecheck = typecheckAgainstNitro(nitropack.dir);
+
+  check(
+    "Nitro's real `nitroApp.router` type is accepted by registerControllers as-is; `nitroApp.h3App` is rejected",
+    typecheck.status === 0,
+    `${typecheck.stdout}${typecheck.stderr}`.trim(),
   );
 
   // ---- Arm G1: Angular-compiled graph, stock tsconfig (experimentalDecorators: true) ----
@@ -554,6 +828,16 @@ async function main(): Promise<void> {
     prod.strataCore.ok,
     `${prod.strataCore.status} ${prod.strataCore.body}`,
   );
+  check(
+    "GET /api/strata/users (registered by @strata/analog) returns 200 JSON in production",
+    prod.users.ok,
+    `${prod.users.status} ${prod.users.contentType} ${prod.users.body}`,
+  );
+  check(
+    "GET /api/strata/users/:id (dynamic route) returns 200 JSON in production",
+    prod.user.ok,
+    `${prod.user.status} ${prod.user.contentType} ${prod.user.body}`,
+  );
 
   // ---- Marker scan (before the dev server, which does not touch dist) ----
   const scanTargets = [
@@ -568,6 +852,9 @@ async function main(): Promise<void> {
     serverMarker: findFilesContaining(join(fixtureDir, directory), SERVER_MARKER),
     clientControlMarker: findFilesContaining(join(fixtureDir, directory), CLIENT_MARKER),
     coreInternalSymbol: findFilesContaining(join(fixtureDir, directory), CORE_INTERNAL_SYMBOL),
+    controllerMarker: findFilesContaining(join(fixtureDir, directory), CONTROLLER_MARKER),
+    analogAdapterSymbol: findFilesContaining(join(fixtureDir, directory), ANALOG_ADAPTER_SYMBOL),
+    h3AdapterSymbol: findFilesContaining(join(fixtureDir, directory), H3_ADAPTER_SYMBOL),
   }));
   const scanOf = (label: string): MarkerScan => {
     const scan = markerScans.find((candidate) => candidate.label === label);
@@ -596,6 +883,28 @@ async function main(): Promise<void> {
     "dist/client and dist/analog/public",
   );
   check(
+    "The @strata/analog-registered controller's marker is present in server output",
+    scanOf("server").controllerMarker.length > 0,
+    "dist/analog/server",
+  );
+  check(
+    "@strata/analog is bundled into the server output",
+    scanOf("server").analogAdapterSymbol.length > 0,
+    "dist/analog/server",
+  );
+  for (const label of ["client", "public", "SSR bundle"]) {
+    check(
+      `The registered controller's marker and @strata/analog are absent from ${label} output`,
+      scanOf(label).controllerMarker.length === 0 && scanOf(label).analogAdapterSymbol.length === 0,
+      [...scanOf(label).controllerMarker, ...scanOf(label).analogAdapterSymbol].join(", "),
+    );
+  }
+  check(
+    "No @strata/h3 code is in any output (the Analog adapter does not use it)",
+    markerScans.every((scan) => scan.h3AdapterSymbol.length === 0),
+    markerScans.flatMap((scan) => scan.h3AdapterSymbol).join(", "),
+  );
+  check(
     "@strata/core internals are absent from client output",
     scanOf("client").coreInternalSymbol.length === 0 &&
       scanOf("public").coreInternalSymbol.length === 0,
@@ -616,6 +925,16 @@ async function main(): Promise<void> {
     dev.strataCore.ok,
     `${dev.strataCore.status} ${dev.strataCore.body}`,
   );
+  check(
+    "GET /api/strata/users (registered by @strata/analog) returns 200 JSON in the dev server",
+    dev.users.ok,
+    `${dev.users.status} ${dev.users.contentType} ${dev.users.body}`,
+  );
+  check(
+    "GET /api/strata/users/:id (dynamic route) returns 200 JSON in the dev server",
+    dev.user.ok,
+    `${dev.user.status} ${dev.user.contentType} ${dev.user.body}`,
+  );
 
   const nitroArm = (mode: string, ok: boolean, evidence: string): Arm => ({
     id: mode === "production server" ? "N-prod" : "N-dev",
@@ -625,8 +944,19 @@ async function main(): Promise<void> {
     observed: ok ? "A" : "C",
     evidence,
   });
+  const adapterArm = (mode: string, ok: boolean, evidence: string): Arm => ({
+    id: mode === "production server" ? "S-prod" : "S-dev",
+    pipeline: "Strata controller via `@strata/analog` (`nitroApp.router`)",
+    mode,
+    expected: "A",
+    observed: ok ? "A" : "C",
+    evidence,
+  });
 
   arms.unshift(
+    adapterArm("dev server", dev.users.ok, `${dev.users.status} ${dev.users.body}`),
+    adapterArm("production server", prod.users.ok, `${prod.users.status} ${prod.users.body}`),
+
     nitroArm("dev server", dev.strataCore.ok, `${dev.strataCore.status} ${dev.strataCore.body}`),
     nitroArm(
       "production server",
@@ -671,6 +1001,40 @@ async function main(): Promise<void> {
     `outcome ${seamOutcome}, strataH3RequiresAppOn ${strataH3RequiresAppOn}`,
   );
 
+  const routeRow = (route: string, mode: string, observed: Observed): RouteRow => ({
+    route,
+    mode,
+    status: observed.status,
+    contentType: observed.contentType,
+    body: observed.body,
+  });
+  const adapter: AdapterReport = {
+    manifest: {
+      dependencies: analogManifest.dependencies ?? {},
+      peerDependencies: analogManifest.peerDependencies ?? {},
+      devDependencies: analogManifest.devDependencies ?? {},
+      engines: analogManifest.engines?.node ?? "unset",
+    },
+    builtImports,
+    fixtureImports,
+    build: { status: analogBuild.status, artifacts: analogArtifacts },
+    routes: [
+      routeRow("GET /api/strata/users", "production server", prod.users),
+      routeRow("GET /api/strata/users", "dev server", dev.users),
+      routeRow("GET /api/strata/users/42", "production server", prod.user),
+      routeRow("GET /api/strata/users/42", "dev server", dev.user),
+    ],
+    typecheck: {
+      command: portable(typecheck.command),
+      status: typecheck.status,
+      note:
+        "A generated probe calls `registerControllers(nitroApp.router, …)` inside `defineNitroPlugin` " +
+        "and type-checks it against the `nitropack` Analog resolves: the router is accepted without a " +
+        "cast, and `nitroApp.h3App` (H3 v1 `App`) is rejected — a `@ts-expect-error` negative control " +
+        "that fails if the parameter were loosely typed.",
+    },
+  };
+
   const report: AnalogReport = {
     generatedAt,
     baselineCommit,
@@ -706,6 +1070,7 @@ async function main(): Promise<void> {
         "v1 `Router`, not an H3 v2 `H3` instance. The current `@strata/h3` cannot mount directly.",
     },
     markerScans,
+    adapter,
     checks,
     preWorkaroundFailure: PRE_WORKAROUND_FAILURE,
     upstreamMetadata: UPSTREAM_METADATA,
