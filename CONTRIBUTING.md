@@ -6,6 +6,9 @@ and [SDD workflow](./docs/SDD.md) before starting framework work.
 
 ## Getting started
 
+Development needs Node.js >= 22.22.3 (the Angular 22 / Analog toolchain floor, enforced by
+`engine-strict`). The published packages keep their own, lower `engines`.
+
 ```bash
 pnpm install
 pnpm build
@@ -14,6 +17,7 @@ pnpm typecheck
 pnpm lint
 pnpm test:consumer:types # SPEC-002 H3 declaration-closure experiment; no eligible candidate found
 pnpm test:consumer # installed consumer qualification; currently blocked on strict H3 types
+pnpm test:analog # Analog fixture: @strata/analog in dev + production, client-bundle scan
 ```
 
 Other useful scripts:

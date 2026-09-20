@@ -14,7 +14,9 @@ designed with [Angular](https://angular.dev) and
 This repository is still in early development. `@strata/core` has a first
 **experimental** API for declaring controllers and routes, built on standard
 ECMAScript decorators, and `@strata/h3` now wires that metadata into a real
-[H3](https://h3.dev) app — but nothing here is published to npm yet.
+[H3](https://h3.dev) app. `@strata/analog` registers the same controllers inside an
+[Analog](https://analogjs.org) 2 app. Everything here is **experimental and pre-1.0**, and nothing is
+published to npm yet.
 
 ```ts
 import { H3 } from "h3";
@@ -49,6 +51,46 @@ registration time. This is a deliberately minimal, provisional placeholder
 until a real lifecycle/DI design lands in a later iteration — it is not a
 stable API.
 
+### Analog
+
+Analog 2 runs on Nitro 2, which runs on H3 **v1** — a different major from the H3 v2 that
+`@strata/h3` targets — so Analog uses a separate, sibling adapter, `@strata/analog`. It registers
+controllers on the router Nitro already owns (`nitroApp.router`, part of Nitro's public plugin
+API), from a Nitro server plugin. It does not depend on `@strata/h3`, and it does not depend on
+`h3`, `nitropack` or `@analogjs/*` either.
+
+```ts
+// src/server/strata/users.controller.ts
+import { Controller, Get } from "@strata/core";
+
+@Controller("/api/strata/users")
+export class UsersController {
+  @Get()
+  findAll() {
+    return [{ id: "1", name: "Ada" }];
+  }
+}
+```
+
+```ts
+// src/server/plugins/strata.ts
+import { registerControllers } from "@strata/analog";
+import { defineNitroPlugin } from "nitropack/runtime";
+
+import { UsersController } from "../strata/users.controller";
+
+export default defineNitroPlugin((nitroApp) => {
+  registerControllers(nitroApp.router, [UsersController]);
+});
+```
+
+`GET /api/strata/users` answers `200` JSON in `analog dev` and in the production server, alongside
+native Analog routes. As with `@strata/h3`, the lifecycle is provisional: one instance per
+controller, created at registration, and handlers take no arguments. Controllers under
+`src/server/**` stay out of the client bundle. The
+[integration report](./docs/research/analog-integration-baseline.md) records what is verified
+(Analog 2.7.2, Nitro 2.13.4) and what is not.
+
 Nothing here should be considered stable — the API can still change in
 breaking ways before it's published.
 
@@ -56,8 +98,9 @@ The [architecture and SDD documentation](./docs/README.md) records the current
 implementation, decisions, risks and [roadmap to 1.0](./docs/ROADMAP.md).
 Packed consumer runtime verification has executed; strict H3 declaration compatibility still blocks M1.
 The next slice is [H3 consumer type closure](./docs/specs/002-h3-consumer-type-closure.md).
-Request-input APIs, Angular DI and Analog integration still require design
-and experimental evidence; Strata will not use legacy parameter decorators.
+Request-input APIs and Angular DI still require design and experimental evidence, and Analog
+integration is limited to registering GET controllers on the Nitro router; Strata will not use
+legacy parameter decorators.
 
 Strata 1.0 requires production-ready **Server Components** in a real
 Angular/Analog application: server implementations and dependencies excluded
@@ -67,10 +110,11 @@ tested navigation strategy. This capability is not implemented yet. See the
 
 ## Packages
 
-| Package                           | Description                                                         |
-| --------------------------------- | ------------------------------------------------------------------- |
-| [`@strata/core`](./packages/core) | Experimental `@Controller` / `@Get` metadata primitive.             |
-| [`@strata/h3`](./packages/h3)     | Experimental H3 adapter: registers Strata controllers on an H3 app. |
+| Package                               | Description                                                                    |
+| ------------------------------------- | ------------------------------------------------------------------------------ |
+| [`@strata/core`](./packages/core)     | Experimental `@Controller` / `@Get` metadata primitive.                        |
+| [`@strata/h3`](./packages/h3)         | Experimental H3 adapter: registers Strata controllers on an H3 app.            |
+| [`@strata/analog`](./packages/analog) | Experimental Analog adapter: registers Strata controllers on the Nitro router. |
 
 ## Stack
 
@@ -83,7 +127,9 @@ tested navigation strategy. This capability is not implemented yet. See the
 - [Prettier](https://prettier.io/)
 - [Changesets](https://github.com/changesets/changesets)
 
-Requires Node.js >= 22.
+The packages target Node.js >= 22. Developing this repository requires Node.js >= 22.22.3,
+the floor of the Angular 22 / Analog 2.7 toolchain used by the fixture (`apps/analog-fixture`);
+that requirement is not imposed on the published packages.
 
 ## Contributing
 
