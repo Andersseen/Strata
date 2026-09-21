@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">Strata</title>
+  <desc id="desc">Three layered geological strata forming an S-shaped mark.</desc>
+  <defs>
+    <linearGradient id="lime" x1="18" y1="20" x2="110" y2="108" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#e4ff99"/>
+      <stop offset="1" stop-color="#a4db42"/>
+    </linearGradient>
+  </defs>
+  <path fill="#11170a" d="M10 31c0-8 6-14 14-14h80c8 0 14 6 14 14v12c0 8-6 14-14 14H54c-3 0-5 2-5 5s2 5 5 5h50c8 0 14 6 14 14v16c0 8-6 14-14 14H24c-8 0-14-6-14-14V85c0-8 6-14 14-14h50c3 0 5-2 5-5s-2-5-5-5H24c-8 0-14-6-14-14V31Z"/>
+  <path fill="url(#lime)" d="M24 27h80v14H54c-11 0-19 9-19 21s8 21 19 21h50v14H24V83h50c11 0 19-9 19-21S85 41 74 41H24V27Z"/>
+  <path fill="#f6ffe1" fill-opacity=".72" d="M24 27h80v5H24zm0 56h50c4 0 8-1 11-3-3 2-7 3-11 3H24z"/>
+</svg>

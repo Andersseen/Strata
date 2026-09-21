@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="./apps/www/public/strata-mark.svg" width="96" height="96" alt="Strata logo" />
+</p>
+
 # Strata
 
 Structured server applications for Angular and Analog, powered by H3.

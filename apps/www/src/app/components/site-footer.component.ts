@@ -25,8 +25,9 @@ import { LmnGithubIcon } from "lumen-icons/github";
     </section>
     <footer class="footer section-wrap">
       <a class="brand" href="#top"
-        ><span class="brand-mark"><span></span><span></span><span></span></span
-        ><span>strata</span></a
+        ><img class="brand-logo" src="/strata-mark.svg" width="28" height="28" alt="" /><span
+          >strata</span
+        ></a
       >
       <p>Structured server applications for Angular and Analog.</p>
       <p>MIT © {{ year }}</p>

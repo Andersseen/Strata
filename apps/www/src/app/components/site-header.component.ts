@@ -10,8 +10,9 @@ import { ThemeToggleComponent } from "./theme-toggle.component";
   template: `<header class="site-header">
     <nav class="nav-wrap" aria-label="Primary navigation">
       <a class="brand" href="#top" aria-label="Strata home"
-        ><span class="brand-mark"><span></span><span></span><span></span></span
-        ><span>strata</span></a
+        ><img class="brand-logo" src="/strata-mark.svg" width="28" height="28" alt="" /><span
+          >strata</span
+        ></a
       >
       <div class="nav-links">
         <a href="#why">Why Strata</a><a href="#example">Example</a
