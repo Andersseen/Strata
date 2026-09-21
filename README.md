@@ -2,12 +2,57 @@
 
 Structured server applications for Angular and Analog, powered by H3.
 
+Strata gives server-side Angular applications a small, declarative layer for
+controllers and routes while leaving the H3 or Nitro runtime entirely in your
+control. It is experimental, intentionally narrow, and designed in public.
+
 ## About
 
 Strata takes its name from _stratum / strata_ — layers. The goal is a
 structured, layered server framework built on top of [H3](https://h3.dev),
 designed with [Angular](https://angular.dev) and
 [Analog](https://analogjs.org) in mind.
+
+## Official website
+
+The repository includes the official Strata landing page at
+[`apps/www`](./apps/www). It is an SSR-enabled [AnalogJS](https://analogjs.org)
+application built with Angular, Tailwind CSS 4,
+[@voltui/components](https://volt-ui.andersseen.dev),
+[Angular Movement](https://github.com/Andersseen/angular-movement), and
+[Lumen Icons](https://github.com/Andersseen/lumen-icons). It includes a
+light/dark theme switcher, practical controller and Analog examples, and a
+concise explanation of Strata's runtime boundary.
+
+```bash
+pnpm --filter @strata/www dev
+```
+
+Create a production build with:
+
+```bash
+pnpm --filter @strata/www build
+```
+
+### Cloudflare Pages
+
+The official site is configured for direct upload to the `strata-www`
+Cloudflare Pages project. Create that project once (after authenticating
+Wrangler), then use the root scripts to build, run the Pages runtime locally,
+or make a production deployment:
+
+```bash
+pnpm www:pages:create
+pnpm www:pages:dev
+pnpm www:pages:deploy
+```
+
+`www:pages:dev` builds with the `cloudflare-pages` Nitro preset and runs the
+result through `wrangler pages dev` at `http://localhost:8789`, so the local
+runtime matches Pages rather than the default Node preview. GitHub Actions deploys the same artifact only
+for pushes to `main` after CI passes. Add `CLOUDFLARE_API_TOKEN` (with Pages
+write permission) and `CLOUDFLARE_ACCOUNT_ID` as repository secrets before
+the first merged deployment.
 
 ## Status: early development
 

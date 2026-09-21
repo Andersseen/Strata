@@ -11,6 +11,7 @@ export default config(
       "**/dist/**",
       "**/coverage/**",
       "**/.turbo/**",
+      "**/.wrangler/**",
       "**/node_modules/**",
       "pnpm-lock.yaml",
       // Fixture source for a fully external Strata consumer (SPEC-001):
