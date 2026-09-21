@@ -70,7 +70,7 @@ jobs:
       deployments: write
     environment:
       name: website-production
-      url: ${{ steps.deploy.outputs.deployment-url }}
+      url: https://strata-www.pages.dev
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -90,11 +90,12 @@ jobs:
       - name: Build Pages artifact
         run: pnpm www:build:cloudflare
 
+      # Wrangler is pinned in @strata/www. Calling that workspace binary avoids
+      # wrangler-action trying to mutate the pnpm workspace root at runtime.
       - name: Deploy to Cloudflare Pages
-        id: deploy
-        uses: cloudflare/wrangler-action@v4
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy apps/www/dist/analog/public --project-name=strata-www --branch=main
-          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: >-
+          pnpm --filter @strata/www exec wrangler pages deploy dist/analog/public
+          --project-name=strata-www --branch=main
