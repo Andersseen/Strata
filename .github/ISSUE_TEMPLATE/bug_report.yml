@@ -1,0 +1,40 @@
+name: Bug report
+description: Report reproducible behavior that differs from Strata's documented API.
+title: "bug: "
+labels: [bug, triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve Strata. Please do not include security-sensitive details here; use the security policy instead.
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: Describe the observed behavior and the behavior you expected.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Link a repository or provide the smallest code sample and exact commands needed to reproduce it.
+      placeholder: |
+        pnpm install
+        pnpm test
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Strata version or commit
+      placeholder: "0.0.0 / abc1234"
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include Node.js, package manager, OS, and relevant Angular, Analog, Nitro, or H3 versions.
+    validations:
+      required: true
