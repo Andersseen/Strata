@@ -4,6 +4,10 @@
 
 # Strata
 
+[![CI](https://github.com/Andersseen/Strata/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Andersseen/Strata/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/Andersseen/Strata?display_name=tag&sort=semver)](https://github.com/Andersseen/Strata/releases)
+[![License](https://img.shields.io/github/license/Andersseen/Strata)](./LICENSE)
+
 Structured server applications for Angular and Analog, powered by H3.
 
 Strata gives server-side Angular applications a small, declarative layer for
@@ -16,6 +20,10 @@ Strata takes its name from _stratum / strata_ — layers. The goal is a
 structured, layered server framework built on top of [H3](https://h3.dev),
 designed with [Angular](https://angular.dev) and
 [Analog](https://analogjs.org) in mind.
+
+**Experimental, pre-1.0, and developed in public.** Strata stays deliberately
+small: it provides controller metadata and runtime adapters without taking
+control of the H3 or Nitro application you already own.
 
 ## Official website
 
@@ -57,6 +65,21 @@ runtime matches Pages rather than the default Node preview. GitHub Actions deplo
 for pushes to `main` after CI passes. Add `CLOUDFLARE_API_TOKEN` (with Pages
 write permission) and `CLOUDFLARE_ACCOUNT_ID` as repository secrets before
 the first merged deployment.
+
+## Releases
+
+Tags follow the `vMAJOR.MINOR.PATCH` convention. Pushing a signed, annotated
+`v*` tag runs release validation and creates a GitHub Release with generated
+notes. Until the first stable release, version tags may use a pre-release
+suffix such as `v0.1.0-alpha.1`.
+
+```bash
+git tag -s v0.1.0-alpha.1 -m "Strata v0.1.0-alpha.1"
+git push origin v0.1.0-alpha.1
+```
+
+See [GitHub releases](https://github.com/Andersseen/Strata/releases) and
+[all tags](https://github.com/Andersseen/Strata/tags) for published history.
 
 ## Status: early development
 
@@ -182,7 +205,10 @@ that requirement is not imposed on the published packages.
 
 ## Contributing
 
-See [CONTRIBUTING.md](./CONTRIBUTING.md).
+See [CONTRIBUTING.md](./CONTRIBUTING.md). Community expectations are in the
+[Code of Conduct](./CODE_OF_CONDUCT.md), security reports follow
+[SECURITY.md](./SECURITY.md), and support routes are collected in
+[SUPPORT.md](./SUPPORT.md).
 
 ## License
 

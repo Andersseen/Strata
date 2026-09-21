@@ -18,6 +18,7 @@ Documentation is in English to follow the existing OSS repository conventions.
 | What evidence must tests produce?            | [Testing strategy](TESTING.md)                                  |
 | How do Astra and implementation agents work? | [SDD workflow](SDD.md)                                          |
 | When may we release 1.0?                     | [Release gates](RELEASE-1.0.md)                                 |
+| How is the public repository configured?     | [Repository operations](REPOSITORY.md)                          |
 | Why was a consequential decision made?       | Accepted records in [adr/](adr/)                                |
 | What may the next implementation agent do?   | The single ready spec in [specs/](specs/README.md)              |
 

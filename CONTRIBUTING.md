@@ -38,10 +38,21 @@ pnpm changeset     # record a changeset for your change
 3. If it affects a published package, run `pnpm changeset` and describe the
    change.
 4. Open a pull request with acceptance-criteria evidence and relevant compatibility
-   results. CI must pass (build, lint, typecheck, test, consumer type-closure experiment, consumer
-   qualification), together with the spec's checks. CI builds before type-aware lint on a fresh
-   checkout; see STATE for the consumer type blocker.
+   results. The required `Verify` check covers build, lint, typecheck, unit
+   tests, website e2e, and the consumer type-closure experiment. The separate
+   **Consumer qualification (experimental)** check intentionally remains
+   visible but non-blocking until the strict H3 declaration blocker is
+   resolved; see STATE for its current evidence. CI builds before type-aware
+   lint on a fresh checkout.
    Astra reviews architectural coherence before the next spec is prepared.
+
+## Pull requests and releases
+
+Use the pull request template and keep one concern per PR. Package changes
+need a changeset unless they are tests, documentation, or internal tooling.
+Maintainers create annotated `v*` tags only after the required checks are
+green; the tag workflow validates the source again and generates the GitHub
+Release notes.
 
 ## Code style
 

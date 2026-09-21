@@ -3,6 +3,22 @@
   "private": true,
   "version": "0.0.0",
   "description": "Structured server applications for Angular and Analog, powered by H3.",
+  "homepage": "https://strata-www.pages.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Andersseen/Strata.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Andersseen/Strata/issues"
+  },
+  "keywords": [
+    "angular",
+    "analogjs",
+    "h3",
+    "nitro",
+    "typescript",
+    "server-framework"
+  ],
   "type": "module",
   "license": "MIT",
   "engines": {

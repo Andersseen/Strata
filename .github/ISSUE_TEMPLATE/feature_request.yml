@@ -1,0 +1,26 @@
+name: Feature proposal
+description: Propose a focused improvement to Strata.
+title: "feat: "
+labels: [enhancement, triage]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What concrete user need is not met today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed direction
+      description: Explain the API or behavior you have in mind, including alternatives considered.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope and compatibility
+      description: Note effects on H3, Analog, existing APIs, documentation, or a future 1.0 release gate.
+    validations:
+      required: true
