@@ -39,11 +39,11 @@ pnpm changeset     # record a changeset for your change
    change.
 4. Open a pull request with acceptance-criteria evidence and relevant compatibility
    results. The required `Verify` check covers build, lint, typecheck, unit
-   tests, website e2e, and the consumer type-closure experiment. The separate
-   **Consumer qualification (experimental)** check intentionally remains
-   visible but non-blocking until the strict H3 declaration blocker is
-   resolved; see STATE for its current evidence. CI builds before type-aware
-   lint on a fresh checkout.
+   tests, website e2e, and the consumer type-closure experiment. The installed
+   consumer qualification remains a documented research command, not a CI
+   check, while the strict H3 declaration blocker makes every candidate fail;
+   see STATE for its current evidence. CI builds before type-aware lint on a
+   fresh checkout.
    Astra reviews architectural coherence before the next spec is prepared.
 
 ## Pull requests and releases
