@@ -21,9 +21,9 @@ should be displayed in the About panel.
 ## Branch and CI policy
 
 Protect `main`: require pull requests, dismiss stale approvals after new
-commits, and require the **Verify** status check. Do not require the
-experimental consumer qualification check until its documented strict H3 type
-blocker is resolved.
+commits, and require the **Verify** status check. Do not add the installed
+consumer qualification command as a required check until its documented strict
+H3 type blocker is resolved.
 
 The `CI` workflow runs on every pull request and push to `main`. It deploys the
 official website only after a successful push to `main`; never expose the
