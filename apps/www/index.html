@@ -10,9 +10,128 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#090b10" />
     <link rel="icon" href="/strata-mark.svg" type="image/svg+xml" />
+    <script>
+      (() => {
+        try {
+          const theme = localStorage.getItem("strata-theme") === "light" ? "light" : "dark";
+          const root = document.documentElement;
+          root.dataset.theme = theme;
+          root.classList.toggle("dark", theme === "dark");
+          root.style.colorScheme = theme;
+          document.querySelector('meta[name="theme-color"]').content =
+            theme === "dark" ? "#090b10" : "#f6f6f1";
+        } catch {
+          // Dark is the server-rendered default when storage is unavailable.
+        }
+      })();
+    </script>
+    <style>
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        background: #090b10;
+      }
+      html[data-theme="light"],
+      html[data-theme="light"] body {
+        background: #f6f6f1;
+      }
+      app-root {
+        display: block;
+      }
+      html:not([data-app-ready]) app-root {
+        visibility: hidden;
+      }
+      #app-preload {
+        position: fixed;
+        z-index: 9999;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        color: #f4f7fc;
+        background:
+          radial-gradient(circle at 80% 4%, rgb(202 255 98 / 10%), transparent 24rem),
+          #090b10;
+        transition: opacity 180ms ease, visibility 180ms ease;
+      }
+      html[data-theme="light"] #app-preload {
+        color: #161915;
+        background:
+          radial-gradient(circle at 80% 4%, rgb(118 157 37 / 12%), transparent 24rem),
+          #f6f6f1;
+      }
+      html[data-app-ready] #app-preload {
+        visibility: hidden;
+        opacity: 0;
+        pointer-events: none;
+      }
+      .app-preload-content {
+        width: min(560px, 100%);
+      }
+      .app-preload-brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 42px;
+        font: 800 1.3rem/1 ui-sans-serif, system-ui, sans-serif;
+        letter-spacing: -0.055em;
+      }
+      .app-preload-mark {
+        display: grid;
+        width: 27px;
+        gap: 3px;
+      }
+      .app-preload-mark i {
+        display: block;
+        height: 4px;
+        border-radius: 1px;
+        background: #caff62;
+      }
+      .app-preload-mark i:nth-child(1) { width: 70%; }
+      .app-preload-mark i:nth-child(3) { width: 48%; }
+      .app-preload-kicker,
+      .app-preload-line,
+      .app-preload-card {
+        background: rgb(255 255 255 / 9%);
+        border-radius: 999px;
+      }
+      .app-preload-kicker { width: 180px; height: 12px; margin-bottom: 18px; }
+      .app-preload-line { height: 52px; margin-bottom: 12px; }
+      .app-preload-line.short { width: 72%; }
+      .app-preload-copy { width: 88%; height: 17px; margin-top: 30px; }
+      .app-preload-copy.short { width: 64%; margin-top: 11px; }
+      .app-preload-cards {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+        margin-top: 48px;
+      }
+      .app-preload-card { height: 94px; border-radius: 12px; }
+      html[data-theme="light"] .app-preload-kicker,
+      html[data-theme="light"] .app-preload-line,
+      html[data-theme="light"] .app-preload-card {
+        background: rgb(22 25 21 / 10%);
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #app-preload { transition: none; }
+      }
+    </style>
   </head>
   <body>
+    <div id="app-preload" role="status" aria-live="polite" aria-label="Loading Strata">
+      <div class="app-preload-content" aria-hidden="true">
+        <div class="app-preload-brand"><span class="app-preload-mark"><i></i><i></i><i></i></span>strata</div>
+        <div class="app-preload-kicker"></div>
+        <div class="app-preload-line"></div>
+        <div class="app-preload-line short"></div>
+        <div class="app-preload-line app-preload-copy"></div>
+        <div class="app-preload-line app-preload-copy short"></div>
+        <div class="app-preload-cards"><div class="app-preload-card"></div><div class="app-preload-card"></div><div class="app-preload-card"></div></div>
+      </div>
+    </div>
     <app-root></app-root>
+    <noscript><style>#app-preload { display: none; } app-root { visibility: visible; }</style></noscript>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

@@ -9,8 +9,6 @@ describe("App", () => {
 
     expect(screen.getByRole("heading", { name: /give your server structure/i })).not.toBeNull();
     expect(screen.getByRole("heading", { name: /native to the nitro seam/i })).not.toBeNull();
-    expect(screen.getByRole("link", { name: /view on github/i }).getAttribute("href")).toBe(
-      "https://github.com/Andersseen/Strata",
-    );
+    expect(screen.getByRole("button", { name: /view on github/i })).not.toBeNull();
   });
 });

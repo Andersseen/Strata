@@ -23,6 +23,7 @@
   "dependencies": {
     "@analogjs/content": "^2.7.2",
     "@analogjs/router": "^2.7.2",
+    "@angular/cdk": "22.1.7",
     "@angular/common": "^22.0.0",
     "@angular/compiler": "^22.0.0",
     "@angular/core": "^22.0.0",

@@ -1,5 +1,5 @@
 import { DOCUMENT, isPlatformBrowser } from "@angular/common";
-import { afterNextRender, inject, Injectable, PLATFORM_ID, signal } from "@angular/core";
+import { inject, Injectable, PLATFORM_ID, signal } from "@angular/core";
 
 export type Theme = "dark" | "light";
 
@@ -11,10 +11,13 @@ export class ThemeService {
 
   constructor() {
     if (isPlatformBrowser(this.platformId)) {
-      afterNextRender(() => {
-        const stored = this.document.defaultView?.localStorage.getItem("strata-theme");
-        this.setTheme(stored === "light" || stored === "dark" ? stored : this.theme());
-      });
+      let stored: string | null = null;
+      try {
+        stored = this.document.defaultView?.localStorage.getItem("strata-theme") ?? null;
+      } catch {
+        // Storage can be disabled; the server-rendered dark theme remains usable.
+      }
+      this.setTheme(stored === "light" || stored === "dark" ? stored : this.theme());
     }
   }
 
@@ -24,7 +27,14 @@ export class ThemeService {
 
   private setTheme(theme: Theme): void {
     this.theme.set(theme);
-    this.document.documentElement?.setAttribute("data-theme", theme);
-    this.document.defaultView?.localStorage.setItem("strata-theme", theme);
+    const root = this.document.documentElement;
+    root?.setAttribute("data-theme", theme);
+    root?.classList.toggle("dark", theme === "dark");
+    if (root) root.style.colorScheme = theme;
+    try {
+      this.document.defaultView?.localStorage.setItem("strata-theme", theme);
+    } catch {
+      // The selected theme still applies for this session without storage access.
+    }
   }
 }
