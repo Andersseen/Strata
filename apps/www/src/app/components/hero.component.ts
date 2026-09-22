@@ -1,5 +1,10 @@
 import { ChangeDetectionStrategy, Component } from "@angular/core";
-import { VoltBadge } from "@voltui/components";
+import {
+  VoltBadge,
+  VoltButton,
+  VoltCard,
+  VoltCardContent,
+} from "@voltui/components";
 import { MOVEMENT_DIRECTIVES } from "angular-movement";
 import { LmnArrowRightIcon } from "lumen-icons/arrow-right";
 import { LmnArrowUpRightIcon } from "lumen-icons/arrow-up-right";
@@ -11,6 +16,9 @@ import { LmnSparklesIcon } from "lumen-icons/sparkles";
   selector: "strata-hero",
   imports: [
     VoltBadge,
+    VoltButton,
+    VoltCard,
+    VoltCardContent,
     ...MOVEMENT_DIRECTIVES,
     LmnArrowRightIcon,
     LmnArrowUpRightIcon,
@@ -36,15 +44,12 @@ import { LmnSparklesIcon } from "lumen-icons/sparkles";
         of the H3 runtime you already trust.
       </p>
       <div class="hero-actions">
-        <a class="primary-action" href="#example"
-          >See it in action <lmn-arrow-right [size]="16" /></a
-        ><a
-          class="secondary-action"
-          href="https://github.com/Andersseen/Strata"
-          target="_blank"
-          rel="noreferrer"
-          >Read the source <lmn-arrow-up-right [size]="16"
-        /></a>
+        <volt-button class="primary-action" (click)="scrollTo('example')"
+          >See it in action <lmn-arrow-right [size]="16" />
+        </volt-button
+        ><volt-button class="secondary-action" variant="ghost" (click)="openSource()"
+          >Read the source <lmn-arrow-up-right [size]="16" />
+        </volt-button>
       </div>
       <div class="hero-meta">
         <span><b>Angular</b> native</span><i></i><span><b>H3</b> powered</span><i></i
@@ -61,25 +66,33 @@ import { LmnSparklesIcon } from "lumen-icons/sparkles";
       <div class="diagram-grid"></div>
       <div class="orbit orbit-one"></div>
       <div class="orbit orbit-two"></div>
-      <div class="layer-card layer-app">
+      <volt-card class="layer-card layer-app"><volt-card-content>
         <span class="layer-icon"><lmn-cube-transparent [size]="20" /></span>
         <div><b>Your application</b><small>Controllers &amp; domain logic</small></div>
         <span class="node-status"></span>
-      </div>
+      </volt-card-content></volt-card>
       <div class="layer-line line-one"></div>
-      <div class="layer-card layer-strata">
+      <volt-card class="layer-card layer-strata"><volt-card-content>
         <span class="layer-icon strata-icon"><lmn-sparkles [size]="20" /></span>
         <div><b>Strata</b><small>Metadata &amp; composition</small></div>
         <span class="node-status"></span>
-      </div>
+      </volt-card-content></volt-card>
       <div class="layer-line line-two"></div>
-      <div class="layer-card layer-h3">
+      <volt-card class="layer-card layer-h3"><volt-card-content>
         <span class="layer-icon"><lmn-bolt [size]="20" /></span>
         <div><b>H3 / Nitro</b><small>The runtime stays yours</small></div>
         <span class="node-status"></span>
-      </div>
+      </volt-card-content></volt-card>
       <p class="visual-caption">A thinner layer, a clearer boundary.</p>
     </div>
   </section>`,
 })
-export class HeroComponent {}
+export class HeroComponent {
+  protected scrollTo(id: string): void {
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+  }
+
+  protected openSource(): void {
+    window.open("https://github.com/Andersseen/Strata", "_blank", "noopener,noreferrer");
+  }
+}

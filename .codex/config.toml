@@ -1,0 +1,6 @@
+[mcp_servers.context7]
+enabled = true
+url = "https://mcp.context7.com/mcp"
+
+[mcp_servers.volt-ui]
+url = "https://volt-ui.pages.dev/api/mcp"

@@ -1,11 +1,24 @@
 import { ChangeDetectionStrategy, Component } from "@angular/core";
+import {
+  VoltNavigationMenu,
+  VoltNavigationMenuItem,
+  VoltNavigationMenuLink,
+  VoltNavigationMenuList,
+} from "@voltui/components";
 import { LmnGithubIcon } from "lumen-icons/github";
 
 import { ThemeToggleComponent } from "./theme-toggle.component";
 
 @Component({
   selector: "strata-site-header",
-  imports: [LmnGithubIcon, ThemeToggleComponent],
+  imports: [
+    LmnGithubIcon,
+    ThemeToggleComponent,
+    VoltNavigationMenu,
+    VoltNavigationMenuItem,
+    VoltNavigationMenuLink,
+    VoltNavigationMenuList,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `<header class="site-header">
     <nav class="nav-wrap" aria-label="Primary navigation">
@@ -14,10 +27,13 @@ import { ThemeToggleComponent } from "./theme-toggle.component";
           >strata</span
         ></a
       >
-      <div class="nav-links">
-        <a href="#why">Why Strata</a><a href="#example">Example</a
-        ><a href="#architecture">Architecture</a>
-      </div>
+      <volt-navigation-menu class="nav-links" aria-label="Strata sections">
+        <volt-navigation-menu-list>
+          <volt-navigation-menu-item><a voltNavigationMenuLink href="#why">Why Strata</a></volt-navigation-menu-item>
+          <volt-navigation-menu-item><a voltNavigationMenuLink href="#example">Example</a></volt-navigation-menu-item>
+          <volt-navigation-menu-item><a voltNavigationMenuLink href="#architecture">Architecture</a></volt-navigation-menu-item>
+        </volt-navigation-menu-list>
+      </volt-navigation-menu>
       <div class="nav-actions">
         <a
           class="github-link"

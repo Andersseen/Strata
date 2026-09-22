@@ -10,6 +10,9 @@ importers:
 
   .:
     devDependencies:
+      '@agentyx/cli':
+        specifier: ^0.7.0
+        version: 0.7.0
       '@changesets/cli':
         specifier: 3.0.3
         version: 3.0.3
@@ -131,6 +134,9 @@ importers:
       '@analogjs/router':
         specifier: ^2.7.2
         version: 2.7.2(f79069d0e559a5b4eaf532dbbf0a5b5a)
+      '@angular/cdk':
+        specifier: 22.1.7
+        version: 22.1.7(@angular/common@22.1.7(@angular/core@22.1.7(@angular/compiler@22.1.7)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.1.7(@angular/compiler@22.1.7)(rxjs@7.8.2))(@angular/forms@22.1.7(@angular/common@22.1.7(@angular/core@22.1.7(@angular/compiler@22.1.7)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.1.7(@angular/compiler@22.1.7)(rxjs@7.8.2))(@angular/platform-browser@22.1.7(@angular/common@22.1.7(@angular/core@22.1.7(@angular/compiler@22.1.7)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.1.7(@angular/compiler@22.1.7)(rxjs@7.8.2)))(rxjs@7.8.2))(@angular/platform-browser@22.1.7(@angular/common@22.1.7(@angular/core@22.1.7(@angular/compiler@22.1.7)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.1.7(@angular/compiler@22.1.7)(rxjs@7.8.2)))(rxjs@7.8.2)
       '@angular/common':
         specifier: ^22.0.0
         version: 22.1.7(@angular/core@22.1.7(@angular/compiler@22.1.7)(rxjs@7.8.2))(rxjs@7.8.2)
@@ -251,6 +257,19 @@ packages:
 
   '@adobe/css-tools@4.5.0':
     resolution: {integrity: sha512-6OzddxPio9UiWTCemp4N8cYLV2ZN1ncRnV1cVGtve7dhPOtRkleRyx32GQCYSwDYgaHU3USMm84tNsvKzRCa1Q==}
+
+  '@agentyx/adapters@0.7.0':
+    resolution: {integrity: sha512-txKuvLoVtjeRq+u5dRUyp23rjMxNl300B48iK3UWVE8IEZEfSYsuifhL+TLUaHqEAKeCFKMW21zxbiJNm9Ufiw==}
+    engines: {node: '>=22'}
+
+  '@agentyx/cli@0.7.0':
+    resolution: {integrity: sha512-49xP34VaGtOUcTqKaCv7onHXBrnOioxkdAHTrd7BxsQfGMZYZhbAzgQ3SizZ2LX8OGJL0JZ51+PxTv/+hod2KQ==}
+    engines: {node: '>=22'}
+    hasBin: true
+
+  '@agentyx/core@0.7.0':
+    resolution: {integrity: sha512-me1dnFAAk21sIc9r3uv3Vd/16FK5KRW8zToeu75ydoN8cZHb7QBjPVlSZ1vNAAc9I1WuiFTurtHvUYmrMvQHdQ==}
+    engines: {node: '>=22'}
 
   '@ampproject/remapping@2.3.0':
     resolution: {integrity: sha512-30iZtAPgz+LTIYoeivqYo853f02jBYSd5uGnGpkFV0M3xOt9aN73erkgYAmZU43x4VfqcnLxW9Kpg3R5LC4YYw==}
@@ -1336,6 +1355,9 @@ packages:
   '@humanwhocodes/retry@0.4.3':
     resolution: {integrity: sha512-bV0Tgo9K4hfPCek+aMAn81RppFKv2ySDQeMoSZuvTASywNTnVJCArCZE2FWqpvIatKu7VMRLWlR1EazvVhDyhQ==}
     engines: {node: '>=18.18'}
+
+  '@iarna/toml@2.2.5':
+    resolution: {integrity: sha512-trnsAYxU3xnS1gPHPyU961coFyLkh4gAD/0zQ5mymY4yOZ+CYvsPqUbOFSw0aDM4y0tV7tiFxL/1XfXPNC6IPg==}
 
   '@img/colour@1.1.0':
     resolution: {integrity: sha512-Td76q7j57o/tLVdgS746cYARfSyxk8iEfRxewL9h4OMzYhbW4TAcppl0mT4eyqXddh6L/jwoM75mo7ixa/pCeQ==}
@@ -3418,6 +3440,10 @@ packages:
 
   color-name@1.1.4:
     resolution: {integrity: sha512-dOy+3AuW3a2wNbZHIuMZpTcgjGuLU/uBL/ubcZF9OXbDo8ff4O8yVp5Bf0efS8uEoYo5q4Fx7dY9OgQGXgAsQA==}
+
+  commander@14.0.3:
+    resolution: {integrity: sha512-H+y0Jo/T1RZ9qPP4Eh1pkcQcLRglraJaSLoyOtHxu6AapkjWVCy2Sit1QQ4x3Dng8qDlSsZEet7g5Pq06MvTgw==}
+    engines: {node: '>=20'}
 
   commander@2.20.3:
     resolution: {integrity: sha512-GpVkmM8vF2vQUkj2LvZmD35JxeJOLCwJ9cUkugyk2nuhbv3+mJvpLYYt+0+USMxE+oj+ey/lJEnhZw75x/OMcQ==}
@@ -5757,6 +5783,23 @@ snapshots:
 
   '@adobe/css-tools@4.5.0': {}
 
+  '@agentyx/adapters@0.7.0':
+    dependencies:
+      '@agentyx/core': 0.7.0
+      '@iarna/toml': 2.2.5
+
+  '@agentyx/cli@0.7.0':
+    dependencies:
+      '@agentyx/adapters': 0.7.0
+      '@agentyx/core': 0.7.0
+      '@clack/prompts': 1.8.1
+      commander: 14.0.3
+      zod: 4.6.5
+
+  '@agentyx/core@0.7.0':
+    dependencies:
+      zod: 4.6.5
+
   '@ampproject/remapping@2.3.0':
     dependencies:
       '@jridgewell/gen-mapping': 0.3.13
@@ -6722,6 +6765,8 @@ snapshots:
   '@humanwhocodes/module-importer@1.0.1': {}
 
   '@humanwhocodes/retry@0.4.3': {}
+
+  '@iarna/toml@2.2.5': {}
 
   '@img/colour@1.1.0': {}
 
@@ -8310,6 +8355,8 @@ snapshots:
       color-name: 1.1.4
 
   color-name@1.1.4: {}
+
+  commander@14.0.3: {}
 
   commander@2.20.3: {}
 

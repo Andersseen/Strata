@@ -6,14 +6,14 @@
   color-scheme: dark;
   --page: #090b10;
   --ink: #f4f7fc;
-  --muted: #a8b0c0;
+  --strata-muted: #a8b0c0;
   --faint: #717b8f;
   --line: rgb(255 255 255 / 10%);
   --card: #11151d;
   --card-strong: #171c26;
-  --accent: #caff62;
-  --accent-deep: #8fbd34;
-  --accent-ink: #142000;
+  --strata-accent: #caff62;
+  --strata-accent-deep: #8fbd34;
+  --strata-accent-ink: #142000;
   --nav: rgb(9 11 16 / 78%);
   --code: #0b0e14;
   --shadow: rgb(0 0 0 / 34%);
@@ -22,17 +22,37 @@
   color-scheme: light;
   --page: #f6f6f1;
   --ink: #161915;
-  --muted: #62695f;
+  --strata-muted: #62695f;
   --faint: #838a80;
   --line: rgb(22 25 21 / 12%);
   --card: #fffefa;
   --card-strong: #f0f1e9;
-  --accent: #769d25;
-  --accent-deep: #5c7b1c;
-  --accent-ink: #fff;
+  --strata-accent: #769d25;
+  --strata-accent-deep: #5c7b1c;
+  --strata-accent-ink: #fff;
   --nav: rgb(246 246 241 / 82%);
   --code: #192018;
   --shadow: rgb(51 59 37 / 12%);
+}
+
+/* Map Volt's semantic design tokens to Strata's palette. The landing keeps its
+ * own tokens namespaced so Volt's `bg-muted` never becomes body-copy gray. */
+:root {
+  --background: var(--page);
+  --foreground: var(--ink);
+  --surface: var(--card);
+  --surface-foreground: var(--ink);
+  --muted: var(--card-strong);
+  --muted-foreground: var(--strata-muted);
+  --border: var(--line);
+  --ring: var(--strata-accent);
+  --input: var(--line);
+  --primary: var(--strata-accent);
+  --primary-foreground: var(--strata-accent-ink);
+  --secondary: var(--card-strong);
+  --secondary-foreground: var(--ink);
+  --accent: var(--card-strong);
+  --accent-foreground: var(--ink);
 }
 * {
   box-sizing: border-box;
@@ -66,7 +86,7 @@ button {
   background:
     radial-gradient(
       circle at 80% 4%,
-      color-mix(in srgb, var(--accent) 10%, transparent),
+      color-mix(in srgb, var(--strata-accent) 10%, transparent),
       transparent 24rem
     ),
     var(--page);
@@ -117,7 +137,7 @@ button {
   display: block;
   height: 4px;
   border-radius: 1px;
-  background: var(--accent);
+  background: var(--strata-accent);
 }
 .brand-mark span:nth-child(1) {
   width: 70%;
@@ -134,7 +154,7 @@ button {
   margin-left: auto;
 }
 .nav-links a {
-  color: var(--muted);
+  color: var(--strata-muted);
   font-size: 0.875rem;
   font-weight: 660;
 }
@@ -151,7 +171,7 @@ button {
   height: 34px;
   display: grid;
   place-items: center;
-  color: var(--muted);
+  color: var(--strata-muted);
   border-radius: 8px;
 }
 .github-link:hover {
@@ -179,8 +199,8 @@ button {
   font-weight: 700;
 }
 .theme-toggle:hover {
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
-  color: var(--accent-deep);
+  border-color: color-mix(in srgb, var(--strata-accent) 45%, var(--line));
+  color: var(--strata-accent-deep);
 }
 .hero {
   min-height: calc(100vh - 72px);
@@ -195,7 +215,7 @@ button {
   align-items: center;
   gap: 8px;
   padding: 5px 9px;
-  color: var(--muted);
+  color: var(--strata-muted);
   font-size: 0.74rem;
   font-weight: 720;
   border: 1px solid var(--line);
@@ -206,12 +226,12 @@ button {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 14%, transparent);
+  background: var(--strata-accent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--strata-accent) 14%, transparent);
 }
 .eyebrow {
   margin: 22px 0 14px;
-  color: var(--accent-deep);
+  color: var(--strata-accent-deep);
   font-size: 0.72rem;
   line-height: 1.2;
   font-weight: 800;
@@ -229,13 +249,13 @@ h2 {
   font-size: clamp(3.65rem, 6vw, 5.75rem);
 }
 .hero h1 em {
-  color: var(--accent);
+  color: var(--strata-accent);
   font-style: normal;
 }
 .hero-lede {
   max-width: 575px;
   margin: 28px 0 0;
-  color: var(--muted);
+  color: var(--strata-muted);
   font-size: 1.1rem;
   line-height: 1.7;
 }
@@ -261,15 +281,15 @@ h2 {
     background 0.18s ease;
 }
 .primary-action {
-  background: var(--accent);
-  color: var(--accent-ink);
+  background: var(--strata-accent);
+  color: var(--strata-accent-ink);
 }
 .primary-action:hover {
   transform: translateY(-2px);
-  background: color-mix(in srgb, var(--accent) 90%, white);
+  background: color-mix(in srgb, var(--strata-accent) 90%, white);
 }
 .secondary-action {
-  color: var(--muted);
+  color: var(--strata-muted);
 }
 .secondary-action:hover {
   color: var(--ink);
@@ -283,7 +303,7 @@ h2 {
   font-size: 0.77rem;
 }
 .hero-meta b {
-  color: var(--muted);
+  color: var(--strata-muted);
 }
 .hero-meta i {
   width: 3px;
@@ -326,16 +346,18 @@ h2 {
 }
 .layer-card {
   position: absolute;
-  display: flex;
-  align-items: center;
-  gap: 13px;
   width: 285px;
-  padding: 15px 17px;
   background: color-mix(in srgb, var(--card) 89%, transparent);
   border: 1px solid var(--line);
   border-radius: 11px;
   box-shadow: 0 18px 45px var(--shadow);
   backdrop-filter: blur(15px);
+}
+.layer-card > volt-card-content {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 15px 17px;
 }
 .layer-app {
   top: 36px;
@@ -344,7 +366,7 @@ h2 {
 .layer-strata {
   top: 183px;
   right: 7px;
-  border-color: color-mix(in srgb, var(--accent) 38%, var(--line));
+  border-color: color-mix(in srgb, var(--strata-accent) 38%, var(--line));
 }
 .layer-h3 {
   bottom: 28px;
@@ -367,23 +389,23 @@ h2 {
   height: 36px;
   border-radius: 8px;
   background: var(--card-strong);
-  color: var(--muted);
+  color: var(--strata-muted);
 }
 .strata-icon {
-  background: color-mix(in srgb, var(--accent) 14%, var(--card));
-  color: var(--accent);
+  background: color-mix(in srgb, var(--strata-accent) 14%, var(--card));
+  color: var(--strata-accent);
 }
 .node-status {
   width: 6px;
   height: 6px;
   margin-left: auto;
   border-radius: 50%;
-  background: var(--accent);
+  background: var(--strata-accent);
 }
 .layer-line {
   position: absolute;
   width: 1px;
-  background: linear-gradient(var(--line), var(--accent), var(--line));
+  background: linear-gradient(var(--line), var(--strata-accent), var(--line));
 }
 .line-one {
   height: 55px;
@@ -422,12 +444,19 @@ h2 {
   text-transform: uppercase;
   letter-spacing: 0.1em;
 }
-.proof-strip div {
+.proof-technologies {
   display: flex;
+  align-items: center;
   gap: 28px;
-  color: var(--muted);
+}
+.proof-technologies volt-badge {
+  color: var(--strata-muted);
   font-size: 0.9rem;
   font-weight: 700;
+}
+.proof-technologies volt-separator {
+  height: 1.1rem;
+  background: var(--line);
 }
 .feature-section {
   padding: 156px 0;
@@ -445,7 +474,7 @@ h2 {
 .architecture-copy > p,
 .analog-header > p,
 .cta-section > div > p:last-of-type {
-  color: var(--muted);
+  color: var(--strata-muted);
   font-size: 1.03rem;
   line-height: 1.7;
 }
@@ -457,17 +486,26 @@ h2 {
 }
 .feature-card {
   min-height: 300px;
-  padding: 27px;
   display: flex;
   flex-direction: column;
   border: 1px solid var(--line);
   border-radius: 12px;
   background: var(--card);
 }
+.feature-card > volt-card-header {
+  padding: 27px 27px 0;
+}
+.feature-card > volt-card-content {
+  padding: 18px 27px 0;
+}
+.feature-card > volt-card-footer {
+  margin-top: auto;
+  padding: 0 27px 27px;
+}
 .feature-card-highlight {
   background: linear-gradient(
     135deg,
-    color-mix(in srgb, var(--accent) 10%, var(--card)),
+    color-mix(in srgb, var(--strata-accent) 10%, var(--card)),
     var(--card)
   );
 }
@@ -476,18 +514,18 @@ h2 {
   place-items: center;
   width: 44px;
   height: 44px;
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--strata-accent);
+  background: color-mix(in srgb, var(--strata-accent) 10%, transparent);
   border-radius: 9px;
 }
-.feature-card h3 {
-  margin: 28px 0 10px;
+.feature-card volt-card-title {
+  margin-top: 19px;
   font-size: 1.08rem;
   letter-spacing: -0.03em;
 }
 .feature-card p {
   margin: 0;
-  color: var(--muted);
+  color: var(--strata-muted);
   font-size: 0.9rem;
   line-height: 1.65;
 }
@@ -500,8 +538,8 @@ h2 {
   align-items: center;
   gap: 7px;
   margin-top: auto;
-  padding-top: 26px;
-  color: var(--accent-deep);
+  padding-top: 0;
+  color: var(--strata-accent-deep);
   font-size: 0.82rem;
   font-weight: 750;
 }
@@ -521,7 +559,7 @@ h2 {
 .code-window {
   overflow: hidden;
   background: var(--code);
-  border: 1px solid color-mix(in srgb, var(--line) 90%, var(--accent));
+  border: 1px solid color-mix(in srgb, var(--line) 90%, var(--strata-accent));
   border-radius: 12px;
   box-shadow: 0 30px 55px var(--shadow);
 }
@@ -562,7 +600,7 @@ h2 {
   margin-left: auto;
   border: 0;
   background: transparent;
-  color: var(--accent);
+  color: var(--strata-accent);
   cursor: pointer;
   font: inherit;
 }
@@ -578,24 +616,28 @@ h2 {
     monospace;
   tab-size: 2;
 }
-.example-notes {
-  padding-right: 18px;
+.example-notes > volt-card-header {
+  padding: 28px 28px 0;
+}
+.example-notes > volt-card-content {
+  padding: 14px 28px 28px;
 }
 .note-number {
-  color: var(--accent-deep);
+  color: var(--strata-accent-deep);
   font:
     700 0.73rem ui-monospace,
     SFMono-Regular,
     Menlo,
     monospace;
 }
-.example-notes h3 {
+.example-notes h3,
+.example-notes volt-card-title {
   margin: 10px 0;
   font-size: 1.04rem;
   letter-spacing: -0.03em;
 }
 .example-notes p {
-  color: var(--muted);
+  color: var(--strata-muted);
   font-size: 0.9rem;
   line-height: 1.65;
 }
@@ -621,7 +663,7 @@ h2 {
   padding: 0;
   margin: 29px 0 0;
   list-style: none;
-  color: var(--muted);
+  color: var(--strata-muted);
   font-size: 0.88rem;
 }
 .architecture-copy li {
@@ -630,7 +672,7 @@ h2 {
   gap: 10px;
 }
 .architecture-copy li lmn-check-circle {
-  color: var(--accent-deep);
+  color: var(--strata-accent-deep);
 }
 .ownership-list {
   display: grid;
@@ -638,20 +680,23 @@ h2 {
   border-radius: 12px;
   overflow: hidden;
 }
-.ownership-list div {
+.ownership-list > volt-card {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.ownership-list > volt-card:not(:last-child) {
+  border-bottom: 1px solid var(--line);
+}
+.ownership-list volt-card-content {
   display: grid;
   grid-template-columns: 40px 1fr;
   column-gap: 14px;
   padding: 19px 20px;
-  border-bottom: 1px solid var(--line);
-  background: var(--card);
-}
-.ownership-list div:last-child {
-  border: 0;
 }
 .ownership-list span {
   grid-row: span 2;
-  color: var(--accent-deep);
+  color: var(--strata-accent-deep);
   font:
     700 0.75rem ui-monospace,
     SFMono-Regular,
@@ -667,7 +712,7 @@ h2 {
   font-size: 0.78rem;
 }
 .ownership-list .ownership-runtime {
-  background: color-mix(in srgb, var(--accent) 10%, var(--card));
+  background: color-mix(in srgb, var(--strata-accent) 10%, var(--card));
 }
 .analog-section {
   padding: 35px 0 145px;
@@ -689,28 +734,28 @@ h2 {
 .analog-code {
   max-width: 920px;
 }
-.cta-section {
+.cta-section > volt-card {
   padding: 92px 0;
-  margin-bottom: 42px;
   text-align: center;
-  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--line));
+  border: 1px solid color-mix(in srgb, var(--strata-accent) 24%, var(--line));
   border-radius: 14px;
   background:
     radial-gradient(
       circle at 50% -10%,
-      color-mix(in srgb, var(--accent) 15%, transparent),
+      color-mix(in srgb, var(--strata-accent) 15%, transparent),
       transparent 22rem
     ),
     var(--card);
 }
-.cta-section > div {
+.cta-section > volt-card > volt-card-content {
   max-width: 620px;
   margin: auto;
+  padding: 0;
 }
 .cta-section .eyebrow {
   margin-top: 0;
 }
-.cta-section > div > p:last-of-type {
+.cta-section > volt-card > volt-card-content > p:last-of-type {
   margin: 22px auto 30px;
 }
 .footer {
@@ -721,6 +766,10 @@ h2 {
   border-top: 1px solid var(--line);
   color: var(--faint);
   font-size: 0.78rem;
+}
+.footer volt-separator {
+  height: 1rem;
+  background: var(--line);
 }
 .footer p:last-child {
   margin-left: auto;
@@ -742,7 +791,7 @@ h2 {
   .proof-strip {
     display: block;
   }
-  .proof-strip div {
+  .proof-technologies {
     flex-wrap: wrap;
     margin-top: 14px;
     gap: 12px 22px;
@@ -837,7 +886,7 @@ h2 {
   .analog-section {
     padding-bottom: 90px;
   }
-  .cta-section {
+  .cta-section > volt-card {
     padding: 65px 20px;
   }
   .footer {

@@ -1,13 +1,15 @@
 import { ChangeDetectionStrategy, Component, input, signal } from "@angular/core";
+import { VoltButton } from "@voltui/components";
 
 @Component({
   selector: "strata-code-panel",
+  imports: [VoltButton],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `<div class="code-window">
     <div class="window-bar">
       <div class="window-dots"><i></i><i></i><i></i></div>
       <span>{{ filename() }}</span
-      ><button type="button" (click)="copy()">{{ copied() ? "Copied" : "Copy" }}</button>
+      ><volt-button variant="ghost" size="sm" (click)="copy()">{{ copied() ? "Copied" : "Copy" }}</volt-button>
     </div>
     <pre><code>{{ code() }}</code></pre>
   </div>`,
