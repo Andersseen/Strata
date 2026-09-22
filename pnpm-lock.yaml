@@ -10,6 +10,9 @@ importers:
 
   .:
     devDependencies:
+      '@agentyx/cli':
+        specifier: ^0.7.0
+        version: 0.7.0
       '@changesets/cli':
         specifier: 3.0.3
         version: 3.0.3
@@ -106,13 +109,13 @@ importers:
     devDependencies:
       '@analogjs/platform':
         specifier: ^2.7.2
-        version: 2.7.2(@angular/build@22.1.8(09d999ef51208f118a8870adcb99a49c))(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)(@parcel/watcher@2.6.0)(marked-gfm-heading-id@4.1.4(marked@15.0.12))(marked-highlight@2.2.4(marked@15.0.12))(marked-mangle@1.1.14(marked@15.0.12))(marked@15.0.12)(prismjs@1.30.0)(rolldown@1.2.8)(srvx@1.0.5)(vite@8.3.0(@types/node@22.20.3)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.0)(terser@5.51.2)(yaml@2.9.1))
+        version: 2.7.2(251de4800c8cbc7c5cf996af6ae1215b)
       '@analogjs/vite-plugin-angular':
         specifier: ^2.7.2
-        version: 2.7.2(@angular/build@22.1.8(09d999ef51208f118a8870adcb99a49c))(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)(vite@8.3.0(@types/node@22.20.3)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.0)(terser@5.51.2)(yaml@2.9.1))
+        version: 2.7.2(e36171c856994ddbc62e1ebfdc74b633)
       '@angular/build':
         specifier: ^22.0.0
-        version: 22.1.8(09d999ef51208f118a8870adcb99a49c)
+        version: 22.1.8(@angular/compiler-cli@22.1.7(@angular/compiler@22.1.7)(typescript@6.0.3))(@angular/compiler@22.1.7)(@angular/core@22.1.7(@angular/compiler@22.1.7)(rxjs@7.8.2))(@angular/platform-browser@22.1.7(@angular/common@22.1.7(@angular/core@22.1.7(@angular/compiler@22.1.7)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.1.7(@angular/compiler@22.1.7)(rxjs@7.8.2)))(@angular/platform-server@22.1.7(@angular/common@22.1.7(@angular/core@22.1.7(@angular/compiler@22.1.7)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/compiler@22.1.7)(@angular/core@22.1.7(@angular/compiler@22.1.7)(rxjs@7.8.2))(@angular/platform-browser@22.1.7(@angular/common@22.1.7(@angular/core@22.1.7(@angular/compiler@22.1.7)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.1.7(@angular/compiler@22.1.7)(rxjs@7.8.2)))(rxjs@7.8.2))(@types/node@22.20.3)(chokidar@5.0.0)(jiti@2.7.0)(postcss@8.5.28)(rollup@4.63.4)(tailwindcss@4.3.3)(terser@5.51.2)(tslib@2.8.1)(typescript@6.0.3)(vitest@5.0.1)(yaml@2.9.1)
       '@angular/compiler-cli':
         specifier: ^22.0.0
         version: 22.1.7(@angular/compiler@22.1.7)(typescript@6.0.3)
@@ -188,13 +191,13 @@ importers:
     devDependencies:
       '@analogjs/platform':
         specifier: ^2.7.2
-        version: 2.7.2(@angular/build@22.1.8(09d999ef51208f118a8870adcb99a49c))(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)(@parcel/watcher@2.6.0)(marked-gfm-heading-id@4.1.4(marked@15.0.12))(marked-highlight@2.2.4(marked@15.0.12))(marked-mangle@1.1.14(marked@15.0.12))(marked@15.0.12)(prismjs@1.30.0)(rolldown@1.2.8)(srvx@1.0.5)(vite@8.3.0(@types/node@22.20.3)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.0)(terser@5.51.2)(yaml@2.9.1))
+        version: 2.7.2(251de4800c8cbc7c5cf996af6ae1215b)
       '@analogjs/vite-plugin-angular':
         specifier: ^2.7.2
-        version: 2.7.2(@angular/build@22.1.8(09d999ef51208f118a8870adcb99a49c))(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)(vite@8.3.0(@types/node@22.20.3)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.0)(terser@5.51.2)(yaml@2.9.1))
+        version: 2.7.2(e36171c856994ddbc62e1ebfdc74b633)
       '@angular/build':
         specifier: ^22.0.0
-        version: 22.1.8(09d999ef51208f118a8870adcb99a49c)
+        version: 22.1.8(@angular/compiler-cli@22.1.7(@angular/compiler@22.1.7)(typescript@6.0.3))(@angular/compiler@22.1.7)(@angular/core@22.1.7(@angular/compiler@22.1.7)(rxjs@7.8.2))(@angular/platform-browser@22.1.7(@angular/common@22.1.7(@angular/core@22.1.7(@angular/compiler@22.1.7)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.1.7(@angular/compiler@22.1.7)(rxjs@7.8.2)))(@angular/platform-server@22.1.7(@angular/common@22.1.7(@angular/core@22.1.7(@angular/compiler@22.1.7)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/compiler@22.1.7)(@angular/core@22.1.7(@angular/compiler@22.1.7)(rxjs@7.8.2))(@angular/platform-browser@22.1.7(@angular/common@22.1.7(@angular/core@22.1.7(@angular/compiler@22.1.7)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.1.7(@angular/compiler@22.1.7)(rxjs@7.8.2)))(rxjs@7.8.2))(@types/node@22.20.3)(chokidar@5.0.0)(jiti@2.7.0)(postcss@8.5.28)(rollup@4.63.4)(tailwindcss@4.3.3)(terser@5.51.2)(tslib@2.8.1)(typescript@6.0.3)(vitest@5.0.1)(yaml@2.9.1)
       '@angular/compiler-cli':
         specifier: ^22.0.0
         version: 22.1.7(@angular/compiler@22.1.7)(typescript@6.0.3)
@@ -254,6 +257,19 @@ packages:
 
   '@adobe/css-tools@4.5.0':
     resolution: {integrity: sha512-6OzddxPio9UiWTCemp4N8cYLV2ZN1ncRnV1cVGtve7dhPOtRkleRyx32GQCYSwDYgaHU3USMm84tNsvKzRCa1Q==}
+
+  '@agentyx/adapters@0.7.0':
+    resolution: {integrity: sha512-txKuvLoVtjeRq+u5dRUyp23rjMxNl300B48iK3UWVE8IEZEfSYsuifhL+TLUaHqEAKeCFKMW21zxbiJNm9Ufiw==}
+    engines: {node: '>=22'}
+
+  '@agentyx/cli@0.7.0':
+    resolution: {integrity: sha512-49xP34VaGtOUcTqKaCv7onHXBrnOioxkdAHTrd7BxsQfGMZYZhbAzgQ3SizZ2LX8OGJL0JZ51+PxTv/+hod2KQ==}
+    engines: {node: '>=22'}
+    hasBin: true
+
+  '@agentyx/core@0.7.0':
+    resolution: {integrity: sha512-me1dnFAAk21sIc9r3uv3Vd/16FK5KRW8zToeu75ydoN8cZHb7QBjPVlSZ1vNAAc9I1WuiFTurtHvUYmrMvQHdQ==}
+    engines: {node: '>=22'}
 
   '@ampproject/remapping@2.3.0':
     resolution: {integrity: sha512-30iZtAPgz+LTIYoeivqYo853f02jBYSd5uGnGpkFV0M3xOt9aN73erkgYAmZU43x4VfqcnLxW9Kpg3R5LC4YYw==}
@@ -1339,6 +1355,9 @@ packages:
   '@humanwhocodes/retry@0.4.3':
     resolution: {integrity: sha512-bV0Tgo9K4hfPCek+aMAn81RppFKv2ySDQeMoSZuvTASywNTnVJCArCZE2FWqpvIatKu7VMRLWlR1EazvVhDyhQ==}
     engines: {node: '>=18.18'}
+
+  '@iarna/toml@2.2.5':
+    resolution: {integrity: sha512-trnsAYxU3xnS1gPHPyU961coFyLkh4gAD/0zQ5mymY4yOZ+CYvsPqUbOFSw0aDM4y0tV7tiFxL/1XfXPNC6IPg==}
 
   '@img/colour@1.1.0':
     resolution: {integrity: sha512-Td76q7j57o/tLVdgS746cYARfSyxk8iEfRxewL9h4OMzYhbW4TAcppl0mT4eyqXddh6L/jwoM75mo7ixa/pCeQ==}
@@ -3421,6 +3440,10 @@ packages:
 
   color-name@1.1.4:
     resolution: {integrity: sha512-dOy+3AuW3a2wNbZHIuMZpTcgjGuLU/uBL/ubcZF9OXbDo8ff4O8yVp5Bf0efS8uEoYo5q4Fx7dY9OgQGXgAsQA==}
+
+  commander@14.0.3:
+    resolution: {integrity: sha512-H+y0Jo/T1RZ9qPP4Eh1pkcQcLRglraJaSLoyOtHxu6AapkjWVCy2Sit1QQ4x3Dng8qDlSsZEet7g5Pq06MvTgw==}
+    engines: {node: '>=20'}
 
   commander@2.20.3:
     resolution: {integrity: sha512-GpVkmM8vF2vQUkj2LvZmD35JxeJOLCwJ9cUkugyk2nuhbv3+mJvpLYYt+0+USMxE+oj+ey/lJEnhZw75x/OMcQ==}
@@ -5760,6 +5783,23 @@ snapshots:
 
   '@adobe/css-tools@4.5.0': {}
 
+  '@agentyx/adapters@0.7.0':
+    dependencies:
+      '@agentyx/core': 0.7.0
+      '@iarna/toml': 2.2.5
+
+  '@agentyx/cli@0.7.0':
+    dependencies:
+      '@agentyx/adapters': 0.7.0
+      '@agentyx/core': 0.7.0
+      '@clack/prompts': 1.8.1
+      commander: 14.0.3
+      zod: 4.6.5
+
+  '@agentyx/core@0.7.0':
+    dependencies:
+      zod: 4.6.5
+
   '@ampproject/remapping@2.3.0':
     dependencies:
       '@jridgewell/gen-mapping': 0.3.13
@@ -5780,9 +5820,9 @@ snapshots:
       rxjs: 7.8.2
       tslib: 2.8.1
 
-  '@analogjs/platform@2.7.2(@angular/build@22.1.8(09d999ef51208f118a8870adcb99a49c))(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)(@parcel/watcher@2.6.0)(marked-gfm-heading-id@4.1.4(marked@15.0.12))(marked-highlight@2.2.4(marked@15.0.12))(marked-mangle@1.1.14(marked@15.0.12))(marked@15.0.12)(prismjs@1.30.0)(rolldown@1.2.8)(srvx@1.0.5)(vite@8.3.0(@types/node@22.20.3)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.0)(terser@5.51.2)(yaml@2.9.1))':
+  '@analogjs/platform@2.7.2(251de4800c8cbc7c5cf996af6ae1215b)':
     dependencies:
-      '@analogjs/vite-plugin-angular': 2.7.2(@angular/build@22.1.8(09d999ef51208f118a8870adcb99a49c))(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)(vite@8.3.0(@types/node@22.20.3)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.0)(terser@5.51.2)(yaml@2.9.1))
+      '@analogjs/vite-plugin-angular': 2.7.2(e36171c856994ddbc62e1ebfdc74b633)
       '@analogjs/vite-plugin-nitro': 2.7.2(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)(@parcel/watcher@2.6.0)(rolldown@1.2.8)(srvx@1.0.5)(vite@8.3.0(@types/node@22.20.3)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.0)(terser@5.51.2)(yaml@2.9.1))
       marked: 15.0.12
       marked-gfm-heading-id: 4.1.4(marked@15.0.12)
@@ -5845,14 +5885,14 @@ snapshots:
       '@angular/router': 22.1.7(@angular/common@22.1.7(@angular/core@22.1.7(@angular/compiler@22.1.7)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.1.7(@angular/compiler@22.1.7)(rxjs@7.8.2))(@angular/platform-browser@22.1.7(@angular/common@22.1.7(@angular/core@22.1.7(@angular/compiler@22.1.7)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.1.7(@angular/compiler@22.1.7)(rxjs@7.8.2)))(rxjs@7.8.2)
       tslib: 2.8.1
 
-  '@analogjs/vite-plugin-angular@2.7.2(@angular/build@22.1.8(09d999ef51208f118a8870adcb99a49c))(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)(vite@8.3.0(@types/node@22.20.3)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.0)(terser@5.51.2)(yaml@2.9.1))':
+  '@analogjs/vite-plugin-angular@2.7.2(e36171c856994ddbc62e1ebfdc74b633)':
     dependencies:
       magic-string: 0.30.21
       obug: 2.2.1
       oxc-parser: 0.121.0(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)
       tinyglobby: 0.2.17
     optionalDependencies:
-      '@angular/build': 22.1.8(09d999ef51208f118a8870adcb99a49c)
+      '@angular/build': 22.1.8(@angular/compiler-cli@22.1.7(@angular/compiler@22.1.7)(typescript@6.0.3))(@angular/compiler@22.1.7)(@angular/core@22.1.7(@angular/compiler@22.1.7)(rxjs@7.8.2))(@angular/platform-browser@22.1.7(@angular/common@22.1.7(@angular/core@22.1.7(@angular/compiler@22.1.7)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.1.7(@angular/compiler@22.1.7)(rxjs@7.8.2)))(@angular/platform-server@22.1.7(@angular/common@22.1.7(@angular/core@22.1.7(@angular/compiler@22.1.7)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/compiler@22.1.7)(@angular/core@22.1.7(@angular/compiler@22.1.7)(rxjs@7.8.2))(@angular/platform-browser@22.1.7(@angular/common@22.1.7(@angular/core@22.1.7(@angular/compiler@22.1.7)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.1.7(@angular/compiler@22.1.7)(rxjs@7.8.2)))(rxjs@7.8.2))(@types/node@22.20.3)(chokidar@5.0.0)(jiti@2.7.0)(postcss@8.5.28)(rollup@4.63.4)(tailwindcss@4.3.3)(terser@5.51.2)(tslib@2.8.1)(typescript@6.0.3)(vitest@5.0.1)(yaml@2.9.1)
       vite: 8.3.0(@types/node@22.20.3)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.0)(terser@5.51.2)(yaml@2.9.1)
     transitivePeerDependencies:
       - '@emnapi/core'
@@ -5929,7 +5969,7 @@ snapshots:
     optionalDependencies:
       chokidar: 5.0.0
 
-  '@angular/build@22.1.8(09d999ef51208f118a8870adcb99a49c)':
+  '@angular/build@22.1.8(@angular/compiler-cli@22.1.7(@angular/compiler@22.1.7)(typescript@6.0.3))(@angular/compiler@22.1.7)(@angular/core@22.1.7(@angular/compiler@22.1.7)(rxjs@7.8.2))(@angular/platform-browser@22.1.7(@angular/common@22.1.7(@angular/core@22.1.7(@angular/compiler@22.1.7)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.1.7(@angular/compiler@22.1.7)(rxjs@7.8.2)))(@angular/platform-server@22.1.7(@angular/common@22.1.7(@angular/core@22.1.7(@angular/compiler@22.1.7)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/compiler@22.1.7)(@angular/core@22.1.7(@angular/compiler@22.1.7)(rxjs@7.8.2))(@angular/platform-browser@22.1.7(@angular/common@22.1.7(@angular/core@22.1.7(@angular/compiler@22.1.7)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.1.7(@angular/compiler@22.1.7)(rxjs@7.8.2)))(rxjs@7.8.2))(@types/node@22.20.3)(chokidar@5.0.0)(jiti@2.7.0)(postcss@8.5.28)(rollup@4.63.4)(tailwindcss@4.3.3)(terser@5.51.2)(tslib@2.8.1)(typescript@6.0.3)(vitest@5.0.1)(yaml@2.9.1)':
     dependencies:
       '@ampproject/remapping': 2.3.0
       '@angular-devkit/architect': 0.2201.8(chokidar@5.0.0)
@@ -6725,6 +6765,8 @@ snapshots:
   '@humanwhocodes/module-importer@1.0.1': {}
 
   '@humanwhocodes/retry@0.4.3': {}
+
+  '@iarna/toml@2.2.5': {}
 
   '@img/colour@1.1.0': {}
 
@@ -8313,6 +8355,8 @@ snapshots:
       color-name: 1.1.4
 
   color-name@1.1.4: {}
+
+  commander@14.0.3: {}
 
   commander@2.20.3: {}
 

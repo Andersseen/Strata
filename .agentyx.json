@@ -1,0 +1,18 @@
+{
+  "packs": [
+    "technical",
+    "typescript",
+    "angular",
+    "testing",
+    "efficiency",
+    "performance",
+    "accessibility",
+    "security",
+    "refactoring",
+    "documentation",
+    "git",
+    "devops"
+  ],
+  "enable": ["rtk"],
+  "targets": ["codex", "claude"]
+}
