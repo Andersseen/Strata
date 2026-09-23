@@ -1,4 +1,5 @@
 import { Controller, Get } from "@strata/core";
+import type { StrataAnalogRequest } from "@strata/analog";
 
 // Server-only by construction, like `hello.controller.ts`: only the Nitro
 // plugin under `src/server/plugins/` imports this module, and it registers the
@@ -16,10 +17,10 @@ export class UsersController {
     return [{ id: "1", name: "Ada" }];
   }
 
-  // Routing only: no parameter extraction exists yet, so this always answers
-  // with the same user — it proves `/:id` is registered as a dynamic route.
+  // Request input is provided by @strata/analog's own boundary, not by exposing
+  // Nitro's H3 event to the controller.
   @Get("/:id")
-  findOne() {
-    return { id: "1", name: "Ada" };
+  findOne(request: StrataAnalogRequest) {
+    return { id: request.params["id"], name: "Ada" };
   }
 }

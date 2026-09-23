@@ -134,12 +134,18 @@ API), from a Nitro server plugin. It does not depend on `@strata/h3`, and it doe
 ```ts
 // src/server/strata/users.controller.ts
 import { Controller, Get } from "@strata/core";
+import type { StrataAnalogRequest } from "@strata/analog";
 
 @Controller("/api/strata/users")
 export class UsersController {
   @Get()
   findAll() {
     return [{ id: "1", name: "Ada" }];
+  }
+
+  @Get("/:id")
+  findOne(request: StrataAnalogRequest) {
+    return { id: request.params["id"], name: "Ada" };
   }
 }
 ```
@@ -158,8 +164,9 @@ export default defineNitroPlugin((nitroApp) => {
 
 `GET /api/strata/users` answers `200` JSON in `analog dev` and in the production server, alongside
 native Analog routes. As with `@strata/h3`, the lifecycle is provisional: one instance per
-controller, created at registration, and handlers take no arguments. Controllers under
-`src/server/**` stay out of the client bundle. The
+controller, created at registration. Handlers may accept one provisional `StrataAnalogRequest`
+argument for params, query, headers, URL/path, context and lazy body readers; Nitro's H3 event is
+not exposed to controller code. Controllers under `src/server/**` stay out of the client bundle. The
 [integration report](./docs/research/analog-integration-baseline.md) records what is verified
 (Analog 2.7.2, Nitro 2.13.4) and what is not.
 
