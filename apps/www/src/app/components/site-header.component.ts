@@ -29,9 +29,17 @@ import { ThemeToggleComponent } from "./theme-toggle.component";
       >
       <volt-navigation-menu class="nav-links" aria-label="Strata sections">
         <volt-navigation-menu-list>
-          <volt-navigation-menu-item><a voltNavigationMenuLink href="#why">Why Strata</a></volt-navigation-menu-item>
-          <volt-navigation-menu-item><a voltNavigationMenuLink href="#example">Example</a></volt-navigation-menu-item>
-          <volt-navigation-menu-item><a voltNavigationMenuLink href="#architecture">Architecture</a></volt-navigation-menu-item>
+          <volt-navigation-menu-item
+            ><a voltNavigationMenuLink href="#why">Why Strata</a></volt-navigation-menu-item
+          >
+          <volt-navigation-menu-item
+            ><a voltNavigationMenuLink href="#example">Example</a></volt-navigation-menu-item
+          >
+          <volt-navigation-menu-item
+            ><a voltNavigationMenuLink href="#architecture"
+              >Architecture</a
+            ></volt-navigation-menu-item
+          >
         </volt-navigation-menu-list>
       </volt-navigation-menu>
       <div class="nav-actions">

@@ -1,5 +1,11 @@
 import { DOCUMENT, isPlatformBrowser } from "@angular/common";
-import { afterNextRender, ChangeDetectionStrategy, Component, inject, PLATFORM_ID } from "@angular/core";
+import {
+  afterNextRender,
+  ChangeDetectionStrategy,
+  Component,
+  inject,
+  PLATFORM_ID,
+} from "@angular/core";
 import { VoltBadge, VoltSeparator } from "@voltui/components";
 
 import { ArchitectureSectionComponent } from "./components/architecture-section.component";
@@ -29,10 +35,13 @@ import { SiteHeaderComponent } from "./components/site-header.component";
       <section class="proof-strip section-wrap">
         <p>Built for the stack you already use</p>
         <div class="proof-technologies">
-          <volt-badge variant="secondary">Angular</volt-badge><volt-separator orientation="vertical" />
-          <volt-badge variant="secondary">Analog</volt-badge><volt-separator orientation="vertical" />
-          <volt-badge variant="secondary">Nitro</volt-badge><volt-separator orientation="vertical" />
-          <volt-badge variant="secondary">H3</volt-badge><volt-separator orientation="vertical" />
+          <volt-badge variant="secondary">Angular</volt-badge
+          ><volt-separator orientation="vertical" />
+          <volt-badge variant="secondary">Analog</volt-badge
+          ><volt-separator orientation="vertical" />
+          <volt-badge variant="secondary">Nitro</volt-badge
+          ><volt-separator orientation="vertical" /> <volt-badge variant="secondary">H3</volt-badge
+          ><volt-separator orientation="vertical" />
           <volt-badge variant="secondary">TypeScript</volt-badge>
         </div>
       </section>

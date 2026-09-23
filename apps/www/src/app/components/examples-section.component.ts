@@ -43,20 +43,23 @@ import { CodePanelComponent } from "./code-panel.component";
       </div>
       <div class="code-layout" [moveInView]="{ opacity: [0, 1], y: [28, 0] }" moveInViewOnce="true">
         <strata-code-panel filename="users.controller.ts" [code]="controllerExample" />
-        <volt-card class="example-notes"><volt-card-header>
-          <span class="note-number">01</span>
-          <volt-card-title>Start with your domain.</volt-card-title>
-        </volt-card-header><volt-card-content>
-          <p>
-            Controllers are ordinary classes. Decorators create portable metadata; they don't
-            obscure your code with a second application model.
-          </p>
-          <div class="note-rule"></div>
-          <span class="note-number">02</span>
-          <h3>Attach to a runtime when ready.</h3>
-          <p>Bring this class to H3 directly, or use the Analog adapter from a Nitro plugin.</p>
-          <a href="#analog">See the Analog integration <lmn-arrow-right [size]="16" /></a>
-        </volt-card-content></volt-card>
+        <volt-card class="example-notes"
+          ><volt-card-header>
+            <span class="note-number">01</span>
+            <volt-card-title>Start with your domain.</volt-card-title> </volt-card-header
+          ><volt-card-content>
+            <p>
+              Controllers are ordinary classes. Decorators create portable metadata; they don't
+              obscure your code with a second application model.
+            </p>
+            <div class="note-rule"></div>
+            <span class="note-number">02</span>
+            <h3>Attach to a runtime when ready.</h3>
+            <p>Bring this class to H3 directly, or use the Analog adapter from a Nitro plugin.</p>
+            <a href="#analog"
+              >See the Analog integration <lmn-arrow-right [size]="16"
+            /></a> </volt-card-content
+        ></volt-card>
       </div>
     </section>
     <section id="analog" class="analog-section section-wrap">
@@ -70,13 +73,22 @@ import { CodePanelComponent } from "./code-panel.component";
           the router it already owns.
         </p>
       </div>
-      <volt-tabs class="integration-tabs" value="analog" [moveInView]="{ opacity: [0, 1], y: [28, 0] }" moveInViewOnce="true">
+      <volt-tabs
+        class="integration-tabs"
+        value="analog"
+        [moveInView]="{ opacity: [0, 1], y: [28, 0] }"
+        moveInViewOnce="true"
+      >
         <volt-tabs-list>
           <volt-tabs-trigger value="analog">Analog plugin</volt-tabs-trigger>
           <volt-tabs-trigger value="native">Native H3</volt-tabs-trigger>
         </volt-tabs-list>
-        <volt-tabs-content value="analog"><strata-code-panel filename="src/server/plugins/strata.ts" [code]="analogExample" /></volt-tabs-content>
-        <volt-tabs-content value="native"><strata-code-panel filename="server.ts" [code]="controllerExample" /></volt-tabs-content>
+        <volt-tabs-content value="analog"
+          ><strata-code-panel filename="src/server/plugins/strata.ts" [code]="analogExample"
+        /></volt-tabs-content>
+        <volt-tabs-content value="native"
+          ><strata-code-panel filename="server.ts" [code]="controllerExample"
+        /></volt-tabs-content>
       </volt-tabs>
     </section>`,
 })

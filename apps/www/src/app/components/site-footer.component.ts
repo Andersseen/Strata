@@ -5,22 +5,28 @@ import { LmnGithubIcon } from "lumen-icons/github";
 
 @Component({
   selector: "strata-site-footer",
-  imports: [...MOVEMENT_DIRECTIVES, LmnGithubIcon, VoltButton, VoltCard, VoltCardContent, VoltSeparator],
+  imports: [
+    ...MOVEMENT_DIRECTIVES,
+    LmnGithubIcon,
+    VoltButton,
+    VoltCard,
+    VoltCardContent,
+    VoltSeparator,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `<section class="cta-section section-wrap">
-      <volt-card [moveInView]="{ opacity: [0, 1], y: [22, 0] }" moveInViewOnce="true"><volt-card-content>
-        <p class="eyebrow">EARLY, OPEN, AND DELIBERATE</p>
-        <h2>Build the next layer with us.</h2>
-        <p>
-          Strata is experimental today. The design work is public, the boundaries are explicit, and
-          contributions are welcome.
-        </p>
-        <volt-button
-          class="primary-action"
-          (click)="openGitHub()"
-          >View on GitHub <lmn-github [size]="16"
-        /></volt-button>
-      </volt-card-content></volt-card>
+      <volt-card [moveInView]="{ opacity: [0, 1], y: [22, 0] }" moveInViewOnce="true"
+        ><volt-card-content>
+          <p class="eyebrow">EARLY, OPEN, AND DELIBERATE</p>
+          <h2>Build the next layer with us.</h2>
+          <p>
+            Strata is experimental today. The design work is public, the boundaries are explicit,
+            and contributions are welcome.
+          </p>
+          <volt-button class="primary-action" (click)="openGitHub()"
+            >View on GitHub <lmn-github [size]="16"
+          /></volt-button> </volt-card-content
+      ></volt-card>
     </section>
     <footer class="footer section-wrap">
       <a class="brand" href="#top"

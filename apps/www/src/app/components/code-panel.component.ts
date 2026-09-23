@@ -9,7 +9,9 @@ import { VoltButton } from "@voltui/components";
     <div class="window-bar">
       <div class="window-dots"><i></i><i></i><i></i></div>
       <span>{{ filename() }}</span
-      ><volt-button variant="ghost" size="sm" (click)="copy()">{{ copied() ? "Copied" : "Copy" }}</volt-button>
+      ><volt-button variant="ghost" size="sm" (click)="copy()">{{
+        copied() ? "Copied" : "Copy"
+      }}</volt-button>
     </div>
     <pre><code>{{ code() }}</code></pre>
   </div>`,
