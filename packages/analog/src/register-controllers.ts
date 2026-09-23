@@ -4,6 +4,27 @@ import type { HttpMethod, RouteDefinition } from "@strata/core";
 import { StrataAnalogConfigurationError } from "./errors.js";
 import { buildRoutePath } from "./utils/build-route-path.js";
 
+export type StrataAnalogQueryValue = string | readonly string[];
+
+export type StrataAnalogQuery = Readonly<Record<string, StrataAnalogQueryValue>>;
+
+export type StrataAnalogParams = Readonly<Record<string, string>>;
+
+export type StrataAnalogContext = Readonly<Record<string, unknown>>;
+
+export interface StrataAnalogRequest {
+  readonly method: string;
+  readonly path: string;
+  readonly url: URL;
+  readonly headers: Headers;
+  readonly params: StrataAnalogParams;
+  readonly query: StrataAnalogQuery;
+  readonly context: StrataAnalogContext;
+  readBody: () => Promise<unknown>;
+  readText: () => Promise<string>;
+  readJson: <T = unknown>() => Promise<T>;
+}
+
 /**
  * A Strata controller class, as passed to {@link registerControllers}.
  *
@@ -36,11 +57,12 @@ type RouterMethod = (typeof ROUTER_METHOD)[HttpMethod];
  * - The Nitro `Router` is assignable to this interface as-is — no cast. That
  *   is verified against Nitro's real types by the `test:analog` fixture.
  *
- * The handler is passed as a zero-argument function: H3 calls it with the
- * event, but Strata does not expose the event to controllers yet.
+ * The handler receives Nitro/H3's event internally, converts it to Strata's
+ * own request boundary, and passes that boundary to controller methods. The
+ * public controller API never receives the H3 event itself.
  */
 export interface NitroRouter {
-  add(path: string, handler: () => unknown, method: RouterMethod): unknown;
+  add(path: string, handler: (event: NitroEvent) => unknown, method: RouterMethod): unknown;
 }
 
 /**
@@ -60,9 +82,9 @@ export interface NitroRouter {
  * 2. creates a single instance of the controller;
  * 3. registers each `@Get()` route on `router`, joining the controller path
  *    and route path into the final route path;
- * 4. wires each route to invoke the matching zero-argument controller
- *    method and return its result directly to Nitro/H3, which serializes it
- *    natively (objects and arrays become JSON).
+ * 4. wires each route to invoke the matching controller method with a
+ *    `StrataAnalogRequest` argument and return its result directly to
+ *    Nitro/H3, which serializes it natively (objects and arrays become JSON).
  *
  * Controller lifecycle (provisional): Strata has no dependency injection or
  * request-scoped lifecycle yet. This function instantiates each controller
@@ -70,6 +92,11 @@ export interface NitroRouter {
  * reuses that single instance for every request. This is a deliberately
  * minimal placeholder — not a stable API — until a real controller
  * lifecycle/DI design lands in a later iteration.
+ *
+ * Request input boundary (provisional): controller methods may accept one
+ * `StrataAnalogRequest` argument. It contains route params, query values,
+ * headers, method, URL/path, a shallow context snapshot, and lazy body readers
+ * without exposing Nitro's H3 v1 event type or requiring a dependency on H3.
  *
  * Registration validates eagerly: a class without `@Controller()` metadata,
  * or a route whose handler isn't a callable method, throws a
@@ -124,5 +151,171 @@ function registerRoute(
 
   const path = buildRoutePath(controllerPath, route.path);
 
-  router.add(path, () => handler.call(instance) as unknown, ROUTER_METHOD[route.method]);
+  router.add(
+    path,
+    (event) => handler.call(instance, createStrataAnalogRequest(event)) as unknown,
+    ROUTER_METHOD[route.method],
+  );
+}
+
+interface NitroEvent {
+  readonly method?: string;
+  readonly path?: string;
+  readonly headers?: Headers;
+  readonly context?: Record<string, unknown> & { params?: Record<string, unknown> };
+  readonly web?: {
+    readonly request?: Request;
+    readonly url?: URL;
+  };
+  readonly node?: {
+    readonly req?: NitroNodeRequest;
+  };
+}
+
+interface NitroNodeRequest extends AsyncIterable<Uint8Array | string> {
+  readonly method?: string | undefined;
+  readonly url?: string | undefined;
+  readonly originalUrl?: string;
+  readonly headers?: Record<string, string | readonly string[] | undefined>;
+}
+
+function createStrataAnalogRequest(event: NitroEvent): StrataAnalogRequest {
+  const url = getEventUrl(event);
+  const headers = getEventHeaders(event);
+  let textBody: Promise<string> | undefined;
+
+  const readText = async (): Promise<string> => {
+    textBody ??= readEventText(event);
+
+    return textBody;
+  };
+
+  const readJson = async <T = unknown>(): Promise<T> => {
+    const text = await readText();
+
+    return (text.length === 0 ? undefined : JSON.parse(text)) as T;
+  };
+
+  const readBody = async (): Promise<unknown> => {
+    const contentType = headers.get("content-type") ?? "";
+    const text = await readText();
+
+    if (text.length === 0) {
+      return undefined;
+    }
+
+    if (contentType.includes("application/json")) {
+      return JSON.parse(text) as unknown;
+    }
+
+    if (contentType.includes("application/x-www-form-urlencoded")) {
+      return parseQuery(new URLSearchParams(text));
+    }
+
+    return text;
+  };
+
+  return Object.freeze({
+    method: event.method ?? event.node?.req?.method ?? "GET",
+    path: url.pathname,
+    url,
+    headers,
+    params: Object.freeze(getEventParams(event)),
+    query: Object.freeze(parseQuery(url.searchParams)),
+    context: Object.freeze({ ...(event.context ?? {}) }),
+    readBody,
+    readText,
+    readJson,
+  });
+}
+
+function getEventUrl(event: NitroEvent): URL {
+  if (event.web?.url) {
+    return new URL(event.web.url);
+  }
+
+  if (event.web?.request) {
+    return new URL(event.web.request.url);
+  }
+
+  return new URL(
+    event.path ?? event.node?.req?.originalUrl ?? event.node?.req?.url ?? "/",
+    "http://localhost",
+  );
+}
+
+function getEventHeaders(event: NitroEvent): Headers {
+  if (event.headers) {
+    return new Headers(event.headers);
+  }
+
+  const headers = new Headers();
+
+  for (const [key, value] of Object.entries(event.node?.req?.headers ?? {})) {
+    if (isStringArray(value)) {
+      for (const item of value) {
+        headers.append(key, item);
+      }
+    } else if (typeof value === "string") {
+      headers.set(key, value);
+    }
+  }
+
+  return headers;
+}
+
+function getEventParams(event: NitroEvent): Record<string, string> {
+  const params: Record<string, string> = {};
+
+  for (const [key, value] of Object.entries(event.context?.params ?? {})) {
+    if (typeof value === "string") {
+      params[key] = value;
+    }
+  }
+
+  return params;
+}
+
+function parseQuery(searchParams: URLSearchParams): Record<string, StrataAnalogQueryValue> {
+  const query: Record<string, StrataAnalogQueryValue> = {};
+
+  for (const [key, value] of searchParams) {
+    const previous = query[key];
+
+    if (previous === undefined) {
+      query[key] = value;
+    } else if (isStringArray(previous)) {
+      query[key] = [...previous, value];
+    } else {
+      query[key] = [previous, value];
+    }
+  }
+
+  return query;
+}
+
+function isStringArray(value: unknown): value is readonly string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string");
+}
+
+async function readEventText(event: NitroEvent): Promise<string> {
+  const request = event.web?.request;
+
+  if (request) {
+    return request.clone().text();
+  }
+
+  const requestBody = event.node?.req;
+
+  if (!requestBody) {
+    return "";
+  }
+
+  const chunks: string[] = [];
+
+  for await (const chunk of requestBody) {
+    chunks.push(typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk));
+  }
+
+  return chunks.join("");
 }

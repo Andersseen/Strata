@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { StrataAnalogConfigurationError } from "./errors.js";
 import { registerControllers } from "./register-controllers.js";
+import type { NitroRouter, StrataAnalogRequest } from "./register-controllers.js";
 
 /**
  * Builds the same H3 v1 shape Nitro 2 builds in `createNitroApp()` — an H3 app
@@ -197,14 +198,14 @@ describe("registerControllers", () => {
     expect(constructed).toBe(1);
   });
 
-  it("does not expose the H3 event to controller methods", async () => {
-    let received: unknown[] = [];
+  it("passes Strata's request boundary to controller methods without exposing the H3 event", async () => {
+    let received: StrataAnalogRequest | undefined;
 
-    @Controller("/args")
-    class ArgsController {
+    @Controller("/request")
+    class RequestController {
       @Get()
-      inspect(...args: unknown[]) {
-        received = args;
+      inspect(request: StrataAnalogRequest) {
+        received = request;
 
         return { ok: true };
       }
@@ -212,11 +213,131 @@ describe("registerControllers", () => {
 
     const { router, request } = createNitroLikeApp();
 
-    registerControllers(router, [ArgsController]);
+    registerControllers(router, [RequestController]);
 
-    await request("/args");
+    await request("/request?search=ada");
 
-    expect(received).toEqual([]);
+    expect(received).toMatchObject({
+      method: "GET",
+      path: "/request",
+      params: {},
+      query: { search: "ada" },
+    });
+    expect(received).not.toHaveProperty("node");
+    expect(received).not.toHaveProperty("web");
+    expect(received?.headers).toBeInstanceOf(Headers);
+    expect(received?.url).toBeInstanceOf(URL);
+  });
+
+  it("provides route params and repeated query values through Strata's request boundary", async () => {
+    @Controller("/api/users")
+    class RequestInputController {
+      @Get("/:id")
+      findOne(request: StrataAnalogRequest) {
+        return {
+          id: request.params["id"],
+          include: request.query["include"],
+          tag: request.query["tag"],
+        };
+      }
+    }
+
+    const { router, request } = createNitroLikeApp();
+
+    registerControllers(router, [RequestInputController]);
+
+    const response = await request("/api/users/42?include=profile&tag=a&tag=b");
+
+    await expect(response.json()).resolves.toEqual({
+      id: "42",
+      include: "profile",
+      tag: ["a", "b"],
+    });
+  });
+
+  it("provides a shallow context snapshot through Strata's request boundary", async () => {
+    @Controller("/context")
+    class ContextController {
+      @Get()
+      inspect(request: StrataAnalogRequest) {
+        return { traceId: request.context["traceId"] };
+      }
+    }
+
+    const app = createApp();
+    const router = createRouter({ preemptive: true });
+
+    app.use(
+      defineEventHandler((event) => {
+        event.context["traceId"] = "trace-1";
+      }),
+    );
+    app.use(router.handler);
+
+    const handle = toWebHandler(app);
+
+    registerControllers(router, [ContextController]);
+
+    const response = await handle(new Request("http://localhost/context"));
+
+    await expect(response.json()).resolves.toEqual({ traceId: "trace-1" });
+  });
+
+  it("provides lazy text, JSON and content-type-aware body readers", async () => {
+    const registeredHandlers: Array<
+      (event: {
+        method?: string;
+        path?: string;
+        headers?: Headers;
+        context?: Record<string, unknown>;
+        web?: { request?: Request };
+      }) => unknown
+    > = [];
+    const router = {
+      add(_path, handler) {
+        registeredHandlers.push(handler);
+      },
+    } satisfies NitroRouter;
+
+    @Controller("/body")
+    class BodyController {
+      @Get()
+      async read(request: StrataAnalogRequest) {
+        return {
+          json: await request.readJson(),
+          body: await request.readBody(),
+          text: await request.readText(),
+        };
+      }
+    }
+
+    registerControllers(router, [BodyController]);
+
+    const handler = registeredHandlers[0];
+
+    if (!handler) {
+      throw new Error("Expected registerControllers() to add a route handler.");
+    }
+
+    await expect(
+      handler({
+        method: "POST",
+        path: "/body",
+        headers: new Headers({ "content-type": "application/json" }),
+        context: {},
+        web: {
+          request: new Request("http://localhost/body", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ name: "Ada" }),
+          }),
+        },
+      }),
+    ).resolves.toEqual({
+      json: { name: "Ada" },
+      body: { name: "Ada" },
+      text: JSON.stringify({ name: "Ada" }),
+    });
   });
 
   it("lets native Nitro routes keep working alongside Strata controllers", async () => {

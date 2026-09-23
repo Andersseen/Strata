@@ -31,5 +31,5 @@ export const EXPECTED_PROBE_DEFINITION = {
 /** What `GET /api/strata/users` must return, registered only through `@strata/analog`. */
 export const EXPECTED_USERS_BODY = [{ id: "1", name: "Ada" }];
 
-/** What `GET /api/strata/users/:id` must return (routing only: no parameter extraction yet). */
-export const EXPECTED_USER_BODY = { id: "1", name: "Ada" };
+/** What `GET /api/strata/users/:id` must return through Strata's request boundary. */
+export const EXPECTED_USER_BODY = { id: "42", name: "Ada" };

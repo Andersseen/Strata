@@ -30,12 +30,29 @@ import { LmnCheckCircleIcon } from "lumen-icons/check-circle";
       [moveInView]="{ opacity: [0, 1], x: [24, 0] }"
       moveInViewOnce="true"
     >
-      <volt-card><volt-card-content><span>01</span><b>Application</b><small>Business logic and controllers</small></volt-card-content></volt-card>
-      <volt-card><volt-card-content><span>02</span><b>Strata core</b><small>Route declarations as metadata</small></volt-card-content></volt-card>
-      <volt-card><volt-card-content><span>03</span><b>Adapter</b><small>A precise registration seam</small></volt-card-content></volt-card>
-      <volt-card class="ownership-runtime"><volt-card-content>
-        <span>04</span><b>H3 / Nitro</b><small>Your owned request lifecycle</small>
-      </volt-card-content></volt-card>
+      <volt-card
+        ><volt-card-content
+          ><span>01</span><b>Application</b
+          ><small>Business logic and controllers</small></volt-card-content
+        ></volt-card
+      >
+      <volt-card
+        ><volt-card-content
+          ><span>02</span><b>Strata core</b
+          ><small>Route declarations as metadata</small></volt-card-content
+        ></volt-card
+      >
+      <volt-card
+        ><volt-card-content
+          ><span>03</span><b>Adapter</b
+          ><small>A precise registration seam</small></volt-card-content
+        ></volt-card
+      >
+      <volt-card class="ownership-runtime"
+        ><volt-card-content>
+          <span>04</span><b>H3 / Nitro</b><small>Your owned request lifecycle</small>
+        </volt-card-content></volt-card
+      >
     </div>
   </section>`,
 })

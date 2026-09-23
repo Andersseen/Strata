@@ -7,12 +7,7 @@
           {
             "type": "command",
             "command": "npx",
-            "args": [
-              "--no-install",
-              "agentyx",
-              "doctor",
-              "--hook"
-            ],
+            "args": ["--no-install", "agentyx", "doctor", "--hook"],
             "statusMessage": "agentyx:session-doctor-bootstrap"
           }
         ]
