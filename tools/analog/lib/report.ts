@@ -1,4 +1,10 @@
-import { CLIENT_MARKER, CONTROLLER_MARKER, SERVER_MARKER } from "./constants.ts";
+import {
+  ANGULAR_DI_MARKER,
+  CLIENT_MARKER,
+  CONTROLLER_MARKER,
+  FACTORY_MARKER,
+  SERVER_MARKER,
+} from "./constants.ts";
 
 export type Outcome = "A" | "B" | "C" | "D";
 
@@ -62,6 +68,8 @@ export interface MarkerScan {
   clientControlMarker: string[];
   coreInternalSymbol: string[];
   controllerMarker: string[];
+  factoryMarker: string[];
+  angularDiMarker: string[];
   analogAdapterSymbol: string[];
   h3AdapterSymbol: string[];
 }
@@ -72,6 +80,12 @@ export interface RouteRow {
   status: number;
   contentType: string | null;
   body: string;
+}
+
+export interface AngularDiRow {
+  mode: string;
+  responses: string[];
+  stats: string;
 }
 
 /** Observations about `@strata/analog` itself and the fixture that consumes it. */
@@ -88,6 +102,7 @@ export interface AdapterReport {
   fixtureImports: string[];
   build: { status: number | null; artifacts: { path: string; exists: boolean }[] };
   routes: RouteRow[];
+  angularDi: AngularDiRow[];
   typecheck: { command: string; status: number | null; note: string };
 }
 
@@ -288,10 +303,16 @@ between majors, a fake H3 instance, or a second router — all ruled out for thi
 ## \`@strata/analog\`: a Strata controller through the public Nitro router seam
 
 \`src/server/plugins/strata.ts\` is a Nitro server plugin that calls
-\`registerControllers(nitroApp.router, [UsersController])\`. \`UsersController\` (\`@Controller("/api/strata/users")\`
-with two \`@Get()\` routes) is **not** reachable from any file under \`src/server/routes/**\`: no
-file-system route wraps it. The routes below exist only because \`@strata/analog\` read its
-\`@strata/core\` metadata and registered it on \`nitroApp.router\`.
+\`registerControllers(nitroApp.router, [UsersController, LifecycleController])\` and, separately,
+\`registerControllers(nitroApp.router, [GreetingController], { controllerFactory })\`. None of these
+controllers is reachable from any file under \`src/server/routes/**\`: no file-system route wraps
+them. The routes below exist only because \`@strata/analog\` read their \`@strata/core\` metadata and
+registered them on \`nitroApp.router\`.
+
+Controllers are request-scoped: \`LifecycleController\` and \`GreetingController\` increment an
+instance field, and each is requested twice in a row per mode. Both answers carry \`calls: 1\`, so
+each request got a new instance. \`GreetingController\` receives a plain \`GreetingService\` only from
+the fixture's \`controllerFactory\` (Strata's default factory would leave it \`null\`).
 
 ${table(
   ["Route", "Mode", "Status", "Content-Type", "Body"],
@@ -305,6 +326,37 @@ ${table(
 )}
 
 The native Analog route (\`/api/native\`, above) answers in the same run, on the same router.
+
+### Experiment: Angular DI through \`controllerFactory\`
+
+\`src/server/plugins/strata-angular-di.ts\` registers \`AngularDiController\` with a factory owned by the
+fixture, not by \`@strata/analog\` (which has no Angular dependency). The plugin creates an app-level
+\`Injector.create()\` holding \`AppGreetingService\`; for each request the factory creates a child
+\`Injector.create({ parent: appInjector })\` providing \`STRATA_REQUEST\` and \`RequestScope\`, and
+builds the controller with \`runInInjectionContext(requestInjector, () => new Controller())\`. The
+controller resolves everything with \`inject()\` in field initializers and keeps it across \`await\`.
+A Nitro \`request\` hook puts a mutable slot on \`event.context\` (shared by the request's shallow
+context snapshot); \`afterResponse\` and \`error\` hooks destroy the injector stored in it.
+
+Two overlapping requests per mode: \`?id=a&delay=150\` and \`?id=b\` (B answers while A is suspended).
+Stats come from \`/api/strata-angular-di-stats\` once both have answered.
+
+${table(
+  ["Mode", "Responses", "Injector stats"],
+  report.adapter.angularDi.map((row) => [
+    row.mode,
+    row.responses.map(code).join("<br>"),
+    code(row.stats),
+  ]),
+)}
+
+Expected and observed: both requests share one \`AppGreetingService\` instance, each gets its own
+\`RequestScope\`, the injected \`STRATA_REQUEST\` is the object the handler receives, no injector is
+destroyed before its response, and every request injector (and its controller's \`DestroyRef\`
+callback) is destroyed afterwards. Limits: the app-level injector is created in the Nitro plugin and
+is **not** the injector of Analog's SSR application (a Nitro plugin cannot reach that one), and
+disposal relies on Nitro hooks because \`@strata/analog\` exposes no release hook yet. The experiment's
+files carry \`${ANGULAR_DI_MARKER}\`, scanned in the module-graph section below.
 
 **Package boundary.** \`@strata/analog\` declares:
 
@@ -348,18 +400,23 @@ ${table(
 )}
 
 \`${CONTROLLER_MARKER}\` is used only by the controller registered through \`@strata/analog\`
-(\`src/server/strata/users.controller.ts\`, imported only by the Nitro plugin):
+(\`src/server/strata/users.controller.ts\`, imported only by the Nitro plugin). \`${FACTORY_MARKER}\` is
+used only by \`src/server/strata/greeting.controller.ts\`, registered with a custom \`controllerFactory\`:
 
 ${table(
   [
     "Output",
     "Registered-controller marker",
+    "Controller-factory marker",
+    "Angular DI experiment marker",
     "`@strata/analog` (error class name)",
     "`@strata/h3` (error class name)",
   ],
   report.markerScans.map((scan) => [
     `${scan.label} (${code(scan.directory)})`,
     files(scan.controllerMarker),
+    files(scan.factoryMarker),
+    files(scan.angularDiMarker),
     files(scan.analogAdapterSymbol),
     files(scan.h3AdapterSymbol),
   ]),

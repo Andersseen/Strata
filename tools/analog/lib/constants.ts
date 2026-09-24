@@ -4,6 +4,12 @@ export const SERVER_MARKER = "STRATA_ANALOG_SERVER_ONLY_MARKER";
 /** Emitted only by `src/server/strata/users.controller.ts`, the controller registered through `@strata/analog`. */
 export const CONTROLLER_MARKER = "STRATA_ANALOG_REGISTERED_CONTROLLER_MARKER";
 
+/** Emitted only by `src/server/strata/greeting.controller.ts`, registered with a custom `controllerFactory`. */
+export const FACTORY_MARKER = "STRATA_ANALOG_CONTROLLER_FACTORY_MARKER";
+
+/** Emitted only by the Angular DI experiment under `src/server/strata/angular-di/`. */
+export const ANGULAR_DI_MARKER = "STRATA_ANALOG_ANGULAR_DI_MARKER";
+
 /** Emitted by a client page on purpose: a positive control for the output scan. */
 export const CLIENT_MARKER = "STRATA_ANALOG_CLIENT_CONTROL_MARKER";
 
@@ -33,3 +39,9 @@ export const EXPECTED_USERS_BODY = [{ id: "1", name: "Ada" }];
 
 /** What `GET /api/strata/users/:id` must return through Strata's request boundary. */
 export const EXPECTED_USER_BODY = { id: "42", name: "Ada" };
+
+/** What every `GET /api/strata/lifecycle` must return: a new controller instance per request. */
+export const EXPECTED_LIFECYCLE_BODY = { calls: 1 };
+
+/** What every `GET /api/strata/greeting` must return: per-request instance built by `controllerFactory`. */
+export const EXPECTED_GREETING_BODY = { greeting: "hello", calls: 1 };

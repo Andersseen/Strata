@@ -2,7 +2,10 @@ export { registerControllers } from "./register-controllers.js";
 export type {
   ControllerClass,
   NitroRouter,
+  RegisterControllersOptions,
   StrataAnalogContext,
+  StrataAnalogControllerFactory,
+  StrataAnalogControllerFactoryContext,
   StrataAnalogParams,
   StrataAnalogQuery,
   StrataAnalogQueryValue,

@@ -36,6 +36,47 @@ export interface StrataAnalogRequest {
 export type ControllerClass = new () => object;
 
 /**
+ * What a {@link StrataAnalogControllerFactory} receives besides the controller
+ * class: the Strata request the new controller instance is created for.
+ *
+ * Experimental: more request-scoped information may be added here later.
+ */
+export interface StrataAnalogControllerFactoryContext {
+  /** The same `StrataAnalogRequest` object the handler is then invoked with. */
+  readonly request: StrataAnalogRequest;
+}
+
+/**
+ * Creates the controller instance for one request. Called once per matched
+ * request, before the route handler, and never cached by Strata.
+ *
+ * It must return (or resolve to) an instance of `controller`. It may throw or
+ * reject; that error propagates to Nitro unchanged.
+ *
+ * Experimental: this is the seam where an external lifecycle — e.g. Angular
+ * DI, by wrapping `new controller()` in an injection context the consumer
+ * owns — can take part in controller creation. Strata itself provides no
+ * injector or container.
+ */
+export type StrataAnalogControllerFactory = (
+  controller: ControllerClass,
+  context: StrataAnalogControllerFactoryContext,
+) => object | Promise<object>;
+
+/** Options accepted by {@link registerControllers}. Experimental. */
+export interface RegisterControllersOptions {
+  /**
+   * Creates each request's controller instance. Defaults to
+   * `new controller()`.
+   */
+  readonly controllerFactory?: StrataAnalogControllerFactory;
+}
+
+type ControllerHandler = (this: object, request: StrataAnalogRequest) => unknown;
+
+const defaultControllerFactory: StrataAnalogControllerFactory = (controller) => new controller();
+
+/**
  * Strata's HTTP method names → the lowercase names Nitro's router expects.
  * `satisfies Record<HttpMethod, …>` makes this a compile error, not a silent
  * mis-registration, the day `@strata/core` adds a method.
@@ -79,19 +120,21 @@ export interface NitroRouter {
  * For each controller this:
  *
  * 1. reads its declarative metadata via `getControllerDefinition`;
- * 2. creates a single instance of the controller;
+ * 2. resolves each route handler on the controller's prototype, without
+ *    creating an instance;
  * 3. registers each `@Get()` route on `router`, joining the controller path
  *    and route path into the final route path;
- * 4. wires each route to invoke the matching controller method with a
- *    `StrataAnalogRequest` argument and return its result directly to
- *    Nitro/H3, which serializes it natively (objects and arrays become JSON).
+ * 4. wires each route so that every matching request gets its own
+ *    `StrataAnalogRequest`, its own controller instance, and a call to the
+ *    handler with that instance as `this` and that request as argument. The
+ *    result goes directly to Nitro/H3, which serializes it natively (objects
+ *    and arrays become JSON).
  *
- * Controller lifecycle (provisional): Strata has no dependency injection or
- * request-scoped lifecycle yet. This function instantiates each controller
- * exactly once, with `new ControllerClass()`, at registration time, and
- * reuses that single instance for every request. This is a deliberately
- * minimal placeholder — not a stable API — until a real controller
- * lifecycle/DI design lands in a later iteration.
+ * Controller lifecycle (experimental): controllers are request-scoped. No
+ * instance is created at registration; each matched request creates a new
+ * one with `options.controllerFactory` (default: `new ControllerClass()`),
+ * uses it for that request's handler call, and drops it. Instances are never
+ * pooled, cached or shared between requests.
  *
  * Request input boundary (provisional): controller methods may accept one
  * `StrataAnalogRequest` argument. It contains route params, query values,
@@ -99,9 +142,12 @@ export interface NitroRouter {
  * without exposing Nitro's H3 v1 event type or requiring a dependency on H3.
  *
  * Registration validates eagerly: a class without `@Controller()` metadata,
- * or a route whose handler isn't a callable method, throws a
+ * a route whose handler isn't a method on the controller's prototype chain, or
+ * a `controllerFactory` that isn't a function throws a
  * {@link StrataAnalogConfigurationError} immediately, instead of failing on
- * the first matching request.
+ * the first matching request. A factory that returns something other than an
+ * instance of the controller class throws the same error at request time;
+ * any error the factory itself throws or rejects with propagates unchanged.
  *
  * Strata does not replace Nitro or Analog — this only adds routes to the
  * router you pass in. Native Analog routes (`src/server/routes/**`) keep
@@ -110,15 +156,28 @@ export interface NitroRouter {
 export function registerControllers<Router extends NitroRouter>(
   router: Router,
   controllers: readonly ControllerClass[],
+  options: RegisterControllersOptions = {},
 ): Router {
+  const controllerFactory = options.controllerFactory ?? defaultControllerFactory;
+
+  if (typeof controllerFactory !== "function") {
+    throw new StrataAnalogConfigurationError(
+      "registerControllers() option `controllerFactory` must be a function.",
+    );
+  }
+
   for (const controllerClass of controllers) {
-    registerController(router, controllerClass);
+    registerController(router, controllerClass, controllerFactory);
   }
 
   return router;
 }
 
-function registerController(router: NitroRouter, controllerClass: ControllerClass): void {
+function registerController(
+  router: NitroRouter,
+  controllerClass: ControllerClass,
+  controllerFactory: StrataAnalogControllerFactory,
+): void {
   const definition = getControllerDefinition(controllerClass);
 
   if (!definition) {
@@ -127,35 +186,85 @@ function registerController(router: NitroRouter, controllerClass: ControllerClas
     );
   }
 
-  const instance = new controllerClass();
-
   for (const route of definition.routes) {
-    registerRoute(router, controllerClass, instance, definition.path, route);
+    const handler = resolveRouteHandler(controllerClass, route);
+    const path = buildRoutePath(definition.path, route.path);
+
+    router.add(
+      path,
+      async (event) => {
+        const request = createStrataAnalogRequest(event);
+        const controller = await controllerFactory(controllerClass, { request });
+
+        assertControllerInstance(controllerClass, controller);
+
+        return handler.call(controller, request);
+      },
+      ROUTER_METHOD[route.method],
+    );
   }
 }
 
-function registerRoute(
-  router: NitroRouter,
+/**
+ * Finds a route's handler on the controller's prototype chain, so it can be
+ * validated at registration without instantiating the controller.
+ *
+ * Only a data property holding a function counts as a handler: an accessor is
+ * rejected rather than invoked, since calling a getter on the prototype would
+ * run instance code without an instance. Instance fields and static methods
+ * are not handlers (`@Get()` only decorates methods).
+ */
+function resolveRouteHandler(
   controllerClass: ControllerClass,
-  instance: object,
-  controllerPath: string,
   route: RouteDefinition,
-): void {
-  const handler = (instance as Record<string, unknown>)[route.handler];
+): ControllerHandler {
+  for (
+    let owner: object | null = controllerClass.prototype as object;
+    owner !== null && owner !== Object.prototype;
+    owner = Object.getPrototypeOf(owner) as object | null
+  ) {
+    const descriptor = Object.getOwnPropertyDescriptor(owner, route.handler);
 
-  if (typeof handler !== "function") {
-    throw new StrataAnalogConfigurationError(
-      `"${controllerClass.name}.${route.handler}" is not callable. @Get() route handlers must be methods.`,
-    );
+    if (!descriptor) {
+      continue;
+    }
+
+    if ("value" in descriptor && typeof descriptor.value === "function") {
+      return descriptor.value as ControllerHandler;
+    }
+
+    break;
   }
 
-  const path = buildRoutePath(controllerPath, route.path);
-
-  router.add(
-    path,
-    (event) => handler.call(instance, createStrataAnalogRequest(event)) as unknown,
-    ROUTER_METHOD[route.method],
+  throw new StrataAnalogConfigurationError(
+    `"${controllerClass.name}.${route.handler}" is not callable. @Get() route handlers must be methods.`,
   );
+}
+
+function assertControllerInstance(
+  controllerClass: ControllerClass,
+  controller: unknown,
+): asserts controller is object {
+  if (!(controller instanceof controllerClass)) {
+    throw new StrataAnalogConfigurationError(
+      `The controllerFactory returned ${describeValue(controller)} for "${controllerClass.name}". ` +
+        `It must return an instance of "${controllerClass.name}".`,
+    );
+  }
+}
+
+function describeValue(value: unknown): string {
+  if (value === null || value === undefined) {
+    return String(value);
+  }
+
+  if (typeof value === "object") {
+    const name = (value as { constructor?: { name?: unknown } }).constructor?.name;
+
+    return typeof name === "string" && name ? `an instance of "${name}"` : "an object";
+  }
+
+  return `a ${typeof value}`;
 }
 
 interface NitroEvent {
