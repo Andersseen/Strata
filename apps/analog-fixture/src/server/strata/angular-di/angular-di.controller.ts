@@ -4,6 +4,7 @@ import { Controller, Get } from "@strata/core";
 
 import {
   AppGreetingService,
+  REQUEST_INJECTOR_ID,
   RequestScope,
   STRATA_ANALOG_ANGULAR_DI_MARKER,
   STRATA_REQUEST,
@@ -20,6 +21,7 @@ export class AngularDiController {
   private readonly app = inject(AppGreetingService);
   private readonly scope = inject(RequestScope);
   private readonly injectedRequest = inject(STRATA_REQUEST);
+  private readonly injectorId = inject(REQUEST_INJECTOR_ID);
   private destroyed = false;
 
   constructor() {
@@ -34,6 +36,8 @@ export class AngularDiController {
     const delay = Number(request.query["delay"] ?? 0);
 
     // Lets the harness overlap two requests while both controllers are alive.
+    // Strata's cleanup (which destroys the request injector) must not run
+    // before this last `await` has settled.
     await new Promise((resolve) => setTimeout(resolve, delay));
 
     return {
@@ -41,6 +45,7 @@ export class AngularDiController {
       greeting: this.app.greet(),
       appInstance: this.app.instance,
       scopeInstance: this.scope.instance,
+      injectorId: this.injectorId,
       sameRequest: this.injectedRequest === request,
       destroyedBeforeResponse: this.destroyed,
     };

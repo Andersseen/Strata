@@ -105,8 +105,9 @@ location for request state. `@strata/analog` creates a new controller instance p
 an experimental `controllerFactory` seam (default `new Controller()`); the seam can wrap
 construction in an externally owned injection context but provides no injector itself. A fixture-owned
 experiment ([Analog report](./research/analog-integration-baseline.md)) builds controllers inside a
-per-request child of an explicitly created `Injector` and destroys it through Nitro hooks; it is not
-the SSR application's injector, and `@strata/analog` has no release hook yet. No DI public
+per-request child of an explicitly created `Injector` and destroys it through the factory's
+experimental `onCleanup`, which runs when the controller invocation settles; it is not the SSR
+application's injector, and cleanup does not cover streamed response bodies. No DI public
 API or ADR is selected until this experiment concludes.
 
 ## Strict Server Component boundary
