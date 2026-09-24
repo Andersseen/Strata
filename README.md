@@ -163,8 +163,30 @@ export default defineNitroPlugin((nitroApp) => {
 ```
 
 `GET /api/strata/users` answers `200` JSON in `analog dev` and in the production server, alongside
-native Analog routes. As with `@strata/h3`, the lifecycle is provisional: one instance per
-controller, created at registration. Handlers may accept one provisional `StrataAnalogRequest`
+native Analog routes.
+
+Controllers are **request-scoped** (experimental): `registerControllers()` only reads and validates
+metadata at startup, and every matching request gets a new controller instance, created with
+`new UsersController()` by default. Instances are never cached, pooled or shared between requests,
+so instance fields cannot leak state across users. A custom `controllerFactory` (sync or async) can
+take part in creating each request's controller; it receives the controller class and the request's
+`StrataAnalogRequest`, and must return an instance of that class:
+
+```ts
+const greetings = new GreetingService();
+
+registerControllers(nitroApp.router, [GreetingController], {
+  controllerFactory: (Controller) =>
+    Controller === GreetingController ? new GreetingController(greetings) : new Controller(),
+});
+```
+
+The factory is an extension seam, not a DI container: Strata provides no injector, and Angular DI
+is not integrated yet. Errors it throws or rejects with propagate to Nitro unchanged; a result that
+is not an instance of the controller class fails with `StrataAnalogConfigurationError`.
+(`@strata/h3` still creates one instance per controller at registration.)
+
+Handlers may accept one provisional `StrataAnalogRequest`
 argument for params, query, headers, URL/path, context and lazy body readers; Nitro's H3 event is
 not exposed to controller code. Controllers under `src/server/**` stay out of the client bundle. The
 [integration report](./docs/research/analog-integration-baseline.md) records what is verified

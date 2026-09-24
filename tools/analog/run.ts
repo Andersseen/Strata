@@ -17,8 +17,11 @@ import {
   ANALOG_ADAPTER_SYMBOL,
   CLIENT_MARKER,
   CONTROLLER_MARKER,
+  FACTORY_MARKER,
   CORE_INTERNAL_SYMBOL,
+  EXPECTED_GREETING_BODY,
   EXPECTED_HELLO_DEFINITION,
+  EXPECTED_LIFECYCLE_BODY,
   EXPECTED_PROBE_DEFINITION,
   EXPECTED_USER_BODY,
   EXPECTED_USERS_BODY,
@@ -225,6 +228,10 @@ interface RouteObservation {
   users: Observed;
   /** `GET /api/strata/users/:id`: same controller, dynamic route. */
   user: Observed;
+  /** Two sequential `GET /api/strata/lifecycle` requests: default per-request instances. */
+  lifecycle: [Observed, Observed];
+  /** Two sequential `GET /api/strata/greeting` requests: instances built by `controllerFactory`. */
+  greeting: [Observed, Observed];
   seam: SeamSnapshot | null;
 }
 
@@ -237,8 +244,32 @@ async function observeRoutes(baseUrl: string): Promise<RouteObservation> {
   const seam = await getJson<SeamBody>(`${baseUrl}/api/seam`);
   const users = await getJson<unknown>(`${baseUrl}/api/strata/users`);
   const user = await getJson<unknown>(`${baseUrl}/api/strata/users/42`);
+  const expectBody = async (path: string, expected: unknown): Promise<Observed> => {
+    const result = await getJson<unknown>(`${baseUrl}${path}`);
+
+    return {
+      status: result.status,
+      contentType: result.contentType,
+      body: result.body,
+      ok:
+        result.status === 200 &&
+        isJson(result.contentType) &&
+        result.body === JSON.stringify(expected),
+    };
+  };
+  // Sequential on purpose: a shared controller instance would answer `calls: 2` the second time.
+  const lifecycle: [Observed, Observed] = [
+    await expectBody("/api/strata/lifecycle", EXPECTED_LIFECYCLE_BODY),
+    await expectBody("/api/strata/lifecycle", EXPECTED_LIFECYCLE_BODY),
+  ];
+  const greeting: [Observed, Observed] = [
+    await expectBody("/api/strata/greeting", EXPECTED_GREETING_BODY),
+    await expectBody("/api/strata/greeting", EXPECTED_GREETING_BODY),
+  ];
 
   return {
+    lifecycle,
+    greeting,
     native: {
       status: native.status,
       contentType: native.contentType,
@@ -838,6 +869,16 @@ async function main(): Promise<void> {
     prod.user.ok,
     `${prod.user.status} ${prod.user.contentType} ${prod.user.body}`,
   );
+  check(
+    "Two GET /api/strata/lifecycle requests each get a new controller ({ calls: 1 }) in production",
+    prod.lifecycle.every((observed) => observed.ok),
+    prod.lifecycle.map((observed) => `${observed.status} ${observed.body}`).join(" | "),
+  );
+  check(
+    "GET /api/strata/greeting uses the custom controllerFactory per request in production",
+    prod.greeting.every((observed) => observed.ok),
+    prod.greeting.map((observed) => `${observed.status} ${observed.body}`).join(" | "),
+  );
 
   // ---- Marker scan (before the dev server, which does not touch dist) ----
   const scanTargets = [
@@ -853,6 +894,7 @@ async function main(): Promise<void> {
     clientControlMarker: findFilesContaining(join(fixtureDir, directory), CLIENT_MARKER),
     coreInternalSymbol: findFilesContaining(join(fixtureDir, directory), CORE_INTERNAL_SYMBOL),
     controllerMarker: findFilesContaining(join(fixtureDir, directory), CONTROLLER_MARKER),
+    factoryMarker: findFilesContaining(join(fixtureDir, directory), FACTORY_MARKER),
     analogAdapterSymbol: findFilesContaining(join(fixtureDir, directory), ANALOG_ADAPTER_SYMBOL),
     h3AdapterSymbol: findFilesContaining(join(fixtureDir, directory), H3_ADAPTER_SYMBOL),
   }));
@@ -883,8 +925,8 @@ async function main(): Promise<void> {
     "dist/client and dist/analog/public",
   );
   check(
-    "The @strata/analog-registered controller's marker is present in server output",
-    scanOf("server").controllerMarker.length > 0,
+    "The @strata/analog-registered controllers' markers are present in server output",
+    scanOf("server").controllerMarker.length > 0 && scanOf("server").factoryMarker.length > 0,
     "dist/analog/server",
   );
   check(
@@ -894,9 +936,15 @@ async function main(): Promise<void> {
   );
   for (const label of ["client", "public", "SSR bundle"]) {
     check(
-      `The registered controller's marker and @strata/analog are absent from ${label} output`,
-      scanOf(label).controllerMarker.length === 0 && scanOf(label).analogAdapterSymbol.length === 0,
-      [...scanOf(label).controllerMarker, ...scanOf(label).analogAdapterSymbol].join(", "),
+      `The registered controllers' markers and @strata/analog are absent from ${label} output`,
+      scanOf(label).controllerMarker.length === 0 &&
+        scanOf(label).factoryMarker.length === 0 &&
+        scanOf(label).analogAdapterSymbol.length === 0,
+      [
+        ...scanOf(label).controllerMarker,
+        ...scanOf(label).factoryMarker,
+        ...scanOf(label).analogAdapterSymbol,
+      ].join(", "),
     );
   }
   check(
@@ -934,6 +982,16 @@ async function main(): Promise<void> {
     "GET /api/strata/users/:id (dynamic route) returns 200 JSON in the dev server",
     dev.user.ok,
     `${dev.user.status} ${dev.user.contentType} ${dev.user.body}`,
+  );
+  check(
+    "Two GET /api/strata/lifecycle requests each get a new controller ({ calls: 1 }) in the dev server",
+    dev.lifecycle.every((observed) => observed.ok),
+    dev.lifecycle.map((observed) => `${observed.status} ${observed.body}`).join(" | "),
+  );
+  check(
+    "GET /api/strata/greeting uses the custom controllerFactory per request in the dev server",
+    dev.greeting.every((observed) => observed.ok),
+    dev.greeting.map((observed) => `${observed.status} ${observed.body}`).join(" | "),
   );
 
   const nitroArm = (mode: string, ok: boolean, evidence: string): Arm => ({
@@ -1023,6 +1081,16 @@ async function main(): Promise<void> {
       routeRow("GET /api/strata/users", "dev server", dev.users),
       routeRow("GET /api/strata/users/42", "production server", prod.user),
       routeRow("GET /api/strata/users/42", "dev server", dev.user),
+      ...(["production server", "dev server"] as const).flatMap((mode) => {
+        const observed = mode === "production server" ? prod : dev;
+
+        return [
+          routeRow("GET /api/strata/lifecycle (1st)", mode, observed.lifecycle[0]),
+          routeRow("GET /api/strata/lifecycle (2nd)", mode, observed.lifecycle[1]),
+          routeRow("GET /api/strata/greeting (1st)", mode, observed.greeting[0]),
+          routeRow("GET /api/strata/greeting (2nd)", mode, observed.greeting[1]),
+        ];
+      }),
     ],
     typecheck: {
       command: portable(typecheck.command),

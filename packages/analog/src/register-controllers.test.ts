@@ -165,7 +165,7 @@ describe("registerControllers", () => {
     await expect(async.json()).resolves.toEqual({ kind: "async" });
   });
 
-  it("invokes handlers on a single instance created at registration, bound as `this`", async () => {
+  it("creates no controller instance at registration and a new one per request, bound as `this`", async () => {
     let constructed = 0;
 
     @Controller("/counter")
@@ -188,14 +188,14 @@ describe("registerControllers", () => {
 
     registerControllers(router, [CounterController]);
 
-    expect(constructed).toBe(1);
+    expect(constructed).toBe(0);
 
     const first = await request("/counter");
     const second = await request("/counter");
 
     await expect(first.json()).resolves.toEqual({ hits: 1 });
-    await expect(second.json()).resolves.toEqual({ hits: 2 });
-    expect(constructed).toBe(1);
+    await expect(second.json()).resolves.toEqual({ hits: 1 });
+    expect(constructed).toBe(2);
   });
 
   it("passes Strata's request boundary to controller methods without exposing the H3 event", async () => {

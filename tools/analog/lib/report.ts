@@ -1,4 +1,4 @@
-import { CLIENT_MARKER, CONTROLLER_MARKER, SERVER_MARKER } from "./constants.ts";
+import { CLIENT_MARKER, CONTROLLER_MARKER, FACTORY_MARKER, SERVER_MARKER } from "./constants.ts";
 
 export type Outcome = "A" | "B" | "C" | "D";
 
@@ -62,6 +62,7 @@ export interface MarkerScan {
   clientControlMarker: string[];
   coreInternalSymbol: string[];
   controllerMarker: string[];
+  factoryMarker: string[];
   analogAdapterSymbol: string[];
   h3AdapterSymbol: string[];
 }
@@ -288,10 +289,16 @@ between majors, a fake H3 instance, or a second router — all ruled out for thi
 ## \`@strata/analog\`: a Strata controller through the public Nitro router seam
 
 \`src/server/plugins/strata.ts\` is a Nitro server plugin that calls
-\`registerControllers(nitroApp.router, [UsersController])\`. \`UsersController\` (\`@Controller("/api/strata/users")\`
-with two \`@Get()\` routes) is **not** reachable from any file under \`src/server/routes/**\`: no
-file-system route wraps it. The routes below exist only because \`@strata/analog\` read its
-\`@strata/core\` metadata and registered it on \`nitroApp.router\`.
+\`registerControllers(nitroApp.router, [UsersController, LifecycleController])\` and, separately,
+\`registerControllers(nitroApp.router, [GreetingController], { controllerFactory })\`. None of these
+controllers is reachable from any file under \`src/server/routes/**\`: no file-system route wraps
+them. The routes below exist only because \`@strata/analog\` read their \`@strata/core\` metadata and
+registered them on \`nitroApp.router\`.
+
+Controllers are request-scoped: \`LifecycleController\` and \`GreetingController\` increment an
+instance field, and each is requested twice in a row per mode. Both answers carry \`calls: 1\`, so
+each request got a new instance. \`GreetingController\` receives a plain \`GreetingService\` only from
+the fixture's \`controllerFactory\` (Strata's default factory would leave it \`null\`).
 
 ${table(
   ["Route", "Mode", "Status", "Content-Type", "Body"],
@@ -348,18 +355,21 @@ ${table(
 )}
 
 \`${CONTROLLER_MARKER}\` is used only by the controller registered through \`@strata/analog\`
-(\`src/server/strata/users.controller.ts\`, imported only by the Nitro plugin):
+(\`src/server/strata/users.controller.ts\`, imported only by the Nitro plugin). \`${FACTORY_MARKER}\` is
+used only by \`src/server/strata/greeting.controller.ts\`, registered with a custom \`controllerFactory\`:
 
 ${table(
   [
     "Output",
     "Registered-controller marker",
+    "Controller-factory marker",
     "`@strata/analog` (error class name)",
     "`@strata/h3` (error class name)",
   ],
   report.markerScans.map((scan) => [
     `${scan.label} (${code(scan.directory)})`,
     files(scan.controllerMarker),
+    files(scan.factoryMarker),
     files(scan.analogAdapterSymbol),
     files(scan.h3AdapterSymbol),
   ]),
