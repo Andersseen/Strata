@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
   existsSync,
   mkdirSync,
@@ -107,6 +108,16 @@ function recordServer(label: string, server: ManagedProcess): void {
 function check(name: string, passed: boolean, detail: string): void {
   checks.push({ name, passed, detail });
   console.log(`${passed ? "  ok  " : " FAIL "} ${name}${passed ? "" : ` — ${detail}`}`);
+}
+
+function checkAngularDi(mode: string, observation: AngularDiObservation): void {
+  for (const scenario of observation.scenarios) {
+    check(
+      `Angular DI experiment (${mode}): ${scenario.name}`,
+      scenario.ok,
+      `${scenario.responses.join(" | ")} delta ${scenario.delta}`,
+    );
+  }
 }
 
 function readJson<T>(path: string): T {
@@ -233,66 +244,175 @@ interface RouteObservation {
   lifecycle: [Observed, Observed];
   /** Two sequential `GET /api/strata/greeting` requests: instances built by `controllerFactory`. */
   greeting: [Observed, Observed];
-  /** Two overlapping `GET /api/strata/angular-di` requests and the injector stats afterwards. */
+  /** SPEC-003 Angular DI scenarios under `/api/strata/angular-di`, with lifecycle counter deltas. */
   angularDi: AngularDiObservation;
   seam: SeamSnapshot | null;
 }
 
 interface AngularDiBody {
-  requestId?: string;
-  greeting?: string;
-  appInstance?: number;
-  scopeInstance?: number;
-  injectorId?: number;
-  sameRequest?: boolean;
+  met?: boolean | null;
+  product?: { id?: string; name?: string };
+  catalogInstance?: number;
+  identity?: number;
+  identityProductId?: string;
+  auditSharesIdentity?: boolean;
+  injectedRequestIsArgument?: boolean;
+  injectInHandler?: string;
+  injectAfterAwait?: string;
   destroyedBeforeResponse?: boolean;
 }
 
 interface AngularDiStats {
-  created?: number;
-  destroyed?: number;
-  controllersReleased?: number;
+  injectorsCreated: number;
+  injectorsDestroyed: number;
+  injectorsAlive: number;
+  maxInjectorsAlive: number;
+  identitiesDestroyed: number;
+  controllersReleased: number;
+  catalogInstances: number;
 }
 
-interface AngularDiObservation {
+interface AngularDiScenario {
+  name: string;
   responses: string[];
-  stats: string;
+  /** Lifecycle counters after the scenario, minus those before it. */
+  delta: string;
   ok: boolean;
 }
 
-async function observeAngularDi(baseUrl: string): Promise<AngularDiObservation> {
-  const route = `${baseUrl}/api/strata/angular-di`;
-  // B is sent while A is still suspended in its handler, so both request injectors are alive at once.
-  const [a, b] = await Promise.all([
-    getJson<AngularDiBody>(`${route}?id=a&delay=150`),
-    getJson<AngularDiBody>(`${route}?id=b`),
-  ]);
-  // Read once, with no retry: `onCleanup` runs before Strata's route handler settles, so both
-  // request injectors must already be destroyed by the time both responses have arrived.
+interface AngularDiObservation {
+  scenarios: AngularDiScenario[];
+}
+
+/**
+ * Stats that are levels rather than counters. `catalogInstances` is one: the
+ * `providedIn: 'root'` service is created lazily by the first request of the
+ * process and must stay at exactly one instance afterwards.
+ */
+const ANGULAR_DI_LEVELS = new Set(["injectorsAlive", "maxInjectorsAlive", "catalogInstances"]);
+
+async function readAngularDiStats(baseUrl: string): Promise<AngularDiStats> {
   const stats = await getJson<AngularDiStats>(`${baseUrl}/api/strata-angular-di-stats`);
 
-  const answered = (response: JsonResponse<AngularDiBody>, id: string): boolean =>
-    response.status === 200 &&
-    response.json?.requestId === id &&
-    response.json.greeting === "hello" &&
-    response.json.sameRequest === true &&
-    response.json.destroyedBeforeResponse === false;
-  const created = stats.json?.created ?? -1;
+  if (!stats.json) throw new Error(`Unreadable Angular DI stats: ${stats.body}`);
+
+  return stats.json;
+}
+
+/**
+ * Runs one Angular DI scenario between two stats snapshots. Stats are read
+ * once, with no retry, after every response has arrived: `onCleanup` runs
+ * before Strata's route handler settles, so each request injector must already
+ * be destroyed by then.
+ */
+async function angularDiScenario(
+  baseUrl: string,
+  name: string,
+  send: () => Promise<JsonResponse<AngularDiBody>[]>,
+  expect: (responses: JsonResponse<AngularDiBody>[], delta: AngularDiStats) => boolean,
+): Promise<AngularDiScenario> {
+  const before = await readAngularDiStats(baseUrl);
+  const responses = await send();
+  const after = await readAngularDiStats(baseUrl);
+  const delta = Object.fromEntries(
+    Object.entries(after).map(([key, value]) => [
+      key,
+      // Levels, not counters: keep them as observed.
+      ANGULAR_DI_LEVELS.has(key) ? value : value - before[key as keyof AngularDiStats],
+    ]),
+  ) as unknown as AngularDiStats;
 
   return {
-    responses: [a.body, b.body],
-    stats: stats.body,
-    ok:
-      answered(a, "a") &&
-      answered(b, "b") &&
-      a.json?.appInstance === b.json?.appInstance &&
-      a.json?.scopeInstance !== b.json?.scopeInstance &&
-      a.json?.injectorId !== undefined &&
-      a.json.injectorId !== b.json?.injectorId &&
-      created === 2 &&
-      stats.json?.destroyed === created &&
-      stats.json.controllersReleased === created,
+    name,
+    responses: responses.map(describeAngularDiResponse),
+    delta: JSON.stringify(delta),
+    ok: expect(responses, delta),
   };
+}
+
+/**
+ * A failed request is recorded by status and message only: the dev server's
+ * error body carries a stack with absolute paths, which the committed report
+ * must not contain.
+ */
+function describeAngularDiResponse(response: JsonResponse<AngularDiBody>): string {
+  if (response.status < 400) return `${String(response.status)} ${response.body}`;
+
+  const message = (response.json as { message?: unknown } | null)?.message;
+
+  return `${String(response.status)} ${JSON.stringify({ message })}`;
+}
+
+/** Every request injector the scenario created was destroyed, with its request-scoped service and controller. */
+const releasedAll = (delta: AngularDiStats, requests: number): boolean =>
+  delta.injectorsCreated === requests &&
+  delta.injectorsDestroyed === requests &&
+  delta.identitiesDestroyed === requests &&
+  delta.controllersReleased === requests &&
+  delta.injectorsAlive === 0 &&
+  delta.catalogInstances === 1;
+
+async function observeAngularDi(baseUrl: string): Promise<AngularDiObservation> {
+  const route = `${baseUrl}/api/strata/angular-di`;
+  const meeting = randomUUID();
+
+  // `met` says whether the fixture's rendezvous saw both requests suspended in
+  // their handlers at once; everything else must hold either way.
+  const answeredFor = (response: JsonResponse<AngularDiBody>, id: string, met: boolean): boolean =>
+    response.status === 200 &&
+    response.json?.met === met &&
+    response.json.product?.id === id &&
+    response.json.identityProductId === id &&
+    response.json.auditSharesIdentity === true &&
+    response.json.injectedRequestIsArgument === true &&
+    response.json.injectInHandler === "NG0203" &&
+    response.json.injectAfterAwait === "NG0203" &&
+    response.json.destroyedBeforeResponse === false &&
+    response.json.catalogInstance === 1;
+
+  const overlap = await angularDiScenario(
+    baseUrl,
+    "two requests held at a rendezvous",
+    () =>
+      Promise.all([
+        getJson<AngularDiBody>(`${route}/products/a?meet=${meeting}`),
+        getJson<AngularDiBody>(`${route}/products/b?meet=${meeting}`),
+      ]),
+    ([a, b], delta) =>
+      a !== undefined &&
+      b !== undefined &&
+      answeredFor(a, "a", true) &&
+      answeredFor(b, "b", true) &&
+      a.json?.identity !== b.json?.identity &&
+      delta.maxInjectorsAlive >= 2 &&
+      releasedAll(delta, 2),
+  );
+  // Negative control: a request alone at the rendezvous must not meet anyone. If
+  // it did, the overlap scenario above would prove nothing about concurrency.
+  const alone = await angularDiScenario(
+    baseUrl,
+    "one request alone at a rendezvous (control)",
+    async () => [await getJson<AngularDiBody>(`${route}/products/solo?meet=${meeting}-solo`)],
+    ([solo], delta) =>
+      solo !== undefined && answeredFor(solo, "solo", false) && releasedAll(delta, 1),
+  );
+  // Production Nitro does not echo unhandled error messages, so a failure is
+  // recognized by its status; the deltas show what was cleaned up.
+  const failed = (response: JsonResponse<AngularDiBody> | undefined) => response?.status === 500;
+  const thrown = await angularDiScenario(
+    baseUrl,
+    "handler throws synchronously",
+    async () => [await getJson<AngularDiBody>(`${route}/fail/throw`)],
+    ([response], delta) => failed(response) && releasedAll(delta, 1),
+  );
+  const rejected = await angularDiScenario(
+    baseUrl,
+    "async handler rejects after an await",
+    async () => [await getJson<AngularDiBody>(`${route}/fail/reject`)],
+    ([response], delta) => failed(response) && releasedAll(delta, 1),
+  );
+
+  return { scenarios: [overlap, alone, thrown, rejected] };
 }
 
 const isJson = (contentType: string | null): boolean =>
@@ -430,6 +550,10 @@ function typecheckAgainstNitro(nitropackDir: string): CommandResult {
         'import { defineNitroPlugin } from "nitropack/runtime";',
         "",
         'import { UsersController } from "../src/server/strata/users.controller";',
+        "",
+        "// SPEC-003: the Angular DI plugin, with Angular's `@Injectable()` used as a",
+        "// standard class decorator in the same Nitro server graph.",
+        'export { default as angularDiPlugin } from "../src/server/plugins/strata-angular-di";',
         "",
         "export default defineNitroPlugin((nitroApp) => {",
         "  registerControllers(nitroApp.router, [UsersController]);",
@@ -949,7 +1073,16 @@ async function main(): Promise<void> {
     "src/server/strata/angular-di/angular-controller-factory.ts",
     "src/server/strata/angular-di/angular-di.controller.ts",
     "src/server/strata/angular-di/providers.ts",
+    "src/server/strata/angular-di/rendezvous.ts",
   ].map((path) => ({ path, source: readFileSync(join(fixtureDir, path), "utf8") }));
+  // Controller-side code (not the Nitro plugin that wires it) must stay free of Nitro/H3 types.
+  const controllerSideNitroTypes = angularDiSources.filter(
+    ({ path, source }) =>
+      path.startsWith("src/server/strata/") &&
+      /from\s+["'](?:h3|nitropack(?:\/[^"']*)?)["']|\b(?:H3Event|NitroApp|EventHandlerRequest)\b/.test(
+        source,
+      ),
+  );
   const nitroLifecycleGlue = angularDiSources.filter(({ source }) =>
     /hooks\.hook\(\s*["'](?:request|beforeResponse|afterResponse|error)["']|event\.context/.test(
       source,
@@ -963,10 +1096,11 @@ async function main(): Promise<void> {
     nitroLifecycleGlue.map(({ path }) => path).join(", ") || "onCleanup() not found",
   );
   check(
-    "Angular DI experiment: overlapping requests get isolated request injectors, all destroyed, in production",
-    prod.angularDi.ok,
-    `${prod.angularDi.responses.join(" | ")} stats ${prod.angularDi.stats}`,
+    "Angular DI controller, services and factory import no Nitro/H3 module or event type",
+    controllerSideNitroTypes.length === 0,
+    controllerSideNitroTypes.map(({ path }) => path).join(", ") || "none",
   );
+  checkAngularDi("production", prod.angularDi);
 
   // ---- Marker scan (before the dev server, which does not touch dist) ----
   const scanTargets = [
@@ -1086,11 +1220,7 @@ async function main(): Promise<void> {
     dev.greeting.every((observed) => observed.ok),
     dev.greeting.map((observed) => `${observed.status} ${observed.body}`).join(" | "),
   );
-  check(
-    "Angular DI experiment: overlapping requests get isolated request injectors, all destroyed, in the dev server",
-    dev.angularDi.ok,
-    `${dev.angularDi.responses.join(" | ")} stats ${dev.angularDi.stats}`,
-  );
+  checkAngularDi("the dev server", dev.angularDi);
 
   const nitroArm = (mode: string, ok: boolean, evidence: string): Arm => ({
     id: mode === "production server" ? "N-prod" : "N-dev",

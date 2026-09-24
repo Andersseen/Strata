@@ -83,6 +83,11 @@ interceptors. It describes server configuration bootstrap and request tokens whi
 raw H3 event. This is useful prior art, not proof of a public injector hook for arbitrary controllers.
 Confirm these documented APIs exist in the exact released package chosen for a fixture.
 
+_Update 2026-09-24:_ confirmed in installed Analog 2.7.2 source by
+[SPEC-003](research/analog-di-feasibility.md). The HTTP server-function path bootstraps a private,
+process-level `createApplication()` injector and a per-call child injector that is never destroyed.
+Neither it nor the SSR render injector is exposed to other Nitro handlers.
+
 Strata will leave internal RPC to those functions. A server-function transform excludes an operation
 module; it does not establish that an Angular component's compiled template and implementation can
 be split around interactive descendants.

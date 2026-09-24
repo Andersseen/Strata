@@ -25,9 +25,9 @@ RPC remain available independently.
 | -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
 | `@strata/core` — exists                            | Runtime-independent controller/route metadata and future justified domain contracts                                   | H3 events, Angular injectors, Nitro lifecycle, Vite transforms, HTTP server |
 | `@strata/h3` — exists                              | Route registration, HTTP execution; future H3 request/response/error mapping and version interoperability             | Angular compiler, app bootstrap, RPC duplication                            |
-| `@strata/analog` — candidate                       | Concrete Analog registration, SSR/request lifecycle and build integration through supported extension points          | A replacement Analog router or an independent app provider registry         |
+| `@strata/analog` — exists (experimental)           | Concrete Analog registration, SSR/request lifecycle and build integration through supported extension points          | A replacement Analog router or an independent app provider registry         |
 | `@strata/compiler` / `@strata/vite` — candidates   | Graph analysis/transformation versus Vite orchestration, only if those responsibilities warrant separate distribution | Generic framework runtime; packages created merely for symmetry             |
-| `@strata/angular` / `@strata/testing` — candidates | Reusable Angular runtime boundaries / consumer testing helpers when demonstrated                                      | A second DI container; re-export-only scaffolding                           |
+| `@strata/angular` / `@strata/testing` — candidates | Reusable Angular runtime boundaries / consumer testing helpers when demonstrated (SPEC-003 found none yet)            | A second DI container; re-export-only scaffolding                           |
 
 Adapter packages may depend on core, never the reverse. Angular-related dependencies belong in
 an integration boundary, not the existing metadata package. Decide dependency versus peer ranges
@@ -51,8 +51,10 @@ declaration graph: its `Error.isError` lib assumption and optional `crossws` imp
 strict consumers. Keep this requirement at the adapter/consumer compatibility boundary, never in
 core metadata or a decorator transform. A `lib` addition changes ambient type availability without
 polyfilling Node. Peer optionality at installation does not make a root declaration import optional.
-[SPEC-002](specs/002-h3-consumer-type-closure.md) will qualify or reject a narrow published dependency
-closure; no H3 major change, fork, ambient shim or permanent dependency policy is selected here.
+[SPEC-002](specs/002-h3-consumer-type-closure.md) tested a narrow published dependency closure and
+found none (upstream-blocked); no H3 major change, fork, ambient shim or permanent dependency policy
+is selected here. `@strata/analog`'s declarations do not reach H3 at all, so this boundary does not
+apply to it.
 
 ## HTTP domain
 
@@ -102,13 +104,30 @@ Proof obligations:
 
 `@strata/h3` still shares one controller instance across requests; that placeholder is never a safe
 location for request state. `@strata/analog` creates a new controller instance per request through
-an experimental `controllerFactory` seam (default `new Controller()`); the seam can wrap
-construction in an externally owned injection context but provides no injector itself. A fixture-owned
-experiment ([Analog report](./research/analog-integration-baseline.md)) builds controllers inside a
-per-request child of an explicitly created `Injector` and destroys it through the factory's
-experimental `onCleanup`, which runs when the controller invocation settles; it is not the SSR
-application's injector, and cleanup does not cover streamed response bodies. No DI public
-API or ADR is selected until this experiment concludes.
+an experimental `controllerFactory` seam (default `new Controller()`) and runs the factory's
+`onCleanup` callbacks when the controller invocation settles. It provides no injector itself.
+
+**SPEC-003 result (CONDITIONAL GO, [report](research/analog-di-feasibility.md)).** On Analog 2.7.2 /
+Angular 22.1.7, no supported seam exposes an Analog injector to Nitro handlers. The SSR injector
+exists only inside each `renderApplication()` call, the server-function injector is private to a
+generated module, and in production the SSR renderer inlines a separate copy of Angular. The
+selected model is an explicit host bridge:
+
+- The **application** owns Angular. Its Nitro plugin bootstraps an application injector with
+  `createApplication(config, { platformRef: platformServer() })`, the way Analog bootstraps its
+  server-function injector, and destroys it on Nitro `close`.
+- Per request, its `controllerFactory` creates a child `createEnvironmentInjector()` with the
+  request-scoped providers and `STRATA_REQUEST`, constructs the controller in
+  `runInInjectionContext()`, and hands `destroy()` to `onCleanup`.
+- `@strata/analog` owns only the timing, and has no Angular dependency. `StrataAnalogRequest` stays the
+  explicit HTTP input; `inject()` is valid only during construction (`NG0203` in handlers, before or
+  after `await`).
+
+This is a separate DI universe: its `providedIn: 'root'` instances are not those of SSR renders or
+server functions. The Nitro bundle needs `@angular/compiler` declared in `nitro.moduleSideEffects`,
+because Nitro does not run the Angular linker. Provider overrides, abort/timeout, streamed bodies
+and Workers remain open. No DI public API, package or ADR is selected; the glue stays consumer code
+until Server Components show a reusable responsibility.
 
 ## Strict Server Component boundary
 

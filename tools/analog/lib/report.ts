@@ -84,8 +84,7 @@ export interface RouteRow {
 
 export interface AngularDiRow {
   mode: string;
-  responses: string[];
-  stats: string;
+  scenarios: { name: string; responses: string[]; delta: string; ok: boolean }[];
 }
 
 /** Observations about `@strata/analog` itself and the fixture that consumes it. */
@@ -327,40 +326,54 @@ ${table(
 
 The native Analog route (\`/api/native\`, above) answers in the same run, on the same router.
 
-### Experiment: Angular DI through \`controllerFactory\`
+### Experiment (SPEC-003): Angular DI through \`controllerFactory\`
 
-\`src/server/plugins/strata-angular-di.ts\` registers \`AngularDiController\` with a factory owned by the
-fixture, not by \`@strata/analog\` (which has no Angular dependency). The plugin creates an app-level
-\`Injector.create()\` holding \`AppGreetingService\`; for each request the factory creates a child
-\`Injector.create({ parent: appInjector })\` providing \`STRATA_REQUEST\`, \`RequestScope\` and an
-injector id, registers \`onCleanup(() => requestInjector.destroy())\`, and builds the controller with
-\`runInInjectionContext(requestInjector, () => new Controller())\`. The controller resolves everything
-with \`inject()\` in field initializers and keeps it across \`await\`. Strata runs the cleanup once the
-factory and the awaited handler call have settled (success or error), before its route handler
-settles. The fixture uses no Nitro \`request\`/\`afterResponse\`/\`error\` hook and no \`event.context\`
-slot for this (checked on the sources); only the app-level injector is destroyed in Nitro's \`close\`
-hook.
+Specified by [SPEC-003](../specs/003-analog-request-lifecycle-angular-di.md); the source trace,
+candidate comparison and verdict are in [Analog DI feasibility](analog-di-feasibility.md).
+\`src/server/plugins/strata-angular-di.ts\` registers \`CatalogController\` with a factory owned by
+the fixture, not by \`@strata/analog\` (which has no Angular dependency). The plugin bootstraps an
+application injector with Angular's public \`createApplication()\` on a \`platformServer()\`, as
+Analog does for its server functions, so \`@Injectable({ providedIn: 'root' })\` \`CatalogService\`
+resolves there once per process. For each request the factory creates a child
+\`createEnvironmentInjector()\` providing \`STRATA_REQUEST\`, \`RequestIdentity\` and
+\`RequestAudit\`, registers \`onCleanup(() => requestInjector.destroy())\`, and builds the controller
+with \`runInInjectionContext(requestInjector, () => new Controller())\`. The controller resolves its
+dependencies with \`inject()\` in field initializers and keeps them across \`await\`; it also calls
+\`inject()\` inside its handler, before and after an \`await\`, and reports the outcome. No Nitro
+\`request\`/\`afterResponse\`/\`error\` hook or \`event.context\` slot is used (checked on the
+sources); only the application is destroyed in Nitro's \`close\` hook.
 
-Two overlapping requests per mode: \`?id=a&delay=150\` and \`?id=b\` (B answers while A is suspended).
-Stats come from \`/api/strata-angular-di-stats\`, read once, with no retry, right after both have
-answered.
+Each scenario is bracketed by two reads of \`/api/strata-angular-di-stats\`, once each, with no
+retry; the table shows after − before, except for levels shown as read: \`injectorsAlive\`,
+\`maxInjectorsAlive\` and \`catalogInstances\` (the \`providedIn: 'root'\` service is created lazily by
+the first request and must stay at one). Overlap is enforced, not assumed: \`?meet=<key>\` holds a handler at a rendezvous that
+answers \`met: true\` only if a second request with the same key reaches it while the first is
+still suspended, and \`met: false\` after 5 s otherwise. The lone request is the negative control.
 
 ${table(
-  ["Mode", "Responses", "Injector stats"],
-  report.adapter.angularDi.map((row) => [
-    row.mode,
-    row.responses.map(code).join("<br>"),
-    code(row.stats),
-  ]),
+  ["Mode", "Scenario", "Responses", "Counter delta", "Result"],
+  report.adapter.angularDi.flatMap((row) =>
+    row.scenarios.map((scenario) => [
+      row.mode,
+      scenario.name,
+      scenario.responses.map(code).join("<br>"),
+      code(scenario.delta),
+      scenario.ok ? "pass" : "**FAIL**",
+    ]),
+  ),
 )}
 
-Expected and observed: both requests share one \`AppGreetingService\` instance, each gets its own
-\`RequestScope\` and request injector, the injected \`STRATA_REQUEST\` is the object the handler receives, no injector is
-destroyed during its handler (\`destroyedBeforeResponse: false\` is read after the handler's last
-\`await\`), and created, destroyed and \`DestroyRef\` counts are equal once the responses arrive. Limits: the app-level injector is created in the Nitro plugin and
-is **not** the injector of Analog's SSR application (a Nitro plugin cannot reach that one), and
-cleanup covers the controller invocation, not a streamed response body. The experiment's
-files carry \`${ANGULAR_DI_MARKER}\`, scanned in the module-graph section below.
+Expected: overlapping requests both answer \`met: true\`, share \`catalogInstance: 1\`, and get
+different \`identity\` values, each bound to its own product id; the controller and
+\`RequestAudit\` see the same \`RequestIdentity\` within a request; the injected \`STRATA_REQUEST\`
+is the handler's argument; \`inject()\` in a handler throws \`NG0203\` before and after an
+\`await\`; no injector is destroyed before the handler's last \`await\` settles; and every request
+injector created — on success, synchronous throw or asynchronous rejection — is destroyed, running
+\`RequestIdentity.ngOnDestroy()\` and the controller's \`DestroyRef\` callback, before the response
+arrives. Limits: the application injector is **not** the injector of an Analog SSR render or of
+Analog's server functions (no supported seam reaches either), and cleanup covers the controller
+invocation, not a streamed response body. The experiment's files carry \`${ANGULAR_DI_MARKER}\`,
+scanned in the module-graph section below.
 
 **Package boundary.** \`@strata/analog\` declares:
 
