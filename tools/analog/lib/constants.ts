@@ -7,6 +7,9 @@ export const CONTROLLER_MARKER = "STRATA_ANALOG_REGISTERED_CONTROLLER_MARKER";
 /** Emitted only by `src/server/strata/greeting.controller.ts`, registered with a custom `controllerFactory`. */
 export const FACTORY_MARKER = "STRATA_ANALOG_CONTROLLER_FACTORY_MARKER";
 
+/** Emitted only by the Angular DI experiment under `src/server/strata/angular-di/`. */
+export const ANGULAR_DI_MARKER = "STRATA_ANALOG_ANGULAR_DI_MARKER";
+
 /** Emitted by a client page on purpose: a positive control for the output scan. */
 export const CLIENT_MARKER = "STRATA_ANALOG_CLIENT_CONTROL_MARKER";
 

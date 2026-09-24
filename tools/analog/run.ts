@@ -18,6 +18,7 @@ import {
   CLIENT_MARKER,
   CONTROLLER_MARKER,
   FACTORY_MARKER,
+  ANGULAR_DI_MARKER,
   CORE_INTERNAL_SYMBOL,
   EXPECTED_GREETING_BODY,
   EXPECTED_HELLO_DEFINITION,
@@ -232,7 +233,67 @@ interface RouteObservation {
   lifecycle: [Observed, Observed];
   /** Two sequential `GET /api/strata/greeting` requests: instances built by `controllerFactory`. */
   greeting: [Observed, Observed];
+  /** Two overlapping `GET /api/strata/angular-di` requests and the injector stats afterwards. */
+  angularDi: AngularDiObservation;
   seam: SeamSnapshot | null;
+}
+
+interface AngularDiBody {
+  requestId?: string;
+  greeting?: string;
+  appInstance?: number;
+  scopeInstance?: number;
+  sameRequest?: boolean;
+  destroyedBeforeResponse?: boolean;
+}
+
+interface AngularDiStats {
+  created?: number;
+  destroyed?: number;
+  controllersReleased?: number;
+}
+
+interface AngularDiObservation {
+  responses: string[];
+  stats: string;
+  ok: boolean;
+}
+
+async function observeAngularDi(baseUrl: string): Promise<AngularDiObservation> {
+  const route = `${baseUrl}/api/strata/angular-di`;
+  // B is sent while A is still suspended in its handler, so both request injectors are alive at once.
+  const [a, b] = await Promise.all([
+    getJson<AngularDiBody>(`${route}?id=a&delay=150`),
+    getJson<AngularDiBody>(`${route}?id=b`),
+  ]);
+  let stats = await getJson<AngularDiStats>(`${baseUrl}/api/strata-angular-di-stats`);
+
+  // `afterResponse` runs after the body is sent; give it a moment before reading the counters.
+  for (let attempt = 0; attempt < 20 && stats.json?.destroyed !== stats.json?.created; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    stats = await getJson<AngularDiStats>(`${baseUrl}/api/strata-angular-di-stats`);
+  }
+
+  const answered = (response: JsonResponse<AngularDiBody>, id: string): boolean =>
+    response.status === 200 &&
+    response.json?.requestId === id &&
+    response.json.greeting === "hello" &&
+    response.json.sameRequest === true &&
+    response.json.destroyedBeforeResponse === false;
+  const created = stats.json?.created ?? -1;
+
+  return {
+    responses: [a.body, b.body],
+    stats: stats.body,
+    ok:
+      answered(a, "a") &&
+      answered(b, "b") &&
+      a.json?.appInstance === b.json?.appInstance &&
+      a.json?.scopeInstance !== b.json?.scopeInstance &&
+      created === 2 &&
+      stats.json?.destroyed === created &&
+      stats.json.controllersReleased === created,
+  };
 }
 
 const isJson = (contentType: string | null): boolean =>
@@ -267,9 +328,12 @@ async function observeRoutes(baseUrl: string): Promise<RouteObservation> {
     await expectBody("/api/strata/greeting", EXPECTED_GREETING_BODY),
   ];
 
+  const angularDi = await observeAngularDi(baseUrl);
+
   return {
     lifecycle,
     greeting,
+    angularDi,
     native: {
       status: native.status,
       contentType: native.contentType,
@@ -879,6 +943,11 @@ async function main(): Promise<void> {
     prod.greeting.every((observed) => observed.ok),
     prod.greeting.map((observed) => `${observed.status} ${observed.body}`).join(" | "),
   );
+  check(
+    "Angular DI experiment: overlapping requests get isolated request injectors, all destroyed, in production",
+    prod.angularDi.ok,
+    `${prod.angularDi.responses.join(" | ")} stats ${prod.angularDi.stats}`,
+  );
 
   // ---- Marker scan (before the dev server, which does not touch dist) ----
   const scanTargets = [
@@ -895,6 +964,7 @@ async function main(): Promise<void> {
     coreInternalSymbol: findFilesContaining(join(fixtureDir, directory), CORE_INTERNAL_SYMBOL),
     controllerMarker: findFilesContaining(join(fixtureDir, directory), CONTROLLER_MARKER),
     factoryMarker: findFilesContaining(join(fixtureDir, directory), FACTORY_MARKER),
+    angularDiMarker: findFilesContaining(join(fixtureDir, directory), ANGULAR_DI_MARKER),
     analogAdapterSymbol: findFilesContaining(join(fixtureDir, directory), ANALOG_ADAPTER_SYMBOL),
     h3AdapterSymbol: findFilesContaining(join(fixtureDir, directory), H3_ADAPTER_SYMBOL),
   }));
@@ -926,7 +996,9 @@ async function main(): Promise<void> {
   );
   check(
     "The @strata/analog-registered controllers' markers are present in server output",
-    scanOf("server").controllerMarker.length > 0 && scanOf("server").factoryMarker.length > 0,
+    scanOf("server").controllerMarker.length > 0 &&
+      scanOf("server").factoryMarker.length > 0 &&
+      scanOf("server").angularDiMarker.length > 0,
     "dist/analog/server",
   );
   check(
@@ -939,10 +1011,12 @@ async function main(): Promise<void> {
       `The registered controllers' markers and @strata/analog are absent from ${label} output`,
       scanOf(label).controllerMarker.length === 0 &&
         scanOf(label).factoryMarker.length === 0 &&
+        scanOf(label).angularDiMarker.length === 0 &&
         scanOf(label).analogAdapterSymbol.length === 0,
       [
         ...scanOf(label).controllerMarker,
         ...scanOf(label).factoryMarker,
+        ...scanOf(label).angularDiMarker,
         ...scanOf(label).analogAdapterSymbol,
       ].join(", "),
     );
@@ -992,6 +1066,11 @@ async function main(): Promise<void> {
     "GET /api/strata/greeting uses the custom controllerFactory per request in the dev server",
     dev.greeting.every((observed) => observed.ok),
     dev.greeting.map((observed) => `${observed.status} ${observed.body}`).join(" | "),
+  );
+  check(
+    "Angular DI experiment: overlapping requests get isolated request injectors, all destroyed, in the dev server",
+    dev.angularDi.ok,
+    `${dev.angularDi.responses.join(" | ")} stats ${dev.angularDi.stats}`,
   );
 
   const nitroArm = (mode: string, ok: boolean, evidence: string): Arm => ({
@@ -1091,6 +1170,10 @@ async function main(): Promise<void> {
           routeRow("GET /api/strata/greeting (2nd)", mode, observed.greeting[1]),
         ];
       }),
+    ],
+    angularDi: [
+      { mode: "production server", ...prod.angularDi },
+      { mode: "dev server", ...dev.angularDi },
     ],
     typecheck: {
       command: portable(typecheck.command),
