@@ -205,10 +205,36 @@ original error, or the single cleanup error if the invocation succeeded, and oth
 `AggregateError` with the original error (if any) followed by every cleanup error. Cleanup covers
 the controller invocation, not a streamed response body.
 
-The factory is an extension seam, not a DI container: Strata provides no injector, and Angular DI
-is not integrated yet. Errors it throws or rejects with propagate to Nitro unchanged; a result that
-is not an instance of the controller class fails with `StrataAnalogConfigurationError`.
-(`@strata/h3` still creates one instance per controller at registration.)
+The factory is an extension seam, not a DI container: Strata provides no injector. Errors it throws
+or rejects with propagate to Nitro unchanged; a result that is not an instance of the controller
+class fails with `StrataAnalogConfigurationError`. (`@strata/h3` still creates one instance per
+controller at registration.)
+
+Angular DI works through this seam, with injectors the application owns. This is an experimental
+result, not a Strata API (see [SPEC-003](./docs/specs/003-analog-request-lifecycle-angular-di.md)).
+The fixture's Nitro plugin bootstraps an Angular application injector once. Its factory builds each
+controller inside a per-request child injector and destroys that injector with `onCleanup`, so
+controllers use ordinary `inject()`:
+
+```ts
+@Controller("/api/strata/angular-di")
+export class CatalogController {
+  private readonly catalog = inject(CatalogService); // application lifetime
+  private readonly identity = inject(RequestIdentity); // request lifetime
+
+  @Get("/products/:id")
+  async findOne(request: StrataAnalogRequest) {
+    await somethingAsync();
+    return this.catalog.findProduct(request.params["id"] ?? "");
+  }
+}
+```
+
+Resolve dependencies at construction and keep them across `await`: calling `inject()` inside a
+handler throws `NG0203`. The injectors are separate from Analog's SSR and server-function
+injectors, which no supported Analog seam exposes, so `providedIn: 'root'` services are not shared
+with them. The Nitro bundle also needs `@angular/compiler` in `nitro.moduleSideEffects`. See the
+[feasibility report](./docs/research/analog-di-feasibility.md) for the evidence and limits.
 
 Handlers may accept one provisional `StrataAnalogRequest`
 argument for params, query, headers, URL/path, context and lazy body readers; Nitro's H3 event is
@@ -221,11 +247,13 @@ breaking ways before it's published.
 
 The [architecture and SDD documentation](./docs/README.md) records the current
 implementation, decisions, risks and [roadmap to 1.0](./docs/ROADMAP.md).
-Packed consumer runtime verification has executed; strict H3 declaration compatibility still blocks M1.
-The next slice is [H3 consumer type closure](./docs/specs/002-h3-consumer-type-closure.md).
-Request-input APIs and Angular DI still require design and experimental evidence, and Analog
-integration is limited to registering GET controllers on the Nitro router; Strata will not use
-legacy parameter decorators.
+Work runs on two tracks. **H3 consumer qualification:** packed-consumer runtime verification has
+executed, but strict consumer types for `@strata/h3` are upstream-blocked by H3/crossws declarations
+([SPEC-002](./docs/specs/002-h3-consumer-type-closure.md)), so M1 stays blocked. **Analog
+integration:** `@strata/analog` has request input, per-request controllers, request cleanup and a
+conditional go for Angular DI ([SPEC-003](./docs/specs/003-analog-request-lifecycle-angular-di.md)).
+The next bounded step is a strict Server Component feasibility PoC. Analog integration is still
+limited to GET controllers on the Nitro router, and Strata will not use legacy parameter decorators.
 
 Strata 1.0 requires production-ready **Server Components** in a real
 Angular/Analog application: server implementations and dependencies excluded

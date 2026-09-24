@@ -18,6 +18,7 @@ export default defineConfig(() => ({
     analog({
       additionalPagesDirs: ["/src/probes/angular-graph/pages"],
       vite: { tsconfig },
+      nitro: { moduleSideEffects: ["@angular/compiler"] },
     }),
   ],
 }));

@@ -3,13 +3,17 @@
 Only the next actionable slice receives a detailed spec. Milestone-level intent lives in
 [ROADMAP](../ROADMAP.md); workflow and authority live in [SDD](../SDD.md).
 
-| Spec                                                                                 | Status  | Baseline  | Milestone |
-| ------------------------------------------------------------------------------------ | ------- | --------- | --------- |
-| [SPEC-001: packed consumer compilation baseline](001-packed-consumer-compilation.md) | Blocked | `9d2635e` | M1        |
-| [SPEC-002: H3 consumer type closure](002-h3-consumer-type-closure.md)                | Ready   | `f258fc3` | M1        |
+| Spec                                                                                                        | Status    | Baseline  | Milestone |
+| ----------------------------------------------------------------------------------------------------------- | --------- | --------- | --------- |
+| [SPEC-001: packed consumer compilation baseline](001-packed-consumer-compilation.md)                        | Blocked   | `9d2635e` | M1        |
+| [SPEC-002: H3 consumer type closure](002-h3-consumer-type-closure.md)                                       | Blocked   | `f258fc3` | M1        |
+| [SPEC-003: Analog request lifecycle and Angular DI feasibility](003-analog-request-lifecycle-angular-di.md) | In review | `c671ba4` | M2        |
 
-SPEC-001 remains Blocked after execution. SPEC-002 is the only Ready slice; a diagnostic no-go
-will not satisfy its positive type gate or close M1.
+Two tracks run side by side. **H3 consumer qualification** (SPEC-001, SPEC-002): both were
+executed and remain Blocked; SPEC-002's measured no-go is upstream-blocked by H3/crossws
+declarations and does not close M1. **Analog integration / Server Component feasibility**
+(SPEC-003): `@strata/analog` never exposes H3 v2 declarations, so the H3 blocker does not gate it.
+SPEC-003 is implemented with a CONDITIONAL GO and awaits Astra's acceptance.
 
 Use sequential IDs and descriptive filenames. A spec is authoritative for that slice's intended
 behavior, not for the framework's entire future. Keep no more than one Ready/In progress spec.

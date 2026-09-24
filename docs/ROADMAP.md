@@ -2,8 +2,18 @@
 
 Baseline: [STATE](STATE.md). Milestones are capability gates, not calendar promises or mandatory
 version numbers. M1–M4 may produce experimental 0.x releases; M5 produces release candidates.
-Each future slice gets its spec immediately before implementation. Only SPEC-002 is Ready now;
-SPEC-001 was executed and remains Blocked.
+Each future slice gets its spec immediately before implementation. SPEC-001 and SPEC-002 were
+executed and remain Blocked; SPEC-003 is implemented and in review (see [specs](specs/README.md)).
+
+**Two tracks (reconciled 2026-09-24).** The diagram below was drawn as one sequence. In practice the
+M1 blocker belongs to `@strata/h3`'s H3 v2 declarations, and `@strata/analog` never exposes them. So:
+
+- **H3 consumer qualification track** (M1): upstream-blocked; stays Blocked and visible. It still
+  gates any claim that `@strata/h3` consumers typecheck strictly, and any M3+ stabilization that
+  relies on `@strata/h3`.
+- **Analog integration / Server Component feasibility track** (M2): proceeds on `@strata/analog`,
+  which has its own runtime and bundle evidence. Its experiments do not claim M1, and M1 does not
+  pretend they have not happened.
 
 ```text
 M0 existing core + H3 GET
@@ -43,19 +53,27 @@ implementation assignment. Baseline prototype endpoints are sufficient to exerci
 - Blocker: AC2 remains unsatisfied by H3 declarations (TS4113 lib mismatch and TS2307 optional
   peer type leakage). Adding `esnext.error` alone is insufficient. Exact external Rolldown pinning
   also needs repair; remote CI currently stops at pre-build lint, before consumer qualification.
-- Next: [SPEC-002](specs/002-h3-consumer-type-closure.md) tests one bounded hypothesis: a declared,
+- SPEC-002 result: executed, no eligible closure; upstream-blocked (see [STATE](STATE.md)). Its
+  original framing follows. [SPEC-002](specs/002-h3-consumer-type-closure.md) tests one bounded hypothesis: a declared,
   pinned TypeScript/lib/type-dependency closure can qualify the existing H3 v2 consumer without
   suppression or dependency patches. If falsified, retain an upstream reproduction and keep M1
   Blocked; completed investigation is not gate completion. Primitive semantic gaps remain in STATE.
 - Gate: installed tarballs, public declarations, executable production output and route behavior
   verified without workspace source aliases. Evidence must distinguish package build from user-code
   compilation. A clean strict typecheck remains mandatory; successful emitted JS cannot replace it.
-  No public compiler package is needed to pass this gate. M2 remains gated on M1.
+  No public compiler package is needed to pass this gate. M2 claims that depend on `@strata/h3`
+  remain gated on M1; the Analog-track experiments do not depend on it (see the two-track note).
 - Still changeable: consumer build recipe, package boundaries, distribution and all framework APIs.
 
 ## M2 — Prove the integration path and the hardest UI requirement
 
-**Status:** planned; depends on M1. Prototype-only, not production-ready.
+**Status:** in progress on the Analog track; prototype-only, not production-ready. M1 remains
+Blocked for `@strata/h3` (see the two-track note above). Experiment 1 is partially evidenced by the
+[Analog integration baseline](research/analog-integration-baseline.md): Nitro 2 / H3 v1 seam,
+`@strata/analog` rather than an H3 bridge, standard decorators in dev and production, and Angular-graph
+decorator failures recorded. Base paths, cookies, abort and Workers are still open. Experiment 2 has a
+**CONDITIONAL GO** ([SPEC-003](specs/003-analog-request-lifecycle-angular-di.md),
+[report](research/analog-di-feasibility.md)). Experiment 3 is next.
 
 Capability: a pinned minimal Analog fixture demonstrates, or falsifies, the route from a Strata
 controller to request services and from a server-only component to an interactive Angular child.
@@ -69,8 +87,14 @@ Experiments, in dependency order:
    transform order and metadata retention. Select neither multiple-major support nor a plugin by fiat.
 2. **Angular DI.** Trace the request injector as described in ARCHITECTURE; test identity, scopes,
    concurrency, cleanup, synchronous `inject()` and server-function coexistence. A private hook or
-   fork must be identified, not disguised as stable integration.
-3. **Component compiler/graph PoC.** Server data service plus `ProductDetails` absent from every
+   fork must be identified, not disguised as stable integration. _Result (SPEC-003):_ no supported
+   Analog seam exposes the SSR or server-function injector. Consumer-owned `createApplication()` +
+   per-request `createEnvironmentInjector()` via `controllerFactory`/`onCleanup` passes isolation,
+   identity and cleanup tests on Node. It is a separate DI universe from SSR and server functions,
+   needs the JIT compiler in the Nitro bundle, and Workers/abort remain open.
+3. **Component compiler/graph PoC** (next bounded step). Build on SPEC-003's lifecycle: one
+   server-only component/service plus one interactive Angular child, with production bundle
+   assertions. Server data service plus `ProductDetails` absent from every
    browser artifact, interactive `AddToCartComponent` present and actually hydrated after SSR.
    Prove template compilation and boundary ownership, direct/transitive import rejection and
    production bundle assertions. Attempt the same minimal output under a Workers runtime.
