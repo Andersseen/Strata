@@ -9,6 +9,9 @@ export const STRATA_ANALOG_ANGULAR_DI_MARKER = "STRATA_ANALOG_ANGULAR_DI_MARKER"
 /** The Strata request the current request injector was created for. */
 export const STRATA_REQUEST = new InjectionToken<StrataAnalogRequest>("STRATA_REQUEST");
 
+/** Which request injector resolved a controller: lets the harness tell injectors apart. */
+export const REQUEST_INJECTOR_ID = new InjectionToken<number>("REQUEST_INJECTOR_ID");
+
 let appServiceInstances = 0;
 let requestScopeInstances = 0;
 

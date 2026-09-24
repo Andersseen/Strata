@@ -243,6 +243,7 @@ interface AngularDiBody {
   greeting?: string;
   appInstance?: number;
   scopeInstance?: number;
+  injectorId?: number;
   sameRequest?: boolean;
   destroyedBeforeResponse?: boolean;
 }
@@ -266,13 +267,9 @@ async function observeAngularDi(baseUrl: string): Promise<AngularDiObservation> 
     getJson<AngularDiBody>(`${route}?id=a&delay=150`),
     getJson<AngularDiBody>(`${route}?id=b`),
   ]);
-  let stats = await getJson<AngularDiStats>(`${baseUrl}/api/strata-angular-di-stats`);
-
-  // `afterResponse` runs after the body is sent; give it a moment before reading the counters.
-  for (let attempt = 0; attempt < 20 && stats.json?.destroyed !== stats.json?.created; attempt++) {
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    stats = await getJson<AngularDiStats>(`${baseUrl}/api/strata-angular-di-stats`);
-  }
+  // Read once, with no retry: `onCleanup` runs before Strata's route handler settles, so both
+  // request injectors must already be destroyed by the time both responses have arrived.
+  const stats = await getJson<AngularDiStats>(`${baseUrl}/api/strata-angular-di-stats`);
 
   const answered = (response: JsonResponse<AngularDiBody>, id: string): boolean =>
     response.status === 200 &&
@@ -290,6 +287,8 @@ async function observeAngularDi(baseUrl: string): Promise<AngularDiObservation> 
       answered(b, "b") &&
       a.json?.appInstance === b.json?.appInstance &&
       a.json?.scopeInstance !== b.json?.scopeInstance &&
+      a.json?.injectorId !== undefined &&
+      a.json.injectorId !== b.json?.injectorId &&
       created === 2 &&
       stats.json?.destroyed === created &&
       stats.json.controllersReleased === created,
@@ -942,6 +941,26 @@ async function main(): Promise<void> {
     "GET /api/strata/greeting uses the custom controllerFactory per request in production",
     prod.greeting.every((observed) => observed.ok),
     prod.greeting.map((observed) => `${observed.status} ${observed.body}`).join(" | "),
+  );
+  // The experiment's request injectors must be released through `onCleanup` alone, not through
+  // Nitro request/afterResponse/error hooks or a mutable slot on `event.context`.
+  const angularDiSources = [
+    "src/server/plugins/strata-angular-di.ts",
+    "src/server/strata/angular-di/angular-controller-factory.ts",
+    "src/server/strata/angular-di/angular-di.controller.ts",
+    "src/server/strata/angular-di/providers.ts",
+  ].map((path) => ({ path, source: readFileSync(join(fixtureDir, path), "utf8") }));
+  const nitroLifecycleGlue = angularDiSources.filter(({ source }) =>
+    /hooks\.hook\(\s*["'](?:request|beforeResponse|afterResponse|error)["']|event\.context/.test(
+      source,
+    ),
+  );
+
+  check(
+    "Angular DI experiment releases request injectors via onCleanup, with no Nitro request-lifecycle hooks",
+    nitroLifecycleGlue.length === 0 &&
+      angularDiSources.some(({ source }) => /\bonCleanup\(/.test(source)),
+    nitroLifecycleGlue.map(({ path }) => path).join(", ") || "onCleanup() not found",
   );
   check(
     "Angular DI experiment: overlapping requests get isolated request injectors, all destroyed, in production",

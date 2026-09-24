@@ -181,6 +181,30 @@ registerControllers(nitroApp.router, [GreetingController], {
 });
 ```
 
+The factory can also release what it creates for a request (experimental). `onCleanup` registers a
+callback, sync or async, that Strata runs when the controller invocation finishes, including error
+paths:
+
+```ts
+registerControllers(nitroApp.router, [UsersController], {
+  controllerFactory: (Controller, { onCleanup }) => {
+    const resource = createResource();
+
+    onCleanup(() => resource.dispose());
+
+    return new Controller();
+  },
+});
+```
+
+Every registered cleanup runs exactly once, after the factory and the awaited handler call settle,
+whether they succeed, the factory throws or rejects, or the handler throws or rejects. Cleanups run
+last registered first (LIFO), each awaited before the next, and the request's response is sent only
+after all of them. None of the errors is hidden: after trying every cleanup, Strata rethrows the
+original error, or the single cleanup error if the invocation succeeded, and otherwise an
+`AggregateError` with the original error (if any) followed by every cleanup error. Cleanup covers
+the controller invocation, not a streamed response body.
+
 The factory is an extension seam, not a DI container: Strata provides no injector, and Angular DI
 is not integrated yet. Errors it throws or rejects with propagate to Nitro unchanged; a result that
 is not an instance of the controller class fails with `StrataAnalogConfigurationError`.

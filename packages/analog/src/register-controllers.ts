@@ -1,6 +1,8 @@
 import { getControllerDefinition } from "@strata/core";
 import type { HttpMethod, RouteDefinition } from "@strata/core";
 
+import { CleanupScope } from "./cleanup-scope.js";
+import type { StrataAnalogCleanup } from "./cleanup-scope.js";
 import { StrataAnalogConfigurationError } from "./errors.js";
 import { buildRoutePath } from "./utils/build-route-path.js";
 
@@ -37,13 +39,32 @@ export type ControllerClass = new () => object;
 
 /**
  * What a {@link StrataAnalogControllerFactory} receives besides the controller
- * class: the Strata request the new controller instance is created for.
+ * class: the Strata request the new controller instance is created for, and a
+ * way to release what the factory creates for it.
  *
  * Experimental: more request-scoped information may be added here later.
  */
 export interface StrataAnalogControllerFactoryContext {
   /** The same `StrataAnalogRequest` object the handler is then invoked with. */
   readonly request: StrataAnalogRequest;
+  /**
+   * Registers a callback that releases a resource created for this
+   * controller invocation (an Angular request injector, a transaction, …).
+   *
+   * Every registered cleanup runs exactly once, after the factory and the
+   * awaited handler call have settled — on success, when the factory throws
+   * or rejects, and when the handler throws or rejects. Cleanups run one at a
+   * time, last registered first (LIFO), each awaited before the next, and the
+   * route handler settles only after all of them.
+   *
+   * The scope is the controller invocation, not the HTTP response: cleanup
+   * does not wait for a streamed response body to be consumed.
+   *
+   * Calling it once the invocation has finished throws a
+   * `StrataAnalogConfigurationError`. It does not depend on `this`, so it can
+   * be destructured.
+   */
+  readonly onCleanup: (cleanup: StrataAnalogCleanup) => void;
 }
 
 /**
@@ -51,7 +72,8 @@ export interface StrataAnalogControllerFactoryContext {
  * request, before the route handler, and never cached by Strata.
  *
  * It must return (or resolve to) an instance of `controller`. It may throw or
- * reject; that error propagates to Nitro unchanged.
+ * reject; that error propagates to Nitro unchanged, after the cleanups it had
+ * registered with `context.onCleanup` have run.
  *
  * Experimental: this is the seam where an external lifecycle — e.g. Angular
  * DI, by wrapping `new controller()` in an injection context the consumer
@@ -134,7 +156,13 @@ export interface NitroRouter {
  * instance is created at registration; each matched request creates a new
  * one with `options.controllerFactory` (default: `new ControllerClass()`),
  * uses it for that request's handler call, and drops it. Instances are never
- * pooled, cached or shared between requests.
+ * pooled, cached or shared between requests. Cleanups the factory registers
+ * with `onCleanup` run after that handler call settles, whatever the outcome.
+ *
+ * Errors: if cleanups fail, none of the errors is hidden. A single cleanup
+ * error after a successful invocation is thrown as is; otherwise the original
+ * invocation error (if any) and every cleanup error are thrown together as an
+ * `AggregateError`, after all cleanups have been attempted.
  *
  * Request input boundary (provisional): controller methods may accept one
  * `StrataAnalogRequest` argument. It contains route params, query values,
@@ -194,11 +222,23 @@ function registerController(
       path,
       async (event) => {
         const request = createStrataAnalogRequest(event);
-        const controller = await controllerFactory(controllerClass, { request });
+        const scope = new CleanupScope();
+        let result: unknown;
 
-        assertControllerInstance(controllerClass, controller);
+        try {
+          const controller = await controllerFactory(
+            controllerClass,
+            Object.freeze({ request, onCleanup: scope.register }),
+          );
 
-        return handler.call(controller, request);
+          assertControllerInstance(controllerClass, controller);
+
+          result = await handler.call(controller, request);
+        } catch (error) {
+          return scope.close({ failed: true, error });
+        }
+
+        return scope.close({ failed: false }, result);
       },
       ROUTER_METHOD[route.method],
     );

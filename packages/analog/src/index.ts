@@ -11,4 +11,5 @@ export type {
   StrataAnalogQueryValue,
   StrataAnalogRequest,
 } from "./register-controllers.js";
+export type { StrataAnalogCleanup } from "./cleanup-scope.js";
 export { StrataAnalogConfigurationError } from "./errors.js";
