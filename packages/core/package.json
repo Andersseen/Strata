@@ -1,6 +1,6 @@
 {
   "name": "@strata/core",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Experimental @Controller/@Get metadata primitive for Strata. No HTTP runtime yet.",
   "type": "module",
   "license": "MIT",

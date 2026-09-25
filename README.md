@@ -66,12 +66,39 @@ for pushes to `main` after CI passes. Add `CLOUDFLARE_API_TOKEN` (with Pages
 write permission) and `CLOUDFLARE_ACCOUNT_ID` as repository secrets before
 the first merged deployment.
 
+## Installation
+
+**Registry (experimental).** `@strata/core` and `@strata/analog` are published
+to npm only under the `next` dist-tag (the first publish is pending). `0.x`
+versions are pre-1.0 and may break:
+
+```bash
+pnpm add @strata/core@next @strata/analog@next
+```
+
+`@strata/h3` is not published to npm yet (see
+[SPEC-002](./docs/specs/002-h3-consumer-type-closure.md) and
+[ADR-004](./docs/adr/004-experimental-npm-distribution.md)).
+
+**Source (`main`).** To work on Strata itself, clone the repository and use the
+pnpm workspace (`pnpm install && pnpm build`). Workspace packages are linked
+with `workspace:*`. External projects should install the registry packages,
+not link to a checkout.
+
 ## Releases
 
-Tags follow the `vMAJOR.MINOR.PATCH` convention. Pushing a signed, annotated
-`v*` tag runs release validation and creates a GitHub Release with generated
-notes. Until the first stable release, version tags may use a pre-release
-suffix such as `v0.1.0-alpha.1`.
+A GitHub Release and an npm publication are separate:
+
+- **npm packages.** [Changesets](./.changeset) sets each package's version.
+  After the version PR is merged, a maintainer runs the
+  [Publish packages](./.github/workflows/publish-packages.yml) workflow by hand
+  from `main`. It verifies the packed tarballs (`pnpm test:package-consumer`)
+  and publishes `@strata/core` and `@strata/analog` with the `next` dist-tag.
+  Check locally with `pnpm release:packages:dry-run`.
+- **GitHub Releases.** Tags follow the `vMAJOR.MINOR.PATCH` convention. Pushing
+  a signed, annotated `v*` tag runs release validation and creates a GitHub
+  Release with generated notes. It does **not** publish anything to npm, and
+  repository tags such as `v0.1.0-alpha.1` are not package versions.
 
 ```bash
 git tag -s v0.1.0-alpha.1 -m "Strata v0.1.0-alpha.1"
@@ -87,8 +114,9 @@ This repository is still in early development. `@strata/core` has a first
 **experimental** API for declaring controllers and routes, built on standard
 ECMAScript decorators, and `@strata/h3` now wires that metadata into a real
 [H3](https://h3.dev) app. `@strata/analog` registers the same controllers inside an
-[Analog](https://analogjs.org) 2 app. Everything here is **experimental and pre-1.0**, and nothing is
-published to npm yet.
+[Analog](https://analogjs.org) 2 app. Everything here is **experimental and pre-1.0**. `@strata/core` and
+`@strata/analog` are published to npm only under the experimental `next` dist-tag (first
+publish pending).
 
 ```ts
 import { H3 } from "h3";
@@ -243,7 +271,7 @@ not exposed to controller code. Controllers under `src/server/**` stay out of th
 (Analog 2.7.2, Nitro 2.13.4) and what is not.
 
 Nothing here should be considered stable — the API can still change in
-breaking ways before it's published.
+breaking ways in any `0.x` release.
 
 The [architecture and SDD documentation](./docs/README.md) records the current
 implementation, decisions, risks and [roadmap to 1.0](./docs/ROADMAP.md).

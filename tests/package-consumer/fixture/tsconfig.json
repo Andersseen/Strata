@@ -1,0 +1,30 @@
+// Whole consumer app, including the H3 v1 router harness. h3@1.15.11's own
+// declarations reference the WebWorker-only `FetchEvent`, so this config keeps
+// the Angular CLI default `skipLibCheck: true`. The Strata declaration gate is
+// tsconfig.strata.json (skipLibCheck: false).
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2023", "DOM", "DOM.Iterable", "esnext.decorators"],
+    "types": ["node"],
+    "strict": true,
+    "skipLibCheck": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "forceConsistentCasingInFileNames": true,
+    "experimentalDecorators": false,
+    "emitDecoratorMetadata": false,
+    "outDir": "dist",
+    "rootDir": "src",
+    "declaration": false,
+    "sourceMap": false
+  },
+  "include": ["src"]
+}

@@ -40,6 +40,7 @@
     "test:consumer": "node --experimental-strip-types tools/consumer/run.ts",
     "test:consumer:types": "node --experimental-strip-types tools/consumer/type-closure/run.ts",
     "test:analog": "node --experimental-strip-types tools/analog/run.ts",
+    "test:package-consumer": "node --experimental-strip-types tools/package-consumer/run.ts",
     "test:watch": "vitest",
     "typecheck": "turbo run typecheck",
     "lint": "eslint .",
@@ -47,7 +48,8 @@
     "format:check": "prettier --check .",
     "clean": "turbo run clean && rm -rf .turbo",
     "changeset": "changeset",
-    "release": "changeset publish"
+    "release:packages": "node --experimental-strip-types tools/release/publish-packages.ts",
+    "release:packages:dry-run": "node --experimental-strip-types tools/release/publish-packages.ts --dry-run"
   },
   "devDependencies": {
     "@agentyx/cli": "^0.7.0",

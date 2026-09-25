@@ -1,6 +1,6 @@
 {
   "name": "@strata/h3",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Experimental H3 adapter for @strata/core — registers Strata controllers on an H3 app.",
   "type": "module",
   "license": "MIT",
