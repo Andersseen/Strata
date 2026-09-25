@@ -1,7 +1,7 @@
 import { H3 } from "h3";
 
-import { Controller, Get, getControllerDefinition } from "@strata/core";
-import { registerControllers } from "@strata/h3";
+import { Controller, Get, getControllerDefinition } from "@strata-sc/core";
+import { registerControllers } from "@strata-sc/h3";
 
 @Controller("/consumer")
 class ConsumerController {

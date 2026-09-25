@@ -6,12 +6,12 @@ Each future slice gets its spec immediately before implementation. SPEC-001 and 
 executed and remain Blocked; SPEC-003 is implemented and in review (see [specs](specs/README.md)).
 
 **Two tracks (reconciled 2026-09-24).** The diagram below was drawn as one sequence. In practice the
-M1 blocker belongs to `@strata/h3`'s H3 v2 declarations, and `@strata/analog` never exposes them. So:
+M1 blocker belongs to `@strata-sc/h3`'s H3 v2 declarations, and `@strata-sc/analog` never exposes them. So:
 
 - **H3 consumer qualification track** (M1): upstream-blocked; stays Blocked and visible. It still
-  gates any claim that `@strata/h3` consumers typecheck strictly, and any M3+ stabilization that
-  relies on `@strata/h3`.
-- **Analog integration / Server Component feasibility track** (M2): proceeds on `@strata/analog`,
+  gates any claim that `@strata-sc/h3` consumers typecheck strictly, and any M3+ stabilization that
+  relies on `@strata-sc/h3`.
+- **Analog integration / Server Component feasibility track** (M2): proceeds on `@strata-sc/analog`,
   which has its own runtime and bundle evidence. Its experiments do not claim M1, and M1 does not
   pretend they have not happened.
 
@@ -61,16 +61,16 @@ implementation assignment. Baseline prototype endpoints are sufficient to exerci
 - Gate: installed tarballs, public declarations, executable production output and route behavior
   verified without workspace source aliases. Evidence must distinguish package build from user-code
   compilation. A clean strict typecheck remains mandatory; successful emitted JS cannot replace it.
-  No public compiler package is needed to pass this gate. M2 claims that depend on `@strata/h3`
+  No public compiler package is needed to pass this gate. M2 claims that depend on `@strata-sc/h3`
   remain gated on M1; the Analog-track experiments do not depend on it (see the two-track note).
 - Still changeable: consumer build recipe, package boundaries, distribution and all framework APIs.
 
 ## M2 — Prove the integration path and the hardest UI requirement
 
 **Status:** in progress on the Analog track; prototype-only, not production-ready. M1 remains
-Blocked for `@strata/h3` (see the two-track note above). Experiment 1 is partially evidenced by the
+Blocked for `@strata-sc/h3` (see the two-track note above). Experiment 1 is partially evidenced by the
 [Analog integration baseline](research/analog-integration-baseline.md): Nitro 2 / H3 v1 seam,
-`@strata/analog` rather than an H3 bridge, standard decorators in dev and production, and Angular-graph
+`@strata-sc/analog` rather than an H3 bridge, standard decorators in dev and production, and Angular-graph
 decorator failures recorded. Base paths, cookies, abort and Workers are still open. Experiment 2 has a
 **CONDITIONAL GO** ([SPEC-003](specs/003-analog-request-lifecycle-angular-di.md),
 [report](research/analog-di-feasibility.md)). Experiment 3 is next.

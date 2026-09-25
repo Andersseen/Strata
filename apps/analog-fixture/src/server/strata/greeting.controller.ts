@@ -1,4 +1,4 @@
-import { Controller, Get } from "@strata/core";
+import { Controller, Get } from "@strata-sc/core";
 
 // Server-only, like `users.controller.ts`: only the Nitro plugin imports this
 // module. The production-build scan asserts the marker (and so the

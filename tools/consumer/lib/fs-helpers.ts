@@ -22,7 +22,7 @@ export function copyDirRecursive(sourceDir: string, targetDir: string): void {
 }
 
 /**
- * Finds every directory whose path ends in `@strata/core`, so the runner can
+ * Finds every directory whose path ends in `@strata-sc/core`, so the runner can
  * assert the isolated consumer install resolved exactly one copy.
  */
 export function findScopedPackageDirs(
@@ -65,7 +65,7 @@ export function findScopedPackageDirs(
 
 /**
  * The file name `pnpm pack` gives a workspace package's tarball
- * (`@strata/core@0.1.0` → `strata-core-0.1.0.tgz`), read from its current
+ * (`@strata-sc/core@0.1.0` → `strata-core-0.1.0.tgz`), read from its current
  * package.json so runners follow Changesets version bumps.
  */
 export function packedTarballName(packageDir: string): string {

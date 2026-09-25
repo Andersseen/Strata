@@ -4,7 +4,7 @@ Object.defineProperty(Symbol, "metadata", {
   value: preexisting,
 });
 
-const { Controller } = await import("@strata/core");
+const { Controller } = await import("@strata-sc/core");
 
 const currentMetadata = Symbol.metadata as symbol | undefined;
 

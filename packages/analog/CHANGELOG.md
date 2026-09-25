@@ -1,4 +1,4 @@
-# @strata/analog
+# @strata-sc/analog
 
 ## 0.1.0
 
@@ -22,16 +22,16 @@
 
   Cleanup covers the controller invocation, not a streamed response body. `onCleanup` throws
   `StrataAnalogConfigurationError` if it is called after the invocation has finished. The default
-  factory (`new Controller()`) behaves as before, and `@strata/analog` still has no Angular
+  factory (`new Controller()`) behaves as before, and `@strata-sc/analog` still has no Angular
   dependency.
 
-- 2734104: Add `@strata/analog`, an experimental Strata adapter for Analog 2 (Nitro 2, H3 v1). Its single
+- 2734104: Add `@strata-sc/analog`, an experimental Strata adapter for Analog 2 (Nitro 2, H3 v1). Its single
   public primitive, `registerControllers(router, controllers)`, reads controller metadata via
-  `@strata/core`'s `getControllerDefinition` and registers each `@Get()` route on the Nitro router
+  `@strata-sc/core`'s `getControllerDefinition` and registers each `@Get()` route on the Nitro router
   (`nitroApp.router`, obtained in a Nitro server plugin), returning each handler's result directly to
   Nitro/H3.
 
-  It is a sibling of `@strata/h3`, not a wrapper: it does not depend on `@strata/h3`, `h3`,
+  It is a sibling of `@strata-sc/h3`, not a wrapper: it does not depend on `@strata-sc/h3`, `h3`,
   `nitropack` or `@analogjs/*`. The router is typed structurally (`NitroRouter`), and Nitro's real
   `Router` type is assignable to it without a cast.
 
@@ -58,10 +58,10 @@ controllerFactory })`. The factory receives the controller class and a
   public types: `StrataAnalogControllerFactory`, `StrataAnalogControllerFactoryContext` and
   `RegisterControllersOptions`.
 
-  The factory is an extension seam, not a DI implementation: `@strata/analog` still has no Angular
+  The factory is an extension seam, not a DI implementation: `@strata-sc/analog` still has no Angular
   dependency and provides no injector or container.
 
 ### Patch Changes
 
 - Updated dependencies [80341ea]
-  - @strata/core@0.1.0
+  - @strata-sc/core@0.1.0

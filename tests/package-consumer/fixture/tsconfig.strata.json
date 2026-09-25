@@ -1,6 +1,6 @@
 // Strata declaration gate: consumer controllers only, Node lib without DOM,
 // skipLibCheck: false. Any declaration diagnostic here comes from
-// @strata/core, @strata/analog or their dependency graph.
+// @strata-sc/core, @strata-sc/analog or their dependency graph.
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {

@@ -28,7 +28,7 @@ dated September 14; Strata's lockfile resolves that version. Treat it as prerele
 
 The current experimental adapter already targets v2. Supporting v1 is a separate interoperability
 decision, not changing an import or widening a type. Encapsulate registration, event conversion,
-response/error translation and any version bridge in `@strata/h3`.
+response/error translation and any version bridge in `@strata-sc/h3`.
 
 Analog's [platform manifest](https://github.com/analogjs/analog/blob/main/packages/platform/package.json)
 declares `nitropack ^2.13.1`; the

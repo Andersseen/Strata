@@ -80,8 +80,8 @@ export function materializeStrataConsumerFixture(
   const pkg = readJson<ManifestShape>(pkgPath);
   pkg.dependencies = {
     ...pkg.dependencies,
-    "@strata/core": `file:${corePath}`,
-    "@strata/h3": `file:${h3TarballPath}`,
+    "@strata-sc/core": `file:${corePath}`,
+    "@strata-sc/h3": `file:${h3TarballPath}`,
     h3: FIXED_VERSIONS.h3,
     ...matrixCase.dependencies,
   };

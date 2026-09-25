@@ -6,17 +6,17 @@ Inspected at `c671ba4` (`main`, merge of PR #19) plus the SPEC-003 branch. The s
 one are the 2026-09-17 audit at `f258fc3`. They are kept as recorded, and this section supersedes
 their current-state claims where the two differ. Work now runs on two tracks with independent gates:
 
-| Track                                             | Scope                                                                 | State                                                                                                                                                                                                                                                                                 |
-| ------------------------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| H3 consumer qualification                         | `@strata/h3` (H3 v2) packed consumers, strict declarations; M1        | SPEC-001 and SPEC-002 executed. **Upstream-blocked**: H3's `HTTPError.isError` lib assumption and its crossws import graph fail strict TS 6.0.3 consumers; no published closure qualifies. `pnpm test:consumer` stays failing on AC2 by design. Unchanged by later work.              |
-| Analog integration / Server Component feasibility | `@strata/analog` (Nitro 2 / H3 v1) inside a real Analog 2.7.2 app; M2 | Executed and passing in dev and production ([baseline](research/analog-integration-baseline.md)). `@strata/analog` exposes no H3 v2 (or v1) declarations, so the H3 type blocker does not apply to it. Packed-consumer qualification of `@strata/analog` itself has **not** been run. |
+| Track                                             | Scope                                                                    | State                                                                                                                                                                                                                                                                                       |
+| ------------------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| H3 consumer qualification                         | `@strata-sc/h3` (H3 v2) packed consumers, strict declarations; M1        | SPEC-001 and SPEC-002 executed. **Upstream-blocked**: H3's `HTTPError.isError` lib assumption and its crossws import graph fail strict TS 6.0.3 consumers; no published closure qualifies. `pnpm test:consumer` stays failing on AC2 by design. Unchanged by later work.                    |
+| Analog integration / Server Component feasibility | `@strata-sc/analog` (Nitro 2 / H3 v1) inside a real Analog 2.7.2 app; M2 | Executed and passing in dev and production ([baseline](research/analog-integration-baseline.md)). `@strata-sc/analog` exposes no H3 v2 (or v1) declarations, so the H3 type blocker does not apply to it. Packed-consumer qualification of `@strata-sc/analog` itself has **not** been run. |
 
 Analog track increments since the 2026-09-17 audit:
 
 | PR / spec | Increment                                                                                                                                                                    |
 | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | #7        | Analog integration baseline fixture and `pnpm test:analog`                                                                                                                   |
-| #8        | `@strata/analog`: `registerControllers(nitroApp.router, …)` from a Nitro plugin; depends only on `@strata/core`                                                              |
+| #8        | `@strata-sc/analog`: `registerControllers(nitroApp.router, …)` from a Nitro plugin; depends only on `@strata-sc/core`                                                        |
 | #17       | Provisional `StrataAnalogRequest` (method, path, URL, headers, params, query, context snapshot, lazy body readers); Nitro/H3 event not exposed                               |
 | #18       | Controllers are **request-scoped**: no instance at registration, one per request through experimental `controllerFactory` (default `new Controller()`)                       |
 | #19       | Experimental `onCleanup` on the factory context: LIFO, awaited, exactly once, on success and every failure path, before the route handler settles                            |
@@ -24,16 +24,16 @@ Analog track increments since the 2026-09-17 audit:
 
 Current lifecycle facts:
 
-- `@strata/h3` still creates one controller instance per controller at registration and shares it
+- `@strata-sc/h3` still creates one controller instance per controller at registration and shares it
   across requests. That instance is never a safe place for request state.
-- `@strata/analog` creates a controller per request and provides no injector. With the consumer glue
+- `@strata-sc/analog` creates a controller per request and provides no injector. With the consumer glue
   measured in SPEC-003, controllers resolve application- and request-scoped Angular services with
   `inject()` at construction. Overlapping requests are isolated (barrier-proven), and request
   injectors are destroyed on success, throw and rejection. The application injector is separate
   from Analog's SSR and server-function injectors (no supported seam reaches those), and the Nitro
   bundle then needs `@angular/compiler` declared in `nitro.moduleSideEffects`.
 - Not yet verified on the Analog track: Workers, abort/timeout cleanup, streamed-body lifetimes,
-  packed `@strata/analog` consumers, non-GET methods.
+  packed `@strata-sc/analog` consumers, non-GET methods.
 
 The first gap bullet of the 2026-09-17 audit below ("No Angular/Analog/Nitro dependency, DI
 integration … request API") is superseded by the table above. Its other bullets still stand.
@@ -162,8 +162,8 @@ evidence is recorded in [SPEC-002's Implementation result](specs/002-h3-consumer
   `@cloudflare/workers-types` redeclaring DOM/Node globals that conflict with the existing libs. A
   genuine double no-go, not merely a policy rejection of an otherwise-clean configuration.
 - Every diagnostic across all cases traces to `h3`, `crossws`, `bun-types`/`@types/bun`, or
-  `@cloudflare/workers-types` declaration files. Zero diagnostics originated in `@strata/core` or
-  `@strata/h3` in any case — reconfirming SPEC-001's finding that Strata's own declarations are clean.
+  `@cloudflare/workers-types` declaration files. Zero diagnostics originated in `@strata-sc/core` or
+  `@strata-sc/h3` in any case — reconfirming SPEC-001's finding that Strata's own declarations are clean.
 - Negative ambient controls confirm Bun/Workers globals are correctly unresolved under Node-only
   `types` and correctly resolved once activated, independent of any H3 diagnostic.
 - The CI clean-checkout lint failure recorded above is fixed by build ordering alone: removing

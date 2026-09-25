@@ -5,15 +5,15 @@
 - Baseline: `c671ba4` (`main`, merge of PR #19 — request-scoped controllers and request cleanup)
 - Milestone: M2, experiment 2 (Angular DI), on the Analog integration track
 - Author/reviewer: Astra; implementer: implementation agent
-- Depends on: `@strata/analog` registration (PR #8), `StrataAnalogRequest` (PR #17),
-  `controllerFactory` (PR #18), `onCleanup` (PR #19). **Not** on SPEC-001/002: `@strata/analog`
+- Depends on: `@strata-sc/analog` registration (PR #8), `StrataAnalogRequest` (PR #17),
+  `controllerFactory` (PR #18), `onCleanup` (PR #19). **Not** on SPEC-001/002: `@strata-sc/analog`
   never exposes H3 v2 declarations.
 - Decisions: ADR-001 (standard decorators) and ADR-002 unchanged; DI ownership stays open (no ADR)
 - Risks: R03, R04, R05, R12, R13
 
 ## Context
 
-On this baseline, `@strata/analog` registers controllers on `nitroApp.router` and creates one
+On this baseline, `@strata-sc/analog` registers controllers on `nitroApp.router` and creates one
 controller per request through an experimental `controllerFactory` (default `new Controller()`).
 `onCleanup` callbacks run once the factory and the awaited handler settle. Handlers receive a
 provisional `StrataAnalogRequest`. A fixture experiment (PR #18) already built controllers inside
@@ -23,7 +23,7 @@ behind "a Nitro plugin cannot reach Analog's injector", same-request identity ac
 sites was untested, and there was no evidence for `inject()` after `await` or for cleanup of Angular
 resources on handler failure.
 
-`@strata/h3` still instantiates controllers once at registration; this spec does not change it.
+`@strata-sc/h3` still instantiates controllers once at registration; this spec does not change it.
 
 ## Problem
 
@@ -47,19 +47,19 @@ and precise `inject()` semantics. Server Components need that answer before they
 
 Server Components, component compiler, hydration/navigation protocols, ForgeCMS, non-GET
 decorators, validation, guards/interceptors, modules, a Strata DI container, parameter decorators,
-H3 v2 type work, `@strata/h3` lifecycle changes, Workers execution.
+H3 v2 type work, `@strata-sc/h3` lifecycle changes, Workers execution.
 
 ## Public API impact
 
 None planned, and none made. Candidate C uses the existing `controllerFactory` + `onCleanup`. Any
-new export would require a Changeset, package tests and packed-output verification. `@strata/core`,
-`@strata/h3` and `@strata/analog` manifests stay free of Angular.
+new export would require a Changeset, package tests and packed-output verification. `@strata-sc/core`,
+`@strata-sc/h3` and `@strata-sc/analog` manifests stay free of Angular.
 
 ## Architecture
 
 - Allowed areas: `apps/analog-fixture/src/server/**`, the fixture's Vite configs (only as needed to
   run the experiment, documented), `tools/analog/**`, `docs/**`.
-- The consumer owns every Angular injector; `@strata/analog` owns only _when_ the factory and cleanups
+- The consumer owns every Angular injector; `@strata-sc/analog` owns only _when_ the factory and cleanups
   run.
 - The controller receives explicit HTTP input only as `StrataAnalogRequest`. DI is for services.
   `request.context` is not used as a container. Controller-side code imports no Nitro/H3 module or
@@ -86,7 +86,7 @@ new export would require a Changeset, package tests and packed-output verificati
 | AC8  | `StrataAnalogRequest` still reaches the handler, and the injected request token is the same object.                                                                                                                                |
 | AC9  | Native Analog routes, SSR and pre-existing Strata routes still pass in dev and production.                                                                                                                                         |
 | AC10 | DI experiment markers are absent from `dist/client`, `dist/analog/public` and `dist/ssr`; present in server output.                                                                                                                |
-| AC11 | No Angular dependency in `@strata/core`, `@strata/h3` or `@strata/analog`; no new package unless justified.                                                                                                                        |
+| AC11 | No Angular dependency in `@strata-sc/core`, `@strata-sc/h3` or `@strata-sc/analog`; no new package unless justified.                                                                                                               |
 | AC12 | STATE/ROADMAP/ARCHITECTURE/README distinguish the H3 consumer qualification track from the Analog track without removing the H3 blocker.                                                                                           |
 
 ## Required tests
@@ -99,7 +99,7 @@ new export would require a Changeset, package tests and packed-output verificati
 | `pnpm test:analog` — onCleanup-only release; no Nitro/H3 types in controller-side files         | AC6, AC11              |
 | `pnpm test:analog` — typecheck probe including the DI plugin against Nitro's types              | AC3                    |
 | `pnpm test:analog` — marker scan and existing route/SSR checks                                  | AC9, AC10              |
-| `pnpm --filter @strata/analog test` (existing lifecycle/cleanup suites, unchanged)              | AC6, AC8               |
+| `pnpm --filter @strata-sc/analog test` (existing lifecycle/cleanup suites, unchanged)           | AC6, AC8               |
 | `pnpm format:check`, `lint`, `typecheck`, `test`, `build`                                       | all                    |
 
 ## Compatibility concerns
@@ -124,7 +124,7 @@ unchanged.
 ## Explicitly out of scope
 
 Implementing the next step (Server Component PoC), any public DI helper, and any change to
-`@strata/h3`.
+`@strata-sc/h3`.
 
 ## Implementation result
 
@@ -144,7 +144,7 @@ Executed on branch `feat/spec-003-analog-di-feasibility` from `c671ba4`. Full ev
 | AC8  | Pass   | `injectedRequestIsArgument: true`; `request.params` drives the response.                                                                     |
 | AC9  | Pass   | All pre-existing `test:analog` checks pass in both modes.                                                                                    |
 | AC10 | Pass   | Marker absent from client/public/SSR bundle; present in `dist/analog/server`. `@angular/compiler` traced server-only.                        |
-| AC11 | Pass   | Package manifests unchanged; no `@strata/angular`.                                                                                           |
+| AC11 | Pass   | Package manifests unchanged; no `@strata-sc/angular`.                                                                                        |
 | AC12 | Pass   | STATE, ROADMAP, ARCHITECTURE, README and the spec index updated.                                                                             |
 
 Deviations, recorded rather than hidden:

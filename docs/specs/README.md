@@ -12,7 +12,7 @@ Only the next actionable slice receives a detailed spec. Milestone-level intent 
 Two tracks run side by side. **H3 consumer qualification** (SPEC-001, SPEC-002): both were
 executed and remain Blocked; SPEC-002's measured no-go is upstream-blocked by H3/crossws
 declarations and does not close M1. **Analog integration / Server Component feasibility**
-(SPEC-003): `@strata/analog` never exposes H3 v2 declarations, so the H3 blocker does not gate it.
+(SPEC-003): `@strata-sc/analog` never exposes H3 v2 declarations, so the H3 blocker does not gate it.
 SPEC-003 is implemented with a CONDITIONAL GO and awaits Astra's acceptance.
 
 Use sequential IDs and descriptive filenames. A spec is authoritative for that slice's intended

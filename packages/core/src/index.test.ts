@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { Controller, Get, getControllerDefinition, STRATA_VERSION } from "./index.js";
 
-describe("@strata/core", () => {
+describe("@strata-sc/core", () => {
   it("exposes the current package version", () => {
     // Changesets bumps package.json; this keeps the exported constant in step with it.
     const packageJson = JSON.parse(

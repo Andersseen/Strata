@@ -10,7 +10,7 @@ name: Release
 #   dist-tag, and creates the git tags and GitHub Releases.
 #
 # Requires the repository secret NPM_TOKEN (npm granular token with publish
-# access to @strata/*), and "Allow GitHub Actions to create and approve pull
+# access to @strata-sc/*), and "Allow GitHub Actions to create and approve pull
 # requests" enabled in Settings → Actions → General.
 on:
   push:

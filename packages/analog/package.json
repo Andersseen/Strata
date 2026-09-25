@@ -1,7 +1,7 @@
 {
-  "name": "@strata/analog",
+  "name": "@strata-sc/analog",
   "version": "0.1.0",
-  "description": "Experimental Analog adapter for @strata/core — registers Strata controllers on the Nitro 2 router that Analog runs on.",
+  "description": "Experimental Analog adapter for @strata-sc/core — registers Strata controllers on the Nitro 2 router that Analog runs on.",
   "type": "module",
   "license": "MIT",
   "author": "Andersseen",
@@ -51,7 +51,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@strata/core": "workspace:*"
+    "@strata-sc/core": "workspace:*"
   },
   "devDependencies": {
     "h3": "^1.15.11"

@@ -4,8 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "dependencies": {
-    "@strata/core": "REPLACED_BY_RUNNER",
-    "@strata/h3": "REPLACED_BY_RUNNER",
+    "@strata-sc/core": "REPLACED_BY_RUNNER",
+    "@strata-sc/h3": "REPLACED_BY_RUNNER",
     "h3": "2.0.1-rc.32"
   },
   "devDependencies": {
@@ -14,6 +14,6 @@
     "vite": "8.3.0"
   },
   "overrides": {
-    "@strata/core": "$@strata/core"
+    "@strata-sc/core": "$@strata-sc/core"
   }
 }

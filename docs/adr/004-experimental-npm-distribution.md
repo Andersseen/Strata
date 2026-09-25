@@ -11,20 +11,20 @@ A real external repository (ForgeCMS: Node 22, TypeScript 5.9.2, Angular 21.2, A
 needs to install Strata from a registry, not through `link:`, `file:` or source aliases. Until now
 every package was `0.0.0`, and `release.yml` only created GitHub Releases from `v*` tags.
 
-`@strata/h3` has a documented consumer type-closure blocker in H3 v2/crossws declarations
-([SPEC-002](../specs/002-h3-consumer-type-closure.md)). `@strata/analog` types the Nitro router
+`@strata-sc/h3` has a documented consumer type-closure blocker in H3 v2/crossws declarations
+([SPEC-002](../specs/002-h3-consumer-type-closure.md)). `@strata-sc/analog` types the Nitro router
 structurally and exposes no H3/Nitro types.
 
 ## Decision
 
 - Changesets stays the source of package versions. The pending changesets set the first versions:
-  `@strata/core` 0.1.0, `@strata/analog` 0.1.0 and `@strata/h3` 0.1.0. `0.x` signals pre-1.0;
+  `@strata-sc/core` 0.1.0, `@strata-sc/analog` 0.1.0 and `@strata-sc/h3` 0.1.0. `0.x` signals pre-1.0;
   package versions carry no `-alpha` suffix.
-- Only `@strata/core` and `@strata/analog` are published. `@strata/h3` is versioned but excluded
+- Only `@strata-sc/core` and `@strata-sc/analog` are published. `@strata-sc/h3` is versioned but excluded
   from the registry until its blocker is resolved or explicitly accepted. The allowlist lives in
-  `tools/release/lib/packages.ts` and fails if it ever includes `@strata/h3`.
+  `tools/release/lib/packages.ts` and fails if it ever includes `@strata-sc/h3`.
 - Releases use the `next` dist-tag, never `latest`. Install with
-  `pnpm add @strata/core@next @strata/analog@next`.
+  `pnpm add @strata-sc/core@next @strata-sc/analog@next`.
 - Publishing is a separate, manual workflow (`publish-packages.yml`, `workflow_dispatch`, `main`
   only, dry-run by default). It gates on build, lint, typecheck, test, `test:analog` and
   `test:package-consumer`, then publishes the exact tarballs it inspected. It never runs on pull
@@ -48,5 +48,5 @@ advertise `@next`.
 
 ## Reopening trigger
 
-Resolution or acceptance of the `@strata/h3` blocker, a move to trusted publishing, or promotion
+Resolution or acceptance of the `@strata-sc/h3` blocker, a move to trusted publishing, or promotion
 of any package to `latest`.

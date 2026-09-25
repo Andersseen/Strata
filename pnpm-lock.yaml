@@ -94,10 +94,10 @@ importers:
       '@angular/router':
         specifier: ^22.0.0
         version: 22.1.7(@angular/common@22.1.7(@angular/core@22.1.7(@angular/compiler@22.1.7)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.1.7(@angular/compiler@22.1.7)(rxjs@7.8.2))(@angular/platform-browser@22.1.7(@angular/common@22.1.7(@angular/core@22.1.7(@angular/compiler@22.1.7)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.1.7(@angular/compiler@22.1.7)(rxjs@7.8.2)))(rxjs@7.8.2)
-      '@strata/analog':
+      '@strata-sc/analog':
         specifier: workspace:*
         version: link:../../packages/analog
-      '@strata/core':
+      '@strata-sc/core':
         specifier: workspace:*
         version: link:../../packages/core
       rxjs:
@@ -158,10 +158,10 @@ importers:
       '@angular/router':
         specifier: ^22.0.0
         version: 22.1.7(@angular/common@22.1.7(@angular/core@22.1.7(@angular/compiler@22.1.7)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.1.7(@angular/compiler@22.1.7)(rxjs@7.8.2))(@angular/platform-browser@22.1.7(@angular/common@22.1.7(@angular/core@22.1.7(@angular/compiler@22.1.7)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.1.7(@angular/compiler@22.1.7)(rxjs@7.8.2)))(rxjs@7.8.2)
-      '@strata/analog':
+      '@strata-sc/analog':
         specifier: workspace:*
         version: link:../../packages/analog
-      '@strata/core':
+      '@strata-sc/core':
         specifier: workspace:*
         version: link:../../packages/core
       '@tailwindcss/vite':
@@ -231,7 +231,7 @@ importers:
 
   packages/analog:
     dependencies:
-      '@strata/core':
+      '@strata-sc/core':
         specifier: workspace:*
         version: link:../core
     devDependencies:
@@ -243,7 +243,7 @@ importers:
 
   packages/h3:
     dependencies:
-      '@strata/core':
+      '@strata-sc/core':
         specifier: workspace:*
         version: link:../core
       h3:

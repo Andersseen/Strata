@@ -2,12 +2,12 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 
-import { getControllerDefinition, STRATA_VERSION } from "@strata/core";
+import { getControllerDefinition, STRATA_VERSION } from "@strata-sc/core";
 import {
   registerControllers,
   StrataAnalogConfigurationError,
   type StrataAnalogControllerFactory,
-} from "@strata/analog";
+} from "@strata-sc/analog";
 import { createApp, createRouter, toNodeListener } from "h3";
 
 import {
@@ -108,8 +108,8 @@ try {
     `PACKAGE_CONSUMER_RESULT ${JSON.stringify({
       strataVersion: STRATA_VERSION,
       resolved: {
-        core: import.meta.resolve("@strata/core"),
-        analog: import.meta.resolve("@strata/analog"),
+        core: import.meta.resolve("@strata-sc/core"),
+        analog: import.meta.resolve("@strata-sc/analog"),
       },
       requests: results.length + 3,
       cleanups: cleanupLog.length,

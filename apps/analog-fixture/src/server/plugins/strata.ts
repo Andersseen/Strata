@@ -1,4 +1,4 @@
-import { registerControllers } from "@strata/analog";
+import { registerControllers } from "@strata-sc/analog";
 import { defineNitroPlugin } from "nitropack/runtime";
 
 import { GreetingController, GreetingService } from "../strata/greeting.controller";

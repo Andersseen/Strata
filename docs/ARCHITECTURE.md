@@ -21,13 +21,13 @@ This is responsibility layering, not a claim that every call traverses a Strata 
 builds and hosts the server; Analog owns application routing/rendering. Native HTTP and internal
 RPC remain available independently.
 
-| Package                                            | Responsibility                                                                                                        | Must not own                                                                |
-| -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| `@strata/core` — exists                            | Runtime-independent controller/route metadata and future justified domain contracts                                   | H3 events, Angular injectors, Nitro lifecycle, Vite transforms, HTTP server |
-| `@strata/h3` — exists                              | Route registration, HTTP execution; future H3 request/response/error mapping and version interoperability             | Angular compiler, app bootstrap, RPC duplication                            |
-| `@strata/analog` — exists (experimental)           | Concrete Analog registration, SSR/request lifecycle and build integration through supported extension points          | A replacement Analog router or an independent app provider registry         |
-| `@strata/compiler` / `@strata/vite` — candidates   | Graph analysis/transformation versus Vite orchestration, only if those responsibilities warrant separate distribution | Generic framework runtime; packages created merely for symmetry             |
-| `@strata/angular` / `@strata/testing` — candidates | Reusable Angular runtime boundaries / consumer testing helpers when demonstrated (SPEC-003 found none yet)            | A second DI container; re-export-only scaffolding                           |
+| Package                                                  | Responsibility                                                                                                        | Must not own                                                                |
+| -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `@strata-sc/core` — exists                               | Runtime-independent controller/route metadata and future justified domain contracts                                   | H3 events, Angular injectors, Nitro lifecycle, Vite transforms, HTTP server |
+| `@strata-sc/h3` — exists                                 | Route registration, HTTP execution; future H3 request/response/error mapping and version interoperability             | Angular compiler, app bootstrap, RPC duplication                            |
+| `@strata-sc/analog` — exists (experimental)              | Concrete Analog registration, SSR/request lifecycle and build integration through supported extension points          | A replacement Analog router or an independent app provider registry         |
+| `@strata-sc/compiler` / `@strata-sc/vite` — candidates   | Graph analysis/transformation versus Vite orchestration, only if those responsibilities warrant separate distribution | Generic framework runtime; packages created merely for symmetry             |
+| `@strata-sc/angular` / `@strata-sc/testing` — candidates | Reusable Angular runtime boundaries / consumer testing helpers when demonstrated (SPEC-003 found none yet)            | A second DI container; re-export-only scaffolding                           |
 
 Adapter packages may depend on core, never the reverse. Angular-related dependencies belong in
 an integration boundary, not the existing metadata package. Decide dependency versus peer ranges
@@ -43,7 +43,7 @@ Node 22.23.0 rejected it. See [measured results](research/consumer-compilation.m
 [review limits](STATE.md), including consumer Rolldown drift.
 
 Consequently, consumers need an explicit lowering stage for this measured path. Neither a public
-`@strata/compiler`/`@strata/vite` package nor the safety of the private transform with Angular AOT
+`@strata-sc/compiler`/`@strata-sc/vite` package nor the safety of the private transform with Angular AOT
 has been established. Public compiler packaging remains open; M2 owns integration experiments.
 
 Runtime evidence does not qualify declarations. The adapter's public `H3` signature exposes H3's
@@ -53,7 +53,7 @@ core metadata or a decorator transform. A `lib` addition changes ambient type av
 polyfilling Node. Peer optionality at installation does not make a root declaration import optional.
 [SPEC-002](specs/002-h3-consumer-type-closure.md) tested a narrow published dependency closure and
 found none (upstream-blocked); no H3 major change, fork, ambient shim or permanent dependency policy
-is selected here. `@strata/analog`'s declarations do not reach H3 at all, so this boundary does not
+is selected here. `@strata-sc/analog`'s declarations do not reach H3 at all, so this boundary does not
 apply to it.
 
 ## HTTP domain
@@ -102,8 +102,8 @@ Proof obligations:
 - Specify who destroys injectors on success, error, timeout and abort, and how tests override providers.
 - Test Node and Workers without assuming Node async-local storage is the solution.
 
-`@strata/h3` still shares one controller instance across requests; that placeholder is never a safe
-location for request state. `@strata/analog` creates a new controller instance per request through
+`@strata-sc/h3` still shares one controller instance across requests; that placeholder is never a safe
+location for request state. `@strata-sc/analog` creates a new controller instance per request through
 an experimental `controllerFactory` seam (default `new Controller()`) and runs the factory's
 `onCleanup` callbacks when the controller invocation settles. It provides no injector itself.
 
@@ -119,7 +119,7 @@ selected model is an explicit host bridge:
 - Per request, its `controllerFactory` creates a child `createEnvironmentInjector()` with the
   request-scoped providers and `STRATA_REQUEST`, constructs the controller in
   `runInInjectionContext()`, and hands `destroy()` to `onCleanup`.
-- `@strata/analog` owns only the timing, and has no Angular dependency. `StrataAnalogRequest` stays the
+- `@strata-sc/analog` owns only the timing, and has no Angular dependency. `StrataAnalogRequest` stays the
   explicit HTTP input; `inject()` is valid only during construction (`NG0203` in handlers, before or
   after `await`).
 

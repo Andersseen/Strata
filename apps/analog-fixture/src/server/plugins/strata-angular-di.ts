@@ -7,7 +7,7 @@ import "@angular/compiler";
 
 import { createApplication } from "@angular/platform-browser";
 import { platformServer, provideServerRendering } from "@angular/platform-server";
-import { registerControllers } from "@strata/analog";
+import { registerControllers } from "@strata-sc/analog";
 import { defineNitroPlugin } from "nitropack/runtime";
 
 import { createAngularControllerFactory } from "../strata/angular-di/angular-controller-factory";

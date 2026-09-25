@@ -17,7 +17,7 @@ pnpm typecheck
 pnpm lint
 pnpm test:consumer:types # SPEC-002 H3 declaration-closure experiment; no eligible candidate found
 pnpm test:consumer # installed consumer qualification; currently blocked on strict H3 types
-pnpm test:analog # Analog fixture: @strata/analog in dev + production, client-bundle scan
+pnpm test:analog # Analog fixture: @strata-sc/analog in dev + production, client-bundle scan
 ```
 
 Other useful scripts:

@@ -31,8 +31,8 @@ export function classifyOrigin(file: string): string {
   if (/node_modules\/@cloudflare\/workers-types\//.test(normalized))
     return "cloudflare-workers-types";
   if (/node_modules\/typescript\/lib\//.test(normalized)) return "typescript-lib-conflict";
-  if (/node_modules\/@strata\/core\//.test(normalized)) return "strata-core";
-  if (/node_modules\/@strata\/h3\//.test(normalized)) return "strata-h3";
+  if (/node_modules\/@strata-sc\/core\//.test(normalized)) return "strata-core";
+  if (/node_modules\/@strata-sc\/h3\//.test(normalized)) return "strata-h3";
   if (/^src\//.test(normalized)) return "consumer-authored";
 
   return `other:${normalized}`;

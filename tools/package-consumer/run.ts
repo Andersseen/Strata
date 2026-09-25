@@ -25,8 +25,8 @@ import {
 } from "../release/lib/packages.ts";
 
 /**
- * Packed-package consumer smoke: builds and packs @strata/core and
- * @strata/analog, installs the tarballs into an isolated consumer outside the
+ * Packed-package consumer smoke: builds and packs @strata-sc/core and
+ * @strata-sc/analog, installs the tarballs into an isolated consumer outside the
  * workspace, compiles consumer-authored controllers with TypeScript 5.9.2
  * (standard decorators, strict, skipLibCheck: false) and runs them on an H3 v1
  * router, the router Nitro 2 exposes to Analog.
@@ -76,7 +76,7 @@ try {
   assertPublishSelection(PUBLISHABLE_PACKAGES);
 
   // --- Build + pack --------------------------------------------------------
-  step("Building @strata/core and @strata/analog");
+  step("Building @strata-sc/core and @strata-sc/analog");
   checkCommand(
     "pnpm build",
     run(
@@ -137,8 +137,8 @@ try {
   );
 
   for (const [name, version] of [
-    ["@strata/core", coreVersion],
-    ["@strata/analog", analogVersion],
+    ["@strata-sc/core", coreVersion],
+    ["@strata-sc/analog", analogVersion],
   ] as const) {
     const installedDir = join(nodeModules, name);
     check(
@@ -149,14 +149,17 @@ try {
     check(!existsSync(join(installedDir, "src")), `${name} install contains source files`);
   }
 
-  const coreCopies = findScopedPackageDirs(nodeModules, "@strata", "core");
-  check(coreCopies.length === 1, `expected 1 @strata/core copy, found:\n${coreCopies.join("\n")}`);
+  const coreCopies = findScopedPackageDirs(nodeModules, "@strata-sc", "core");
   check(
-    !existsSync(join(nodeModules, "@strata", "h3")),
-    "@strata/h3 was installed into the consumer",
+    coreCopies.length === 1,
+    `expected 1 @strata-sc/core copy, found:\n${coreCopies.join("\n")}`,
+  );
+  check(
+    !existsSync(join(nodeModules, "@strata-sc", "h3")),
+    "@strata-sc/h3 was installed into the consumer",
   );
   console.log(
-    `installed: typescript@${installedTypescript}, @strata/core@${coreVersion}, @strata/analog@${analogVersion}, single core copy`,
+    `installed: typescript@${installedTypescript}, @strata-sc/core@${coreVersion}, @strata-sc/analog@${analogVersion}, single core copy`,
   );
 
   // --- TypeScript 5.9.2 strict compile --------------------------------------
@@ -165,7 +168,7 @@ try {
   const repoRealDir = realpathSync(repoRoot);
 
   // Controllers only, Node lib without DOM: every declaration diagnostic here
-  // would come from @strata/core, @strata/analog or their dependency graph.
+  // would come from @strata-sc/core, @strata-sc/analog or their dependency graph.
   step(`Typechecking Strata declaration graph with TypeScript ${TYPESCRIPT_VERSION} (no DOM lib)`);
   const strataOnly = checkCommand(
     "tsc -p tsconfig.strata.json",
@@ -176,16 +179,18 @@ try {
     .split("\n")
     .filter((file) => file.includes("/node_modules/") && !file.includes("/typescript/lib/"));
   check(
-    strataGraph.every((file) => /\/node_modules\/(@strata|@types\/node|undici-types)\//.test(file)),
+    strataGraph.every((file) =>
+      /\/node_modules\/(@strata-sc|@types\/node|undici-types)\//.test(file),
+    ),
     `unexpected declarations in the Strata graph:\n${strataGraph.join("\n")}`,
   );
   console.log(
-    `0 diagnostics; graph = @strata/* + @types/node only (${strataGraph.filter((file) => file.includes("/@strata/")).length} @strata declaration files)`,
+    `0 diagnostics; graph = @strata-sc/* + @types/node only (${strataGraph.filter((file) => file.includes("/@strata-sc/")).length} @strata-sc declaration files)`,
   );
 
   // The whole app also pulls in the H3 v1 harness. With skipLibCheck: false,
   // every diagnostic must come from h3's own declarations, never from
-  // @strata/* or consumer code.
+  // @strata-sc/* or consumer code.
   step("Attributing whole-app declaration diagnostics (skipLibCheck: false)");
   const fullLibCheck = run(tsc, ["-p", "tsconfig.json", "--noEmit", "--skipLibCheck", "false"], {
     cwd: consumerDir,
@@ -200,7 +205,7 @@ try {
     `declaration diagnostics outside h3:\n${nonH3Diagnostics.join("\n")}`,
   );
   console.log(
-    `${fullDiagnostics.length} diagnostic(s), all in node_modules/h3 (harness router); 0 in @strata/* or consumer code`,
+    `${fullDiagnostics.length} diagnostic(s), all in node_modules/h3 (harness router); 0 in @strata-sc/* or consumer code`,
   );
 
   step(`Compiling with TypeScript ${TYPESCRIPT_VERSION} (NodeNext, strict)`);
@@ -214,7 +219,7 @@ try {
     const declaration = join(
       consumerRealDir,
       "node_modules",
-      "@strata",
+      "@strata-sc",
       name,
       "dist",
       "index.d.ts",
@@ -229,9 +234,11 @@ try {
     "tsc resolved files from the Strata workspace",
   );
   const strataDeclarations = compiledFiles
-    .filter((file) => file.includes("/@strata/"))
+    .filter((file) => file.includes("/@strata-sc/"))
     .map((file) => realpathSafe(file).replace(`${consumerRealDir}/`, ""));
-  console.log(`0 diagnostics; @strata declarations checked:\n  ${strataDeclarations.join("\n  ")}`);
+  console.log(
+    `0 diagnostics; @strata-sc declarations checked:\n  ${strataDeclarations.join("\n  ")}`,
+  );
 
   step("Typechecking with Bundler resolution + DOM lib (Analog/Vite-style)");
   checkCommand(
@@ -279,8 +286,8 @@ try {
   );
   for (const [name, url] of Object.entries(result.resolved)) {
     check(
-      url.startsWith(`${nodeModulesUrl}/@strata/`),
-      `@strata/${name} resolved outside the consumer: ${url}`,
+      url.startsWith(`${nodeModulesUrl}/@strata-sc/`),
+      `@strata-sc/${name} resolved outside the consumer: ${url}`,
     );
   }
   console.log(

@@ -1,5 +1,5 @@
-import { getControllerDefinition } from "@strata/core";
-import type { HttpMethod, RouteDefinition } from "@strata/core";
+import { getControllerDefinition } from "@strata-sc/core";
+import type { HttpMethod, RouteDefinition } from "@strata-sc/core";
 
 import { CleanupScope } from "./cleanup-scope.js";
 import type { StrataAnalogCleanup } from "./cleanup-scope.js";
@@ -30,7 +30,7 @@ export interface StrataAnalogRequest {
 /**
  * A Strata controller class, as passed to {@link registerControllers}.
  *
- * `@strata/core` types controller classes as abstract constructors (it only
+ * `@strata-sc/core` types controller classes as abstract constructors (it only
  * ever reads their metadata), but this adapter must be able to instantiate
  * them, so it narrows the requirement to a concrete, no-argument
  * constructor.
@@ -101,7 +101,7 @@ const defaultControllerFactory: StrataAnalogControllerFactory = (controller) => 
 /**
  * Strata's HTTP method names → the lowercase names Nitro's router expects.
  * `satisfies Record<HttpMethod, …>` makes this a compile error, not a silent
- * mis-registration, the day `@strata/core` adds a method.
+ * mis-registration, the day `@strata-sc/core` adds a method.
  */
 const ROUTER_METHOD = { GET: "get" } as const satisfies Record<HttpMethod, Lowercase<HttpMethod>>;
 
@@ -114,7 +114,7 @@ type RouterMethod = (typeof ROUTER_METHOD)[HttpMethod];
  * It is declared structurally, and deliberately, instead of importing
  * `Router` from `h3` or `NitroApp` from `nitropack`:
  *
- * - Analog 2 runs on Nitro 2, which runs on H3 **v1**. `@strata/analog`
+ * - Analog 2 runs on Nitro 2, which runs on H3 **v1**. `@strata-sc/analog`
  *   never touches an H3 v1 (or v2) type, value or import, so it neither
  *   depends on a Nitro/H3 major nor leaks one into its declarations.
  * - The Nitro `Router` is assignable to this interface as-is — no cast. That
