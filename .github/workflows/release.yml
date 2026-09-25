@@ -1,23 +1,36 @@
 name: Release
 
+# Runs on every push to main (i.e. after a PR is merged):
+#
+# - If there are pending changesets, it opens/updates a "Version Packages" PR
+#   that bumps versions (patch/minor/major, as declared in each changeset) and
+#   writes the CHANGELOGs.
+# - If there are none (e.g. that version PR was just merged), it publishes every
+#   non-private package whose version is not on npm yet, under the `next`
+#   dist-tag, and creates the git tags and GitHub Releases.
+#
+# Requires the repository secret NPM_TOKEN (npm granular token with publish
+# access to @strata/*), and "Allow GitHub Actions to create and approve pull
+# requests" enabled in Settings → Actions → General.
 on:
   push:
-    tags:
-      - "v*"
+    branches: [main]
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release
   cancel-in-progress: false
 
 permissions:
-  contents: write
+  contents: write # version commit, tags, GitHub Releases
+  pull-requests: write # Version Packages PR
+  id-token: write # npm provenance
 
 jobs:
   release:
-    name: Validate and publish GitHub release
+    name: Version or publish
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout tagged source
+      - name: Checkout
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
@@ -30,35 +43,20 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+          registry-url: https://registry.npmjs.org
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Verify release candidate
-        run: |
-          pnpm build
-          pnpm lint
-          pnpm typecheck
-          pnpm test
-          pnpm test:consumer:types
+      - name: Build
+        run: pnpm build
 
-      - name: Install Chromium for website e2e
-        run: pnpm --filter @strata/www exec playwright install --with-deps chromium
-
-      - name: Test official website end-to-end
-        run: pnpm --filter @strata/www test:e2e
-
-      - name: Create GitHub release from tag notes
+      - name: Version PR or publish to npm
+        uses: changesets/action@v2
+        with:
+          commit-message: "chore(release): version packages"
+          pr-title: "chore(release): version packages"
+          publish-script: pnpm changeset publish --tag next
         env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          prerelease_flag=""
-          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
-            prerelease_flag="--prerelease"
-          fi
-
-          gh release create "$GITHUB_REF_NAME" \
-            --verify-tag \
-            --generate-notes \
-            --title "Strata $GITHUB_REF_NAME" \
-            $prerelease_flag
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: "true"

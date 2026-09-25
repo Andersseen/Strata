@@ -50,13 +50,10 @@ pnpm changeset     # record a changeset for your change
 
 Use the pull request template and keep one concern per PR. Package changes
 need a changeset unless they are tests, documentation, or internal tooling.
-Maintainers create annotated `v*` tags only after the required checks are
-green; the tag workflow validates the source again and generates the GitHub
-Release notes.
-A tag does not publish npm packages. Maintainers publish `@strata/core` and
-`@strata/analog` under the `next` dist-tag by running the manual
-`Publish packages` workflow from `main` once the Changesets version bump is
-merged ([ADR-004](docs/adr/004-experimental-npm-distribution.md)).
+Choose the bump by impact: `patch` for fixes, `minor` for features (and, while
+a package is `0.x`, for breaking changes), `major` only after 1.0. Merging to
+`main` makes the Release workflow open a Version Packages PR; merging that PR
+publishes to npm under `next` ([ADR-004](docs/adr/004-experimental-npm-distribution.md)).
 
 ## Code style
 

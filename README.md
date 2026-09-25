@@ -87,23 +87,18 @@ not link to a checkout.
 
 ## Releases
 
-A GitHub Release and an npm publication are separate:
+Releases are automated with [Changesets](./.changeset) and the
+[Release](./.github/workflows/release.yml) workflow:
 
-- **npm packages.** [Changesets](./.changeset) sets each package's version.
-  After the version PR is merged, a maintainer runs the
-  [Publish packages](./.github/workflows/publish-packages.yml) workflow by hand
-  from `main`. It verifies the packed tarballs (`pnpm test:package-consumer`)
-  and publishes `@strata/core` and `@strata/analog` with the `next` dist-tag.
-  Check locally with `pnpm release:packages:dry-run`.
-- **GitHub Releases.** Tags follow the `vMAJOR.MINOR.PATCH` convention. Pushing
-  a signed, annotated `v*` tag runs release validation and creates a GitHub
-  Release with generated notes. It does **not** publish anything to npm, and
-  repository tags such as `v0.1.0-alpha.1` are not package versions.
+1. Every PR that changes a package adds a changeset (`pnpm changeset`) choosing
+   `patch`, `minor` or `major` for each package it touches.
+2. On merge to `main`, the workflow opens or updates a **Version Packages** PR
+   with the bumped versions and CHANGELOGs.
+3. Merging that PR publishes `@strata/core` and `@strata/analog` to npm under the
+   `next` dist-tag and creates the matching git tags and GitHub Releases.
 
-```bash
-git tag -s v0.1.0-alpha.1 -m "Strata v0.1.0-alpha.1"
-git push origin v0.1.0-alpha.1
-```
+While packages are `0.x`, breaking changes are released as `minor`.
+`@strata/h3` is private and is not published.
 
 See [GitHub releases](https://github.com/Andersseen/Strata/releases) and
 [all tags](https://github.com/Andersseen/Strata/tags) for published history.
