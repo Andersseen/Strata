@@ -31,17 +31,17 @@ linked evidence. Research describes upstream claims, not Strata compatibility.
 Reconciled 2026-09-24 at `c671ba4` + SPEC-003 branch. See [STATE](STATE.md#reconciliation-2026-09-24).
 
 - **H3 consumer qualification track:** SPEC-001 and SPEC-002 executed; strict consumer types for
-  `@strata/h3` remain upstream-blocked (H3/crossws declarations), so M1 stays Blocked.
+  `@strata-sc/h3` remain upstream-blocked (H3/crossws declarations), so M1 stays Blocked.
   [Review evidence](research/h3-consumer-type-compatibility.md) and
   [measured closure matrix](research/consumer-type-closure.md) remain current.
-- **Analog integration track:** `@strata/analog` registers controllers on Nitro's router
+- **Analog integration track:** `@strata-sc/analog` registers controllers on Nitro's router
   ([baseline](research/analog-integration-baseline.md)), with request input (PR #17), per-request
   controllers (PR #18) and request cleanup (PR #19).
   [SPEC-003](specs/003-analog-request-lifecycle-angular-di.md) reached a
   [CONDITIONAL GO for Angular DI](research/analog-di-feasibility.md) through consumer-owned injectors.
 - Next bounded step, pending SPEC-003 acceptance: the first strict Server Component feasibility PoC.
 - No Server Components implementation exists. Packages are experimental `0.1.0`; only
-  `@strata/core` and `@strata/analog` are published to npm, under the `next` dist-tag (first
+  `@strata-sc/core` and `@strata-sc/analog` are published to npm, under the `next` dist-tag (first
   publish pending)
   ([ADR-004](adr/004-experimental-npm-distribution.md)).
 - 1.0 requires production Server Components, automated boundary evidence and a real consumer.

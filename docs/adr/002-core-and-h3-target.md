@@ -13,7 +13,7 @@ researched Nitro 2 dependency lineage uses H3 v1, so integration is not automati
 ## Decision
 
 Retain the locked H3 v2 RC as the initial standalone experimental baseline. Keep H3 routing, event,
-response/error and version-bridge concerns inside `@strata/h3`; core must not import H3 or become
+response/error and version-bridge concerns inside `@strata-sc/h3`; core must not import H3 or become
 its wrapper. Preserve native H3 ownership and routes. Make no H3 v1 or Analog support claim yet.
 
 ## Consequences and alternatives

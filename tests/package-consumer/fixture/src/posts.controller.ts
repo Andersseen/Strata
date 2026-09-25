@@ -1,6 +1,6 @@
-import { Controller, Get } from "@strata/core";
+import { Controller, Get } from "@strata-sc/core";
 
-import { registerControllers, type NitroRouter, type StrataAnalogRequest } from "@strata/analog";
+import { registerControllers, type NitroRouter, type StrataAnalogRequest } from "@strata-sc/analog";
 
 @Controller("/api/posts")
 export class PostsController {

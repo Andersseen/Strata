@@ -12,7 +12,7 @@ export default defineConfig({
     emptyOutDir: true,
     ssr: fileURLToPath(new URL("src/consumer.controller.ts", import.meta.url)),
     rollupOptions: {
-      external: ["h3", "@strata/core", "@strata/h3"],
+      external: ["h3", "@strata-sc/core", "@strata-sc/h3"],
       output: {
         format: "es",
         entryFileNames: "main.js",

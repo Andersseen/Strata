@@ -104,13 +104,14 @@ let hardFailureMessage: string | null = null;
 // --- Step 1: build core + adapter from the checkout -----------------------
 const buildResult = record(
   "build",
-  run("pnpm", ["--filter", "@strata/core", "--filter", "@strata/h3", "run", "build"], {
+  run("pnpm", ["--filter", "@strata-sc/core", "--filter", "@strata-sc/h3", "run", "build"], {
     cwd: repoRoot,
   }),
 );
 
 if (buildResult.status !== 0) {
-  hardFailureMessage = "pnpm build of @strata/core/@strata/h3 failed; see command output above.";
+  hardFailureMessage =
+    "pnpm build of @strata-sc/core/@strata-sc/h3 failed; see command output above.";
 }
 
 // --- Step 1: pack both packages into tarballs ------------------------------
@@ -124,9 +125,9 @@ if (!hardFailureMessage) {
       "pnpm",
       [
         "--filter",
-        "@strata/core",
+        "@strata-sc/core",
         "--filter",
-        "@strata/h3",
+        "@strata-sc/h3",
         "pack",
         "--pack-destination",
         tarballDir,
@@ -138,7 +139,8 @@ if (!hardFailureMessage) {
   );
 
   if (packResult.status !== 0) {
-    hardFailureMessage = "pnpm pack of @strata/core/@strata/h3 failed; see command output above.";
+    hardFailureMessage =
+      "pnpm pack of @strata-sc/core/@strata-sc/h3 failed; see command output above.";
   }
 }
 
@@ -170,7 +172,7 @@ if (!hardFailureMessage) {
 
   const h3PackedPkgJson = run("tar", ["-xOzf", h3Path, "package/package.json"]).stdout;
   const h3PackedDeps = (JSON.parse(h3PackedPkgJson) as H3PackageJson).dependencies ?? {};
-  const h3PackedCoreDependency = h3PackedDeps["@strata/core"] ?? "(missing)";
+  const h3PackedCoreDependency = h3PackedDeps["@strata-sc/core"] ?? "(missing)";
 
   dependencyRewrite = {
     h3PackedCoreDependency,
@@ -180,8 +182,8 @@ if (!hardFailureMessage) {
   if (dependencyRewrite.containsWorkspaceProtocol) {
     blockers.push({
       id: "R16",
-      summary: "Packed @strata/h3 still declares a workspace:* dependency on @strata/core.",
-      evidence: `Packed dependencies["@strata/core"] = "${h3PackedCoreDependency}".`,
+      summary: "Packed @strata-sc/h3 still declares a workspace:* dependency on @strata-sc/core.",
+      evidence: `Packed dependencies["@strata-sc/core"] = "${h3PackedCoreDependency}".`,
     });
   }
 }
@@ -195,8 +197,8 @@ if (!hardFailureMessage) {
   copyDirRecursive(fixtureDir, consumerDir);
 
   const consumerPkg = readJson<ConsumerPackageJson>(join(consumerDir, "package.json"));
-  consumerPkg.dependencies["@strata/core"] = `file:${corePath}`;
-  consumerPkg.dependencies["@strata/h3"] = `file:${h3Path}`;
+  consumerPkg.dependencies["@strata-sc/core"] = `file:${corePath}`;
+  consumerPkg.dependencies["@strata-sc/h3"] = `file:${h3Path}`;
   writeJson(join(consumerDir, "package.json"), consumerPkg);
 
   const installResult = record(
@@ -207,7 +209,7 @@ if (!hardFailureMessage) {
   if (installResult.status !== 0) {
     hardFailureMessage = "Isolated consumer `npm install` failed; see command output above.";
   } else {
-    coreCopyPaths = findScopedPackageDirs(join(consumerDir, "node_modules"), "@strata", "core");
+    coreCopyPaths = findScopedPackageDirs(join(consumerDir, "node_modules"), "@strata-sc", "core");
     resolvedH3Version = readJson<PackageJsonWithVersion>(
       join(consumerDir, "node_modules", "h3", "package.json"),
     ).version;
@@ -215,7 +217,7 @@ if (!hardFailureMessage) {
     if (coreCopyPaths.length !== 1) {
       blockers.push({
         id: "R16",
-        summary: `Isolated consumer resolved ${coreCopyPaths.length} copies of @strata/core, expected exactly 1.`,
+        summary: `Isolated consumer resolved ${coreCopyPaths.length} copies of @strata-sc/core, expected exactly 1.`,
         evidence: coreCopyPaths.map((p) => `- ${p}`).join("\n") || "(none found)",
       });
     }
@@ -305,7 +307,7 @@ if (!hardFailureMessage) {
         "Consumer-local strict tsc does not cleanly typecheck against the pinned tuple (TypeScript 6.0.3, H3 2.0.1-rc.32, mandated lib set).",
       evidence:
         "All diagnostics originate from h3's own shipped declaration files (`node_modules/h3/dist/*.d.mts`), " +
-        "not from `@strata/core` or `@strata/h3` declarations. Two independent causes were isolated:\n\n" +
+        "not from `@strata-sc/core` or `@strata-sc/h3` declarations. Two independent causes were isolated:\n\n" +
         "1. `HTTPError.isError` is declared `static override`, assuming an ambient `Error.isError` static member " +
         "that only exists via TypeScript's `esnext.error` lib — not part of the `ES2023`/`DOM`/`DOM.Iterable`/" +
         "`esnext.decorators` set SPEC-001 mandates. This raises `TS4113`.\n" +
@@ -394,7 +396,7 @@ writeJson(join(missingTarballDir, "package.json"), {
   name: "negative-control-missing-tarball",
   private: true,
   version: "0.0.0",
-  dependencies: { "@strata/core": `file:${join(tarballDir, "does-not-exist.tgz")}` },
+  dependencies: { "@strata-sc/core": `file:${join(tarballDir, "does-not-exist.tgz")}` },
 });
 
 const missingTarballResult = record(
@@ -472,7 +474,7 @@ if (hardFailureMessage) {
     acceptance["AC2"] = acBlocked(
       `Single resolved core copy: ${ac2SingleCore}. No workspace: protocol: ${ac2NoWorkspace}. ` +
         `Clean tsc typecheck: ${ac2TypecheckClean} — see R01/R14 blocker below (root cause isolated to h3's own ` +
-        "declaration files, not to @strata/core or @strata/h3).",
+        "declaration files, not to @strata-sc/core or @strata-sc/h3).",
     );
   }
 

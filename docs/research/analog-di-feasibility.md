@@ -40,11 +40,11 @@ Paths are relative to each package's installed root; line numbers are from the v
 
 ### Nitro request → Strata controller
 
-1. Nitro routes the request through its H3 v1 app to `nitroApp.router`, where `@strata/analog`
+1. Nitro routes the request through its H3 v1 app to `nitroApp.router`, where `@strata-sc/analog`
    registered the controller's handler from a Nitro plugin (`registerControllers`). Nitro's own
    `request`/`afterResponse` hooks exist (`nitropack/dist/runtime/internal/app.mjs:77`, `:87`) but
    are app-wide, not per route; Strata does not use them.
-2. `@strata/analog` builds a `StrataAnalogRequest`, awaits
+2. `@strata-sc/analog` builds a `StrataAnalogRequest`, awaits
    `controllerFactory(Controller, { request, onCleanup })`, calls the handler with that instance as
    `this`, then runs the registered cleanups (LIFO, awaited) before its route handler settles (`packages/analog/src/register-controllers.ts`,
    `cleanup-scope.ts`; PRs #18 and #19).
@@ -136,7 +136,7 @@ Angular runtime copy, not a Strata workaround.
 
 ### B — Strata-owned Angular injector: rejected as a package responsibility
 
-Letting `@strata/analog` create the Angular injectors would put `@angular/*` into the adapter's
+Letting `@strata-sc/analog` create the Angular injectors would put `@angular/*` into the adapter's
 dependencies and decide the application configuration on the user's behalf. It would still be a
 **second DI universe**, whoever created it. The fixture measured what that means (see
 [Limitations](#limitations)): separate `providedIn: 'root'` instances from SSR and from server
@@ -155,7 +155,7 @@ for its server functions:
 Nitro plugin (startup)
   createApplication({ providers }, { platformRef: platformServer() })   → application injector (process)
 request
-  @strata/analog → controllerFactory(Controller, { request, onCleanup })
+  @strata-sc/analog → controllerFactory(Controller, { request, onCleanup })
     createEnvironmentInjector([STRATA_REQUEST, request-scoped providers], appInjector)
     onCleanup(() => requestInjector.destroy())
     runInInjectionContext(requestInjector, () => new Controller())   ← field inject() runs here
@@ -165,7 +165,7 @@ response
 ```
 
 Why C over B: ownership stays with the application, which is the only party that knows its
-providers. `@strata/analog` keeps zero Angular dependencies. The duplication is visible in the
+providers. `@strata-sc/analog` keeps zero Angular dependencies. The duplication is visible in the
 application's own code, not hidden behind a Strata default.
 
 ## Implemented experiment
@@ -266,7 +266,7 @@ memory measurement.
 | --------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------- | ------------------------------------------------------------------ |
 | Application / process | Consumer's Nitro plugin (`createApplication` on `platformServer()`)      | `providedIn: 'root'` and application providers             | Nitro `close` hook: `appRef.destroy()`, `platformRef.destroy()`    |
 | Request               | Consumer's factory creates it; Strata decides when it ends (`onCleanup`) | Providers listed on the request injector, `STRATA_REQUEST` | After the handler settles, success or failure, before the response |
-| Controller            | `@strata/analog` (one per request, since PR #18)                         | Fields resolved at construction                            | With its request injector (`DestroyRef`)                           |
+| Controller            | `@strata-sc/analog` (one per request, since PR #18)                      | Fields resolved at construction                            | With its request injector (`DestroyRef`)                           |
 
 Controllers stay request-scoped and are not configurable. Only providers listed on the request
 injector are request-scoped. A `providedIn: 'root'` service is process-wide here: request data must
@@ -311,6 +311,6 @@ under these conditions:
    server-function or render injector, and a single Angular runtime copy in production) remain
    open follow-ups (R03, R04, R12, R13), not assumptions.
 
-Package boundary: no `@strata/angular`. The only Angular-specific code is about 40 lines of consumer
+Package boundary: no `@strata-sc/angular`. The only Angular-specific code is about 40 lines of consumer
 glue with no reusable runtime responsibility apart from Analog yet. Revisit this when Server
-Components need a shared helper. `@strata/core` and `@strata/h3` are unchanged.
+Components need a shared helper. `@strata-sc/core` and `@strata-sc/h3` are unchanged.

@@ -1,6 +1,6 @@
-import { Controller, Get } from "@strata/core";
+import { Controller, Get } from "@strata-sc/core";
 
-import type { StrataAnalogRequest } from "@strata/analog";
+import type { StrataAnalogRequest } from "@strata-sc/analog";
 
 let constructed = 0;
 

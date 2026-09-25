@@ -1,7 +1,8 @@
 {
-  "name": "@strata/h3",
+  "name": "@strata-sc/h3",
   "version": "0.1.0",
-  "description": "Experimental H3 adapter for @strata/core — registers Strata controllers on an H3 app.",
+  "private": true,
+  "description": "Experimental H3 adapter for @strata-sc/core — registers Strata controllers on an H3 app.",
   "type": "module",
   "license": "MIT",
   "author": "Andersseen",
@@ -52,7 +53,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@strata/core": "workspace:*",
+    "@strata-sc/core": "workspace:*",
     "h3": "^2.0.1-rc.1"
   }
 }

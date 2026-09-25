@@ -259,8 +259,8 @@ package publication; accepting a patch-only proof as an ordinary released consum
     libs. This is a genuine double no-go (policy-disqualified _and_ not clean), not merely a policy
     rejection of an otherwise-working configuration.
   - Every diagnostic in every case traces to `h3`, `crossws`, `bun-types`/`@types/bun`, or
-    `@cloudflare/workers-types` declaration files. Zero diagnostics originated in `@strata/core` or
-    `@strata/h3` in any case, on either target — the classifier asserts this per case and the runner
+    `@cloudflare/workers-types` declaration files. Zero diagnostics originated in `@strata-sc/core` or
+    `@strata-sc/h3` in any case, on either target — the classifier asserts this per case and the runner
     treats any Strata-origin diagnostic as a self-test failure (none occurred).
 - **Negative ambient controls (AC3):** a probe referencing only `Bun`/`WebSocketPair` (no H3, no
   Strata) correctly reports both as unresolved names under case B's Node-only `types`, and correctly

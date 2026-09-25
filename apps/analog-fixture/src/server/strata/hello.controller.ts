@@ -1,4 +1,4 @@
-import { Controller, Get } from "@strata/core";
+import { Controller, Get } from "@strata-sc/core";
 
 // Server-only by construction: only files under `src/server/` import this
 // module. The production-build scan asserts it never reaches the client.

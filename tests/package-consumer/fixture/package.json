@@ -7,8 +7,8 @@
     "node": ">=22"
   },
   "dependencies": {
-    "@strata/analog": "REPLACED_BY_RUNNER",
-    "@strata/core": "REPLACED_BY_RUNNER",
+    "@strata-sc/analog": "REPLACED_BY_RUNNER",
+    "@strata-sc/core": "REPLACED_BY_RUNNER",
     "h3": "1.15.11"
   },
   "devDependencies": {
@@ -16,6 +16,6 @@
     "typescript": "5.9.2"
   },
   "overrides": {
-    "@strata/core": "$@strata/core"
+    "@strata-sc/core": "$@strata-sc/core"
   }
 }

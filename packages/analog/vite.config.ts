@@ -22,11 +22,11 @@ export default defineConfig({
       fileName: "index",
     },
     rollupOptions: {
-      external: ["@strata/core"],
+      external: ["@strata-sc/core"],
     },
   },
   test: {
-    name: "@strata/analog",
+    name: "@strata-sc/analog",
     environment: "node",
   },
 });

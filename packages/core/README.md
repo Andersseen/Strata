@@ -1,16 +1,16 @@
-# @strata/core
+# @strata-sc/core
 
 Experimental `@Controller` / `@Get` metadata primitive for
 [Strata](https://github.com/Andersseen/Strata). It uses standard ECMAScript
 decorators (no `experimentalDecorators`, no `reflect-metadata`) and has no
-HTTP runtime of its own; pair it with an adapter such as `@strata/analog`.
+HTTP runtime of its own; pair it with an adapter such as `@strata-sc/analog`.
 
 ```bash
-pnpm add @strata/core@next
+pnpm add @strata-sc/core@next
 ```
 
 ```ts
-import { Controller, Get, getControllerDefinition } from "@strata/core";
+import { Controller, Get, getControllerDefinition } from "@strata-sc/core";
 
 @Controller("/api/posts")
 class PostsController {

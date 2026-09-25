@@ -14,8 +14,8 @@ import {
 } from "./lib/packages.ts";
 
 /**
- * Publishes the qualified packages (@strata/core, @strata/analog) to npm under
- * the `next` dist-tag. Never publishes @strata/h3 or moves `latest`.
+ * Publishes the qualified packages (@strata-sc/core, @strata-sc/analog) to npm under
+ * the `next` dist-tag. Never publishes @strata-sc/h3 or moves `latest`.
  *
  *   --dry-run     pack, inspect and `npm publish --dry-run`; scope preflight
  *                 problems are reported but do not fail the run
@@ -27,7 +27,7 @@ import {
  * partially failed release can be re-run.
  */
 
-const SCOPE = "strata";
+const SCOPE = "strata-sc";
 const REGISTRY = "https://registry.npmjs.org/";
 
 const args = new Set(process.argv.slice(2));
@@ -50,7 +50,7 @@ function npm(npmArgs: readonly string[]) {
 }
 
 /**
- * Checks the authenticated npm identity can publish under @strata. A missing
+ * Checks the authenticated npm identity can publish under @strata-sc. A missing
  * package on the registry says nothing about who owns the scope, so this
  * requires either the `strata` user itself or membership of the `strata` org.
  */

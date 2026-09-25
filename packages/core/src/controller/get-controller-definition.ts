@@ -9,7 +9,7 @@ import type { ControllerDefinition } from "./controller.types.js";
  * Returns `undefined` for any class that was never decorated with
  * `@Controller()`.
  *
- * This is the intended way for adapters (e.g. a future `@strata/h3`) to
+ * This is the intended way for adapters (e.g. a future `@strata-sc/h3`) to
  * consume a controller's shape — it deliberately avoids exposing how or
  * where that metadata is stored internally.
  */

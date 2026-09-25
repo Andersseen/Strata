@@ -33,7 +33,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       # Build before type-aware lint/typecheck: lint uses typescript-eslint's
-      # projectService, which resolves `@strata/core`/`@strata/h3` through
+      # projectService, which resolves `@strata-sc/core`/`@strata-sc/h3` through
       # their package.json `exports` (pointing at `dist`). On a clean
       # checkout those declarations don't exist until packages are built, so
       # lint must run after build, not before (see docs/STATE.md).
@@ -50,10 +50,10 @@ jobs:
         run: pnpm test
 
       - name: Install Chromium for website e2e
-        run: pnpm --filter @strata/www exec playwright install --with-deps chromium
+        run: pnpm --filter @strata-sc/www exec playwright install --with-deps chromium
 
       - name: Test official website end-to-end
-        run: pnpm --filter @strata/www test:e2e
+        run: pnpm --filter @strata-sc/www test:e2e
 
       - name: Consumer type-closure experiment (SPEC-002)
         run: pnpm test:consumer:types
@@ -93,7 +93,7 @@ jobs:
       - name: Build Pages artifact
         run: pnpm www:build:cloudflare
 
-      # Wrangler is pinned in @strata/www. Calling that workspace binary avoids
+      # Wrangler is pinned in @strata-sc/www. Calling that workspace binary avoids
       # wrangler-action trying to mutate the pnpm workspace root at runtime.
       - name: Ensure Cloudflare Pages project exists
         env:
@@ -101,7 +101,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set +e
-          output="$(pnpm --filter @strata/www exec wrangler pages project create strata-www \
+          output="$(pnpm --filter @strata-sc/www exec wrangler pages project create strata-www \
             --production-branch main \
             --compatibility-date 2026-09-21 \
             --compatibility-flag nodejs_compat 2>&1)"
@@ -118,5 +118,5 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: >-
-          pnpm --filter @strata/www exec wrangler pages deploy dist/analog/public
+          pnpm --filter @strata-sc/www exec wrangler pages deploy dist/analog/public
           --project-name=strata-www --branch=main

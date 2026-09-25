@@ -2,7 +2,7 @@
   "name": "@strata-fixtures/analog",
   "version": "0.0.0",
   "private": true,
-  "description": "Integration fixture: a minimal Analog app used to observe how @strata/core fits a real Angular + Analog + Nitro build. Not a demo, not published.",
+  "description": "Integration fixture: a minimal Analog app used to observe how @strata-sc/core fits a real Angular + Analog + Nitro build. Not a demo, not published.",
   "type": "module",
   "engines": {
     "node": ">=22.22.3"
@@ -21,8 +21,8 @@
     "@angular/platform-browser": "^22.0.0",
     "@angular/platform-server": "^22.0.0",
     "@angular/router": "^22.0.0",
-    "@strata/analog": "workspace:*",
-    "@strata/core": "workspace:*",
+    "@strata-sc/analog": "workspace:*",
+    "@strata-sc/core": "workspace:*",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0"
   },

@@ -11,16 +11,16 @@ export interface PublishablePackage {
 
 /**
  * The only packages the registry release may publish, in publish order
- * (dependencies first). `@strata/h3` is deliberately absent: its consumer
+ * (dependencies first). `@strata-sc/h3` is deliberately absent: its consumer
  * type closure is blocked by H3 v2/crossws declarations (SPEC-002), so it
  * stays out of the registry until that blocker is resolved or accepted.
  */
 export const PUBLISHABLE_PACKAGES: readonly PublishablePackage[] = [
-  { name: "@strata/core", dir: "packages/core" },
-  { name: "@strata/analog", dir: "packages/analog" },
+  { name: "@strata-sc/core", dir: "packages/core" },
+  { name: "@strata-sc/analog", dir: "packages/analog" },
 ];
 
-export const EXCLUDED_PACKAGES: readonly string[] = ["@strata/h3"];
+export const EXCLUDED_PACKAGES: readonly string[] = ["@strata-sc/h3"];
 
 /** Experimental releases never move `latest`. */
 export const DIST_TAG: string = "next";

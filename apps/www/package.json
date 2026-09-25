@@ -1,5 +1,5 @@
 {
-  "name": "@strata/www",
+  "name": "@strata-sc/www",
   "version": "0.0.0",
   "private": true,
   "description": "The official Strata website, built with AnalogJS and Angular.",
@@ -31,8 +31,8 @@
     "@angular/platform-browser": "^22.0.0",
     "@angular/platform-server": "^22.0.0",
     "@angular/router": "^22.0.0",
-    "@strata/analog": "workspace:*",
-    "@strata/core": "workspace:*",
+    "@strata-sc/analog": "workspace:*",
+    "@strata-sc/core": "workspace:*",
     "@tailwindcss/vite": "4.3.3",
     "@voltui/components": "1.0.1",
     "angular-movement": "0.8.0",

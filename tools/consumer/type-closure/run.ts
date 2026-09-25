@@ -79,12 +79,14 @@ console.log(`[test:consumer:types] Temporary workspace: ${tmpRoot}`);
 
 const buildResult = run(
   "pnpm",
-  ["--filter", "@strata/core", "--filter", "@strata/h3", "run", "build"],
+  ["--filter", "@strata-sc/core", "--filter", "@strata-sc/h3", "run", "build"],
   { cwd: repoRoot },
 );
 
 if (buildResult.status !== 0) {
-  console.error("[test:consumer:types] BLOCKED: pnpm build of @strata/core/@strata/h3 failed.");
+  console.error(
+    "[test:consumer:types] BLOCKED: pnpm build of @strata-sc/core/@strata-sc/h3 failed.",
+  );
   process.exit(1);
 }
 
@@ -93,12 +95,22 @@ mkdirSync(tarballDir, { recursive: true });
 
 const packResult = run(
   "pnpm",
-  ["--filter", "@strata/core", "--filter", "@strata/h3", "pack", "--pack-destination", tarballDir],
+  [
+    "--filter",
+    "@strata-sc/core",
+    "--filter",
+    "@strata-sc/h3",
+    "pack",
+    "--pack-destination",
+    tarballDir,
+  ],
   { cwd: repoRoot },
 );
 
 if (packResult.status !== 0) {
-  console.error("[test:consumer:types] BLOCKED: pnpm pack of @strata/core/@strata/h3 failed.");
+  console.error(
+    "[test:consumer:types] BLOCKED: pnpm pack of @strata-sc/core/@strata-sc/h3 failed.",
+  );
   process.exit(1);
 }
 
@@ -150,7 +162,12 @@ for (const matrixCase of MATRIX_CASES) {
     corePath,
     h3TarballPath,
   );
-  const strataTarget = targetResult(strataDir, ["h3", "crossws", "@strata/core", "@strata/h3"]);
+  const strataTarget = targetResult(strataDir, [
+    "h3",
+    "crossws",
+    "@strata-sc/core",
+    "@strata-sc/h3",
+  ]);
 
   if (strataTarget.installResult.status !== 0) {
     infrastructureFailures.push(
@@ -167,7 +184,7 @@ for (const matrixCase of MATRIX_CASES) {
   );
   if (strataOnlyDiagnostics.length > 0) {
     selfTestFailures.push(
-      `Case ${matrixCase.id}: ${strataOnlyDiagnostics.length} diagnostic(s) originate in @strata/core or @strata/h3 declarations, not H3 — this would be a real Strata defect, not an upstream one: ${JSON.stringify(strataOnlyDiagnostics)}`,
+      `Case ${matrixCase.id}: ${strataOnlyDiagnostics.length} diagnostic(s) originate in @strata-sc/core or @strata-sc/h3 declarations, not H3 — this would be a real Strata defect, not an upstream one: ${JSON.stringify(strataOnlyDiagnostics)}`,
     );
   }
 

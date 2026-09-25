@@ -1,19 +1,19 @@
-# @strata/analog
+# @strata-sc/analog
 
 Experimental [Analog](https://analogjs.org) 2 adapter for
-[Strata](https://github.com/Andersseen/Strata): registers `@strata/core`
+[Strata](https://github.com/Andersseen/Strata): registers `@strata-sc/core`
 controllers on the Nitro router from a Nitro server plugin. It does not depend
 on `h3`, `nitropack` or `@analogjs/*`, and its declarations do not expose
 H3/Nitro types.
 
 ```bash
-pnpm add @strata/core@next @strata/analog@next
+pnpm add @strata-sc/core@next @strata-sc/analog@next
 ```
 
 ```ts
 // src/server/strata/posts.controller.ts
-import { Controller, Get } from "@strata/core";
-import type { StrataAnalogRequest } from "@strata/analog";
+import { Controller, Get } from "@strata-sc/core";
+import type { StrataAnalogRequest } from "@strata-sc/analog";
 
 @Controller("/api/posts")
 export class PostsController {
@@ -26,7 +26,7 @@ export class PostsController {
 
 ```ts
 // src/server/plugins/strata.ts
-import { registerControllers } from "@strata/analog";
+import { registerControllers } from "@strata-sc/analog";
 import { defineNitroPlugin } from "nitropack/runtime";
 
 import { PostsController } from "../strata/posts.controller";

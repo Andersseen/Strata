@@ -1,5 +1,5 @@
-import { getControllerDefinition } from "@strata/core";
-import type { RouteDefinition } from "@strata/core";
+import { getControllerDefinition } from "@strata-sc/core";
+import type { RouteDefinition } from "@strata-sc/core";
 import type { H3 } from "h3";
 
 import { StrataH3ConfigurationError } from "./errors.js";
@@ -8,7 +8,7 @@ import { buildRoutePath } from "./utils/build-route-path.js";
 /**
  * A Strata controller class, as passed to {@link registerControllers}.
  *
- * `@strata/core` types controller classes as abstract constructors (it only
+ * `@strata-sc/core` types controller classes as abstract constructors (it only
  * ever reads their metadata), but this adapter must be able to instantiate
  * them, so it narrows the requirement to a concrete, no-argument
  * constructor.

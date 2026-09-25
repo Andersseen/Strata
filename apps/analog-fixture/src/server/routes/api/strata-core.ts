@@ -1,4 +1,4 @@
-import { getControllerDefinition } from "@strata/core";
+import { getControllerDefinition } from "@strata-sc/core";
 import { defineEventHandler } from "h3";
 
 import { HelloController } from "../../strata/hello.controller";

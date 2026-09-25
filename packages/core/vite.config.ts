@@ -23,7 +23,7 @@ export default defineConfig({
     },
   },
   test: {
-    name: "@strata/core",
+    name: "@strata-sc/core",
     environment: "node",
   },
 });

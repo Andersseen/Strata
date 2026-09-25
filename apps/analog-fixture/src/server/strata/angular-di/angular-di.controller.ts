@@ -1,6 +1,6 @@
 import { DestroyRef, inject } from "@angular/core";
-import type { StrataAnalogRequest } from "@strata/analog";
-import { Controller, Get } from "@strata/core";
+import type { StrataAnalogRequest } from "@strata-sc/analog";
+import { Controller, Get } from "@strata-sc/core";
 
 import {
   CatalogService,

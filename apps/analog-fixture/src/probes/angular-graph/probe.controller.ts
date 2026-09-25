@@ -1,4 +1,4 @@
-import { Controller, Get } from "@strata/core";
+import { Controller, Get } from "@strata-sc/core";
 
 // Consumer-authored standard decorators inside the Angular-compiled graph
 // (imported by a page, so it is part of both the SSR and the client build).

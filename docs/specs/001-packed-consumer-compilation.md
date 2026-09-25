@@ -1,7 +1,7 @@
 # SPEC-001: Packed consumer compilation baseline
 
 - Status: **Blocked** — implemented and executed; a required acceptance criterion fails on a
-  pinned-dependency defect external to `@strata/core`/`@strata/h3`. See
+  pinned-dependency defect external to `@strata-sc/core`/`@strata-sc/h3`. See
   [Implementation result](#implementation-result).
 - Baseline: `9d2635e`; implemented against `a7fe88c` (no `packages/` drift between the two — only
   documentation commits landed in between; reverified before implementation started)
@@ -13,7 +13,7 @@
 
 ## Context
 
-`@strata/core` and `@strata/h3` already implement GET controllers and pass 34 tests. Those tests run
+`@strata-sc/core` and `@strata-sc/h3` already implement GET controllers and pass 34 tests. Those tests run
 inside a workspace with private TypeScript pre-transform plugins. Package exports point to `dist`,
 and the adapter consumes core via `workspace:*`. No test installs packed packages in an external
 project or compiles user-written decorators without those hidden conveniences.
@@ -63,7 +63,7 @@ Retain concise logs/reports for CI; do not commit generated packages, dependency
    contents and digests. Verify the adapter's packed dependency no longer contains `workspace:`.
 2. Create an ESM consumer in the temporary directory. Install both tarballs with TypeScript 6.0.3,
    Vite 8.3.0, H3 2.0.1-rc.32 and `@types/node` 22.20.3. Use a consumer-only override to resolve the adapter's core dependency
-   to that same local core tarball if needed; do not rely on a published `@strata/core@0.0.0` existing.
+   to that same local core tarball if needed; do not rely on a published `@strata-sc/core@0.0.0` existing.
    Assert exactly one resolved core package and the intended H3 version in the consumer graph.
 3. The consumer imports **only package public entry points**. Its authored TypeScript defines one
    `@Controller('/consumer')` with a synchronous root GET and an asynchronous `/async` GET, accessing
@@ -164,7 +164,7 @@ package blocker keeps it Blocked/In review with evidence.
 
 Shipping the reference recipe as a public compiler plugin; deduplicating internal transforms;
 adding verbs/input APIs; fixing inheritance or registration semantics; Angular DI; creating
-`@strata/analog`, `@strata/compiler`, `@strata/vite` or any other package; production deployment;
+`@strata-sc/analog`, `@strata-sc/compiler`, `@strata-sc/vite` or any other package; production deployment;
 implementing any Server Component or navigation feature. Astra does not execute this spec now.
 
 ## Implementation result
@@ -184,7 +184,7 @@ implementing any Server Component or navigation feature. Astra does not execute 
   both pass, but consumer-local strict `tsc` does not cleanly typecheck under the pinned tuple
   (TypeScript 6.0.3, H3 `2.0.1-rc.32`, and the exact `lib` set this spec mandates:
   `ES2023`/`DOM`/`DOM.Iterable`/`esnext.decorators`). Every diagnostic originates from H3's own
-  shipped `.d.mts` files, not from `@strata/core` or `@strata/h3`:
+  shipped `.d.mts` files, not from `@strata-sc/core` or `@strata-sc/h3`:
   1. `HTTPError.isError` is declared `static override`, assuming an ambient `Error.isError` static
      member that only exists via TypeScript's `esnext.error` lib — outside this spec's mandated lib
      set (`TS4113`).

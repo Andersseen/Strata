@@ -1,4 +1,4 @@
-import { Controller, Get } from "@strata/core";
+import { Controller, Get } from "@strata-sc/core";
 import { createApp, createRouter, toWebHandler } from "h3";
 import { describe, expect, it, vi } from "vitest";
 

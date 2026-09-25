@@ -1,6 +1,6 @@
 import { Injectable, InjectionToken, inject } from "@angular/core";
 import type { OnDestroy } from "@angular/core";
-import type { StrataAnalogRequest } from "@strata/analog";
+import type { StrataAnalogRequest } from "@strata-sc/analog";
 
 // Server-only: imported only by the Nitro plugin and the controller it
 // registers. The production-build scan asserts the marker never reaches the

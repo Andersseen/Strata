@@ -1,5 +1,5 @@
 import { Component } from "@angular/core";
-import { getControllerDefinition } from "@strata/core";
+import { getControllerDefinition } from "@strata-sc/core";
 
 import { ProbeController } from "../probe.controller";
 

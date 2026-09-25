@@ -9,7 +9,7 @@
  * once the factory runs.
  *
  * This is intentionally a single, simple error type. It is deliberately not
- * shared with `@strata/h3`: the two adapters are siblings, and a common Strata
+ * shared with `@strata-sc/h3`: the two adapters are siblings, and a common Strata
  * error hierarchy is out of scope for this iteration.
  */
 export class StrataAnalogConfigurationError extends Error {

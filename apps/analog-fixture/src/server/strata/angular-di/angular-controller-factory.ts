@@ -1,11 +1,11 @@
 import { createEnvironmentInjector, runInInjectionContext } from "@angular/core";
 import type { EnvironmentInjector } from "@angular/core";
-import type { StrataAnalogControllerFactory } from "@strata/analog";
+import type { StrataAnalogControllerFactory } from "@strata-sc/analog";
 
 import { RequestAudit, RequestIdentity, STRATA_REQUEST, angularDiStats } from "./providers";
 
 /**
- * Consumer-owned glue, not part of `@strata/analog`: builds each controller
+ * Consumer-owned glue, not part of `@strata-sc/analog`: builds each controller
  * inside a new request injector — a child of the application injector — so
  * field initializers can use Angular's `inject()`, and hands that injector's
  * disposal to Strata through `onCleanup`. It is destroyed once the controller

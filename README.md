@@ -37,13 +37,13 @@ light/dark theme switcher, practical controller and Analog examples, and a
 concise explanation of Strata's runtime boundary.
 
 ```bash
-pnpm --filter @strata/www dev
+pnpm --filter @strata-sc/www dev
 ```
 
 Create a production build with:
 
 ```bash
-pnpm --filter @strata/www build
+pnpm --filter @strata-sc/www build
 ```
 
 ### Cloudflare Pages
@@ -68,15 +68,15 @@ the first merged deployment.
 
 ## Installation
 
-**Registry (experimental).** `@strata/core` and `@strata/analog` are published
+**Registry (experimental).** `@strata-sc/core` and `@strata-sc/analog` are published
 to npm only under the `next` dist-tag (the first publish is pending). `0.x`
 versions are pre-1.0 and may break:
 
 ```bash
-pnpm add @strata/core@next @strata/analog@next
+pnpm add @strata-sc/core@next @strata-sc/analog@next
 ```
 
-`@strata/h3` is not published to npm yet (see
+`@strata-sc/h3` is not published to npm yet (see
 [SPEC-002](./docs/specs/002-h3-consumer-type-closure.md) and
 [ADR-004](./docs/adr/004-experimental-npm-distribution.md)).
 
@@ -87,41 +87,36 @@ not link to a checkout.
 
 ## Releases
 
-A GitHub Release and an npm publication are separate:
+Releases are automated with [Changesets](./.changeset) and the
+[Release](./.github/workflows/release.yml) workflow:
 
-- **npm packages.** [Changesets](./.changeset) sets each package's version.
-  After the version PR is merged, a maintainer runs the
-  [Publish packages](./.github/workflows/publish-packages.yml) workflow by hand
-  from `main`. It verifies the packed tarballs (`pnpm test:package-consumer`)
-  and publishes `@strata/core` and `@strata/analog` with the `next` dist-tag.
-  Check locally with `pnpm release:packages:dry-run`.
-- **GitHub Releases.** Tags follow the `vMAJOR.MINOR.PATCH` convention. Pushing
-  a signed, annotated `v*` tag runs release validation and creates a GitHub
-  Release with generated notes. It does **not** publish anything to npm, and
-  repository tags such as `v0.1.0-alpha.1` are not package versions.
+1. Every PR that changes a package adds a changeset (`pnpm changeset`) choosing
+   `patch`, `minor` or `major` for each package it touches.
+2. On merge to `main`, the workflow opens or updates a **Version Packages** PR
+   with the bumped versions and CHANGELOGs.
+3. Merging that PR publishes `@strata-sc/core` and `@strata-sc/analog` to npm under the
+   `next` dist-tag and creates the matching git tags and GitHub Releases.
 
-```bash
-git tag -s v0.1.0-alpha.1 -m "Strata v0.1.0-alpha.1"
-git push origin v0.1.0-alpha.1
-```
+While packages are `0.x`, breaking changes are released as `minor`.
+`@strata-sc/h3` is private and is not published.
 
 See [GitHub releases](https://github.com/Andersseen/Strata/releases) and
 [all tags](https://github.com/Andersseen/Strata/tags) for published history.
 
 ## Status: early development
 
-This repository is still in early development. `@strata/core` has a first
+This repository is still in early development. `@strata-sc/core` has a first
 **experimental** API for declaring controllers and routes, built on standard
-ECMAScript decorators, and `@strata/h3` now wires that metadata into a real
-[H3](https://h3.dev) app. `@strata/analog` registers the same controllers inside an
-[Analog](https://analogjs.org) 2 app. Everything here is **experimental and pre-1.0**. `@strata/core` and
-`@strata/analog` are published to npm only under the experimental `next` dist-tag (first
+ECMAScript decorators, and `@strata-sc/h3` now wires that metadata into a real
+[H3](https://h3.dev) app. `@strata-sc/analog` registers the same controllers inside an
+[Analog](https://analogjs.org) 2 app. Everything here is **experimental and pre-1.0**. `@strata-sc/core` and
+`@strata-sc/analog` are published to npm only under the experimental `next` dist-tag (first
 publish pending).
 
 ```ts
 import { H3 } from "h3";
-import { Controller, Get } from "@strata/core";
-import { registerControllers } from "@strata/h3";
+import { Controller, Get } from "@strata-sc/core";
+import { registerControllers } from "@strata-sc/h3";
 
 @Controller("/users")
 class UsersController {
@@ -137,15 +132,15 @@ registerControllers(app, [UsersController]);
 ```
 
 `@Controller` and `@Get` only build declarative metadata describing a
-controller's routes. `@strata/h3` is a thin adapter on top of that metadata:
-it reads each controller's definition via `@strata/core`'s public
+controller's routes. `@strata-sc/h3` is a thin adapter on top of that metadata:
+it reads each controller's definition via `@strata-sc/core`'s public
 `getControllerDefinition` API, registers its `@Get()` routes directly on the
 H3 app you pass in, and invokes the matching controller method when H3
 resolves a route. Strata does not replace H3 or own the HTTP runtime — you
 still create and control the `H3` instance yourself, and any routes you
 register on it directly keep working unchanged.
 
-There is no dependency injection or controller lifecycle yet: `@strata/h3`
+There is no dependency injection or controller lifecycle yet: `@strata-sc/h3`
 instantiates each controller once, with `new ControllerClass()`, at
 registration time. This is a deliberately minimal, provisional placeholder
 until a real lifecycle/DI design lands in a later iteration — it is not a
@@ -154,15 +149,15 @@ stable API.
 ### Analog
 
 Analog 2 runs on Nitro 2, which runs on H3 **v1** — a different major from the H3 v2 that
-`@strata/h3` targets — so Analog uses a separate, sibling adapter, `@strata/analog`. It registers
+`@strata-sc/h3` targets — so Analog uses a separate, sibling adapter, `@strata-sc/analog`. It registers
 controllers on the router Nitro already owns (`nitroApp.router`, part of Nitro's public plugin
-API), from a Nitro server plugin. It does not depend on `@strata/h3`, and it does not depend on
+API), from a Nitro server plugin. It does not depend on `@strata-sc/h3`, and it does not depend on
 `h3`, `nitropack` or `@analogjs/*` either.
 
 ```ts
 // src/server/strata/users.controller.ts
-import { Controller, Get } from "@strata/core";
-import type { StrataAnalogRequest } from "@strata/analog";
+import { Controller, Get } from "@strata-sc/core";
+import type { StrataAnalogRequest } from "@strata-sc/analog";
 
 @Controller("/api/strata/users")
 export class UsersController {
@@ -180,7 +175,7 @@ export class UsersController {
 
 ```ts
 // src/server/plugins/strata.ts
-import { registerControllers } from "@strata/analog";
+import { registerControllers } from "@strata-sc/analog";
 import { defineNitroPlugin } from "nitropack/runtime";
 
 import { UsersController } from "../strata/users.controller";
@@ -235,7 +230,7 @@ the controller invocation, not a streamed response body.
 
 The factory is an extension seam, not a DI container: Strata provides no injector. Errors it throws
 or rejects with propagate to Nitro unchanged; a result that is not an instance of the controller
-class fails with `StrataAnalogConfigurationError`. (`@strata/h3` still creates one instance per
+class fails with `StrataAnalogConfigurationError`. (`@strata-sc/h3` still creates one instance per
 controller at registration.)
 
 Angular DI works through this seam, with injectors the application owns. This is an experimental
@@ -276,9 +271,9 @@ breaking ways in any `0.x` release.
 The [architecture and SDD documentation](./docs/README.md) records the current
 implementation, decisions, risks and [roadmap to 1.0](./docs/ROADMAP.md).
 Work runs on two tracks. **H3 consumer qualification:** packed-consumer runtime verification has
-executed, but strict consumer types for `@strata/h3` are upstream-blocked by H3/crossws declarations
+executed, but strict consumer types for `@strata-sc/h3` are upstream-blocked by H3/crossws declarations
 ([SPEC-002](./docs/specs/002-h3-consumer-type-closure.md)), so M1 stays blocked. **Analog
-integration:** `@strata/analog` has request input, per-request controllers, request cleanup and a
+integration:** `@strata-sc/analog` has request input, per-request controllers, request cleanup and a
 conditional go for Angular DI ([SPEC-003](./docs/specs/003-analog-request-lifecycle-angular-di.md)).
 The next bounded step is a strict Server Component feasibility PoC. Analog integration is still
 limited to GET controllers on the Nitro router, and Strata will not use legacy parameter decorators.
@@ -291,11 +286,11 @@ tested navigation strategy. This capability is not implemented yet. See the
 
 ## Packages
 
-| Package                               | Description                                                                    |
-| ------------------------------------- | ------------------------------------------------------------------------------ |
-| [`@strata/core`](./packages/core)     | Experimental `@Controller` / `@Get` metadata primitive.                        |
-| [`@strata/h3`](./packages/h3)         | Experimental H3 adapter: registers Strata controllers on an H3 app.            |
-| [`@strata/analog`](./packages/analog) | Experimental Analog adapter: registers Strata controllers on the Nitro router. |
+| Package                                  | Description                                                                    |
+| ---------------------------------------- | ------------------------------------------------------------------------------ |
+| [`@strata-sc/core`](./packages/core)     | Experimental `@Controller` / `@Get` metadata primitive.                        |
+| [`@strata-sc/h3`](./packages/h3)         | Experimental H3 adapter: registers Strata controllers on an H3 app.            |
+| [`@strata-sc/analog`](./packages/analog) | Experimental Analog adapter: registers Strata controllers on the Nitro router. |
 
 ## Stack
 
