@@ -58,6 +58,9 @@ jobs:
       - name: Consumer type-closure experiment (SPEC-002)
         run: pnpm test:consumer:types
 
+      - name: Packed-package consumer (TypeScript 5.9.2)
+        run: pnpm test:package-consumer
+
   deploy-www:
     name: Deploy official website to Cloudflare Pages
     needs: ci

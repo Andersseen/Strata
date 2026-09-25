@@ -1,0 +1,81 @@
+name: Publish packages
+
+# Publishes @strata/core and @strata/analog to npm under the experimental
+# `next` dist-tag. It only runs when started by hand from `main`: never on
+# pull requests, pushes or tags. @strata/h3 is never published by this
+# workflow (tools/release/lib/packages.ts). GitHub Releases (release.yml) do
+# not publish npm packages, and this workflow does not create GitHub Releases.
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run: pack, inspect and `npm publish --dry-run` only"
+        type: boolean
+        default: true
+
+concurrency:
+  group: publish-packages
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Publish @strata/core and @strata/analog (next)
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: npm-publish
+    permissions:
+      contents: read
+      id-token: write # npm provenance
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Analog fixture (dev + production)
+        run: pnpm test:analog
+
+      - name: Packed-package consumer (TypeScript 5.9.2)
+        run: pnpm test:package-consumer
+
+      # NPM_TOKEN comes only from GitHub Secrets (repository or `npm-publish`
+      # environment); setup-node writes it to a runner-temp .npmrc as
+      # ${NODE_AUTH_TOKEN}, never to the repository or the log.
+      - name: Publish to npm (dist-tag next)
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          flags=(--provenance)
+          if [[ "$DRY_RUN" == "true" ]]; then
+            flags+=(--dry-run)
+          fi
+          node --experimental-strip-types tools/release/publish-packages.ts "${flags[@]}"

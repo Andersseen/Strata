@@ -62,3 +62,17 @@ export function findScopedPackageDirs(
 
   return matches;
 }
+
+/**
+ * The file name `pnpm pack` gives a workspace package's tarball
+ * (`@strata/core@0.1.0` → `strata-core-0.1.0.tgz`), read from its current
+ * package.json so runners follow Changesets version bumps.
+ */
+export function packedTarballName(packageDir: string): string {
+  const { name, version } = JSON.parse(readFileSync(join(packageDir, "package.json"), "utf8")) as {
+    name: string;
+    version: string;
+  };
+
+  return `${name.replace(/^@/, "").replace("/", "-")}-${version}.tgz`;
+}

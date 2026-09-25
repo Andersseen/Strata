@@ -22,6 +22,9 @@ export default config(
       // compiled by its own isolated, per-case tsc install with a runner-
       // generated tsconfig, never by this repo's tsconfigs.
       "tests/consumer/type-compatibility/**",
+      // Packed-package consumer (test:package-consumer): compiled only by its
+      // own isolated TypeScript 5.9.2 install against the packed tarballs.
+      "tests/package-consumer/fixture/**",
       // Analog integration fixture (apps/analog-fixture): compiled by Analog's
       // own Angular/Nitro pipelines with the stock `experimentalDecorators`
       // tsconfig, never by this repo's tsconfigs. Its authored TypeScript is

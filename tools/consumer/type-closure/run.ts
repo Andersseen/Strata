@@ -4,6 +4,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { run } from "../lib/exec.ts";
+import { packedTarballName } from "../lib/fs-helpers.ts";
 
 import { FIXED_VERSIONS, MATRIX_CASES } from "./cases.ts";
 import { parseDiagnostics } from "./diagnostics.ts";
@@ -101,8 +102,8 @@ if (packResult.status !== 0) {
   process.exit(1);
 }
 
-const corePath = join(tarballDir, "strata-core-0.0.0.tgz");
-const h3TarballPath = join(tarballDir, "strata-h3-0.0.0.tgz");
+const corePath = join(tarballDir, packedTarballName(join(repoRoot, "packages", "core")));
+const h3TarballPath = join(tarballDir, packedTarballName(join(repoRoot, "packages", "h3")));
 
 if (!existsSync(corePath) || !existsSync(h3TarballPath)) {
   console.error(

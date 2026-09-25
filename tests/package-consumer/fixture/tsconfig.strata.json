@@ -1,0 +1,12 @@
+// Strata declaration gate: consumer controllers only, Node lib without DOM,
+// skipLibCheck: false. Any declaration diagnostic here comes from
+// @strata/core, @strata/analog or their dependency graph.
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "skipLibCheck": false,
+    "lib": ["ES2023", "esnext.decorators"],
+    "noEmit": true
+  },
+  "include": ["src/posts.controller.ts", "src/lifecycle.controller.ts"]
+}

@@ -1,6 +1,6 @@
 {
   "name": "@strata/analog",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Experimental Analog adapter for @strata/core — registers Strata controllers on the Nitro 2 router that Analog runs on.",
   "type": "module",
   "license": "MIT",

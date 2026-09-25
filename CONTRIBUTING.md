@@ -53,6 +53,10 @@ need a changeset unless they are tests, documentation, or internal tooling.
 Maintainers create annotated `v*` tags only after the required checks are
 green; the tag workflow validates the source again and generates the GitHub
 Release notes.
+A tag does not publish npm packages. Maintainers publish `@strata/core` and
+`@strata/analog` under the `next` dist-tag by running the manual
+`Publish packages` workflow from `main` once the Changesets version bump is
+merged ([ADR-004](docs/adr/004-experimental-npm-distribution.md)).
 
 ## Code style
 

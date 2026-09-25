@@ -40,7 +40,10 @@ Reconciled 2026-09-24 at `c671ba4` + SPEC-003 branch. See [STATE](STATE.md#recon
   [SPEC-003](specs/003-analog-request-lifecycle-angular-di.md) reached a
   [CONDITIONAL GO for Angular DI](research/analog-di-feasibility.md) through consumer-owned injectors.
 - Next bounded step, pending SPEC-003 acceptance: the first strict Server Component feasibility PoC.
-- No Server Components implementation exists. All packages remain experimental at `0.0.0`.
+- No Server Components implementation exists. Packages are experimental `0.1.0`; only
+  `@strata/core` and `@strata/analog` are published to npm, under the `next` dist-tag (first
+  publish pending)
+  ([ADR-004](adr/004-experimental-npm-distribution.md)).
 - 1.0 requires production Server Components, automated boundary evidence and a real consumer.
 
 ## Accepted decisions
@@ -48,6 +51,7 @@ Reconciled 2026-09-24 at `c671ba4` + SPEC-003 branch. See [STATE](STATE.md#recon
 - [ADR-001: standard decorators and explicit metadata](adr/001-standard-decorators.md).
 - [ADR-002: independent core and an initially H3 v2 adapter](adr/002-core-and-h3-target.md).
 - [ADR-003: Server Components are a production release gate](adr/003-server-components-release-gate.md).
+- [ADR-004: experimental npm distribution of core and analog under `next`](adr/004-experimental-npm-distribution.md).
 
 DI, consumer compiler strategy, component protocol and navigation protocol have **no accepted ADR**
 yet. Their experiments are planned in the roadmap; their APIs are not frozen.

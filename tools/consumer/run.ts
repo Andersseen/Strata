@@ -6,7 +6,12 @@ import { fileURLToPath } from "node:url";
 import { assertConsumerBehavior, ConsumerAssertionError } from "./lib/assert.ts";
 import { run } from "./lib/exec.ts";
 import type { CommandResult } from "./lib/exec.ts";
-import { copyDirRecursive, findScopedPackageDirs, sha256File } from "./lib/fs-helpers.ts";
+import {
+  copyDirRecursive,
+  findScopedPackageDirs,
+  packedTarballName,
+  sha256File,
+} from "./lib/fs-helpers.ts";
 import { renderReport } from "./lib/report.ts";
 import type { ConsumerReport } from "./lib/report.ts";
 
@@ -137,8 +142,10 @@ if (!hardFailureMessage) {
   }
 }
 
-const corePath = join(tarballDir, "strata-core-0.0.0.tgz");
-const h3Path = join(tarballDir, "strata-h3-0.0.0.tgz");
+const coreTarballName = packedTarballName(join(repoRoot, "packages", "core"));
+const h3TarballName = packedTarballName(join(repoRoot, "packages", "h3"));
+const corePath = join(tarballDir, coreTarballName);
+const h3Path = join(tarballDir, h3TarballName);
 
 if (!hardFailureMessage && (!existsSync(corePath) || !existsSync(h3Path))) {
   hardFailureMessage = `Expected tarballs missing after pack: ${corePath}, ${h3Path}.`;
@@ -150,12 +157,12 @@ let dependencyRewrite: ConsumerReport["dependencyRewrite"] | null = null;
 if (!hardFailureMessage) {
   tarballs = {
     core: {
-      fileName: "strata-core-0.0.0.tgz",
+      fileName: coreTarballName,
       sha256: sha256File(corePath),
       contents: tarContents(corePath),
     },
     h3: {
-      fileName: "strata-h3-0.0.0.tgz",
+      fileName: h3TarballName,
       sha256: sha256File(h3Path),
       contents: tarContents(h3Path),
     },
