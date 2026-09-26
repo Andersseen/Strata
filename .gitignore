@@ -37,3 +37,6 @@ pnpm-debug.log*
 .vscode/*
 !.vscode/extensions.json
 .idea/
+
+# Server-component PoC surrogates (tools/server-components/vite-plugin.ts)
+apps/analog-fixture/src/generated/
