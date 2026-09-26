@@ -59,6 +59,9 @@ jobs:
       - name: Server-component graph PoC (production build, SSR, hydration)
         run: pnpm test:server-components
 
+      - name: Server-component navigation PoC (document vs router navigation)
+        run: pnpm test:server-component-navigation
+
       - name: Consumer type-closure experiment (SPEC-002)
         run: pnpm test:consumer:types
 

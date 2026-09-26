@@ -2,6 +2,8 @@ import { provideFileRouter } from "@analogjs/router";
 import type { ApplicationConfig } from "@angular/core";
 import { provideClientHydration } from "@angular/platform-browser";
 
+import { provideNavigationProbe } from "../server-components/probe";
+
 export const appConfig: ApplicationConfig = {
-  providers: [provideFileRouter(), provideClientHydration()],
+  providers: [provideFileRouter(), provideClientHydration(), provideNavigationProbe()],
 };
