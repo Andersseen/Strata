@@ -46,6 +46,9 @@ importers:
       jiti:
         specifier: 2.7.0
         version: 2.7.0
+      playwright:
+        specifier: 1.62.1
+        version: 1.62.1
       prettier:
         specifier: 3.9.7
         version: 3.9.7

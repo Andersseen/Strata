@@ -805,7 +805,7 @@ async function main(): Promise<void> {
     ...new Set(
       fixtureSourceFiles
         .flatMap((file) => bareImports(readFileSync(join(fixtureDir, "src", file), "utf8")))
-        .filter((specifier) => specifier.includes("strata/analog")),
+        .filter((specifier) => specifier.includes("@strata-sc/analog")),
     ),
   ].sort();
   const fixtureConfigs = [

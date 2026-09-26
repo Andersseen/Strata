@@ -55,6 +55,10 @@ jobs:
       - name: Test official website end-to-end
         run: pnpm --filter @strata-sc/www test:e2e
 
+      # Reuses the Chromium installed above (same Playwright 1.62.1).
+      - name: Server-component graph PoC (production build, SSR, hydration)
+        run: pnpm test:server-components
+
       - name: Consumer type-closure experiment (SPEC-002)
         run: pnpm test:consumer:types
 
