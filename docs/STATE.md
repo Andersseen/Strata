@@ -22,6 +22,7 @@ Analog track increments since the 2026-09-17 audit:
 | #19       | Experimental `onCleanup` on the factory context: LIFO, awaited, exactly once, on success and every failure path, before the route handler settles                                                                                                               |
 | SPEC-003  | Angular DI feasibility: **CONDITIONAL GO** through consumer-owned Angular injectors on the existing seam; no Strata API change ([report](research/analog-di-feasibility.md))                                                                                    |
 | SC PoC    | Server-component graph PoC: **CONDITIONAL GO**. Server component + transitive server-only deps absent from browser output; child hydrates onto SSR nodes and is interactive; fixture-only, no package change ([report](research/server-component-graph-poc.md)) |
+| SC nav    | Server-component navigation PoC: **CONDITIONAL GO**. Document navigation GO; Angular Router navigation NO-GO (empty surrogate, no server request, silent; no public seam); fixture-only ([report](research/server-component-navigation-poc.md))                 |
 
 Current lifecycle facts:
 
@@ -33,11 +34,13 @@ Current lifecycle facts:
   injectors are destroyed on success, throw and rejection. The application injector is separate
   from Analog's SSR and server-function injectors (no supported seam reaches those), and the Nitro
   bundle then needs `@angular/compiler` declared in `nitro.moduleSideEffects`.
-- Server components (fixture-only PoC, initial document request only): a private Vite plugin sends
+- Server components (fixture-only PoC, document requests only): a private Vite plugin sends
   `@ServerComponent()` modules to generated empty-template surrogates in the `client` environment.
   Interactive children are hydrated as roots from their `ngh` annotations. This relies on
-  undocumented Angular 22.1.7 hydration behaviour and on Analog's environment names; client
-  navigation is untested. Checked by `pnpm test:server-components` (in CI).
+  undocumented Angular 22.1.7 hydration behaviour and on Analog's environment names. Direct load
+  and document navigation work; an Angular Router navigation to the route renders the empty
+  surrogate without error. Leaving through the router destroys the islands. Checked by
+  `pnpm test:server-components` and `pnpm test:server-component-navigation` (in CI).
 - Not yet verified on the Analog track: Workers, abort/timeout cleanup, streamed-body lifetimes,
   packed `@strata-sc/analog` consumers, non-GET methods.
 

@@ -1,13 +1,25 @@
-import { readFileSync, rmSync, statSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
 import { gzipSync } from "node:zlib";
 
-import { findFreePort, httpGet, spawnManaged, waitForHttp } from "../analog/lib/process.ts";
-import { findFilesContaining, listFiles } from "../analog/lib/scan.ts";
-import { run } from "../consumer/lib/exec.ts";
+import { httpGet } from "../analog/lib/process.ts";
+import { listFiles } from "../analog/lib/scan.ts";
 
 import { observeBrowser } from "./lib/browser.ts";
+import {
+  BROWSER_DIRS,
+  MARKERS,
+  SERVER_ONLY,
+  build as buildFixture,
+  check,
+  checkBrowserGraph,
+  checkServerGraph,
+  distDir,
+  filesWith,
+  finish as finishRun,
+  section,
+  startProductionServer,
+} from "./lib/harness.ts";
 
 /**
  * `pnpm test:server-components`: the server-component graph PoC
@@ -21,58 +33,14 @@ import { observeBrowser } from "./lib/browser.ts";
  *   5. Chromium: hydration by DOM identity, then interaction
  */
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const repoRoot = join(__dirname, "..", "..");
-const fixtureDir = join(repoRoot, "apps", "analog-fixture");
-const distDir = join(fixtureDir, "dist");
 const ROUTE = "/server-component";
 
-const MARKERS = {
-  implementation: "STRATA_SERVER_COMPONENT_IMPLEMENTATION_MARKER",
-  repository: "STRATA_SERVER_COMPONENT_REPOSITORY_MARKER",
-  transitive: "STRATA_TRANSITIVE_SERVER_ONLY_MARKER",
-  client: "STRATA_CLIENT_COMPONENT_MARKER",
-  control: "STRATA_ANALOG_CLIENT_CONTROL_MARKER",
-} as const;
-const SERVER_ONLY = [MARKERS.implementation, MARKERS.repository, MARKERS.transitive] as const;
-/** A string only `@angular/compiler` contains: the compiler must stay server-side. */
-const ANGULAR_COMPILER_FINGERPRINT = "Unterminated quote";
-/** Module names that would reveal server-only source layout in a browser file name. */
-const SERVER_FILE_NAMES = ["product-details", "product-repository", "server-secret"];
-
-/** Where the browser graph ends up: Vite's client build and Nitro's public assets. */
-const BROWSER_DIRS = ["client", "analog/public"] as const;
-/** Where the server graph ends up: Vite's SSR build and Nitro's server (incl. traced node_modules). */
-const SERVER_DIRS = ["ssr", "analog/server"] as const;
-
-let failures = 0;
-
-function check(name: string, passed: boolean, detail = ""): void {
-  if (!passed) failures++;
-  console.log(`${passed ? "  ok  " : " FAIL "} ${name}${passed || !detail ? "" : ` — ${detail}`}`);
-}
-
-function section(title: string): void {
-  console.log(`\n## ${title}`);
+function finish(): never {
+  finishRun("server-component graph PoC");
 }
 
 function build(label: string, env: NodeJS.ProcessEnv): void {
-  rmSync(distDir, { recursive: true, force: true });
-
-  const result = run("pnpm", ["exec", "vite", "build"], {
-    cwd: fixtureDir,
-    env: { ...process.env, ...env },
-  });
-
-  check(`${label}: production build exits 0`, result.status === 0, result.stderr.slice(-2_000));
-  if (result.status !== 0) finish();
-}
-
-/** Files under the given dist subdirectories that contain `needle`. */
-function filesWith(dirs: readonly string[], needle: string): string[] {
-  return dirs.flatMap((dir) =>
-    findFilesContaining(join(distDir, dir), needle).map((f) => `${dir}/${f}`),
-  );
+  buildFixture(label, env, finish);
 }
 
 interface GraphSize {
@@ -151,13 +119,6 @@ function printSizes(control: BuildSnapshot, poc: BuildSnapshot): void {
   );
 }
 
-function finish(): never {
-  console.log(
-    `\n${failures === 0 ? "PASS" : "FAIL"}: server-component graph PoC — ${failures} failing check(s).`,
-  );
-  process.exit(failures === 0 ? 0 : 1);
-}
-
 // 1. Control: the same app with the plugin disabled is ordinary SSR. Every
 // server-only marker must then be in the browser output; otherwise the scan
 // below would prove nothing.
@@ -178,50 +139,8 @@ build("PoC", {});
 
 const poc = snapshot();
 
-section("Browser graph (dist/client, dist/analog/public)");
-
-for (const marker of SERVER_ONLY) {
-  const found = filesWith(BROWSER_DIRS, marker);
-
-  check(`${marker} absent`, found.length === 0, found.join(", "));
-}
-
-for (const marker of [MARKERS.client, MARKERS.control]) {
-  const found = filesWith(BROWSER_DIRS, marker);
-
-  check(`${marker} present (${found.join(", ")})`, found.length > 0, "not found");
-}
-
-const browserFiles = BROWSER_DIRS.flatMap((dir) => listFiles(join(distDir, dir)));
-const leakedNames = browserFiles.filter((file) =>
-  SERVER_FILE_NAMES.some((name) => file.includes(name)),
-);
-const compilerInBrowser = filesWith(BROWSER_DIRS, ANGULAR_COMPILER_FINGERPRINT);
-
-check(
-  "no browser file is named after a server-only module",
-  leakedNames.length === 0,
-  leakedNames.join(", "),
-);
-check(
-  "@angular/compiler absent from the browser output",
-  compilerInBrowser.length === 0,
-  compilerInBrowser.join(", "),
-);
-console.log(`browser files scanned (incl. maps/manifests if any): ${browserFiles.join(", ")}`);
-
-section("Server graph (dist/ssr, dist/analog/server)");
-
-for (const marker of [...SERVER_ONLY, MARKERS.client]) {
-  const found = filesWith(SERVER_DIRS, marker);
-
-  check(`${marker} present (${found.join(", ")})`, found.length > 0, "not found");
-}
-
-check(
-  "@angular/compiler present in the Nitro server output",
-  filesWith(["analog/server"], ANGULAR_COMPILER_FINGERPRINT).length > 0,
-);
+checkBrowserGraph();
+checkServerGraph();
 
 section("Bundle size");
 printSizes(control, poc);
@@ -229,16 +148,10 @@ printSizes(control, poc);
 // 3. Production server.
 section(`Production server: GET ${ROUTE}`);
 
-const port = await findFreePort();
-const server = spawnManaged(process.execPath, ["dist/analog/server/index.mjs"], {
-  cwd: fixtureDir,
-  env: { PORT: String(port), NITRO_PORT: String(port) },
-});
+const server = await startProductionServer();
 
 try {
-  const baseUrl = `http://127.0.0.1:${port}`;
-
-  await waitForHttp(`${baseUrl}/`, server, 30_000);
+  const { baseUrl } = server;
 
   const response = await httpGet(`${baseUrl}${ROUTE}`);
   const html = response.body;

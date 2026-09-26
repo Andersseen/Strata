@@ -13,6 +13,17 @@ import {
 } from "@angular/core";
 import type { ComponentRef, Provider, Type } from "@angular/core";
 
+/**
+ * Fixture-only evidence for `pnpm test:server-component-navigation`: island
+ * ComponentRefs created and destroyed in this document, read by the runner.
+ * Not a lifecycle API.
+ */
+function islandProbe(): { created: number; destroyed: number } {
+  const scope = globalThis as { __STRATA_ISLAND_PROBE__?: { created: number; destroyed: number } };
+
+  return (scope.__STRATA_ISLAND_PROBE__ ??= { created: 0, destroyed: 0 });
+}
+
 /** The interactive components a server component may render, by selector. */
 const CLIENT_REFERENCES = new InjectionToken<readonly Type<unknown>[]>("STRATA_CLIENT_REFERENCES");
 
@@ -64,10 +75,16 @@ export class StrataIslandHost {
 
         appRef.attachView(island.hostView);
         islands.push(island);
+        islandProbe().created++;
         hostElement.setAttribute("data-strata-hydrated", "");
       }
     });
 
-    inject(DestroyRef).onDestroy(() => islands.forEach((island) => island.destroy()));
+    inject(DestroyRef).onDestroy(() =>
+      islands.forEach((island) => {
+        island.destroy();
+        islandProbe().destroyed++;
+      }),
+    );
   }
 }
