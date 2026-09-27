@@ -19,6 +19,9 @@ export interface BrowserObservation {
   };
   /** `ngh` attributes left in the document: Angular removes each one it hydrates from. */
   readonly remainingHydrationAnnotations: number;
+  /** Islands `StrataIslandHost` created (fixture probe), and boundaries marked hydrated. */
+  readonly islandsCreated: number;
+  readonly hydratedIslands: number;
   readonly productVisible: boolean;
   readonly countAfterHydration: string | null;
   readonly countAfterClick: string | null;
@@ -47,7 +50,10 @@ declare const document: {
   querySelector(selector: string): DomNode | null;
   querySelectorAll(selector: string): { readonly length: number };
 };
-declare const window: { __strataSsrNodes?: SsrNodes };
+declare const window: {
+  __strataSsrNodes?: SsrNodes;
+  __STRATA_ISLAND_PROBE__?: { created: number; destroyed: number };
+};
 
 /**
  * Opens `url` in Chromium with the application's JavaScript held back until the
@@ -128,6 +134,8 @@ export async function observeBrowser(url: string): Promise<BrowserObservation> {
             ssr.countText === document.querySelector("add-to-cart output")?.firstChild,
         },
         remainingHydrationAnnotations: document.querySelectorAll("[ngh]").length,
+        islandsCreated: window.__STRATA_ISLAND_PROBE__?.created ?? 0,
+        hydratedIslands: document.querySelectorAll("[data-strata-hydrated]").length,
       };
     });
 

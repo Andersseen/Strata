@@ -23,6 +23,7 @@ Analog track increments since the 2026-09-17 audit:
 | SPEC-003  | Angular DI feasibility: **CONDITIONAL GO** through consumer-owned Angular injectors on the existing seam; no Strata API change ([report](research/analog-di-feasibility.md))                                                                                    |
 | SC PoC    | Server-component graph PoC: **CONDITIONAL GO**. Server component + transitive server-only deps absent from browser output; child hydrates onto SSR nodes and is interactive; fixture-only, no package change ([report](research/server-component-graph-poc.md)) |
 | SC nav    | Server-component navigation PoC: **CONDITIONAL GO**. Document navigation GO; Angular Router navigation NO-GO (empty surrogate, no server request, silent; no public seam); fixture-only ([report](research/server-component-navigation-poc.md))                 |
+| SC CF     | Server-component PoC on Cloudflare Pages (local Wrangler/workerd): **CONDITIONAL GO**. SC direct load, document navigation, controllers GO; SPEC-003 Angular DI NO-GO (JIT refused) ([report](research/server-component-cloudflare-poc.md))                     |
 
 Current lifecycle facts:
 
@@ -41,8 +42,13 @@ Current lifecycle facts:
   and document navigation work; an Angular Router navigation to the route renders the empty
   surrogate without error. Leaving through the router destroys the islands. Checked by
   `pnpm test:server-components` and `pnpm test:server-component-navigation` (in CI).
-- Not yet verified on the Analog track: Workers, abort/timeout cleanup, streamed-body lifetimes,
-  packed `@strata-sc/analog` consumers, non-GET methods.
+- Cloudflare Workers (local workerd only, nothing deployed): the same fixture built with
+  `BUILD_PRESET=cloudflare-pages` passes the server-component, navigation and controller
+  assertions under `wrangler pages dev`. The SPEC-003 Angular DI route fails there, because
+  workerd refuses Angular's JIT code generation. Checked by
+  `pnpm test:server-components:cloudflare` (in CI).
+- Not yet verified on the Analog track: a deployed Cloudflare Pages project, abort/timeout cleanup,
+  streamed-body lifetimes, packed `@strata-sc/analog` consumers, non-GET methods.
 
 The first gap bullet of the 2026-09-17 audit below ("No Angular/Analog/Nitro dependency, DI
 integration … request API") is superseded by the table above. Its other bullets still stand.

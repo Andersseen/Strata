@@ -62,6 +62,10 @@ jobs:
       - name: Server-component navigation PoC (document vs router navigation)
         run: pnpm test:server-component-navigation
 
+      # Local workerd via the Wrangler pinned in @strata-sc/www: no account, no secrets.
+      - name: Server-component PoC on Cloudflare Pages (local Wrangler runtime)
+        run: pnpm test:server-components:cloudflare
+
       - name: Consumer type-closure experiment (SPEC-002)
         run: pnpm test:consumer:types
 
