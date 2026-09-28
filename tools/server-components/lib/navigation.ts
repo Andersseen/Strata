@@ -43,7 +43,7 @@ export interface DomSnapshot {
   readonly hydratedIslands: number;
   readonly remainingHydrationAnnotations: number;
   readonly count: string | null;
-  /** Fixture-only counters (src/server-components/islands.ts, probe.ts). */
+  /** Fixture-only counters (apps/analog-fixture/src/probes/server-components/probe.ts). */
   readonly islandsCreated: number;
   readonly islandsDestroyed: number;
   readonly routerEvents: readonly string[];

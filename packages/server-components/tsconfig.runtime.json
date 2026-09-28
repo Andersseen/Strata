@@ -1,0 +1,25 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src/runtime",
+    // Analog's build optimizer runs the Angular linker only on files whose path
+    // matches /fesm20/, the Angular Package Format convention. The modules are
+    // partial-compiled ES2022 (not flattened).
+    "outDir": "dist/fesm2022",
+    "lib": ["ES2023", "DOM"],
+    "types": [],
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "allowImportingTsExtensions": false,
+    "experimentalDecorators": true
+  },
+  "include": ["src/runtime"],
+  "exclude": ["src/**/*.test.ts"],
+  "angularCompilerOptions": {
+    "compilationMode": "partial",
+    "strictInjectionParameters": true,
+    "strictInputAccessModifiers": true,
+    "strictTemplates": true
+  }
+}

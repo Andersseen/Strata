@@ -1,0 +1,46 @@
+{
+  "name": "@strata-sc/server-components",
+  "version": "0.0.0",
+  "private": true,
+  "description": "PRIVATE / EXPERIMENTAL. The server-component graph mechanism qualified by the Analog fixture: a build-time marker, the client boundary and island runtime, and the Vite transform. Not published.",
+  "type": "module",
+  "license": "MIT",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=22"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/fesm2022/index.d.ts",
+      "default": "./dist/fesm2022/index.js"
+    },
+    "./vite": {
+      "types": "./dist/vite/index.d.ts",
+      "default": "./dist/vite.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "vite build && ngc -p tsconfig.runtime.json",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "@angular/compiler": "^22.0.0",
+    "@angular/core": "^22.0.0",
+    "typescript": "^5.9.0 || ^6.0.0",
+    "vite": "^8.0.0"
+  },
+  "devDependencies": {
+    "@angular/compiler": "^22.0.0",
+    "@angular/compiler-cli": "^22.0.0",
+    "@angular/core": "^22.0.0",
+    "rxjs": "~7.8.0",
+    "typescript": "~6.0.0",
+    "vite": "^8.0.0"
+  }
+}

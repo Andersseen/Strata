@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "lib": ["ES2023", "DOM"],
+    "types": ["node"],
+    // Angular decorators (the runtime directives) require the legacy decorator mode.
+    "experimentalDecorators": true
+  },
+  "include": ["src/**/*.ts", "vite.config.ts"]
+}

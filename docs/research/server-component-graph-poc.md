@@ -4,6 +4,16 @@ Evidence report for the first strict Server Component experiment. Recorded 2026-
 `feat/server-component-graph-poc`, baseline `061b0ef` (`main`, merge of PR #22). Written by hand;
 `pnpm test:server-components` reproduces every number and observation below.
 
+> **Path note (2026-09-28).** The mechanism described here has since moved, unchanged in behaviour,
+> into the private package `packages/server-components` (`@strata-sc/server-components`, not
+> published). `src/server-components/server-component.ts`, `client-boundary.directive.ts` and
+> `islands.ts` are now `packages/server-components/src/runtime/*`; `tools/server-components/vite-plugin.ts`
+> is now `packages/server-components/src/vite/*`, exported as `@strata-sc/server-components/vite`.
+> Its `runtimeDir` option is gone: imports from `@strata-sc/server-components` are the runtime, and
+> the surrogate imports `StrataIslandHost` from that package. Client references are no longer every
+> `imports` entry: only components rendered on an element marked `[strataClient]` in the template
+> (see the package README). The results below are as recorded.
+
 **Question.** Can an Angular component render on the server, depend on server-only code, compose an
 ordinary interactive Angular child, keep its own implementation and its server dependencies
 completely out of the browser graph, while the child actually hydrates and stays interactive?

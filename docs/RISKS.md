@@ -4,6 +4,13 @@ Open as of 2026-09-17; R03, R04 and R13 updated 2026-09-24 with SPEC-003 evidenc
 produces evidence. A risk closes only with a linked test/report on a pinned tuple. “Deadline” means
 the gate that cannot pass unresolved, not a calendar estimate. No risk below is closed by this audit.
 
+Evidence note (2026-09-28), no disposition changed: R05, R07, R08, R09 and R12 now have experimental
+Server Component evidence on one code shape (Node and local workerd, document navigation only; Angular
+Router navigation NO-GO) in the private `@strata-sc/server-components` package and the
+[graph](research/server-component-graph-poc.md),
+[navigation](research/server-component-navigation-poc.md) and
+[Cloudflare](research/server-component-cloudflare-poc.md) reports.
+
 | ID  | Risk and impact                                                                   | Uncertainty today                                                                                                                                                                                                                                                            | Resolve by                                   | Experimental proof / fallback                                                                                                                                                                                               |
 | --- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | R01 | Package versus consumer standard decorator compilation                            | Partially proven: packed packages and consumer `tsc → JS → Vite → Node` work. Observed: direct Vite retains decorator syntax and Node rejects it.                                                                                                                            | M1 baseline; M2 integration                  | Preserve SPEC-001 runtime evidence and its actual tuple limits; do not infer a public plugin or Angular AOT safety. Type errors are tracked separately below.                                                               |

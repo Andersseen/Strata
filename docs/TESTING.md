@@ -35,6 +35,25 @@ The merge CI stopped at lint before building core's exported declarations; consu
 was skipped. Build prerequisites before type-aware lint on a fresh checkout, retain all gates, and
 link the remote result. Local lint with preexisting `dist` does not prove that bootstrap path.
 
+## Current Server Component evidence
+
+The experimental `@strata-sc/server-components` package has unit tests for its isolable logic
+(template boundary discovery, rejected module shapes, surrogate content, runtime import purity).
+They do not replace the production-build runners, which remain the authority for graphs and
+hydration:
+
+- `pnpm test:server-components`: a plugin-off control build that must leak every server canary,
+  then the split build. Browser output must lack the implementation, repository, transitive and
+  server-only-import canaries, `@angular/compiler`, the TypeScript compiler, the Vite transform and
+  Node built-ins; the server output must contain them. Then HTTP SSR and Chromium hydration by DOM
+  node identity, one island, one increment per click.
+- `pnpm test:server-component-navigation`: document navigation, Angular Router navigation (pinned
+  as the recorded NO-GO) and island teardown through fixture-owned probes.
+- `pnpm test:server-components:cloudflare`: the same contract on local workerd via Wrangler.
+
+These cover one code shape. Items 5 and 6 of the strict bundle proof below (forbidden-import
+fixtures with import-chain diagnostics, renamed/barrel/dynamic imports) are still open.
+
 ## HTTP and DI
 
 Unit tests establish path normalization, metadata ownership/immutability, allowed method shapes and

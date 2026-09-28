@@ -13,17 +13,18 @@ their current-state claims where the two differ. Work now runs on two tracks wit
 
 Analog track increments since the 2026-09-17 audit:
 
-| PR / spec | Increment                                                                                                                                                                                                                                                       |
-| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| #7        | Analog integration baseline fixture and `pnpm test:analog`                                                                                                                                                                                                      |
-| #8        | `@strata-sc/analog`: `registerControllers(nitroApp.router, …)` from a Nitro plugin; depends only on `@strata-sc/core`                                                                                                                                           |
-| #17       | Provisional `StrataAnalogRequest` (method, path, URL, headers, params, query, context snapshot, lazy body readers); Nitro/H3 event not exposed                                                                                                                  |
-| #18       | Controllers are **request-scoped**: no instance at registration, one per request through experimental `controllerFactory` (default `new Controller()`)                                                                                                          |
-| #19       | Experimental `onCleanup` on the factory context: LIFO, awaited, exactly once, on success and every failure path, before the route handler settles                                                                                                               |
-| SPEC-003  | Angular DI feasibility: **CONDITIONAL GO** through consumer-owned Angular injectors on the existing seam; no Strata API change ([report](research/analog-di-feasibility.md))                                                                                    |
-| SC PoC    | Server-component graph PoC: **CONDITIONAL GO**. Server component + transitive server-only deps absent from browser output; child hydrates onto SSR nodes and is interactive; fixture-only, no package change ([report](research/server-component-graph-poc.md)) |
-| SC nav    | Server-component navigation PoC: **CONDITIONAL GO**. Document navigation GO; Angular Router navigation NO-GO (empty surrogate, no server request, silent; no public seam); fixture-only ([report](research/server-component-navigation-poc.md))                 |
-| SC CF     | Server-component PoC on Cloudflare Pages (local Wrangler/workerd): **CONDITIONAL GO**. SC direct load, document navigation, controllers GO; SPEC-003 Angular DI NO-GO (JIT refused) ([report](research/server-component-cloudflare-poc.md))                     |
+| PR / spec | Increment                                                                                                                                                                                                                                                                                                                                    |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| #7        | Analog integration baseline fixture and `pnpm test:analog`                                                                                                                                                                                                                                                                                   |
+| #8        | `@strata-sc/analog`: `registerControllers(nitroApp.router, …)` from a Nitro plugin; depends only on `@strata-sc/core`                                                                                                                                                                                                                        |
+| #17       | Provisional `StrataAnalogRequest` (method, path, URL, headers, params, query, context snapshot, lazy body readers); Nitro/H3 event not exposed                                                                                                                                                                                               |
+| #18       | Controllers are **request-scoped**: no instance at registration, one per request through experimental `controllerFactory` (default `new Controller()`)                                                                                                                                                                                       |
+| #19       | Experimental `onCleanup` on the factory context: LIFO, awaited, exactly once, on success and every failure path, before the route handler settles                                                                                                                                                                                            |
+| SPEC-003  | Angular DI feasibility: **CONDITIONAL GO** through consumer-owned Angular injectors on the existing seam; no Strata API change ([report](research/analog-di-feasibility.md))                                                                                                                                                                 |
+| SC PoC    | Server-component graph PoC: **CONDITIONAL GO**. Server component + transitive server-only deps absent from browser output; child hydrates onto SSR nodes and is interactive; fixture-only, no package change ([report](research/server-component-graph-poc.md))                                                                              |
+| SC nav    | Server-component navigation PoC: **CONDITIONAL GO**. Document navigation GO; Angular Router navigation NO-GO (empty surrogate, no server request, silent; no public seam); fixture-only ([report](research/server-component-navigation-poc.md))                                                                                              |
+| SC CF     | Server-component PoC on Cloudflare Pages (local Wrangler/workerd): **CONDITIONAL GO**. SC direct load, document navigation, controllers GO; SPEC-003 Angular DI NO-GO (JIT refused) ([report](research/server-component-cloudflare-poc.md))                                                                                                  |
+| SC pkg    | Server-component mechanism extracted into the private `@strata-sc/server-components` package (`private: true`, not published, still experimental, document-navigation-only); the fixture consumes it. Client references are explicit `[strataClient]` boundaries. PoC verdicts unchanged ([README](../packages/server-components/README.md)) |
 
 Current lifecycle facts:
 
@@ -35,10 +36,12 @@ Current lifecycle facts:
   injectors are destroyed on success, throw and rejection. The application injector is separate
   from Analog's SSR and server-function injectors (no supported seam reaches those), and the Nitro
   bundle then needs `@angular/compiler` declared in `nitro.moduleSideEffects`.
-- Server components (fixture-only PoC, document requests only): a private Vite plugin sends
-  `@ServerComponent()` modules to generated empty-template surrogates in the `client` environment.
-  Interactive children are hydrated as roots from their `ngh` annotations. This relies on
-  undocumented Angular 22.1.7 hydration behaviour and on Analog's environment names. Direct load
+- Server components (experimental, document requests only): the Vite plugin and runtime live in the
+  private, unpublished `@strata-sc/server-components` package, consumed by the fixture. The plugin
+  sends `@ServerComponent()` modules to generated empty-template surrogates in the `client`
+  environment. Only children marked `[strataClient]` in the template are client references; they
+  are hydrated as roots from their `ngh` annotations. This relies on undocumented Angular 22.1.7
+  hydration behaviour and on Analog's environment names. Direct load
   and document navigation work; an Angular Router navigation to the route renders the empty
   surrogate without error. Leaving through the router destroys the islands. Checked by
   `pnpm test:server-components` and `pnpm test:server-component-navigation` (in CI).

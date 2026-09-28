@@ -4,6 +4,10 @@ Evidence report for the third Server Component experiment. Recorded 2026-09-27 o
 `feat/server-component-cloudflare-poc`, baseline `a455f03` (`main`, merge of PR #24). Written by
 hand; `pnpm test:server-components:cloudflare` reproduces every observation below.
 
+> **Path note (2026-09-28).** The server-component plugin and runtime this report exercises now live
+> in the private `@strata-sc/server-components` package (`packages/server-components`, not
+> published); the runners stay in `tools/server-components/`. The results below are as recorded.
+
 **Question.** Does the Strata server component graph split still hold when the Analog application
 targets Cloudflare Pages/Workers instead of Nitro's `node-server` preset? That covers the SSR and
 the interactive-island hydration. The run uses the same application, the same `@ServerComponent()`

@@ -4,6 +4,12 @@ Evidence report for the second Server Component experiment. Recorded 2026-09-26 
 `feat/server-component-navigation-poc`, baseline `1d7293a` (`main`, merge of PR #23). Written by
 hand; `pnpm test:server-component-navigation` reproduces every observation below.
 
+> **Path note (2026-09-28).** `StrataIslandHost` now lives in the private
+> `@strata-sc/server-components` package, which writes no globals. The
+> `window.__STRATA_ISLAND_PROBE__` counters described below moved to the fixture's
+> `src/probes/server-components/probe.ts` (`provideIslandProbe()`), next to `provideNavigationProbe()`,, which counts the island host views
+> attached to the `ApplicationRef` and their destruction. The results below are as recorded.
+
 **Question.** Can a route containing a Strata Server Component take part in navigation without
 shipping the server component implementation to the browser? Two mechanisms are compared: a full
 document navigation, and an Angular Router client-side navigation.
