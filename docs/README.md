@@ -39,8 +39,14 @@ Reconciled 2026-09-24 at `c671ba4` + SPEC-003 branch. See [STATE](STATE.md#recon
   controllers (PR #18) and request cleanup (PR #19).
   [SPEC-003](specs/003-analog-request-lifecycle-angular-di.md) reached a
   [CONDITIONAL GO for Angular DI](research/analog-di-feasibility.md) through consumer-owned injectors.
-- Next bounded step, pending SPEC-003 acceptance: the first strict Server Component feasibility PoC.
-- No Server Components implementation exists. Packages are experimental `0.1.0`; only
+- Server Components: three PoCs reached CONDITIONAL GO
+  ([graph](research/server-component-graph-poc.md),
+  [navigation](research/server-component-navigation-poc.md),
+  [Cloudflare](research/server-component-cloudflare-poc.md)): document navigation only, Angular
+  Router navigation NO-GO. The mechanism is the private, unpublished
+  `@strata-sc/server-components` package ([README](../packages/server-components/README.md)); no
+  production implementation or public API exists.
+- Packages are experimental `0.1.0`; only
   `@strata-sc/core` and `@strata-sc/analog` are published to npm, under the `next` dist-tag (first
   publish pending)
   ([ADR-004](adr/004-experimental-npm-distribution.md)).

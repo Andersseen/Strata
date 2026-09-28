@@ -17,7 +17,7 @@ const SOURCE_EXTENSION = ".ts";
 
 export interface ClientReference {
   readonly name: string;
-  /** Absolute path without extension for app modules, or a bare package specifier. */
+  /** Absolute path of the app module declaring the component, without extension. */
   readonly module: string;
 }
 

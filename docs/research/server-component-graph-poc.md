@@ -10,7 +10,9 @@ Evidence report for the first strict Server Component experiment. Recorded 2026-
 > `islands.ts` are now `packages/server-components/src/runtime/*`; `tools/server-components/vite-plugin.ts`
 > is now `packages/server-components/src/vite/*`, exported as `@strata-sc/server-components/vite`.
 > Its `runtimeDir` option is gone: imports from `@strata-sc/server-components` are the runtime, and
-> the surrogate imports `StrataIslandHost` from that package. The results below are as recorded.
+> the surrogate imports `StrataIslandHost` from that package. Client references are no longer every
+> `imports` entry: only components rendered on an element marked `[strataClient]` in the template
+> (see the package README). The results below are as recorded.
 
 **Question.** Can an Angular component render on the server, depend on server-only code, compose an
 ordinary interactive Angular child, keep its own implementation and its server dependencies

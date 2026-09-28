@@ -10,7 +10,6 @@ const surrogate = renderSurrogate(
     selector: "order-summary",
     clientReferences: [
       { name: "QuantityPicker", module: "/app/src/app/orders/quantity-picker.component" },
-      { name: "RatingStars", module: "@acme/widgets" },
     ],
   },
   "/app",
@@ -34,10 +33,7 @@ describe("renderSurrogate", () => {
     expect(surrogate).toContain(
       'import { QuantityPicker } from "../../../app/orders/quantity-picker.component";',
     );
-    expect(surrogate).toContain('import { RatingStars } from "@acme/widgets";');
-    expect(surrogate).toContain(
-      "providers: [provideClientReferences([QuantityPicker, RatingStars])],",
-    );
+    expect(surrogate).toContain("providers: [provideClientReferences([QuantityPicker])],");
   });
 
   it("imports nothing else: no implementation, no server-only module", () => {
@@ -47,7 +43,6 @@ describe("renderSurrogate", () => {
       'import { ChangeDetectionStrategy, Component } from "@angular/core";',
       'import { StrataIslandHost, provideClientReferences } from "@strata-sc/server-components";',
       'import { QuantityPicker } from "../../../app/orders/quantity-picker.component";',
-      'import { RatingStars } from "@acme/widgets";',
     ]);
     expect(surrogate).not.toMatch(/order-summary\.component"|inject\(|ServerComponent\(/);
   });

@@ -13,8 +13,6 @@ export interface ServerComponentModule extends ServerComponentDeclaration {
 const SOURCE_EXTENSION = ".ts";
 
 function specifierFrom(fromFile: string, module: string): string {
-  if (!module.startsWith("/")) return module;
-
   const path = relative(
     dirname(fromFile),
     module.endsWith(SOURCE_EXTENSION) ? module.slice(0, -SOURCE_EXTENSION.length) : module,

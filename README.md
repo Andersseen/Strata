@@ -275,22 +275,26 @@ executed, but strict consumer types for `@strata-sc/h3` are upstream-blocked by 
 ([SPEC-002](./docs/specs/002-h3-consumer-type-closure.md)), so M1 stays blocked. **Analog
 integration:** `@strata-sc/analog` has request input, per-request controllers, request cleanup and a
 conditional go for Angular DI ([SPEC-003](./docs/specs/003-analog-request-lifecycle-angular-di.md)).
-The next bounded step is a strict Server Component feasibility PoC. Analog integration is still
-limited to GET controllers on the Nitro router, and Strata will not use legacy parameter decorators.
+Strict Server Component PoCs reached a conditional go on Node and on local Cloudflare workerd, for
+document navigation only; Angular Router navigation is a recorded no-go. Their mechanism lives in the
+private, unpublished `@strata-sc/server-components` package. Analog integration is still limited to
+GET controllers on the Nitro router, and Strata will not use legacy parameter decorators.
 
 Strata 1.0 requires production-ready **Server Components** in a real
 Angular/Analog application: server implementations and dependencies excluded
 from browser output, with explicit interactive Angular descendants and a
-tested navigation strategy. This capability is not implemented yet. See the
-[1.0 release gates](./docs/RELEASE-1.0.md).
+tested navigation strategy. Only an experimental, unpublished mechanism exists so far
+([evidence](./docs/research/server-component-graph-poc.md)); the capability is not production-ready.
+See the [1.0 release gates](./docs/RELEASE-1.0.md).
 
 ## Packages
 
-| Package                                  | Description                                                                    |
-| ---------------------------------------- | ------------------------------------------------------------------------------ |
-| [`@strata-sc/core`](./packages/core)     | Experimental `@Controller` / `@Get` metadata primitive.                        |
-| [`@strata-sc/h3`](./packages/h3)         | Experimental H3 adapter: registers Strata controllers on an H3 app.            |
-| [`@strata-sc/analog`](./packages/analog) | Experimental Analog adapter: registers Strata controllers on the Nitro router. |
+| Package                                                        | Description                                                                                                                        |
+| -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| [`@strata-sc/core`](./packages/core)                           | Experimental `@Controller` / `@Get` metadata primitive.                                                                            |
+| [`@strata-sc/h3`](./packages/h3)                               | Experimental H3 adapter: registers Strata controllers on an H3 app.                                                                |
+| [`@strata-sc/analog`](./packages/analog)                       | Experimental Analog adapter: registers Strata controllers on the Nitro router.                                                     |
+| [`@strata-sc/server-components`](./packages/server-components) | **Private, not published.** Experimental Server Component graph split: marker, client boundary, island runtime and Vite transform. |
 
 ## Stack
 

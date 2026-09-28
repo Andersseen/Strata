@@ -18,7 +18,14 @@ pnpm lint
 pnpm test:consumer:types # SPEC-002 H3 declaration-closure experiment; no eligible candidate found
 pnpm test:consumer # installed consumer qualification; currently blocked on strict H3 types
 pnpm test:analog # Analog fixture: @strata-sc/analog in dev + production, client-bundle scan
+pnpm test:server-components            # Server Component graph split, SSR, hydration (Node)
+pnpm test:server-component-navigation  # document navigation GO, router navigation NO-GO (Node)
+pnpm test:server-components:cloudflare # the same on local Cloudflare workerd (Wrangler)
 ```
+
+The Server Component runners build the Analog fixture, which consumes the private
+`@strata-sc/server-components` package from `dist`: run `pnpm build` first. That package is
+`private: true` and needs no changeset.
 
 Other useful scripts:
 

@@ -7,7 +7,7 @@ hand; `pnpm test:server-component-navigation` reproduces every observation below
 > **Path note (2026-09-28).** `StrataIslandHost` now lives in the private
 > `@strata-sc/server-components` package, which writes no globals. The
 > `window.__STRATA_ISLAND_PROBE__` counters described below moved to the fixture's
-> `src/server-components/probe.ts` (`provideIslandProbe()`), which counts the island host views
+> `src/probes/server-components/probe.ts` (`provideIslandProbe()`), next to `provideNavigationProbe()`,, which counts the island host views
 > attached to the `ApplicationRef` and their destruction. The results below are as recorded.
 
 **Question.** Can a route containing a Strata Server Component take part in navigation without

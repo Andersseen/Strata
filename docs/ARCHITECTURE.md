@@ -152,6 +152,18 @@ this guarantee. The compiler experiment must show how Angular's compiled view/hy
 can retain an interactive descendant without shipping its server parent. Failure to find a
 supported approach is a valid no-go result; CSR recreation is not equivalent to successful hydration.
 
+**Current experiment (not a committed design).** The private, unpublished
+`@strata-sc/server-components` package holds the mechanism the PoCs qualified: a build-time
+`@ServerComponent()` marker, a Vite transform that swaps the module for an empty-template surrogate
+in the `client` environment only (and fails the build if the real module reaches it), an explicit
+`[strataClient]` boundary carrying plain-data props, and an island host that hydrates each boundary
+as its own root from its `ngh` annotation. Client references are derived from the elements marked
+`[strataClient]` in the template. It supports document navigation only and relies on undocumented
+Angular hydration behaviour; see its [README](../packages/server-components/README.md) and the
+[graph](research/server-component-graph-poc.md),
+[navigation](research/server-component-navigation-poc.md) and
+[Cloudflare](research/server-component-cloudflare-poc.md) reports.
+
 ### Boundary data and security
 
 The eventual serialization contract must enumerate permitted values, encoding/versioning, size
