@@ -34,7 +34,7 @@
     "@strata-sc/analog": "workspace:*",
     "@strata-sc/core": "workspace:*",
     "@tailwindcss/vite": "4.3.3",
-    "@voltui/components": "1.0.1",
+    "@voltui/components": "1.1.0",
     "angular-movement": "0.8.0",
     "front-matter": "4.0.2",
     "lumen-icons": "0.2.0",
