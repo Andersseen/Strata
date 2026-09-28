@@ -30,6 +30,7 @@
     "test": "vitest run"
   },
   "peerDependencies": {
+    "@angular/compiler": "^22.0.0",
     "@angular/core": "^22.0.0",
     "typescript": "^5.9.0 || ^6.0.0",
     "vite": "^8.0.0"

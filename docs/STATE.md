@@ -39,7 +39,8 @@ Current lifecycle facts:
 - Server components (experimental, document requests only): the Vite plugin and runtime live in
   the private, unpublished `@strata-sc/server-components` package, consumed by the fixture. The plugin sends
   `@ServerComponent()` modules to generated empty-template surrogates in the `client` environment.
-  Interactive children are hydrated as roots from their `ngh` annotations. This relies on
+  Only children marked `[strataClient]` in the template are client references; they are hydrated
+  as roots from their `ngh` annotations. This relies on
   undocumented Angular 22.1.7 hydration behaviour and on Analog's environment names. Direct load
   and document navigation work; an Angular Router navigation to the route renders the empty
   surrogate without error. Leaving through the router destroys the islands. Checked by

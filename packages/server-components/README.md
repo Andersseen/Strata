@@ -24,8 +24,8 @@ to the PoC.
 
 The runtime entry imports only `@angular/core`. It is Angular partial-compiled by `ngc` into
 `dist/fesm2022/`; Analog 2.7.2's build optimizer runs the Angular linker only on paths matching
-`/fesm20/`. The `/vite` entry imports `typescript`, `vite` types and Node built-ins; nothing in the
-runtime entry imports it.
+`/fesm20/`. The `/vite` entry imports `typescript`, `@angular/compiler` (template parsing), `vite`
+types and Node built-ins; nothing in the runtime entry imports it.
 
 ## Use
 
@@ -65,9 +65,16 @@ export class OrderSummary {}
 - One named `@ServerComponent()` class per module, stacked on `@Component({...})`.
 - `selector` must be a string literal; `imports` entries must be plain identifiers bound by named
   imports.
-- **Client references are a provisional heuristic.** Every `imports` entry not from this package
-  becomes a client reference. TODO: a future compiler must derive explicit client boundaries; not
-  every imported Angular component is necessarily client-side.
+- **Client references are explicit.** The plugin parses the server component's template with
+  `@angular/compiler`'s `parseTemplate`. Only an `imports` entry whose component selector is an
+  element marked `[strataClient]` becomes a client reference. Every other import (a server-only
+  child component, a pipe, a directive, anything from a package) stays in the server graph. A
+  marked element that no import matches fails the build.
+- `template` must be a string literal, or `templateUrl` a relative path. A client component must
+  have a string literal element selector and be declared in an app module imported by a relative
+  specifier (`./x` → `./x.ts`). Components from packages cannot be client boundaries yet.
+- Not qualified yet: an unmarked child _component_ (server-rendered only, never hydrated by the
+  surrogate). The fixture's server-only import is a pipe.
 - Relies on undocumented Angular hydration behaviour (hydrating a root onto an `ngh`-annotated
   host) and on Analog's Vite environment names (`client`).
 - Dev server (`vite`): smoke-checked by hand only (hydration, one click, no console errors). The

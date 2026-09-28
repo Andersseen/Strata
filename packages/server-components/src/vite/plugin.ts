@@ -46,7 +46,7 @@ export function strataServerComponents(options: ServerComponentsOptions): Plugin
     bySource = new Map();
 
     for (const file of listSourceFiles(sourceDir, generatedDir)) {
-      const found = analyzeServerComponent(file, readFileSync(file, "utf8"));
+      const found = analyzeServerComponent(file, readFileSync(file, "utf8"), readSource);
 
       if (!found) continue;
 
@@ -102,6 +102,10 @@ export function strataServerComponents(options: ServerComponentsOptions): Plugin
       return null;
     },
   };
+}
+
+function readSource(path: string): string {
+  return readFileSync(path, "utf8");
 }
 
 function stripQuery(id: string): string {

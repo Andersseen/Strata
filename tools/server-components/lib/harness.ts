@@ -27,6 +27,8 @@ export const MARKERS = {
   implementation: "STRATA_SERVER_COMPONENT_IMPLEMENTATION_MARKER",
   repository: "STRATA_SERVER_COMPONENT_REPOSITORY_MARKER",
   transitive: "STRATA_TRANSITIVE_SERVER_ONLY_MARKER",
+  /** A server component import that is not a client boundary (explicit boundaries). */
+  serverOnlyImport: "STRATA_SERVER_ONLY_IMPORT_MARKER",
   client: "STRATA_CLIENT_COMPONENT_MARKER",
   control: "STRATA_ANALOG_CLIENT_CONTROL_MARKER",
 } as const;
@@ -34,6 +36,7 @@ export const SERVER_ONLY = [
   MARKERS.implementation,
   MARKERS.repository,
   MARKERS.transitive,
+  MARKERS.serverOnlyImport,
 ] as const;
 /** A string only `@angular/compiler` contains: the compiler must stay server-side. */
 export const ANGULAR_COMPILER_FINGERPRINT = "Unterminated quote";
@@ -57,7 +60,12 @@ const BUILD_TOOL_FINGERPRINTS = [
   { label: "Vite's Node built-in stub", needle: "__vite-browser-external", source: null },
 ] as const;
 /** Module names that would reveal server-only source layout in a browser file name. */
-const SERVER_FILE_NAMES = ["product-details", "product-repository", "server-secret"];
+const SERVER_FILE_NAMES = [
+  "product-details",
+  "product-repository",
+  "server-secret",
+  "server-price",
+];
 
 /** Where the browser graph ends up: Vite's client build and Nitro's public assets. */
 export const BROWSER_DIRS = ["client", "analog/public"] as const;

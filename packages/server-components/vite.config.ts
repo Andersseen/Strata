@@ -23,7 +23,7 @@ export default defineConfig({
       formats: ["es"],
     },
     rollupOptions: {
-      external: [/^node:/, "typescript", "vite"],
+      external: [/^node:/, "@angular/compiler", "typescript", "vite"],
     },
   },
   test: {
