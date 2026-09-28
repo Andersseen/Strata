@@ -15,6 +15,7 @@ import {
   FailingController,
   LifecycleController,
 } from "./lifecycle.controller.js";
+import { BaseController, DecoratedChild, UndecoratedChild } from "./inheritance.controller.js";
 import { PostsController, registerPosts } from "./posts.controller.js";
 
 // --- Registration ----------------------------------------------------------
@@ -25,6 +26,24 @@ assert.deepEqual(getControllerDefinition(PostsController), {
     { method: "GET", path: "/", handler: "findAll" },
   ],
 });
+
+// --- Class-local metadata: no implicit controller or route inheritance ------
+const baseDefinition = {
+  path: "/api/base",
+  routes: [{ method: "GET", path: "/one", handler: "one" }],
+};
+assert.equal(getControllerDefinition(UndecoratedChild), undefined);
+assert.deepEqual(getControllerDefinition(BaseController), baseDefinition);
+assert.deepEqual(getControllerDefinition(DecoratedChild), {
+  path: "/api/child",
+  routes: [{ method: "GET", path: "/two", handler: "two" }],
+});
+assert.throws(
+  () => registerControllers(createRouter(), [UndecoratedChild]),
+  (error: unknown) =>
+    error instanceof StrataAnalogConfigurationError &&
+    error.message.includes("is not a Strata controller"),
+);
 
 // H3 v1's Router is the router Nitro 2 exposes as `nitroApp.router`; it must
 // satisfy `NitroRouter` structurally, without a cast.
@@ -50,6 +69,7 @@ const controllerFactory: StrataAnalogControllerFactory = async (Controller, cont
   return new Controller();
 };
 registerControllers(router, [LifecycleController, FailingController], { controllerFactory });
+registerControllers(router, [BaseController, DecoratedChild]);
 
 const app = createApp();
 app.use(router);
@@ -100,6 +120,12 @@ try {
     );
   }
 
+  // --- Parent and decorated child serve only their own routes ---------------
+  assert.deepEqual(await get("/api/base/one"), { status: 200, body: { route: "one" } });
+  assert.deepEqual(await get("/api/child/two"), { status: 200, body: { route: "two" } });
+  assert.equal((await get("/api/child/one")).status, 404);
+  assert.equal((await get("/api/base/two")).status, 404);
+
   const failure = await get("/api/failing");
   assert.equal(failure.status, 500);
   assert.deepEqual(cleanupLog.slice(-2), ["async /api/failing", "sync /api/failing"]);
@@ -111,7 +137,7 @@ try {
         core: import.meta.resolve("@strata-sc/core"),
         analog: import.meta.resolve("@strata-sc/analog"),
       },
-      requests: results.length + 3,
+      requests: results.length + 7,
       cleanups: cleanupLog.length,
     })}`,
   );

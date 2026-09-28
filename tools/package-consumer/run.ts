@@ -291,7 +291,7 @@ try {
     );
   }
   console.log(
-    `registration, GET, params, query, per-request creation, isolation (concurrent), LIFO cleanup incl. error path: pass (${result.requests} requests, ${result.cleanups} cleanups)`,
+    `registration, class-local metadata (no implicit controller/route inheritance), GET, params, query, per-request creation, isolation (concurrent), LIFO cleanup incl. error path: pass (${result.requests} requests, ${result.cleanups} cleanups)`,
   );
 
   passed = true;
