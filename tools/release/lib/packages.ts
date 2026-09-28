@@ -20,7 +20,15 @@ export const PUBLISHABLE_PACKAGES: readonly PublishablePackage[] = [
   { name: "@strata-sc/analog", dir: "packages/analog" },
 ];
 
-export const EXCLUDED_PACKAGES: readonly string[] = ["@strata-sc/h3"];
+/**
+ * Never published. `@strata-sc/server-components` is `private: true` and
+ * experimental (docs/research/server-component-graph-poc.md); listing it here
+ * also fails the release if a publishable package ever starts depending on it.
+ */
+export const EXCLUDED_PACKAGES: readonly string[] = [
+  "@strata-sc/h3",
+  "@strata-sc/server-components",
+];
 
 /** Experimental releases never move `latest`. */
 export const DIST_TAG: string = "next";

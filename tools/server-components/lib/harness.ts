@@ -1,4 +1,5 @@
 import { readFileSync, rmSync, statSync } from "node:fs";
+import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
@@ -36,6 +37,25 @@ export const SERVER_ONLY = [
 ] as const;
 /** A string only `@angular/compiler` contains: the compiler must stay server-side. */
 export const ANGULAR_COMPILER_FINGERPRINT = "Unterminated quote";
+/**
+ * Build-time code the @strata-sc/server-components package boundary must keep
+ * out of the browser graph, as strings each source is checked to contain: the
+ * TypeScript compiler (a diagnostic key), the package's Vite transform (its
+ * plugin name and fail-closed error), and Node built-ins (the specifiers, and
+ * the stub Vite substitutes for them in a browser build).
+ */
+const BUILD_TOOL_FINGERPRINTS = [
+  {
+    label: "TypeScript compiler",
+    needle: "Unterminated_string_literal_1002",
+    source: "typescript",
+  },
+  { label: "Vite plugin (name)", needle: "strata:server-components", source: "plugin" },
+  { label: "Vite plugin (load guard)", needle: "entered the browser graph", source: "plugin" },
+  { label: "node:fs", needle: "node:fs", source: "plugin" },
+  { label: "node:path", needle: "node:path", source: "plugin" },
+  { label: "Vite's Node built-in stub", needle: "__vite-browser-external", source: null },
+] as const;
 /** Module names that would reveal server-only source layout in a browser file name. */
 const SERVER_FILE_NAMES = ["product-details", "product-repository", "server-secret"];
 
@@ -173,7 +193,37 @@ export function checkBrowserGraph(graph: OutputGraph = nodeBrowserGraph()): void
     compilerInBrowser.length === 0,
     compilerInBrowser.join(", "),
   );
+  checkNoBuildTools(graph);
   console.log(`browser files scanned (incl. maps/manifests if any): ${graph.files.join(", ")}`);
+}
+
+/**
+ * The package's runtime entry (`@strata-sc/server-components`, imported by the
+ * surrogate) must not drag its build entry (`/vite`) or what that uses into
+ * the browser graph.
+ */
+function checkNoBuildTools(graph: OutputGraph): void {
+  const require = createRequire(join(repoRoot, "packages", "server-components", "package.json"));
+  const sources = {
+    typescript: readFileSync(require.resolve("typescript"), "utf8"),
+    plugin: readFileSync(
+      join(repoRoot, "packages", "server-components", "dist", "vite.js"),
+      "utf8",
+    ),
+  };
+
+  for (const { label, needle, source } of BUILD_TOOL_FINGERPRINTS) {
+    if (
+      source &&
+      !check(`fingerprint of ${label} occurs in its source`, sources[source].includes(needle))
+    ) {
+      continue;
+    }
+
+    const found = graphFilesWith(graph, needle);
+
+    check(`${label} absent from the browser output`, found.length === 0, found.join(", "));
+  }
 }
 
 export interface ServerGraphs {

@@ -1,7 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject } from "@angular/core";
-
-import { ServerComponent } from "../../server-components/server-component";
-import { StrataClientBoundary } from "../../server-components/client-boundary.directive";
+import { ServerComponent, StrataClientBoundary } from "@strata-sc/server-components";
 
 import { AddToCartComponent } from "./add-to-cart.component";
 import { ProductRepository, fingerprint } from "./product-repository";
@@ -10,7 +8,7 @@ import { ProductRepository, fingerprint } from "./product-repository";
 const IMPLEMENTATION_MARKER = "STRATA_SERVER_COMPONENT_IMPLEMENTATION_MARKER";
 
 /**
- * The server component under test. The fixture's server-components plugin
+ * The server component under test. The @strata-sc/server-components/vite plugin
  * replaces this module in the browser graph with a generated surrogate, so
  * neither this class nor ProductRepository (nor what that imports) ships.
  */

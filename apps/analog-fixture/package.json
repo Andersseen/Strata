@@ -23,6 +23,7 @@
     "@angular/router": "^22.0.0",
     "@strata-sc/analog": "workspace:*",
     "@strata-sc/core": "workspace:*",
+    "@strata-sc/server-components": "workspace:*",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0"
   },
