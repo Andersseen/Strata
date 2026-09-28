@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { stripVTControlCharacters } from "node:util";
 
 import { httpGet } from "../analog/lib/process.ts";
 import { listFiles } from "../analog/lib/scan.ts";
@@ -141,7 +142,8 @@ verdict.preset = all([
   ),
   check(
     "build log shows the Pages routing files Nitro's cloudflare-pages preset writes",
-    /Generated dist\/analog\/_routes\.json/.test(log),
+    // CI output colors file names with ANSI escapes; strip them before matching.
+    /Generated dist\/analog\/_routes\.json/.test(stripVTControlCharacters(log)),
   ),
   check(
     `Worker entry ${WORKER_DIR}/${WORKER_ENTRY} exists`,
