@@ -17,6 +17,7 @@ import {
 } from "./lifecycle.controller.js";
 import { BaseController, DecoratedChild, UndecoratedChild } from "./inheritance.controller.js";
 import { PostsController, registerPosts } from "./posts.controller.js";
+import { UnregisteredController } from "./registration.controller.js";
 
 // --- Registration ----------------------------------------------------------
 assert.deepEqual(getControllerDefinition(PostsController), {
@@ -70,6 +71,16 @@ const controllerFactory: StrataAnalogControllerFactory = async (Controller, cont
 };
 registerControllers(router, [LifecycleController, FailingController], { controllerFactory });
 registerControllers(router, [BaseController, DecoratedChild]);
+
+// --- Registration: duplicates fail, a failed batch commits nothing ----------
+const isDuplicateError = (error: unknown) =>
+  error instanceof StrataAnalogConfigurationError &&
+  error.message.includes('Duplicate Strata route "GET /api/posts/:id"');
+assert.throws(() => registerPosts(router), isDuplicateError);
+assert.throws(
+  () => registerControllers(router, [UnregisteredController, PostsController]),
+  isDuplicateError,
+);
 
 const app = createApp();
 app.use(router);
@@ -126,6 +137,9 @@ try {
   assert.equal((await get("/api/child/one")).status, 404);
   assert.equal((await get("/api/base/two")).status, 404);
 
+  // The failed batch above left no handler for its free route.
+  assert.equal((await get("/api/unregistered")).status, 404);
+
   const failure = await get("/api/failing");
   assert.equal(failure.status, 500);
   assert.deepEqual(cleanupLog.slice(-2), ["async /api/failing", "sync /api/failing"]);
@@ -137,7 +151,7 @@ try {
         core: import.meta.resolve("@strata-sc/core"),
         analog: import.meta.resolve("@strata-sc/analog"),
       },
-      requests: results.length + 7,
+      requests: results.length + 8,
       cleanups: cleanupLog.length,
     })}`,
   );
