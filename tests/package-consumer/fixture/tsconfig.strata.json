@@ -8,5 +8,9 @@
     "lib": ["ES2023", "esnext.decorators"],
     "noEmit": true
   },
-  "include": ["src/posts.controller.ts", "src/lifecycle.controller.ts"]
+  "include": [
+    "src/posts.controller.ts",
+    "src/lifecycle.controller.ts",
+    "src/inheritance.controller.ts"
+  ]
 }

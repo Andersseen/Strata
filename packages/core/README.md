@@ -22,6 +22,12 @@ getControllerDefinition(PostsController);
 // { path: "/api/posts", routes: [{ method: "GET", path: "/:id", handler: "findOne" }] }
 ```
 
+Controller metadata is class-local. Extending a controller does not implicitly
+inherit `@Controller()` or route decorators. Decorate the subclass and its
+routes explicitly. `@Get()` accepts public or protected instance methods with a
+string name; static, private (`#name`) and symbol-named methods throw a
+`TypeError` when the class is defined.
+
 **Pre-1.0 and experimental.** `0.x` releases are published under the `next`
 dist-tag and may contain breaking changes. ESM only, Node.js >= 22.
 

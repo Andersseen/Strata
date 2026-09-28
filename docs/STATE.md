@@ -81,7 +81,7 @@ The next slice must not recreate H3 execution or packed-consumer tooling: both a
 | Area                 | Evidence and limitations                                                                                                                                                                                                                                                                                                                                        |
 | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Core exports         | [Public barrel](../packages/core/src/index.ts): `Controller`, `Get`, `getControllerDefinition`, definition types, `HttpMethod` and `STRATA_VERSION`                                                                                                                                                                                                             |
-| Metadata             | Standard decorator `context.metadata`, private symbol keys, guarded `Symbol.metadata` initialization; frozen route records, definition and route array. No H3 or Angular dependency.                                                                                                                                                                            |
+| Metadata             | Standard decorator `context.metadata`, private symbol keys, guarded `Symbol.metadata` initialization; frozen route records, definition and route array. Own-property access only: no implicit controller/route inheritance. No H3 or Angular dependency.                                                                                                        |
 | Paths                | Missing/empty paths become `/`; leading slash added, repeated slashes collapsed, trailing slash removed. `HttpMethod` is only `"GET"`.                                                                                                                                                                                                                          |
 | Adapter exports      | [Public barrel](../packages/h3/src/index.ts): `registerControllers`, `ControllerClass`, `StrataH3ConfigurationError`                                                                                                                                                                                                                                            |
 | Execution            | Reads core's public definition, joins paths, calls `app.on`, returns the original H3 instance. Native H3 routes coexist. Sync/async results pass to H3.                                                                                                                                                                                                         |
@@ -200,11 +200,11 @@ further M1 direction (upstream issue, alternate closure hypothesis, or continued
   guards/interceptors, logging contract, component compiler, navigation protocol or deployment fixture.
 - Packed-consumer runtime tests exist; strict installed-package types are blocked. No browser/e2e
   tests, browser bundle assertions or Cloudflare execution.
-- Metadata access uses inherited property lookup; route accumulation may reuse an inherited array.
-  Undecorated subclasses, decorated siblings, overrides and redecorated subclasses need explicit
-  semantics and regression tests. Independent-class tests do not cover inheritance.
-- `Get` rejects symbol names but does not explicitly reject static/private methods. The adapter's
-  instance lookup catches some invalid shapes later. Supported member shapes need a contract.
+- Resolved: metadata is class-local (own-property reads/writes). An undecorated subclass has no
+  definition; a decorated subclass gets only its own routes; siblings, parents and overrides stay
+  isolated. `Get` rejects static, private and symbol-named methods at class definition. Covered by
+  core, Analog and packed-consumer (TypeScript 5.9.2) tests. Explicit controller inheritance is not
+  supported.
 - Duplicate routes, registration across repeated calls, partial failure and constructor failures are
   not specified. Do not infer atomicity, conflict handling or stable lifecycle from today's implementation.
 - Handler exceptions, `Response`/stream passthrough and cancellation lack dedicated Strata tests.
