@@ -205,8 +205,13 @@ further M1 direction (upstream issue, alternate closure hypothesis, or continued
   isolated. `Get` rejects static, private and symbol-named methods at class definition. Covered by
   core, Analog and packed-consumer (TypeScript 5.9.2) tests. Explicit controller inheritance is not
   supported.
-- Duplicate routes, registration across repeated calls, partial failure and constructor failures are
-  not specified. Do not infer atomicity, conflict handling or stable lifecycle from today's implementation.
+- Resolved (Analog): `registerControllers()` preflights the whole batch before any `router.add()`, so a
+  configuration error registers nothing and reserves nothing. A second Strata route with the same
+  method + final path on one router fails, within a call or across calls; non-overlapping repeated
+  calls and separate routers are fine. Ownership lives in an adapter-local `WeakMap` per router.
+- Open: a `router.add()` failure mid-commit propagates and cannot be rolled back (earlier routes stay);
+  duplicates against native Nitro routes are not detected; `@strata-sc/h3` keeps the old per-controller
+  registration; constructor failures are not specified.
 - Handler exceptions, `Response`/stream passthrough and cancellation lack dedicated Strata tests.
 
 These remain inputs to M1/M3, not permission for Astra to implement fixes. SPEC-002 addresses the

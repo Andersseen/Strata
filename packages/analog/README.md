@@ -40,6 +40,23 @@ Controllers are request-scoped. An optional `controllerFactory` (sync or async)
 creates each request's controller and can register `onCleanup` callbacks that
 run after the invocation settles.
 
+## Registration
+
+- `registerControllers()` validates the whole batch (controllers, handlers,
+  `controllerFactory`, route keys) before touching the router. If any check
+  fails, it throws a `StrataAnalogConfigurationError` and registers nothing.
+- Two Strata routes with the same HTTP method and final path (for example
+  `GET /api/users`) on one router are a configuration error, whether they come
+  from one controller, two controllers or two calls.
+- Repeated calls on one router are supported for non-overlapping routes, and
+  the same controllers can be registered on different routers.
+- Duplicate detection covers Strata registrations on the same router only; it
+  does not see native Analog/Nitro routes.
+- Registration is atomic with respect to Strata configuration validation. It is
+  not transactional against failures thrown by the external router while
+  committing routes: that error propagates, and routes the router already
+  accepted cannot be rolled back.
+
 **Pre-1.0 and experimental.** `0.x` releases are published under the `next`
 dist-tag and may contain breaking changes. ESM only, Node.js >= 22.
 

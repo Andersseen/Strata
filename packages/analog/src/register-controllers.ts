@@ -169,11 +169,19 @@ export interface NitroRouter {
  * headers, method, URL/path, a shallow context snapshot, and lazy body readers
  * without exposing Nitro's H3 v1 event type or requiring a dependency on H3.
  *
- * Registration validates eagerly: a class without `@Controller()` metadata,
- * a route whose handler isn't a method on the controller's prototype chain, or
- * a `controllerFactory` that isn't a function throws a
- * {@link StrataAnalogConfigurationError} immediately, instead of failing on
- * the first matching request. A factory that returns something other than an
+ * Registration validates eagerly and as a whole batch: a class without
+ * `@Controller()` metadata, a route whose handler isn't a method on the
+ * controller's prototype chain, a `controllerFactory` that isn't a function,
+ * or a route whose HTTP method and final path another Strata route already
+ * owns on this router (in this call or an earlier one) throws a
+ * {@link StrataAnalogConfigurationError} before the router is touched, so a
+ * failed call registers nothing. Repeated calls with non-overlapping routes
+ * are fine, and the same routes may be registered on different routers.
+ * Duplicate detection only sees Strata registrations, not native routes.
+ * Registration is atomic with respect to Strata configuration validation; it
+ * is not transactional against errors `router.add()` itself throws while
+ * routes are being added: that error propagates and routes added before it
+ * stay registered. A factory that returns something other than an
  * instance of the controller class throws the same error at request time;
  * any error the factory itself throws or rejects with propagates unchanged.
  *
@@ -194,55 +202,144 @@ export function registerControllers<Router extends NitroRouter>(
     );
   }
 
-  for (const controllerClass of controllers) {
-    registerController(router, controllerClass, controllerFactory);
-  }
+  const plan = planRegistration(router, controllers, controllerFactory);
+
+  commitRegistration(router, plan);
 
   return router;
 }
 
-function registerController(
+/** Route identity on one router: HTTP method + final path, e.g. `GET /api/users`. */
+type RouteKey = `${HttpMethod} ${string}`;
+
+/** A validated route, ready to be added to the router. */
+interface PlannedRoute {
+  readonly key: RouteKey;
+  /** `Controller.handler`, for diagnostics. */
+  readonly owner: string;
+  readonly path: string;
+  readonly method: RouterMethod;
+  readonly handler: (event: NitroEvent) => unknown;
+}
+
+/**
+ * The Strata routes each router already owns (route key → owner), so a later
+ * `registerControllers()` call on the same router cannot register a route
+ * twice. Only registration diagnostics are kept; a `WeakMap` never retains a
+ * router, and nothing is attached to it.
+ *
+ * It covers Strata registrations only: routes added to the router by Nitro,
+ * Analog or anyone else are not visible here.
+ */
+const registeredRoutes = new WeakMap<NitroRouter, Map<RouteKey, string>>();
+
+/**
+ * Validates the whole batch — every controller, handler and route key —
+ * without touching the router or the registry, so a configuration error
+ * leaves both exactly as they were.
+ */
+function planRegistration(
   router: NitroRouter,
-  controllerClass: ControllerClass,
+  controllers: readonly ControllerClass[],
   controllerFactory: StrataAnalogControllerFactory,
-): void {
-  const definition = getControllerDefinition(controllerClass);
+): PlannedRoute[] {
+  const registered = registeredRoutes.get(router);
+  const planned = new Map<RouteKey, PlannedRoute>();
 
-  if (!definition) {
-    throw new StrataAnalogConfigurationError(
-      `"${controllerClass.name}" is not a Strata controller. Did you forget to add @Controller()?`,
-    );
+  for (const controllerClass of controllers) {
+    const definition =
+      typeof controllerClass === "function" ? getControllerDefinition(controllerClass) : undefined;
+
+    if (!definition) {
+      throw new StrataAnalogConfigurationError(
+        `${describeController(controllerClass)} is not a Strata controller. Did you forget to add @Controller()?`,
+      );
+    }
+
+    for (const route of definition.routes) {
+      const handler = resolveRouteHandler(controllerClass, route);
+      const path = buildRoutePath(definition.path, route.path);
+      const key: RouteKey = `${route.method} ${path}`;
+      const owner = `${controllerClass.name}.${route.handler}`;
+      const registeredOwner = registered?.get(key);
+      const plannedOwner = planned.get(key)?.owner;
+
+      if (registeredOwner !== undefined || plannedOwner !== undefined) {
+        const where =
+          registeredOwner !== undefined
+            ? "already registered on this router"
+            : "declared earlier in the same registerControllers() call";
+
+        throw new StrataAnalogConfigurationError(
+          `Duplicate Strata route "${key}": "${owner}" conflicts with "${registeredOwner ?? plannedOwner}", ${where}. ` +
+            "Each HTTP method and final path may be registered by only one Strata route per router.",
+        );
+      }
+
+      planned.set(key, {
+        key,
+        owner,
+        path,
+        method: ROUTER_METHOD[route.method],
+        handler: createRouteHandler(controllerClass, handler, controllerFactory),
+      });
+    }
   }
 
-  for (const route of definition.routes) {
-    const handler = resolveRouteHandler(controllerClass, route);
-    const path = buildRoutePath(definition.path, route.path);
+  return [...planned.values()];
+}
 
-    router.add(
-      path,
-      async (event) => {
-        const request = createStrataAnalogRequest(event);
-        const scope = new CleanupScope();
-        let result: unknown;
+/**
+ * Adds planned routes in order (controllers array order, then route
+ * declaration order), recording each one as Strata-owned only after
+ * `router.add()` returns. If the router throws, its error propagates and the
+ * routes it already accepted stay registered: Strata cannot undo another
+ * router's mutation.
+ */
+function commitRegistration(router: NitroRouter, plan: readonly PlannedRoute[]): void {
+  for (const route of plan) {
+    router.add(route.path, route.handler, route.method);
 
-        try {
-          const controller = await controllerFactory(
-            controllerClass,
-            Object.freeze({ request, onCleanup: scope.register }),
-          );
+    let registered = registeredRoutes.get(router);
 
-          assertControllerInstance(controllerClass, controller);
+    if (!registered) {
+      registered = new Map();
+      registeredRoutes.set(router, registered);
+    }
 
-          result = await handler.call(controller, request);
-        } catch (error) {
-          return scope.close({ failed: true, error });
-        }
-
-        return scope.close({ failed: false }, result);
-      },
-      ROUTER_METHOD[route.method],
-    );
+    registered.set(route.key, route.owner);
   }
+}
+
+function createRouteHandler(
+  controllerClass: ControllerClass,
+  handler: ControllerHandler,
+  controllerFactory: StrataAnalogControllerFactory,
+): (event: NitroEvent) => Promise<unknown> {
+  return async (event) => {
+    const request = createStrataAnalogRequest(event);
+    const scope = new CleanupScope();
+    let result: unknown;
+
+    try {
+      const controller = await controllerFactory(
+        controllerClass,
+        Object.freeze({ request, onCleanup: scope.register }),
+      );
+
+      assertControllerInstance(controllerClass, controller);
+
+      result = await handler.call(controller, request);
+    } catch (error) {
+      return scope.close({ failed: true, error });
+    }
+
+    return scope.close({ failed: false }, result);
+  };
+}
+
+function describeController(value: unknown): string {
+  return typeof value === "function" ? `"${value.name}"` : describeValue(value);
 }
 
 /**
