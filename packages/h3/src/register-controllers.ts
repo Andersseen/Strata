@@ -22,7 +22,8 @@ export type ControllerClass = new () => object;
  *
  * 1. reads its declarative metadata via `getControllerDefinition`;
  * 2. creates a single instance of the controller;
- * 3. registers each `@Get()` route on `app`, joining the controller path
+ * 3. registers each Strata route (`@Get()`, `@Post()`, `@Put()`, `@Patch()`,
+ *    `@Delete()`) on `app` for its HTTP method, joining the controller path
  *    and route path into the final H3 route path;
  * 4. wires each route to invoke the matching zero-argument controller
  *    method and return its result directly to H3.
@@ -78,7 +79,7 @@ function registerRoute(
 
   if (typeof handler !== "function") {
     throw new StrataH3ConfigurationError(
-      `"${controllerClass.name}.${route.handler}" is not callable. @Get() route handlers must be methods.`,
+      `"${controllerClass.name}.${route.handler}" is not callable. Strata route handlers must be methods.`,
     );
   }
 

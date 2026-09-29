@@ -291,7 +291,7 @@ try {
     );
   }
   console.log(
-    `registration (duplicate rejection, no partial batch), class-local metadata (no implicit controller/route inheritance), GET, params, query, per-request creation, isolation (concurrent), LIFO cleanup incl. error path: pass (${result.requests} requests, ${result.cleanups} cleanups)`,
+    `registration (duplicate rejection incl. same method + path, no partial batch), class-local metadata (no implicit controller/route inheritance), GET/POST/PUT/PATCH/DELETE (method table, JSON body, params), query, per-request creation, isolation (concurrent), LIFO cleanup incl. error path: pass (${result.requests} requests, ${result.cleanups} cleanups)`,
   );
 
   passed = true;

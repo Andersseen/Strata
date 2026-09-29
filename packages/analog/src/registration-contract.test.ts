@@ -1,4 +1,4 @@
-import { Controller, Get } from "@strata-sc/core";
+import { Controller, Delete, Get, Patch, Post } from "@strata-sc/core";
 import { createApp, createRouter, defineEventHandler, toWebHandler } from "h3";
 import { describe, expect, it } from "vitest";
 
@@ -365,5 +365,91 @@ describe("registerControllers — native routes", () => {
 
     await expect((await request("/api/native")).json()).resolves.toEqual({ source: "analog" });
     await expect((await request("/users")).text()).resolves.toBe("users");
+  });
+});
+
+describe("registerControllers — route identity is HTTP method + final path", () => {
+  @Controller("/users")
+  class ListAndCreateController {
+    @Get()
+    list() {
+      return { handler: "list" };
+    }
+
+    @Post()
+    create() {
+      return { handler: "create" };
+    }
+  }
+
+  @Controller("/users")
+  class OtherCreateController {
+    @Post()
+    create() {}
+  }
+
+  it("registers GET and POST on the same path as two routes", async () => {
+    const { router, request } = createNitroLikeApp();
+
+    expect(() => registerControllers(router, [ListAndCreateController])).not.toThrow();
+    await expect((await request("/users")).json()).resolves.toEqual({ handler: "list" });
+  });
+
+  it("still rejects a second POST on that path", () => {
+    const { router, added } = createRecordingRouter();
+
+    registerControllers(router, [ListAndCreateController]);
+
+    expect(() => registerControllers(router, [OtherCreateController])).toThrow(
+      StrataAnalogConfigurationError,
+    );
+    expect(() => registerControllers(router, [OtherCreateController])).toThrow(
+      /"POST \/users".*"OtherCreateController\.create" conflicts with "ListAndCreateController\.create"/,
+    );
+    expect(added).toEqual(["GET /users", "POST /users"]);
+  });
+
+  it("accepts GET, POST, PATCH and DELETE on one path, but not two PATCH routes", () => {
+    @Controller("/resource")
+    class ResourceController {
+      @Get()
+      read() {}
+
+      @Post()
+      create() {}
+
+      @Patch()
+      update() {}
+
+      @Delete()
+      remove() {}
+    }
+
+    @Controller("/resource")
+    class DoublePatchController {
+      @Patch()
+      first() {}
+
+      @Patch("/")
+      second() {}
+    }
+
+    const valid = createRecordingRouter();
+
+    registerControllers(valid.router, [ResourceController]);
+
+    expect(valid.added).toEqual([
+      "GET /resource",
+      "POST /resource",
+      "PATCH /resource",
+      "DELETE /resource",
+    ]);
+
+    const invalid = createRecordingRouter();
+
+    expect(() => registerControllers(invalid.router, [DoublePatchController])).toThrow(
+      duplicateError("PATCH /resource"),
+    );
+    expect(invalid.added).toEqual([]);
   });
 });

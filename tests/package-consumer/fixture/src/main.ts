@@ -16,6 +16,7 @@ import {
   LifecycleController,
 } from "./lifecycle.controller.js";
 import { BaseController, DecoratedChild, UndecoratedChild } from "./inheritance.controller.js";
+import { DuplicateCreateController, ItemsController } from "./items.controller.js";
 import { PostsController, registerPosts } from "./posts.controller.js";
 import { UnregisteredController } from "./registration.controller.js";
 
@@ -25,6 +26,18 @@ assert.deepEqual(getControllerDefinition(PostsController), {
   routes: [
     { method: "GET", path: "/:id", handler: "findOne" },
     { method: "GET", path: "/", handler: "findAll" },
+  ],
+});
+
+// --- Every HTTP method decorator from the packed @strata-sc/core -------------
+assert.deepEqual(getControllerDefinition(ItemsController), {
+  path: "/api/items",
+  routes: [
+    { method: "GET", path: "/", handler: "list" },
+    { method: "POST", path: "/", handler: "create" },
+    { method: "PUT", path: "/:id", handler: "replace" },
+    { method: "PATCH", path: "/:id", handler: "update" },
+    { method: "DELETE", path: "/:id", handler: "remove" },
   ],
 });
 
@@ -71,6 +84,15 @@ const controllerFactory: StrataAnalogControllerFactory = async (Controller, cont
 };
 registerControllers(router, [LifecycleController, FailingController], { controllerFactory });
 registerControllers(router, [BaseController, DecoratedChild]);
+registerControllers(router, [ItemsController]);
+
+// Same path, different method is fine (above); same method and path is not.
+assert.throws(
+  () => registerControllers(router, [DuplicateCreateController]),
+  (error: unknown) =>
+    error instanceof StrataAnalogConfigurationError &&
+    error.message.includes('Duplicate Strata route "POST /api/items"'),
+);
 
 // --- Registration: duplicates fail, a failed batch commits nothing ----------
 const isDuplicateError = (error: unknown) =>
@@ -89,6 +111,21 @@ const server = createServer(toNodeListener(app));
 await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
 const { port } = server.address() as AddressInfo;
 
+async function send(
+  method: string,
+  path: string,
+  json?: unknown,
+): Promise<{ status: number; body: unknown }> {
+  const response = await fetch(`http://127.0.0.1:${port}${path}`, {
+    method,
+    ...(json === undefined
+      ? {}
+      : { headers: { "content-type": "application/json" }, body: JSON.stringify(json) }),
+  });
+
+  return { status: response.status, body: await response.json() };
+}
+
 async function get(path: string): Promise<{ status: number; body: unknown }> {
   const response = await fetch(`http://127.0.0.1:${port}${path}`);
 
@@ -102,6 +139,25 @@ try {
     status: 200,
     body: { query: { tag: ["a", "b"], draft: "true" } },
   });
+
+  // --- HTTP method table: each request reaches only its own handler --------
+  const methodTable = [
+    [send("GET", "/api/items"), { handler: "list", method: "GET" }],
+    [
+      send("POST", "/api/items", { name: "Ada" }),
+      { handler: "create", method: "POST", name: "Ada" },
+    ],
+    [send("PUT", "/api/items/7"), { handler: "replace", method: "PUT", id: "7" }],
+    [
+      send("PATCH", "/api/items/42", { name: "Grace" }),
+      { handler: "update", id: "42", name: "Grace" },
+    ],
+    [send("DELETE", "/api/items/42"), { handler: "remove", method: "DELETE", deleted: "42" }],
+  ] as const;
+
+  for (const [response, body] of methodTable) {
+    assert.deepEqual(await response, { status: 200, body });
+  }
 
   // --- Controller creation + request isolation under concurrency -----------
   const before = constructedControllers();
@@ -151,7 +207,7 @@ try {
         core: import.meta.resolve("@strata-sc/core"),
         analog: import.meta.resolve("@strata-sc/analog"),
       },
-      requests: results.length + 8,
+      requests: results.length + 8 + methodTable.length,
       cleanups: cleanupLog.length,
     })}`,
   );

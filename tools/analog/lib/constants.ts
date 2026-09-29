@@ -45,3 +45,44 @@ export const EXPECTED_LIFECYCLE_BODY = { calls: 1 };
 
 /** What every `GET /api/strata/greeting` must return: per-request instance built by `controllerFactory`. */
 export const EXPECTED_GREETING_BODY = { greeting: "hello", calls: 1 };
+
+/**
+ * The HTTP method table sent to `/api/strata/methods` (`methods.controller.ts`)
+ * by `test:analog` (Node, dev and production) and the Cloudflare qualification
+ * (workerd): each request must reach only its own handler, see its own method,
+ * and read params and JSON bodies where it has them.
+ */
+export const METHOD_REQUESTS: ReadonlyArray<{
+  readonly method: string;
+  readonly path: string;
+  readonly json?: unknown;
+  readonly expected: unknown;
+}> = [
+  {
+    method: "GET",
+    path: "/api/strata/methods",
+    expected: { handler: "list", method: "GET" },
+  },
+  {
+    method: "POST",
+    path: "/api/strata/methods",
+    json: { name: "Ada" },
+    expected: { handler: "create", method: "POST", name: "Ada" },
+  },
+  {
+    method: "PUT",
+    path: "/api/strata/methods/7",
+    expected: { handler: "replace", method: "PUT", id: "7" },
+  },
+  {
+    method: "PATCH",
+    path: "/api/strata/methods/42",
+    json: { name: "Grace" },
+    expected: { handler: "update", method: "PATCH", id: "42", name: "Grace" },
+  },
+  {
+    method: "DELETE",
+    path: "/api/strata/methods/42",
+    expected: { handler: "remove", method: "DELETE", deleted: "42" },
+  },
+];
