@@ -1,4 +1,5 @@
 import analog from "@analogjs/platform";
+import { strataServerComponents } from "@strata-sc/server-components/vite";
 import tailwindcss from "@tailwindcss/vite";
 import { ModuleKind, ScriptTarget, transpileModule } from "typescript";
 import type { Plugin } from "vite";
@@ -35,7 +36,20 @@ export default defineConfig({
   resolve: {
     mainFields: ["module"],
   },
-  plugins: [strataControllerDecorators(), tailwindcss(), analog({ ssr: true })],
+  ssr: {
+    noExternal: ["tslib"],
+  },
+  plugins: [
+    strataServerComponents({
+      root: import.meta.dirname,
+      sourceDir: "src/app",
+      generatedDir: "src/generated/server-components",
+      enabled: true,
+    }),
+    strataControllerDecorators(),
+    tailwindcss(),
+    analog({ ssr: true }),
+  ],
   test: {
     include: ["src/**/*.spec.ts"],
   },

@@ -35,6 +35,7 @@ import type {
   ServiceStatus,
 } from "../../shared/operations.models";
 import { OperationsApi } from "../operations/operations-api.service";
+import { OperationsBriefingServerComponent } from "../server-components/briefing/operations-briefing.server-component";
 
 @Component({
   selector: "relay-dashboard",
@@ -65,6 +66,7 @@ import { OperationsApi } from "../operations/operations-api.service";
     VoltTableHead,
     VoltTableHeader,
     VoltTableRow,
+    OperationsBriefingServerComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -84,6 +86,7 @@ import { OperationsApi } from "../operations/operations-api.service";
           <a class="nav-item" href="#services"><span class="nav-dot"></span> Services</a>
           <a class="nav-item" href="#incidents"><span class="nav-dot"></span> Incidents</a>
           <a class="nav-item" href="#activity"><span class="nav-dot"></span> Activity</a>
+          <a class="nav-item" href="/release"><span class="nav-dot server"></span> Release gate</a>
         </nav>
 
         <div class="runtime-card">
@@ -130,6 +133,8 @@ import { OperationsApi } from "../operations/operations-api.service";
             <strong>Something went wrong.</strong> {{ api.error() }}
           </div>
         }
+
+        <relay-operations-briefing />
 
         <section id="overview" class="metric-grid" aria-label="System summary">
           <volt-card>

@@ -57,6 +57,18 @@ incident transitions. The flows cover route params, query strings, request bodie
 request-scoped controller factory and cleanup, while a native Analog health route remains alongside
 them. Its Angular UI uses Volt UI for the dashboard, service inventory and incident workflow.
 
+It also contains two practical Server Component examples:
+
+- The main dashboard renders a server-only operations briefing with two independent interactive
+  client boundaries and flat serialized props.
+- `/release` renders a server-only release assessment plus an interactive rollout simulator. Links
+  to and from this route deliberately use full document navigation, the only navigation mode the
+  current experiment qualifies.
+
+Both examples import a server-only intelligence service. The verification command checks that its
+marker and both Server Component implementations exist in Nitro output but not in the browser,
+while the interactive island markers do reach the client.
+
 ```bash
 pnpm relay:dev
 ```
@@ -66,6 +78,8 @@ Run its focused checks with:
 ```bash
 pnpm relay:test
 pnpm relay:build
+pnpm relay:verify:server-components
+pnpm relay:test:e2e
 ```
 
 ### Cloudflare Pages

@@ -12,7 +12,9 @@
     "build": "vite build",
     "preview": "node dist/analog/server/index.mjs",
     "typecheck": "tsc --project tsconfig.json --noEmit && tsc --project tsconfig.server.json --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "verify:server-components": "node --experimental-strip-types scripts/verify-server-components.ts"
   },
   "dependencies": {
     "@analogjs/content": "^2.7.2",
@@ -27,6 +29,7 @@
     "@angular/router": "^22.0.0",
     "@strata-sc/analog": "workspace:*",
     "@strata-sc/core": "workspace:*",
+    "@strata-sc/server-components": "workspace:*",
     "@tailwindcss/vite": "4.3.3",
     "@voltui/components": "1.0.1",
     "lumen-icons": "0.2.0",
@@ -38,6 +41,7 @@
     "@analogjs/vite-plugin-angular": "^2.7.2",
     "@angular/build": "^22.0.0",
     "@angular/compiler-cli": "^22.0.0",
+    "@playwright/test": "1.62.1",
     "h3": "^1.15.11",
     "nitropack": "^2.13.4",
     "typescript": "~6.0.0",

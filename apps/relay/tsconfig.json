@@ -30,6 +30,8 @@
     "strictTemplates": true
   },
   "include": [
+    "e2e/**/*.ts",
+    "scripts/**/*.ts",
     "src/app/**/*.ts",
     "src/main.ts",
     "src/main.server.ts",
