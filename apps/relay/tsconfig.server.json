@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "experimentalDecorators": false,
+    "useDefineForClassFields": true,
+    "types": ["node"]
+  },
+  "include": ["src/server/**/*.ts", "src/shared/**/*.ts"],
+  "exclude": ["src/server/**/*.spec.ts"]
+}
