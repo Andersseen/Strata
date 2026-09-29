@@ -1,5 +1,20 @@
 # @strata-sc/analog
 
+## 0.2.0
+
+### Minor Changes
+
+- e2cf345: Add `@Post()`, `@Put()`, `@Patch()` and `@Delete()` next to `@Get()`. `HttpMethod` is now `"GET" | "POST" | "PUT" | "PATCH" | "DELETE"`; every decorator shares `@Get()`'s path normalization, class-local metadata, declaration order and member restrictions, and its errors name the decorator used. `@strata-sc/analog` registers and executes all five methods on the Nitro router through the same registration preflight (route identity stays HTTP method + final path) and request-scoped invocation.
+
+  `StrataAnalogRequest` body readers now also work on Nitro's Cloudflare (workerd) presets, where the request body is attached to a non-streamable mock Node request instead of being streamed.
+
+### Patch Changes
+
+- 52c9fe9: Validate the whole `registerControllers()` batch before touching the router, so a configuration error no longer leaves earlier controllers partially registered. Registering the same HTTP method and final path twice through Strata on one router (in one call or across calls) now throws a `StrataAnalogConfigurationError` naming both handlers. Repeated calls with non-overlapping routes and separate routers are unaffected. A failure thrown by the router itself while routes are being added still propagates and is not rolled back.
+- Updated dependencies [9090a52]
+- Updated dependencies [e2cf345]
+  - @strata-sc/core@0.2.0
+
 ## 0.1.0
 
 ### Minor Changes
