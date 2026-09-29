@@ -46,6 +46,28 @@ Create a production build with:
 pnpm --filter @strata-sc/www build
 ```
 
+## Dogfood demo
+
+[`apps/relay`](./apps/relay) is a private, local-only operations console used to exercise Strata in
+a realistic Analog application. It is deliberately separate from the official website and has no
+deployment configuration.
+
+Relay uses Strata controllers for an operations snapshot, service details, incident creation and
+incident transitions. The flows cover route params, query strings, request bodies, headers, a
+request-scoped controller factory and cleanup, while a native Analog health route remains alongside
+them. Its Angular UI uses Volt UI for the dashboard, service inventory and incident workflow.
+
+```bash
+pnpm relay:dev
+```
+
+Run its focused checks with:
+
+```bash
+pnpm relay:test
+pnpm relay:build
+```
+
 ### Cloudflare Pages
 
 The official site is configured for direct upload to the `strata-www`
