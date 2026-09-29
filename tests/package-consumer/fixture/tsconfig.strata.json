@@ -12,6 +12,7 @@
     "src/posts.controller.ts",
     "src/lifecycle.controller.ts",
     "src/inheritance.controller.ts",
-    "src/registration.controller.ts"
+    "src/registration.controller.ts",
+    "src/items.controller.ts"
   ]
 }

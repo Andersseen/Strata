@@ -103,7 +103,13 @@ const defaultControllerFactory: StrataAnalogControllerFactory = (controller) => 
  * `satisfies Record<HttpMethod, …>` makes this a compile error, not a silent
  * mis-registration, the day `@strata-sc/core` adds a method.
  */
-const ROUTER_METHOD = { GET: "get" } as const satisfies Record<HttpMethod, Lowercase<HttpMethod>>;
+const ROUTER_METHOD = {
+  GET: "get",
+  POST: "post",
+  PUT: "put",
+  PATCH: "patch",
+  DELETE: "delete",
+} as const satisfies Record<HttpMethod, Lowercase<HttpMethod>>;
 
 type RouterMethod = (typeof ROUTER_METHOD)[HttpMethod];
 
@@ -144,8 +150,9 @@ export interface NitroRouter {
  * 1. reads its declarative metadata via `getControllerDefinition`;
  * 2. resolves each route handler on the controller's prototype, without
  *    creating an instance;
- * 3. registers each `@Get()` route on `router`, joining the controller path
- *    and route path into the final route path;
+ * 3. registers each Strata route (`@Get()`, `@Post()`, `@Put()`, `@Patch()`,
+ *    `@Delete()`) on `router` for its HTTP method, joining the controller
+ *    path and route path into the final route path;
  * 4. wires each route so that every matching request gets its own
  *    `StrataAnalogRequest`, its own controller instance, and a call to the
  *    handler with that instance as `this` and that request as argument. The
@@ -349,7 +356,7 @@ function describeController(value: unknown): string {
  * Only a data property holding a function counts as a handler: an accessor is
  * rejected rather than invoked, since calling a getter on the prototype would
  * run instance code without an instance. Instance fields and static methods
- * are not handlers (`@Get()` only decorates methods).
+ * are not handlers (HTTP route decorators only decorate methods).
  */
 function resolveRouteHandler(
   controllerClass: ControllerClass,
@@ -374,7 +381,7 @@ function resolveRouteHandler(
   }
 
   throw new StrataAnalogConfigurationError(
-    `"${controllerClass.name}.${route.handler}" is not callable. @Get() route handlers must be methods.`,
+    `"${controllerClass.name}.${route.handler}" is not callable. Strata route handlers must be methods.`,
   );
 }
 
@@ -423,6 +430,14 @@ interface NitroNodeRequest extends AsyncIterable<Uint8Array | string> {
   readonly url?: string | undefined;
   readonly originalUrl?: string;
   readonly headers?: Record<string, string | readonly string[] | undefined>;
+  /**
+   * A payload the runtime attached instead of streaming it. Nitro on
+   * Cloudflare (workerd) calls H3 with a mock Node request whose stream is not
+   * iterable and whose body is set here; H3 v1's own `readRawBody` reads these
+   * first, too.
+   */
+  readonly rawBody?: unknown;
+  readonly body?: unknown;
 }
 
 function createStrataAnalogRequest(event: NitroEvent): StrataAnalogRequest {
@@ -557,6 +572,12 @@ async function readEventText(event: NitroEvent): Promise<string> {
     return "";
   }
 
+  const attached = requestBody.rawBody ?? requestBody.body;
+
+  if (attached !== undefined && attached !== null) {
+    return readAttachedBody(attached);
+  }
+
   const chunks: string[] = [];
 
   for await (const chunk of requestBody) {
@@ -564,4 +585,21 @@ async function readEventText(event: NitroEvent): Promise<string> {
   }
 
   return chunks.join("");
+}
+
+async function readAttachedBody(body: unknown): Promise<string> {
+  if (typeof body === "string") {
+    return body;
+  }
+
+  // Includes Node's Buffer.
+  if (body instanceof Uint8Array) {
+    return new TextDecoder().decode(body);
+  }
+
+  if (body instanceof ReadableStream) {
+    return new Response(body).text();
+  }
+
+  throw new TypeError(`Unsupported request body: ${describeValue(body)}.`);
 }

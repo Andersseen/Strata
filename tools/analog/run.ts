@@ -29,11 +29,12 @@ import {
   EXPECTED_USERS_BODY,
   FIXTURE_PACKAGE,
   H3_ADAPTER_SYMBOL,
+  METHOD_REQUESTS,
   SERVER_MARKER,
 } from "./lib/constants.ts";
 import { fingerprintH3, lockfileVersions, requirePackage } from "./lib/graph.ts";
 import type { ResolvedPackage } from "./lib/graph.ts";
-import { findFreePort, httpGet, spawnManaged, waitForHttp } from "./lib/process.ts";
+import { findFreePort, httpGet, httpRequest, spawnManaged, waitForHttp } from "./lib/process.ts";
 import type { ManagedProcess } from "./lib/process.ts";
 import { renderReport } from "./lib/report.ts";
 import type {
@@ -244,6 +245,8 @@ interface RouteObservation {
   lifecycle: [Observed, Observed];
   /** Two sequential `GET /api/strata/greeting` requests: instances built by `controllerFactory`. */
   greeting: [Observed, Observed];
+  /** `METHOD_REQUESTS` against `/api/strata/methods`: one route per HTTP method. */
+  methods: Array<{ label: string; observed: Observed }>;
   /** SPEC-003 Angular DI scenarios under `/api/strata/angular-di`, with lifecycle counter deltas. */
   angularDi: AngularDiObservation;
   seam: SeamSnapshot | null;
@@ -447,10 +450,35 @@ async function observeRoutes(baseUrl: string): Promise<RouteObservation> {
     await expectBody("/api/strata/greeting", EXPECTED_GREETING_BODY),
   ];
 
+  const methods = [];
+
+  for (const { method, path, json, expected } of METHOD_REQUESTS) {
+    const result = await httpRequest(`${baseUrl}${path}`, { method, json });
+    let body = result.body;
+
+    try {
+      body = JSON.stringify(JSON.parse(result.body));
+    } catch {
+      // Not JSON: keep the raw body for the report.
+    }
+
+    methods.push({
+      label: `${method} ${path}${json === undefined ? "" : ` ${JSON.stringify(json)}`}`,
+      observed: {
+        status: result.status,
+        contentType: result.contentType,
+        body,
+        ok:
+          result.status === 200 && isJson(result.contentType) && body === JSON.stringify(expected),
+      },
+    });
+  }
+
   const angularDi = await observeAngularDi(baseUrl);
 
   return {
     lifecycle,
+    methods,
     greeting,
     angularDi,
     native: {
@@ -1100,6 +1128,13 @@ async function main(): Promise<void> {
     controllerSideNitroTypes.length === 0,
     controllerSideNitroTypes.map(({ path }) => path).join(", ") || "none",
   );
+  for (const { label, observed } of prod.methods) {
+    check(
+      `${label} reaches its own Strata handler with the right method/params/body in production`,
+      observed.ok,
+      `${observed.status} ${observed.contentType} ${observed.body}`,
+    );
+  }
   checkAngularDi("production", prod.angularDi);
 
   // ---- Marker scan (before the dev server, which does not touch dist) ----
@@ -1220,6 +1255,13 @@ async function main(): Promise<void> {
     dev.greeting.every((observed) => observed.ok),
     dev.greeting.map((observed) => `${observed.status} ${observed.body}`).join(" | "),
   );
+  for (const { label, observed } of dev.methods) {
+    check(
+      `${label} reaches its own Strata handler with the right method/params/body in the dev server`,
+      observed.ok,
+      `${observed.status} ${observed.contentType} ${observed.body}`,
+    );
+  }
   checkAngularDi("the dev server", dev.angularDi);
 
   const nitroArm = (mode: string, ok: boolean, evidence: string): Arm => ({
@@ -1317,6 +1359,7 @@ async function main(): Promise<void> {
           routeRow("GET /api/strata/lifecycle (2nd)", mode, observed.lifecycle[1]),
           routeRow("GET /api/strata/greeting (1st)", mode, observed.greeting[0]),
           routeRow("GET /api/strata/greeting (2nd)", mode, observed.greeting[1]),
+          ...observed.methods.map(({ label, observed: method }) => routeRow(label, mode, method)),
         ];
       }),
     ],

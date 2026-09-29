@@ -105,6 +105,27 @@ export async function httpGet(url: string, timeoutMs = 30_000): Promise<HttpResu
   };
 }
 
+/** Sends one request with any method; `json` becomes a JSON request body. */
+export async function httpRequest(
+  url: string,
+  init: { method: string; json?: unknown },
+  timeoutMs = 30_000,
+): Promise<HttpResult> {
+  const response = await fetch(url, {
+    method: init.method,
+    signal: AbortSignal.timeout(timeoutMs),
+    ...(init.json === undefined
+      ? {}
+      : { headers: { "content-type": "application/json" }, body: JSON.stringify(init.json) }),
+  });
+
+  return {
+    status: response.status,
+    contentType: response.headers.get("content-type"),
+    body: await response.text(),
+  };
+}
+
 /**
  * Resolves once `url` answers with any HTTP response. Rejects, carrying the
  * process output, if the server exits first or the deadline passes.

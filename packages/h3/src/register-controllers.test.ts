@@ -1,4 +1,4 @@
-import { Controller, Get } from "@strata-sc/core";
+import { Controller, Delete, Get, Patch, Post, Put } from "@strata-sc/core";
 import { H3 } from "h3";
 import { describe, expect, it } from "vitest";
 
@@ -115,6 +115,64 @@ describe("registerControllers", () => {
     const app = new H3();
 
     expect(() => registerControllers(app, [BrokenController])).toThrow(StrataH3ConfigurationError);
+  });
+
+  it("routes GET, POST, PUT, PATCH and DELETE on one path to their own handlers", async () => {
+    @Controller("/items")
+    class ItemsController {
+      @Get()
+      get() {
+        return { handler: "get" };
+      }
+
+      @Post()
+      post() {
+        return { handler: "post" };
+      }
+
+      @Put()
+      put() {
+        return { handler: "put" };
+      }
+
+      @Patch()
+      patch() {
+        return { handler: "patch" };
+      }
+
+      @Delete()
+      delete() {
+        return { handler: "delete" };
+      }
+    }
+
+    const app = new H3();
+
+    registerControllers(app, [ItemsController]);
+
+    for (const method of ["GET", "POST", "PUT", "PATCH", "DELETE"]) {
+      const response = await app.request("/items", { method });
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toEqual({ handler: method.toLowerCase() });
+    }
+  });
+
+  it("names Strata routes, not @Get(), when a handler is not callable", () => {
+    @Controller("/broken")
+    class BrokenController {
+      @Post()
+      create() {}
+    }
+
+    Object.defineProperty(BrokenController.prototype, "create", {
+      value: "not a function",
+      configurable: true,
+    });
+
+    expect(() => registerControllers(new H3(), [BrokenController])).toThrow(
+      '"BrokenController.create" is not callable. Strata route handlers must be methods.',
+    );
   });
 
   it("supports both sync and async handler return values", async () => {

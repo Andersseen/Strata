@@ -51,7 +51,8 @@ Current lifecycle facts:
   workerd refuses Angular's JIT code generation. Checked by
   `pnpm test:server-components:cloudflare` (in CI).
 - Not yet verified on the Analog track: a deployed Cloudflare Pages project, abort/timeout cleanup,
-  streamed-body lifetimes, packed `@strata-sc/analog` consumers, non-GET methods.
+  streamed-body lifetimes. (Packed `@strata-sc/analog` consumers and non-GET methods are now covered;
+  see the gaps section.)
 
 The first gap bullet of the 2026-09-17 audit below ("No Angular/Analog/Nitro dependency, DI
 integration … request API") is superseded by the table above. Its other bullets still stand.
@@ -80,9 +81,9 @@ The next slice must not recreate H3 execution or packed-consumer tooling: both a
 
 | Area                 | Evidence and limitations                                                                                                                                                                                                                                                                                                                                        |
 | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Core exports         | [Public barrel](../packages/core/src/index.ts): `Controller`, `Get`, `getControllerDefinition`, definition types, `HttpMethod` and `STRATA_VERSION`                                                                                                                                                                                                             |
+| Core exports         | [Public barrel](../packages/core/src/index.ts): `Controller`, `Get`, `Post`, `Put`, `Patch`, `Delete`, `getControllerDefinition`, definition types, `HttpMethod` and `STRATA_VERSION`                                                                                                                                                                           |
 | Metadata             | Standard decorator `context.metadata`, private symbol keys, guarded `Symbol.metadata` initialization; frozen route records, definition and route array. Own-property access only: no implicit controller/route inheritance. No H3 or Angular dependency.                                                                                                        |
-| Paths                | Missing/empty paths become `/`; leading slash added, repeated slashes collapsed, trailing slash removed. `HttpMethod` is only `"GET"`.                                                                                                                                                                                                                          |
+| Paths                | Missing/empty paths become `/`; leading slash added, repeated slashes collapsed, trailing slash removed. `HttpMethod` was only `"GET"` at this audit; see the gaps section for the current set.                                                                                                                                                                 |
 | Adapter exports      | [Public barrel](../packages/h3/src/index.ts): `registerControllers`, `ControllerClass`, `StrataH3ConfigurationError`                                                                                                                                                                                                                                            |
 | Execution            | Reads core's public definition, joins paths, calls `app.on`, returns the original H3 instance. Native H3 routes coexist. Sync/async results pass to H3.                                                                                                                                                                                                         |
 | Lifecycle            | One no-argument constructor invocation per controller entry per registration call; instance reused by its routes and requests. Methods receive **no request argument**. No DI or request scope.                                                                                                                                                                 |
@@ -196,13 +197,13 @@ further M1 direction (upstream issue, alternate closure hypothesis, or continued
 
 ## Gaps and review findings
 
-- No Angular/Analog/Nitro dependency, DI integration, non-GET decorators, request API, validation,
+- No Angular/Analog/Nitro dependency, DI integration, request API, validation,
   guards/interceptors, logging contract, component compiler, navigation protocol or deployment fixture.
 - Packed-consumer runtime tests exist; strict installed-package types are blocked. No browser/e2e
   tests, browser bundle assertions or Cloudflare execution.
 - Resolved: metadata is class-local (own-property reads/writes). An undecorated subclass has no
   definition; a decorated subclass gets only its own routes; siblings, parents and overrides stay
-  isolated. `Get` rejects static, private and symbol-named methods at class definition. Covered by
+  isolated. Every HTTP route decorator rejects static, private and symbol-named methods at class definition. Covered by
   core, Analog and packed-consumer (TypeScript 5.9.2) tests. Explicit controller inheritance is not
   supported.
 - Resolved (Analog): `registerControllers()` preflights the whole batch before any `router.add()`, so a
@@ -212,6 +213,18 @@ further M1 direction (upstream issue, alternate closure hypothesis, or continued
 - Open: a `router.add()` failure mid-commit propagates and cannot be rolled back (earlier routes stay);
   duplicates against native Nitro routes are not detected; `@strata-sc/h3` keeps the old per-controller
   registration; constructor failures are not specified.
+- Resolved (Core + Analog): `HttpMethod` is `"GET" | "POST" | "PUT" | "PATCH" | "DELETE"`, with public
+  `Get`, `Post`, `Put`, `Patch` and `Delete` decorators built on one private core primitive (same path
+  normalization, class-local metadata, declaration order, frozen records and member restrictions;
+  errors name the decorator used). `@strata-sc/analog` maps every method exhaustively to Nitro's
+  router and runs all of them through the same planning, duplicate check (method + final path) and
+  request invocation path. Verified on H3 v1 unit tests, the Analog fixture (dev and production),
+  Wrangler/workerd (`pnpm test:server-components:cloudflare`) and the packed TypeScript 5.9.2
+  consumer. The private `@strata-sc/h3` routes all five methods on H3 v2 (internal tests only).
+  `HEAD`, `OPTIONS` and other methods have no decorator.
+- Resolved (Analog, workerd): `StrataAnalogRequest` body readers failed under Nitro's Cloudflare presets,
+  which attach the payload to a non-iterable mock Node request (`req.body`). They now read an attached
+  body first, like H3 v1's `readRawBody`; POST/PATCH JSON bodies are asserted under Wrangler.
 - Handler exceptions, `Response`/stream passthrough and cancellation lack dedicated Strata tests.
 
 These remain inputs to M1/M3, not permission for Astra to implement fixes. SPEC-002 addresses the

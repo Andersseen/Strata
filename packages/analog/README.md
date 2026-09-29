@@ -12,7 +12,7 @@ pnpm add @strata-sc/core@next @strata-sc/analog@next
 
 ```ts
 // src/server/strata/posts.controller.ts
-import { Controller, Get } from "@strata-sc/core";
+import { Controller, Delete, Get, Post } from "@strata-sc/core";
 import type { StrataAnalogRequest } from "@strata-sc/analog";
 
 @Controller("/api/posts")
@@ -20,6 +20,16 @@ export class PostsController {
   @Get("/:id")
   findOne(request: StrataAnalogRequest) {
     return { id: request.params["id"] };
+  }
+
+  @Post()
+  async create(request: StrataAnalogRequest) {
+    return request.readJson();
+  }
+
+  @Delete("/:id")
+  remove(request: StrataAnalogRequest) {
+    return { deleted: request.params["id"] };
   }
 }
 ```
@@ -35,6 +45,12 @@ export default defineNitroPlugin((nitroApp) => {
   registerControllers(nitroApp.router, [PostsController]);
 });
 ```
+
+Every `@strata-sc/core` HTTP decorator (`Get`, `Post`, `Put`, `Patch`,
+`Delete`) is registered for its own method on the Nitro router, and all of them
+run through the same request-scoped invocation. Handlers receive a
+`StrataAnalogRequest` with `method`, params, query, headers and lazy body
+readers (`readJson()`, `readText()`, `readBody()`).
 
 Controllers are request-scoped. An optional `controllerFactory` (sync or async)
 creates each request's controller and can register `onCleanup` callbacks that

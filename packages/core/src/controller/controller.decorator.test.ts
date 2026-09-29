@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { Get } from "../route/get.decorator.js";
+import { Get } from "../route/http-method.decorators.js";
 
 import { Controller } from "./controller.decorator.js";
 import { getControllerDefinition } from "./get-controller-definition.js";

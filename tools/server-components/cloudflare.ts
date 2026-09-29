@@ -2,7 +2,8 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { stripVTControlCharacters } from "node:util";
 
-import { httpGet } from "../analog/lib/process.ts";
+import { METHOD_REQUESTS } from "../analog/lib/constants.ts";
+import { httpGet, httpRequest } from "../analog/lib/process.ts";
 import { listFiles } from "../analog/lib/scan.ts";
 
 import { checkDirectLoad } from "./lib/direct-load.ts";
@@ -40,7 +41,8 @@ import { COMPATIBILITY_DATE, resolveWrangler, startWranglerPages } from "./lib/w
  *      reachable Worker module graph, Node built-in imports
  *   3. browser-graph and Worker-graph marker scans, sizes vs Node
  *   4. `wrangler pages dev`: native Analog route, `@strata-sc/analog`
- *      controllers, the SPEC-003 Angular DI route (characterized)
+ *      controllers (GET/POST/PUT/PATCH/DELETE method table, JSON bodies),
+ *      the SPEC-003 Angular DI route (characterized)
  *   5. direct load: HTTP SSR, hydration by DOM identity, interaction
  *   6. document navigation; Angular Router navigation stays NO-GO
  *
@@ -97,6 +99,7 @@ const verdict = {
   boots: false,
   native: false,
   controllers: false,
+  methods: false,
   angularDi: "not run",
   directSsr: false,
   hydration: false,
@@ -341,6 +344,27 @@ try {
     ),
   ]);
 
+  section("@strata-sc/analog HTTP method table on workerd (same table as test:analog on Node)");
+
+  const methodChecks: boolean[] = [];
+
+  for (const { method, path, json, expected } of METHOD_REQUESTS) {
+    const response = await httpRequest(`${baseUrl}${path}`, { method, json });
+    const body = response.contentType?.includes("json")
+      ? JSON.stringify(JSON.parse(response.body))
+      : response.body;
+
+    methodChecks.push(
+      check(
+        `${method} ${path}${json === undefined ? "" : ` ${JSON.stringify(json)}`} → 200 ${JSON.stringify(expected)}`,
+        response.status === 200 && body === JSON.stringify(expected),
+        `${response.status} ${response.body.slice(0, 500)}`,
+      ),
+    );
+  }
+
+  verdict.methods = all(methodChecks);
+
   section("Angular DI experiment (SPEC-003) under workerd (characterization)");
 
   const statsBefore = await getJson("/api/strata-angular-di-stats");
@@ -532,6 +556,7 @@ console.log(`browser graph (server-only absent)    ${mark(verdict.browserGraph)}
 console.log(`Wrangler runtime boots                ${mark(verdict.boots)}`);
 console.log(`Analog basic runtime                  ${verdict.native ? "GO" : "NO-GO"}`);
 console.log(`@strata-sc/analog controllers         ${verdict.controllers ? "GO" : "NO-GO"}`);
+console.log(`@strata-sc/analog HTTP methods        ${verdict.methods ? "GO" : "NO-GO"}`);
 console.log(`Angular DI experiment                 ${verdict.angularDi}`);
 console.log(
   `Server Component direct load          ${verdict.directSsr && verdict.hydration && verdict.interaction && verdict.browserGraph && verdict.workerGraph ? "GO" : "NO-GO"}`,
