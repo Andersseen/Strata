@@ -12,7 +12,7 @@ import {
 import { MOVEMENT_DIRECTIVES } from "angular-movement";
 import { LmnArrowRightIcon } from "lumen-icons/arrow-right";
 
-import { ANALOG_EXAMPLE, CONTROLLER_EXAMPLE } from "../content";
+import { ANALOG_EXAMPLE, CONTROLLER_EXAMPLE, METADATA_EXAMPLE } from "../content";
 
 import { CodePanelComponent } from "./code-panel.component";
 
@@ -32,14 +32,14 @@ import { CodePanelComponent } from "./code-panel.component";
     VoltTabsTrigger,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `<section id="example" class="example-section section-wrap">
+  template: `<section id="controllers" class="example-section section-wrap">
       <div
         class="section-heading compact"
         [moveInView]="{ opacity: [0, 1], y: [24, 0] }"
         moveInViewOnce="true"
       >
-        <p class="eyebrow">THE WHOLE IDEA IN ONE FILE</p>
-        <h2>Recognizable from the first route.</h2>
+        <p class="eyebrow">STRUCTURED APIs WHEN YOU NEED THEM</p>
+        <h2>Controllers for the HTTP side.</h2>
       </div>
       <div class="code-layout" [moveInView]="{ opacity: [0, 1], y: [28, 0] }" moveInViewOnce="true">
         <strata-code-panel filename="users.controller.ts" [code]="controllerExample" />
@@ -49,13 +49,17 @@ import { CodePanelComponent } from "./code-panel.component";
             <volt-card-title>Start with your domain.</volt-card-title> </volt-card-header
           ><volt-card-content>
             <p>
-              Controllers are ordinary classes. Decorators create portable metadata; they don't
-              obscure your code with a second application model.
+              Controllers are ordinary classes. <code>&#64;Get</code>, <code>&#64;Post</code>,
+              <code>&#64;Put</code>, <code>&#64;Patch</code> and <code>&#64;Delete</code> create
+              portable metadata with standard decorators, not a second application model.
             </p>
             <div class="note-rule"></div>
             <span class="note-number">02</span>
             <h3>Attach to a runtime when ready.</h3>
-            <p>Bring this class to H3 directly, or use the Analog adapter from a Nitro plugin.</p>
+            <p>
+              Register the class on Nitro's router from a server plugin with
+              <code>&#64;strata-sc/analog</code>. Native routes keep working beside it.
+            </p>
             <a href="#analog"
               >See the Analog integration <lmn-arrow-right [size]="16"
             /></a> </volt-card-content
@@ -81,13 +85,13 @@ import { CodePanelComponent } from "./code-panel.component";
       >
         <volt-tabs-list>
           <volt-tabs-trigger value="analog">Analog plugin</volt-tabs-trigger>
-          <volt-tabs-trigger value="native">Native H3</volt-tabs-trigger>
+          <volt-tabs-trigger value="metadata">Route metadata</volt-tabs-trigger>
         </volt-tabs-list>
         <volt-tabs-content value="analog"
           ><strata-code-panel filename="src/server/plugins/strata.ts" [code]="analogExample"
         /></volt-tabs-content>
-        <volt-tabs-content value="native"
-          ><strata-code-panel filename="server.ts" [code]="controllerExample"
+        <volt-tabs-content value="metadata"
+          ><strata-code-panel filename="inspect-routes.ts" [code]="metadataExample"
         /></volt-tabs-content>
       </volt-tabs>
     </section>`,
@@ -95,4 +99,5 @@ import { CodePanelComponent } from "./code-panel.component";
 export class ExamplesSectionComponent {
   protected readonly controllerExample = CONTROLLER_EXAMPLE;
   protected readonly analogExample = ANALOG_EXAMPLE;
+  protected readonly metadataExample = METADATA_EXAMPLE;
 }

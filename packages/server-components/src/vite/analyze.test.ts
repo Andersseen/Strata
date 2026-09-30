@@ -97,6 +97,16 @@ describe("analyzeServerComponent", () => {
     ]);
   });
 
+  it("ignores a module that only mentions the decorator in strings or comments", () => {
+    const source = [
+      "// Usage: @ServerComponent() on an @Component class.",
+      'export const EXAMPLE = `@ServerComponent()\n@Component({ selector: "x" })`;',
+      'export const ONE_LINE = "@ServerComponent() export class Y {}";',
+    ].join("\n");
+
+    expect(analyzeServerComponent(FILE, source, readFile)).toBeUndefined();
+  });
+
   it("has no client references when nothing is marked", () => {
     expect(
       analyzeServerComponent(FILE, serverComponent({ template: '"<quantity-picker />"' }), readFile)
@@ -108,6 +118,11 @@ describe("analyzeServerComponent", () => {
     [
       "two server components in one module",
       `${serverComponent()}\n@ServerComponent() @Component({ selector: "b" }) export class B {}`,
+      "expected exactly one named @ServerComponent() class",
+    ],
+    [
+      "a server component class that is not a top-level statement",
+      `export function make() { @ServerComponent() @Component({ selector: "a", template: "" }) class A {} return A; }`,
       "expected exactly one named @ServerComponent() class",
     ],
     [

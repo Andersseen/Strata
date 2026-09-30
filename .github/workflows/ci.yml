@@ -66,6 +66,11 @@ jobs:
       - name: Server-component PoC on Cloudflare Pages (local Wrangler runtime)
         run: pnpm test:server-components:cloudflare
 
+      # The official site dogfoods the private package on its homepage: graph
+      # split, SSR and its Playwright suite on Nitro and on local workerd.
+      - name: Website Server Component dogfood (Node + Cloudflare builds)
+        run: pnpm test:www:server-components
+
       - name: Consumer type-closure experiment (SPEC-002)
         run: pnpm test:consumer:types
 

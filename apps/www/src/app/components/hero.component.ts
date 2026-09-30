@@ -5,7 +5,9 @@ import { LmnArrowRightIcon } from "lumen-icons/arrow-right";
 import { LmnArrowUpRightIcon } from "lumen-icons/arrow-up-right";
 import { LmnBoltIcon } from "lumen-icons/bolt";
 import { LmnCubeTransparentIcon } from "lumen-icons/cube-transparent";
+import { LmnServerStackIcon } from "lumen-icons/server-stack";
 import { LmnSparklesIcon } from "lumen-icons/sparkles";
+import { LmnWindowIcon } from "lumen-icons/window";
 
 @Component({
   selector: "strata-hero",
@@ -19,7 +21,9 @@ import { LmnSparklesIcon } from "lumen-icons/sparkles";
     LmnArrowUpRightIcon,
     LmnBoltIcon,
     LmnCubeTransparentIcon,
+    LmnServerStackIcon,
     LmnSparklesIcon,
+    LmnWindowIcon,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `<section class="hero section-wrap">
@@ -32,22 +36,23 @@ import { LmnSparklesIcon } from "lumen-icons/sparkles";
       <volt-badge class="release-badge"
         ><span class="live-dot"></span>Experimental · pre-1.0</volt-badge
       >
-      <p class="eyebrow">SERVER ARCHITECTURE FOR THE ANGULAR ERA</p>
-      <h1>Give your server <em>structure.</em></h1>
+      <p class="eyebrow">ANGULAR SERVER ARCHITECTURE</p>
+      <h1>The server layer Angular <em>was missing.</em></h1>
       <p class="hero-lede">
-        Strata turns controllers and routes into clear, declarative layers—without taking ownership
-        of the H3 runtime you already trust.
+        Strata brings Server Components to Angular and Analog: render components on the server, keep
+        their code and dependencies out of the browser, and hydrate only the pieces that need
+        interaction. When you need HTTP endpoints, structure them with Angular-native controllers.
       </p>
       <div class="hero-actions">
-        <volt-button class="primary-action" (click)="scrollTo('example')"
-          >See it in action <lmn-arrow-right [size]="16" /> </volt-button
+        <volt-button class="primary-action" (click)="scrollTo('server-components')"
+          >See Server Components <lmn-arrow-right [size]="16" /> </volt-button
         ><volt-button class="secondary-action" variant="ghost" (click)="openSource()"
           >Read the source <lmn-arrow-up-right [size]="16" />
         </volt-button>
       </div>
       <div class="hero-meta">
-        <span><b>Angular</b> native</span><i></i><span><b>H3</b> powered</span><i></i
-        ><span><b>Analog</b> ready</span>
+        <span><b>Angular</b> native</span><i></i><span><b>Analog</b> + Nitro</span><i></i
+        ><span><b>Server Components</b> preview</span>
       </div>
     </div>
     <div
@@ -56,31 +61,50 @@ import { LmnSparklesIcon } from "lumen-icons/sparkles";
       [moveAnimate]="{ opacity: 1, y: 0, scale: 1 }"
       moveDuration="800"
       moveDelay="140"
+      role="img"
+      aria-label="An Angular app uses two Strata capabilities, Server Components with client boundaries and controllers with HTTP routes, on the Analog and Nitro runtime."
     >
       <div class="diagram-grid"></div>
       <div class="orbit orbit-one"></div>
       <div class="orbit orbit-two"></div>
-      <volt-card class="layer-card layer-app"
-        ><volt-card-content>
-          <span class="layer-icon"><lmn-cube-transparent [size]="20" /></span>
-          <div><b>Your application</b><small>Controllers &amp; domain logic</small></div>
-          <span class="node-status"></span> </volt-card-content
-      ></volt-card>
-      <div class="layer-line line-one"></div>
-      <volt-card class="layer-card layer-strata"
-        ><volt-card-content>
-          <span class="layer-icon strata-icon"><lmn-sparkles [size]="20" /></span>
-          <div><b>Strata</b><small>Metadata &amp; composition</small></div>
-          <span class="node-status"></span> </volt-card-content
-      ></volt-card>
-      <div class="layer-line line-two"></div>
-      <volt-card class="layer-card layer-h3"
-        ><volt-card-content>
-          <span class="layer-icon"><lmn-bolt [size]="20" /></span>
-          <div><b>H3 / Nitro</b><small>The runtime stays yours</small></div>
-          <span class="node-status"></span> </volt-card-content
-      ></volt-card>
-      <p class="visual-caption">A thinner layer, a clearer boundary.</p>
+      <div class="stack-diagram" aria-hidden="true">
+        <volt-card class="layer-card layer-app"
+          ><volt-card-content>
+            <span class="layer-icon"><lmn-cube-transparent [size]="20" /></span>
+            <div><b>Angular app</b><small>Your components &amp; domain</small></div>
+          </volt-card-content></volt-card
+        >
+        <div class="stack-fork"></div>
+        <div class="stack-pillars">
+          <volt-card class="layer-card layer-pillar layer-ui"
+            ><volt-card-content>
+              <span class="layer-icon strata-icon"><lmn-window [size]="16" /></span>
+              <b>Server Components</b><small>UI · client boundaries</small>
+            </volt-card-content></volt-card
+          >
+          <volt-card class="layer-card layer-pillar"
+            ><volt-card-content>
+              <span class="layer-icon"><lmn-server-stack [size]="16" /></span>
+              <b>Controllers</b><small>HTTP · routes</small>
+            </volt-card-content></volt-card
+          >
+        </div>
+        <div class="stack-join"></div>
+        <volt-card class="layer-card layer-strata"
+          ><volt-card-content>
+            <span class="layer-icon strata-icon"><lmn-sparkles [size]="20" /></span>
+            <div><b>Strata</b><small>One server model</small></div>
+            <span class="node-status"></span> </volt-card-content
+        ></volt-card>
+        <div class="stack-line"></div>
+        <volt-card class="layer-card layer-h3"
+          ><volt-card-content>
+            <span class="layer-icon"><lmn-bolt [size]="20" /></span>
+            <div><b>Analog / Nitro</b><small>The runtime stays yours</small></div>
+          </volt-card-content></volt-card
+        >
+      </div>
+      <p class="visual-caption">Two capabilities, one server model.</p>
     </div>
   </section>`,
 })

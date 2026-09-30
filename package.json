@@ -2,7 +2,7 @@
   "name": "strata",
   "private": true,
   "version": "0.0.0",
-  "description": "Structured server applications for Angular and Analog, powered by H3.",
+  "description": "Server Components and structured server APIs for Angular and Analog.",
   "homepage": "https://strata-www.pages.dev",
   "repository": {
     "type": "git",
@@ -16,6 +16,7 @@
     "analogjs",
     "h3",
     "nitro",
+    "server-components",
     "typescript",
     "server-framework"
   ],
@@ -48,6 +49,7 @@
     "test:server-components": "node --experimental-strip-types tools/server-components/run.ts",
     "test:server-component-navigation": "node --experimental-strip-types tools/server-components/navigation.ts",
     "test:server-components:cloudflare": "node --experimental-strip-types tools/server-components/cloudflare.ts",
+    "test:www:server-components": "node --experimental-strip-types tools/server-components/www.ts",
     "test:package-consumer": "node --experimental-strip-types tools/package-consumer/run.ts",
     "test:watch": "vitest",
     "typecheck": "turbo run typecheck",

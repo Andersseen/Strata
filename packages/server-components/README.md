@@ -11,6 +11,8 @@ to the PoC.
 - Angular 22.1.7, Analog 2.7.2, Vite 8.
 - Node (Nitro `node-server`): `pnpm test:server-components`, `pnpm test:server-component-navigation`.
 - Cloudflare Pages, local workerd only: `pnpm test:server-components:cloudflare`.
+- Dogfooded by the official website's homepage (`apps/www`), on its Node and Cloudflare Pages
+  builds: `pnpm test:www:server-components`.
 - **Document navigation only.** An Angular Router navigation to a route containing a server
   component renders the empty surrogate, silently. There is no server payload or router
   integration.
