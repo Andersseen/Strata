@@ -33,6 +33,7 @@
     "@angular/router": "^22.0.0",
     "@strata-sc/analog": "workspace:*",
     "@strata-sc/core": "workspace:*",
+    "@strata-sc/server-components": "workspace:*",
     "@tailwindcss/vite": "4.3.3",
     "@voltui/components": "1.0.1",
     "angular-movement": "0.8.0",

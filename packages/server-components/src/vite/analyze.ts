@@ -40,6 +40,13 @@ function decoratorCall(decorator: ts.Decorator, name: string): ts.CallExpression
     : undefined;
 }
 
+/** Whether any decorator anywhere in `node` calls `name`, at any depth. */
+function hasDecoratorCall(node: ts.Node, name: string): boolean {
+  if (ts.isDecorator(node) && decoratorCall(node, name)) return true;
+
+  return ts.forEachChild(node, (child) => hasDecoratorCall(child, name) || undefined) ?? false;
+}
+
 function property(literal: ts.ObjectLiteralExpression, name: string): ts.Expression | undefined {
   for (const element of literal.properties) {
     if (
@@ -138,6 +145,12 @@ export function analyzeServerComponent(
   if (!text.includes(`@${DECORATOR}(`)) return undefined;
 
   const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
+
+  // The text check above is only a prefilter: a module that merely mentions
+  // the decorator (a string, a template literal, a comment) declares none.
+  // Any real decorator call, however nested, still goes through the checks.
+  if (!hasDecoratorCall(source, DECORATOR)) return undefined;
+
   const importedFrom = new Map<string, string>();
 
   for (const statement of source.statements) {

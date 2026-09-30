@@ -118,29 +118,34 @@ export function filesWith(dirs: readonly string[], needle: string): string[] {
   );
 }
 
-/** A set of build output files, as paths relative to `dist/`. */
+/** A set of build output files, as paths relative to `root` (the fixture's `dist/` by default). */
 export interface OutputGraph {
   readonly label: string;
   readonly files: readonly string[];
+  readonly root?: string;
 }
 
-/** Every file under the given `dist/` subdirectories, minus those `exclude` rejects. */
+/** Every file under the given `root` subdirectories, minus those `exclude` rejects. */
 export function dirGraph(
   label: string,
   dirs: readonly string[],
   exclude: (file: string) => boolean = () => false,
+  root: string = distDir,
 ): OutputGraph {
   return {
     label,
+    root,
     files: dirs
-      .flatMap((dir) => listFiles(join(distDir, dir)).map((file) => `${dir}/${file}`))
+      .flatMap((dir) => listFiles(join(root, dir)).map((file) => `${dir}/${file}`))
       .filter((file) => !exclude(file)),
   };
 }
 
 /** Files of `graph` whose contents include `needle`. */
 export function graphFilesWith(graph: OutputGraph, needle: string): string[] {
-  return graph.files.filter((file) => readFileSync(join(distDir, file), "utf8").includes(needle));
+  const root = graph.root ?? distDir;
+
+  return graph.files.filter((file) => readFileSync(join(root, file), "utf8").includes(needle));
 }
 
 const nodeBrowserGraph = (): OutputGraph =>
@@ -155,16 +160,14 @@ export interface GraphSize {
 }
 
 export function measure(graph: OutputGraph): GraphSize {
-  const size = (file: string) => statSync(join(distDir, file)).size;
+  const root = graph.root ?? distDir;
+  const size = (file: string) => statSync(join(root, file)).size;
   const js = graph.files.filter((file) => /\.m?js$/.test(file));
 
   return {
     jsFiles: js.length,
     jsBytes: js.reduce((sum, file) => sum + size(file), 0),
-    jsGzipBytes: js.reduce(
-      (sum, file) => sum + gzipSync(readFileSync(join(distDir, file))).length,
-      0,
-    ),
+    jsGzipBytes: js.reduce((sum, file) => sum + gzipSync(readFileSync(join(root, file))).length, 0),
     allFiles: graph.files.length,
     allBytes: graph.files.reduce((sum, file) => sum + size(file), 0),
   };
@@ -210,7 +213,7 @@ export function checkBrowserGraph(graph: OutputGraph = nodeBrowserGraph()): void
  * surrogate) must not drag its build entry (`/vite`) or what that uses into
  * the browser graph.
  */
-function checkNoBuildTools(graph: OutputGraph): void {
+export function checkNoBuildTools(graph: OutputGraph): void {
   const require = createRequire(join(repoRoot, "packages", "server-components", "package.json"));
   const sources = {
     typescript: readFileSync(require.resolve("typescript"), "utf8"),

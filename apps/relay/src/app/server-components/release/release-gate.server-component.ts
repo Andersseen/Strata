@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, inject } from "@angular/core";
 import { ServerComponent, StrataClientBoundary } from "@strata-sc/server-components";
 
-import { ServerOperationsIntelligence } from "../server-operations-intelligence";
+import { ServerOperationsIntelligence, fingerprint } from "../server-operations-intelligence";
 
 import { RolloutSimulatorComponent } from "./rollout-simulator.component";
 
@@ -64,5 +64,5 @@ export class ReleaseGateServerComponent {
   private readonly intelligence = inject(ServerOperationsIntelligence);
 
   protected readonly assessment = this.intelligence.assessRelease();
-  protected readonly evidence = `${RELAY_RELEASE_SERVER_MARKER}:${this.assessment.provenance}`;
+  protected readonly evidence = `${fingerprint(RELAY_RELEASE_SERVER_MARKER)}.${this.assessment.provenance}`;
 }

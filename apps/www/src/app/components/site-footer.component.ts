@@ -20,8 +20,9 @@ import { LmnGithubIcon } from "lumen-icons/github";
           <p class="eyebrow">EARLY, OPEN, AND DELIBERATE</p>
           <h2>Build the next layer with us.</h2>
           <p>
-            Strata is experimental today. The design work is public, the boundaries are explicit,
-            and contributions are welcome.
+            Strata is experimental today. Server Components are a private preview dogfooded on this
+            site; controllers ship as 0.x releases. The design work is public and contributions are
+            welcome.
           </p>
           <volt-button class="primary-action" (click)="openGitHub()"
             >View on GitHub <lmn-github [size]="16"
@@ -34,7 +35,7 @@ import { LmnGithubIcon } from "lumen-icons/github";
           >strata</span
         ></a
       >
-      <p>Structured server applications for Angular and Analog.</p>
+      <p>Server Components and structured APIs for Angular and Analog.</p>
       <volt-separator orientation="vertical" />
       <p>MIT © {{ year }}</p>
     </footer>`,

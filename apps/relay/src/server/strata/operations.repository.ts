@@ -7,6 +7,8 @@ import type {
   Service,
 } from "../../shared/operations.models";
 
+import { processSingleton } from "./process-singleton";
+
 const services: Service[] = [
   {
     id: "checkout",
@@ -202,4 +204,8 @@ export class OperationsRepository {
   }
 }
 
-export const operationsRepository = new OperationsRepository();
+/** Shared by the Strata controllers and the incident digest Server Component. */
+export const operationsRepository = processSingleton(
+  "relay.operations-repository",
+  () => new OperationsRepository(),
+);

@@ -8,22 +8,39 @@
 [![Release](https://img.shields.io/github/v/release/Andersseen/Strata?display_name=tag&sort=semver)](https://github.com/Andersseen/Strata/releases)
 [![License](https://img.shields.io/github/license/Andersseen/Strata)](./LICENSE)
 
-Structured server applications for Angular and Analog, powered by H3.
+Server Components and structured server APIs for Angular and Analog.
 
-Strata gives server-side Angular applications a small, declarative layer for
-controllers and routes while leaving the H3 or Nitro runtime entirely in your
-control. It is experimental, intentionally narrow, and designed in public.
+Strata makes server-side Angular a coherent application model, on two pillars:
+
+- **Server Components** — run Angular components on the server without shipping
+  their implementation or server dependencies to the browser. Only children
+  marked as explicit client boundaries (`[strataClient]`) hydrate, as
+  interactive islands. **Private preview:** `@strata-sc/server-components` is
+  experimental and not published; it is dogfooded on the official website and
+  qualified in this repository on Node/Nitro and Cloudflare workerd, for
+  initial/document navigation only (Angular Router SPA navigation into a new
+  Server Component subtree is not supported yet). See
+  [its README](./packages/server-components/README.md).
+- **Controllers** — declare HTTP APIs with standard-decorator controllers
+  (`@Get`, `@Post`, `@Put`, `@Patch`, `@Delete`) and register them on the
+  Nitro/H3 router you already own. `@strata-sc/core` and `@strata-sc/analog`
+  are published as `0.x` under `next`.
+
+Both leave Angular, Analog and Nitro in control of their runtime. Strata is
+experimental, intentionally narrow, and designed in public.
 
 ## About
 
 Strata takes its name from _stratum / strata_ — layers. The goal is a
-structured, layered server framework built on top of [H3](https://h3.dev),
-designed with [Angular](https://angular.dev) and
-[Analog](https://analogjs.org) in mind.
+layered server architecture for [Angular](https://angular.dev) and
+[Analog](https://analogjs.org): server-rendered UI with explicit client
+islands, and structured HTTP APIs, on the [Nitro](https://nitro.build) /
+[H3](https://h3.dev) runtime.
 
 **Experimental, pre-1.0, and developed in public.** Strata stays deliberately
-small: it provides controller metadata and runtime adapters without taking
-control of the H3 or Nitro application you already own.
+small: a build-time server/browser graph split for Server Components, and
+controller metadata with runtime adapters, without taking control of the H3 or
+Nitro application you already own.
 
 ## Official website
 
@@ -32,9 +49,18 @@ The repository includes the official Strata landing page at
 application built with Angular, Tailwind CSS 4,
 [@voltui/components](https://volt-ui.andersseen.dev),
 [Angular Movement](https://github.com/Andersseen/angular-movement), and
-[Lumen Icons](https://github.com/Andersseen/lumen-icons). It includes a
-light/dark theme switcher, practical controller and Analog examples, and a
-concise explanation of Strata's runtime boundary.
+[Lumen Icons](https://github.com/Andersseen/lumen-icons). Its homepage
+dogfoods Server Components: the "Server Components" section is a real
+`@ServerComponent()` that injects a server-only repository (which imports a
+further server-only module) and renders one interactive client island. It also
+has a light/dark theme switcher, Server Component, controller and Analog
+examples, and an explanation of Strata's runtime boundary.
+
+`pnpm test:www:server-components` qualifies that dogfood on the site's
+production builds: a plain-SSR control build, the browser/server graph split
+(markers and per-chunk source modules), HTTP SSR, and the site's Playwright
+suite (hydration, interaction, no Angular hydration errors) on Nitro
+`node-server` and on the Cloudflare Pages build under local `wrangler pages dev`.
 
 ```bash
 pnpm --filter @strata-sc/www dev
@@ -65,9 +91,16 @@ It also contains two practical Server Component examples:
   to and from this route deliberately use full document navigation, the only navigation mode the
   current experiment qualifies.
 
-Both examples import a server-only intelligence service. The verification command checks that its
-marker and both Server Component implementations exist in Nitro output but not in the browser,
-while the interactive island markers do reach the client.
+- `/incidents` renders a live incident digest from the same in-memory repository the Strata
+  controllers write to, with one triage island per incident (inside `@for`) that mutates through
+  `PATCH /api/ops/incidents/:id`; the next document request renders the new state. The repository
+  is a process-wide singleton because Analog bundles the Angular SSR code separately from Nitro's
+  server code, so a plain module-level instance would exist twice.
+
+`pnpm relay:verify:server-components` (the same gate as `pnpm test:relay:server-components`)
+checks a plain-SSR control build, the browser/server graph split (markers and per-chunk source
+modules), each route's SSR, a controller write the next server render must reflect, and Relay's
+Playwright suite (hydration of every island, interaction, no Angular errors).
 
 ```bash
 pnpm relay:dev

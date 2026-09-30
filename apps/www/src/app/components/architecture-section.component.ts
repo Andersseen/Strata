@@ -13,44 +13,63 @@ import { LmnCheckCircleIcon } from "lumen-icons/check-circle";
       [moveInView]="{ opacity: [0, 1], x: [-24, 0] }"
       moveInViewOnce="true"
     >
-      <p class="eyebrow">CLEAR LAYERS, CLEAR OWNERSHIP</p>
+      <p class="eyebrow">TWO AXES, CLEAR OWNERSHIP</p>
       <h2>Strata never replaces your server.</h2>
       <p>
-        It reads controller metadata and registers routes on the instance you pass in. Native routes
-        keep working. Your framework continues to own the lifecycle.
+        It owns two precise seams: which parts of the UI graph stay on the server, and how
+        controllers register on the router you already have. Angular, Analog and Nitro keep their
+        lifecycles.
       </p>
       <ul>
-        <li><lmn-check-circle [size]="16" />H3 remains the HTTP runtime</li>
-        <li><lmn-check-circle [size]="16" />Nitro remains the Analog integration point</li>
-        <li><lmn-check-circle [size]="16" />Your direct routes remain untouched</li>
+        <li>
+          <lmn-check-circle [size]="16" />UI graph: Server Components and their dependencies stay
+          server-side
+        </li>
+        <li><lmn-check-circle [size]="16" />Client boundaries are the only UI that hydrates</li>
+        <li>
+          <lmn-check-circle [size]="16" />Controllers register on Nitro/H3; native routes stay
+        </li>
       </ul>
     </div>
     <div
       class="ownership-list"
+      role="list"
+      aria-label="How an Angular application splits across Strata"
       [moveInView]="{ opacity: [0, 1], x: [24, 0] }"
       moveInViewOnce="true"
     >
-      <volt-card
+      <volt-card role="listitem"
         ><volt-card-content
-          ><span>01</span><b>Application</b
-          ><small>Business logic and controllers</small></volt-card-content
+          ><span>01</span><b>Angular application</b
+          ><small>Components, routes and domain logic</small></volt-card-content
         ></volt-card
       >
-      <volt-card
+      <volt-card role="listitem" class="ownership-branch"
         ><volt-card-content
-          ><span>02</span><b>Strata core</b
-          ><small>Route declarations as metadata</small></volt-card-content
+          ><span>├─</span><b>Server Component</b
+          ><small>Rendered on the server · server graph</small></volt-card-content
         ></volt-card
       >
-      <volt-card
+      <volt-card role="listitem" class="ownership-leaf"
         ><volt-card-content
-          ><span>03</span><b>Adapter</b
-          ><small>A precise registration seam</small></volt-card-content
+          ><span>│ ├─</span><b>Server dependency</b
+          ><small>Repositories, secrets · never shipped</small></volt-card-content
         ></volt-card
       >
-      <volt-card class="ownership-runtime"
+      <volt-card role="listitem" class="ownership-leaf ownership-client"
+        ><volt-card-content
+          ><span>│ └─</span><b>Client boundary</b
+          ><small>Hydrated in the browser · plain-data props</small></volt-card-content
+        ></volt-card
+      >
+      <volt-card role="listitem" class="ownership-branch"
+        ><volt-card-content
+          ><span>└─</span><b>Controller</b><small>HTTP routes as metadata</small></volt-card-content
+        ></volt-card
+      >
+      <volt-card role="listitem" class="ownership-runtime"
         ><volt-card-content>
-          <span>04</span><b>H3 / Nitro</b><small>Your owned request lifecycle</small>
+          <span>↓</span><b>Analog / Nitro / H3</b><small>Your owned request lifecycle</small>
         </volt-card-content></volt-card
       >
     </div>

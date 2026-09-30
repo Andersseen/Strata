@@ -12,8 +12,10 @@ import { ArchitectureSectionComponent } from "./components/architecture-section.
 import { ExamplesSectionComponent } from "./components/examples-section.component";
 import { FeatureSectionComponent } from "./components/feature-section.component";
 import { HeroComponent } from "./components/hero.component";
+import { ServerComponentsCodeComponent } from "./components/server-components-code.component";
 import { SiteFooterComponent } from "./components/site-footer.component";
 import { SiteHeaderComponent } from "./components/site-header.component";
+import { ServerComponentsShowcaseComponent } from "./server-components/server-components-showcase.component";
 
 @Component({
   selector: "app-root",
@@ -23,6 +25,8 @@ import { SiteHeaderComponent } from "./components/site-header.component";
     FeatureSectionComponent,
     ExamplesSectionComponent,
     ArchitectureSectionComponent,
+    ServerComponentsShowcaseComponent,
+    ServerComponentsCodeComponent,
     SiteFooterComponent,
     VoltBadge,
     VoltSeparator,
@@ -32,20 +36,35 @@ import { SiteHeaderComponent } from "./components/site-header.component";
     <strata-site-header />
     <main id="top">
       <strata-hero />
-      <section class="proof-strip section-wrap">
-        <p>Built for the stack you already use</p>
-        <div class="proof-technologies">
-          <volt-badge variant="secondary">Angular</volt-badge
-          ><volt-separator orientation="vertical" />
-          <volt-badge variant="secondary">Analog</volt-badge
-          ><volt-separator orientation="vertical" />
-          <volt-badge variant="secondary">Nitro</volt-badge
-          ><volt-separator orientation="vertical" /> <volt-badge variant="secondary">H3</volt-badge
-          ><volt-separator orientation="vertical" />
-          <volt-badge variant="secondary">TypeScript</volt-badge>
+      <section class="proof-strip section-wrap" aria-label="Capabilities and stack">
+        <div class="proof-group">
+          <p>What Strata adds</p>
+          <div class="proof-capabilities">
+            <volt-badge>Server Components</volt-badge>
+            <volt-badge variant="outline">Client islands</volt-badge>
+            <volt-badge variant="outline">Controllers</volt-badge>
+          </div>
+        </div>
+        <div class="proof-group">
+          <p>Built on the stack you use</p>
+          <div class="proof-technologies">
+            <volt-badge variant="secondary">Angular</volt-badge
+            ><volt-separator orientation="vertical" />
+            <volt-badge variant="secondary">Analog</volt-badge
+            ><volt-separator orientation="vertical" />
+            <volt-badge variant="secondary">Nitro</volt-badge
+            ><volt-separator orientation="vertical" />
+            <volt-badge variant="secondary">H3</volt-badge><volt-separator orientation="vertical" />
+            <volt-badge variant="secondary">TypeScript</volt-badge>
+          </div>
         </div>
       </section>
-      <strata-feature-section /><strata-examples-section /><strata-architecture-section /><strata-site-footer />
+      <strata-server-components-showcase />
+      <strata-server-components-code />
+      <strata-feature-section />
+      <strata-examples-section />
+      <strata-architecture-section />
+      <strata-site-footer />
     </main>
   </div>`,
 })

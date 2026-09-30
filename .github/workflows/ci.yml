@@ -66,6 +66,16 @@ jobs:
       - name: Server-component PoC on Cloudflare Pages (local Wrangler runtime)
         run: pnpm test:server-components:cloudflare
 
+      # The official site dogfoods the private package on its homepage: graph
+      # split, SSR and its Playwright suite on Nitro and on local workerd.
+      - name: Website Server Component dogfood (Node + Cloudflare builds)
+        run: pnpm test:www:server-components
+
+      # Relay uses the package like a real app: several islands, islands inside
+      # @for, and a Server Component reading the controllers' own store.
+      - name: Relay Server Component dogfood (graph, SSR, shared state, Playwright)
+        run: pnpm test:relay:server-components
+
       - name: Consumer type-closure experiment (SPEC-002)
         run: pnpm test:consumer:types
 

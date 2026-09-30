@@ -44,7 +44,9 @@ export default defineConfig({
       root: import.meta.dirname,
       sourceDir: "src/app",
       generatedDir: "src/generated/server-components",
-      enabled: true,
+      // `STRATA_SERVER_COMPONENTS=off`: the plain-SSR control build that proves
+      // `pnpm test:relay:server-components` can see a leak.
+      enabled: process.env["STRATA_SERVER_COMPONENTS"] !== "off",
     }),
     strataControllerDecorators(),
     tailwindcss(),

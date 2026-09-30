@@ -49,7 +49,8 @@ export class ServerOperationsIntelligence {
   }
 }
 
-function fingerprint(value: string): string {
+/** A 32-bit string hash, evaluated at runtime. */
+export function fingerprint(value: string): string {
   let hash = 0;
 
   for (let index = 0; index < value.length; index++) {

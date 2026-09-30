@@ -261,6 +261,7 @@ h2 {
 }
 .hero-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 18px;
   align-items: center;
   margin-top: 34px;
@@ -313,7 +314,7 @@ h2 {
 }
 .hero-visual {
   position: relative;
-  height: 455px;
+  height: 500px;
   display: grid;
   place-items: center;
   isolation: isolate;
@@ -344,8 +345,12 @@ h2 {
   height: 310px;
   border-style: dashed;
 }
+.stack-diagram {
+  width: min(430px, 100%);
+  display: grid;
+  justify-items: center;
+}
 .layer-card {
-  position: absolute;
   width: 285px;
   background: color-mix(in srgb, var(--card) 89%, transparent);
   border: 1px solid var(--line);
@@ -359,18 +364,77 @@ h2 {
   gap: 13px;
   padding: 15px 17px;
 }
-.layer-app {
-  top: 36px;
-  left: 18px;
-}
 .layer-strata {
-  top: 183px;
-  right: 7px;
   border-color: color-mix(in srgb, var(--strata-accent) 38%, var(--line));
 }
-.layer-h3 {
-  bottom: 28px;
-  left: 45px;
+.stack-pillars {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+.layer-card.layer-pillar {
+  width: auto;
+}
+.layer-pillar > volt-card-content {
+  display: grid;
+  grid-template-columns: 32px 1fr;
+  column-gap: 11px;
+  padding: 13px 14px;
+}
+.layer-pillar .layer-icon {
+  grid-row: span 2;
+  width: 32px;
+  height: 32px;
+}
+.layer-ui {
+  border-color: color-mix(in srgb, var(--strata-accent) 38%, var(--line));
+}
+.stack-fork,
+.stack-join,
+.stack-line {
+  position: relative;
+  width: 50%;
+  height: 26px;
+}
+.stack-fork {
+  border: 1px solid var(--line);
+  border-bottom: 0;
+  border-radius: 10px 10px 0 0;
+  margin-top: 13px;
+}
+.stack-fork::before,
+.stack-line::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -13px;
+  width: 1px;
+  height: 13px;
+  background: var(--strata-accent);
+}
+.stack-join {
+  border: 1px solid var(--line);
+  border-top: 0;
+  border-radius: 0 0 10px 10px;
+  margin-bottom: 13px;
+}
+.stack-join::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -14px;
+  width: 1px;
+  height: 13px;
+  background: var(--strata-accent);
+}
+.stack-line {
+  width: 1px;
+  height: 22px;
+  background: linear-gradient(var(--strata-accent), var(--line));
+}
+.stack-line::before {
+  display: none;
 }
 .layer-card b {
   display: block;
@@ -402,39 +466,38 @@ h2 {
   border-radius: 50%;
   background: var(--strata-accent);
 }
-.layer-line {
-  position: absolute;
-  width: 1px;
-  background: linear-gradient(var(--line), var(--strata-accent), var(--line));
-}
-.line-one {
-  height: 55px;
-  transform: rotate(-41deg);
-  top: 131px;
-  left: 260px;
-}
-.line-two {
-  height: 60px;
-  transform: rotate(48deg);
-  top: 301px;
-  right: 243px;
-}
 .visual-caption {
   position: absolute;
-  bottom: -6px;
+  bottom: -10px;
   color: var(--faint);
   font-size: 0.75rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 .proof-strip {
-  padding: 28px 0;
+  padding: 24px 0;
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 20px 48px;
+  flex-wrap: wrap;
+}
+.proof-group {
+  display: flex;
+  align-items: center;
   gap: 20px;
+  flex-wrap: wrap;
+}
+.proof-capabilities {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.proof-capabilities volt-badge {
+  font-size: 0.8rem;
+  font-weight: 750;
 }
 .proof-strip p {
   margin: 0;
@@ -457,6 +520,277 @@ h2 {
 .proof-technologies volt-separator {
   height: 1.1rem;
   background: var(--line);
+}
+.sc-section {
+  padding: 136px 0 110px;
+}
+.sc-heading {
+  max-width: 720px;
+}
+.sc-heading h2 {
+  font-size: clamp(2.5rem, 4.2vw, 4.25rem);
+}
+.sc-heading > p:last-child {
+  margin: 22px 0 0;
+  color: var(--strata-muted);
+  font-size: 1.05rem;
+  line-height: 1.7;
+}
+.sc-status {
+  display: flex;
+  gap: 8px;
+  margin: 0;
+}
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  background: var(--card);
+  color: var(--strata-muted);
+  font-size: 0.72rem;
+  font-weight: 760;
+  letter-spacing: 0.02em;
+}
+.status-pill-accent {
+  border-color: color-mix(in srgb, var(--strata-accent) 45%, var(--line));
+  color: var(--strata-accent-deep);
+}
+.sc-grid {
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: 18px;
+  margin-top: 48px;
+}
+.sc-graph,
+.sc-proof {
+  margin: 0;
+  padding: 28px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+}
+.sc-graph figcaption,
+.sc-proof-kicker,
+.sc-ledger caption {
+  margin: 0 0 18px;
+  color: var(--faint);
+  font-size: 0.72rem;
+  font-weight: 760;
+  letter-spacing: 0.12em;
+  text-align: left;
+  text-transform: uppercase;
+}
+.sc-tree {
+  display: grid;
+  gap: 8px;
+}
+.sc-node {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  column-gap: 12px;
+  margin-left: 26px;
+  padding: 11px 13px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--card-strong);
+}
+.sc-node::before {
+  content: "";
+  position: absolute;
+  left: -17px;
+  top: 50%;
+  width: 16px;
+  border-top: 1px solid var(--line);
+}
+.sc-node-root {
+  margin-left: 0;
+  border-color: color-mix(in srgb, var(--strata-accent) 38%, var(--line));
+}
+.sc-node-root::before {
+  display: none;
+}
+.sc-node-client {
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--strata-accent) 60%, var(--line));
+}
+.sc-node code {
+  overflow: hidden;
+  font:
+    700 0.8rem ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sc-node small {
+  grid-row: 2;
+  color: var(--faint);
+  font-size: 0.72rem;
+}
+.sc-runtime {
+  grid-row: span 2;
+  align-self: center;
+  color: var(--faint);
+  font:
+    700 0.7rem ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+  text-transform: uppercase;
+}
+.sc-runtime-browser {
+  color: var(--strata-accent-deep);
+}
+.sc-ledger {
+  width: 100%;
+  margin-top: 26px;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+.sc-ledger th,
+.sc-ledger td {
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+  text-align: left;
+}
+.sc-ledger th {
+  overflow-wrap: anywhere;
+  font:
+    600 0.76rem ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+}
+.sc-ledger td {
+  padding-left: 12px;
+  color: var(--strata-muted);
+  text-align: right;
+  white-space: nowrap;
+}
+.sc-yes {
+  color: var(--strata-accent-deep);
+}
+.sc-ledger td.sc-yes,
+.sc-facts dd.sc-yes {
+  color: var(--strata-accent-deep);
+  font-weight: 700;
+}
+.sc-proof {
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(
+    160deg,
+    color-mix(in srgb, var(--strata-accent) 8%, var(--card)),
+    var(--card) 60%
+  );
+}
+.sc-proof h3 {
+  margin: 0;
+  font-size: 1.4rem;
+  letter-spacing: -0.04em;
+}
+.sc-facts {
+  display: grid;
+  margin: 20px 0 22px;
+}
+.sc-facts > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+  font-size: 0.86rem;
+}
+.sc-facts dt {
+  color: var(--strata-muted);
+}
+.sc-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  text-align: right;
+  font-weight: 650;
+}
+.island-card {
+  margin-top: auto;
+  padding: 18px;
+  border: 1px dashed color-mix(in srgb, var(--strata-accent) 60%, var(--line));
+  border-radius: 10px;
+  background: var(--card);
+}
+.island-tag {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--strata-accent-deep);
+  font-size: 0.74rem;
+  font-weight: 780;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.island-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--strata-accent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--strata-accent) 14%, transparent);
+}
+.island-props {
+  margin: 10px 0 16px;
+  color: var(--strata-muted);
+  font-size: 0.84rem;
+  line-height: 1.6;
+}
+.island-props code {
+  color: var(--ink);
+  font:
+    600 0.8rem ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+}
+.island-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.island-button button {
+  gap: 8px;
+}
+.island-count {
+  color: var(--ink);
+  font:
+    700 0.86rem ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+}
+.sc-notes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin-top: 18px;
+}
+.sc-notes p {
+  margin: 0;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--strata-muted);
+  font-size: 0.82rem;
+  line-height: 1.6;
+}
+.sc-notes b {
+  color: var(--ink);
+}
+.example-notes code {
+  color: var(--ink);
+  font-size: 0.84em;
 }
 .feature-section {
   padding: 156px 0;
@@ -711,6 +1045,18 @@ h2 {
   color: var(--faint);
   font-size: 0.78rem;
 }
+.ownership-list .ownership-branch volt-card-content {
+  grid-template-columns: 58px 1fr;
+}
+.ownership-list .ownership-leaf volt-card-content {
+  grid-template-columns: 76px 1fr;
+}
+.ownership-list span {
+  white-space: pre;
+}
+.ownership-list .ownership-client b {
+  color: var(--strata-accent-deep);
+}
 .ownership-list .ownership-runtime {
   background: color-mix(in srgb, var(--strata-accent) 10%, var(--card));
 }
@@ -779,11 +1125,11 @@ h2 {
     display: none;
   }
   .hero {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     padding-top: 78px;
   }
   .hero-visual {
-    height: 390px;
+    height: 470px;
     max-width: 560px;
     width: 100%;
     margin: auto;
@@ -807,7 +1153,7 @@ h2 {
   }
   .code-layout,
   .architecture-section {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: 36px;
   }
   .architecture-section {
@@ -828,14 +1174,9 @@ h2 {
   .footer p:last-child {
     margin-left: 0;
   }
-  .layer-app {
-    left: 4px;
-  }
-  .layer-h3 {
-    left: 25px;
-  }
-  .layer-strata {
-    right: 0;
+  .sc-grid,
+  .sc-notes {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 @media (max-width: 520px) {
@@ -865,10 +1206,27 @@ h2 {
     margin-top: 30px;
   }
   .hero-visual {
-    height: 340px;
-    transform: scale(0.9);
-    width: 111%;
-    margin-left: -5.5%;
+    height: auto;
+    padding: 18px 0 40px;
+  }
+  .layer-card {
+    width: 100%;
+  }
+  .stack-pillars {
+    gap: 8px;
+  }
+  .layer-pillar > volt-card-content {
+    grid-template-columns: 1fr;
+  }
+  .layer-pillar .layer-icon {
+    display: none;
+  }
+  .sc-section {
+    padding: 80px 0;
+  }
+  .sc-proof,
+  .sc-graph {
+    padding: 20px;
   }
   .feature-section {
     padding: 80px 0;
