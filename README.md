@@ -91,9 +91,16 @@ It also contains two practical Server Component examples:
   to and from this route deliberately use full document navigation, the only navigation mode the
   current experiment qualifies.
 
-Both examples import a server-only intelligence service. The verification command checks that its
-marker and both Server Component implementations exist in Nitro output but not in the browser,
-while the interactive island markers do reach the client.
+- `/incidents` renders a live incident digest from the same in-memory repository the Strata
+  controllers write to, with one triage island per incident (inside `@for`) that mutates through
+  `PATCH /api/ops/incidents/:id`; the next document request renders the new state. The repository
+  is a process-wide singleton because Analog bundles the Angular SSR code separately from Nitro's
+  server code, so a plain module-level instance would exist twice.
+
+`pnpm relay:verify:server-components` (the same gate as `pnpm test:relay:server-components`)
+checks a plain-SSR control build, the browser/server graph split (markers and per-chunk source
+modules), each route's SSR, a controller write the next server render must reflect, and Relay's
+Playwright suite (hydration of every island, interaction, no Angular errors).
 
 ```bash
 pnpm relay:dev

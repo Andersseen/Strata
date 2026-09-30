@@ -87,6 +87,9 @@ import { OperationsBriefingServerComponent } from "../server-components/briefing
           <a class="nav-item" href="#incidents"><span class="nav-dot"></span> Incidents</a>
           <a class="nav-item" href="#activity"><span class="nav-dot"></span> Activity</a>
           <a class="nav-item" href="/release"><span class="nav-dot server"></span> Release gate</a>
+          <a class="nav-item" href="/incidents"
+            ><span class="nav-dot server"></span> Incident digest</a
+          >
         </nav>
 
         <div class="runtime-card">

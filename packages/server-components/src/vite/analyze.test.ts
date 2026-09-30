@@ -86,6 +86,24 @@ describe("analyzeServerComponent", () => {
     }
   });
 
+  it("finds a boundary repeated inside @for, nested blocks and @empty", () => {
+    const source = serverComponent({
+      template: `\`<ol>
+        @for (line of lines; track line.id) {
+          <li>@if (line.editable) {
+            <quantity-picker [strataClient]="{ lineId: line.id, max: line.max }" />
+          }</li>
+        } @empty {
+          <order-lines />
+        }
+      </ol>\``,
+    });
+
+    expect(analyzeServerComponent(FILE, source, readFile)?.clientReferences).toEqual([
+      { name: "QuantityPicker", module: "/app/src/app/orders/quantity-picker.component" },
+    ]);
+  });
+
   it("finds boundaries in a templateUrl", () => {
     const source = serverComponent({ template: '"x"' }).replace(
       'template: "x"',

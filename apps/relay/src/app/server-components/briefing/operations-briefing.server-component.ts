@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, inject } from "@angular/core";
 import { ServerComponent, StrataClientBoundary } from "@strata-sc/server-components";
 
-import { ServerOperationsIntelligence } from "../server-operations-intelligence";
+import { ServerOperationsIntelligence, fingerprint } from "../server-operations-intelligence";
 
 import { BriefingAcknowledgementComponent } from "./briefing-acknowledgement.component";
 import { BriefingWindowComponent } from "./briefing-window.component";
@@ -65,5 +65,5 @@ export class OperationsBriefingServerComponent {
   private readonly intelligence = inject(ServerOperationsIntelligence);
 
   protected readonly briefing = this.intelligence.getBriefing();
-  protected readonly evidence = `${RELAY_BRIEFING_SERVER_MARKER}:${this.briefing.provenance}`;
+  protected readonly evidence = `${fingerprint(RELAY_BRIEFING_SERVER_MARKER)}.${this.briefing.provenance}`;
 }

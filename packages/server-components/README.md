@@ -13,6 +13,9 @@ to the PoC.
 - Cloudflare Pages, local workerd only: `pnpm test:server-components:cloudflare`.
 - Dogfooded by the official website's homepage (`apps/www`), on its Node and Cloudflare Pages
   builds: `pnpm test:www:server-components`.
+- Dogfooded by Relay (`apps/relay`): three Server Components, islands side by side and inside
+  `@for`, and a Server Component reading the Strata controllers' own store:
+  `pnpm test:relay:server-components`.
 - **Document navigation only.** An Angular Router navigation to a route containing a server
   component renders the empty surrogate, silently. There is no server payload or router
   integration.
@@ -77,6 +80,11 @@ export class OrderSummary {}
   specifier (`./x` → `./x.ts`). Components from packages cannot be client boundaries yet.
 - Not qualified yet: an unmarked child _component_ (server-rendered only, never hydrated by the
   surrogate). The fixture's server-only import is a pipe.
+- **Module-level server state is not shared with Nitro code.** Analog builds the Angular SSR
+  bundle separately from Nitro's server bundle, so a module imported by both a Server Component
+  and a controller (or any Nitro plugin/route) is evaluated twice, each copy with its own state.
+  Keep such state in one process-wide instance (`globalThis` keyed by `Symbol.for(...)`, as
+  Relay's `processSingleton` does) or in external storage.
 - Relies on undocumented Angular hydration behaviour (hydrating a root onto an `ngh`-annotated
   host) and on Analog's Vite environment names (`client`).
 - Dev server (`vite`): smoke-checked by hand only (hydration, one click, no console errors). The

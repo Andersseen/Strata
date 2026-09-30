@@ -50,6 +50,7 @@
     "test:server-component-navigation": "node --experimental-strip-types tools/server-components/navigation.ts",
     "test:server-components:cloudflare": "node --experimental-strip-types tools/server-components/cloudflare.ts",
     "test:www:server-components": "node --experimental-strip-types tools/server-components/www.ts",
+    "test:relay:server-components": "node --experimental-strip-types tools/server-components/relay.ts",
     "test:package-consumer": "node --experimental-strip-types tools/package-consumer/run.ts",
     "test:watch": "vitest",
     "typecheck": "turbo run typecheck",

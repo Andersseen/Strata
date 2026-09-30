@@ -71,6 +71,11 @@ jobs:
       - name: Website Server Component dogfood (Node + Cloudflare builds)
         run: pnpm test:www:server-components
 
+      # Relay uses the package like a real app: several islands, islands inside
+      # @for, and a Server Component reading the controllers' own store.
+      - name: Relay Server Component dogfood (graph, SSR, shared state, Playwright)
+        run: pnpm test:relay:server-components
+
       - name: Consumer type-closure experiment (SPEC-002)
         run: pnpm test:consumer:types
 

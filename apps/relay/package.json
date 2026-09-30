@@ -14,7 +14,7 @@
     "typecheck": "tsc --project tsconfig.json --noEmit && tsc --project tsconfig.server.json --noEmit",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "verify:server-components": "node --experimental-strip-types scripts/verify-server-components.ts"
+    "verify:server-components": "node --experimental-strip-types ../../tools/server-components/relay.ts"
   },
   "dependencies": {
     "@analogjs/content": "^2.7.2",
