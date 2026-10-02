@@ -1,5 +1,12 @@
 # @strata-sc/analog
 
+## 0.2.1
+
+### Patch Changes
+
+- Updated dependencies [fd99136]
+  - @strata-sc/core@0.2.1
+
 ## 0.2.0
 
 ### Minor Changes
