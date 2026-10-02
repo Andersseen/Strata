@@ -3,16 +3,22 @@ import { ServerComponent, StrataClientBoundary } from "@strata-sc/server-compone
 
 import { ServerOperationsIntelligence, fingerprint } from "../server-operations-intelligence";
 
-import { BriefingAcknowledgementComponent } from "./briefing-acknowledgement.component";
+import { BriefingMetadataServerComponent } from "./briefing-metadata.server-component";
 import { BriefingWindowComponent } from "./briefing-window.component";
 
 export const RELAY_BRIEFING_SERVER_MARKER = "RELAY_OPERATIONS_BRIEFING_SERVER_IMPLEMENTATION_4D18";
 
+/**
+ * Two client islands: BriefingWindowComponent, marked directly, and the
+ * acknowledgement island marked inside BriefingMetadataServerComponent, a
+ * nested Server Component. Neither Server Component reaches the browser; this
+ * one's surrogate hydrates both islands.
+ */
 @ServerComponent()
 @Component({
   selector: "relay-operations-briefing",
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [BriefingAcknowledgementComponent, BriefingWindowComponent, StrataClientBoundary],
+  imports: [BriefingMetadataServerComponent, BriefingWindowComponent, StrataClientBoundary],
   template: `
     <section
       class="server-example briefing-example"
@@ -41,14 +47,7 @@ export const RELAY_BRIEFING_SERVER_MARKER = "RELAY_OPERATIONS_BRIEFING_SERVER_IM
         </dl>
       </div>
       <div class="server-islands" aria-label="Interactive client islands">
-        <div class="island-example">
-          <span>Boundary 01 · flat string props</span>
-          <relay-briefing-acknowledgement
-            [alertId]="briefing.alertId"
-            actionLabel="Acknowledge briefing"
-            [strataClient]="{ alertId: briefing.alertId, actionLabel: 'Acknowledge briefing' }"
-          />
-        </div>
+        <relay-briefing-metadata />
         <div class="island-example">
           <span>Boundary 02 · string + number props</span>
           <relay-briefing-window

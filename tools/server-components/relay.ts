@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { httpGet, httpRequest } from "../analog/lib/process.ts";
@@ -22,17 +23,42 @@ import { check, repoRoot, section } from "./lib/harness.ts";
  *      island, interaction, mutation through a controller, no Angular errors
  */
 
+// Ordinary components server-owned through composition, their dependency,
+// and a nested Server Component. Rendered only as hashes.
+const CHILD = "RELAY_SERVER_ONLY_CHILD_MARKER_2B5E";
+const GRANDCHILD = "RELAY_SERVER_ONLY_GRANDCHILD_MARKER_84F2";
+const DEPENDENCY = "RELAY_SERVER_CHILD_DEPENDENCY_MARKER_C719";
+const NESTED = "RELAY_NESTED_SERVER_COMPONENT_MARKER_E05D";
+
 const SERVER_ONLY = [
   "RELAY_SERVER_ONLY_OPERATIONS_INTELLIGENCE_7C21",
   "RELAY_OPERATIONS_BRIEFING_SERVER_IMPLEMENTATION_4D18",
   "RELAY_RELEASE_GATE_SERVER_IMPLEMENTATION_1F37",
   "RELAY_INCIDENT_DIGEST_SERVER_IMPLEMENTATION_5B02",
   "RELAY_INCIDENT_DIGEST_SERVER_SOURCE_3E77",
+  CHILD,
+  GRANDCHILD,
+  DEPENDENCY,
+  NESTED,
 ];
+
+/** The server components' 32-bit string hash (`fingerprint` in Relay). */
+function fingerprint(value: string): string {
+  let hash = 0;
+
+  for (let index = 0; index < value.length; index++) {
+    hash = (Math.imul(hash, 31) + value.charCodeAt(index)) | 0;
+  }
+
+  return (hash >>> 0).toString(16);
+}
+
+const appDir = join(repoRoot, "apps", "relay");
+const generated = "src/generated/server-components/server-components";
 
 const gate = createAppGate({
   title: "relay Server Component dogfood",
-  appDir: join(repoRoot, "apps", "relay"),
+  appDir,
   baseUrlEnv: "STRATA_RELAY_BASE_URL",
   serverOnlyMarkers: SERVER_ONLY,
   clientMarkers: [
@@ -49,6 +75,13 @@ const gate = createAppGate({
     "src/app/server-components/incidents/incident-digest.source.ts",
     // Reached only through the digest source: the controllers' own store.
     "src/server/strata/operations.repository.ts",
+    // Ordinary Angular components, server-owned through composition only.
+    "src/app/server-components/incidents/incident-list.component.ts",
+    "src/app/server-components/incidents/incident-row.component.ts",
+    // Injected only by the row, two levels below the Server Component.
+    "src/app/server-components/incidents/incident-runbook.ts",
+    // Nested in the briefing, and imported directly by the release page.
+    "src/app/server-components/briefing/briefing-metadata.server-component.ts",
   ],
   clientModules: [
     "src/app/server-components/briefing/briefing-acknowledgement.component.ts",
@@ -58,8 +91,17 @@ const gate = createAppGate({
     "src/generated/server-components/server-components/briefing/operations-briefing.server-component.ts",
     "src/generated/server-components/server-components/release/release-gate.server-component.ts",
     "src/generated/server-components/server-components/incidents/incident-digest.server-component.ts",
+    "src/generated/server-components/server-components/briefing/briefing-metadata.server-component.ts",
   ],
-  serverFileNames: ["intelligence", "server-component", "digest.source", "repository"],
+  serverFileNames: [
+    "intelligence",
+    "server-component",
+    "digest.source",
+    "repository",
+    "incident-list",
+    "incident-row",
+    "runbook",
+  ],
 });
 
 const decode = (value: string | undefined): unknown =>
@@ -94,7 +136,9 @@ async function checkSsr(baseUrl: string, runtime: string): Promise<boolean> {
       SERVER_ONLY.every((marker) => !html.includes(marker)),
     );
 
-  section(`${runtime}: GET / (prerendered) — operations briefing, two islands`);
+  section(
+    `${runtime}: GET / (prerendered) — operations briefing, nested Server Component, two islands`,
+  );
   {
     const html = await page(baseUrl, "/");
 
@@ -102,6 +146,12 @@ async function checkSsr(baseUrl: string, runtime: string): Promise<boolean> {
       check(
         "briefing rendered by its Server Component",
         html.includes("Checkout traffic has stabilized"),
+      ),
+      check(
+        "nested Server Component rendered inside the briefing (hash evidence)",
+        /<relay-operations-briefing[\s\S]*<relay-briefing-metadata[^>]*>\s*<div[^>]*data-nested-server-evidence="([0-9a-f]+)"/.exec(
+          html,
+        )?.[1] === fingerprint(NESTED),
       ),
       check(
         "both briefing islands annotated with their server props",
@@ -119,19 +169,29 @@ async function checkSsr(baseUrl: string, runtime: string): Promise<boolean> {
     );
   }
 
-  section(`${runtime}: GET /release (runtime SSR) — release gate, one island`);
+  section(
+    `${runtime}: GET /release (runtime SSR) — release gate, and the nested Server Component imported directly`,
+  );
   {
     const html = await page(baseUrl, "/release");
 
     results.push(
       check("assessment rendered by its Server Component", html.includes("Canary to 25%")),
       check(
-        "rollout island annotated with its server props",
+        "BriefingMetadataServerComponent rendered on its own (hash evidence)",
+        html.includes(`data-nested-server-evidence="${fingerprint(NESTED)}"`),
+      ),
+      check(
+        "rollout and acknowledgement islands annotated with their server props",
         JSON.stringify(islands(html)) ===
           JSON.stringify([
             [
               "relay-rollout-simulator",
               { service: "Checkout API", version: "v2.19.0", maxPercent: 25, baselineRpm: 4800 },
+            ],
+            [
+              "relay-briefing-acknowledgement",
+              { alertId: "brief-eu-west-checkout", actionLabel: "Acknowledge briefing" },
             ],
           ]),
         JSON.stringify(islands(html)),
@@ -162,14 +222,37 @@ async function checkSsr(baseUrl: string, runtime: string): Promise<boolean> {
       ([selector]) => selector === "relay-incident-triage",
     );
 
+    const items = afterCreate.match(/class="digest-item"/g)?.length ?? -1;
+    const rows = afterCreate.match(
+      new RegExp(`data-server-grandchild-evidence="${fingerprint(GRANDCHILD)}"`, "g"),
+    );
+    const newRow = new RegExp(`data-incident="${id}"[\\s\\S]*?data-runbook="([0-9a-f]+)"`).exec(
+      afterCreate,
+    );
+
     results.push(
       check(
         "the digest renders the incident the controller just created",
         afterCreate.includes(title),
       ),
       check(
+        "IncidentListComponent (ordinary server child) rendered, once (hash evidence)",
+        afterCreate.match(new RegExp(`data-server-child-evidence="${fingerprint(CHILD)}"`, "g"))
+          ?.length === 1,
+      ),
+      check(
+        `IncidentRowComponent (ordinary server grandchild) rendered once per incident (${rows?.length ?? 0}/${items})`,
+        items > 0 && rows?.length === items,
+      ),
+      check(
+        "the row's server-only runbook rendered the new critical incident's guidance",
+        newRow?.[1] === fingerprint(`${DEPENDENCY}:critical`) &&
+          afterCreate.includes("Runbook: Page the incident commander now"),
+        newRow?.[1],
+      ),
+      check(
         "one triage island per active incident, the new one first with its props",
-        triage.length === (afterCreate.match(/class="digest-item"/g)?.length ?? -1) &&
+        triage.length === items &&
           JSON.stringify(triage[0]?.[1]) ===
             JSON.stringify({ incidentId: id, initialStatus: "open" }),
         JSON.stringify(triage),
@@ -195,7 +278,44 @@ async function checkSsr(baseUrl: string, runtime: string): Promise<boolean> {
   return all(results);
 }
 
+/**
+ * The generated surrogates own every client reference found below them, and
+ * import nothing else: no server child, no nested Server Component.
+ */
+function checkSurrogates(): void {
+  section("Generated surrogates: transitive client references only");
+
+  const imports = (surrogate: string): string[] =>
+    (readFileSync(join(appDir, generated, surrogate), "utf8").match(/^import .*$/gm) ?? []).map(
+      (line) => line.replace(/ from .*$/, ""),
+    );
+  const runtime = [
+    "import { ChangeDetectionStrategy, Component }",
+    "import { StrataIslandHost, provideClientReferences }",
+  ];
+  const expect = (surrogate: string, references: readonly string[]): boolean =>
+    check(
+      `${surrogate} imports ${references.join(", ")} and nothing server-owned`,
+      JSON.stringify(imports(surrogate)) ===
+        JSON.stringify([...runtime, ...references.map((name) => `import { ${name} }`)]),
+      JSON.stringify(imports(surrogate)),
+    );
+
+  gate.verdict["surrogates own transitive client references"] = all([
+    // Two levels of ordinary components between the digest and its island.
+    expect("incidents/incident-digest.server-component.ts", ["IncidentTriageComponent"]),
+    // The acknowledgement island is marked inside the nested Server Component.
+    expect("briefing/operations-briefing.server-component.ts", [
+      "BriefingAcknowledgementComponent",
+      "BriefingWindowComponent",
+    ]),
+    // The nested Server Component keeps its own surrogate for direct use.
+    expect("briefing/briefing-metadata.server-component.ts", ["BriefingAcknowledgementComponent"]),
+  ]);
+}
+
 gate.control();
 gate.nodeBuild();
+checkSurrogates();
 await gate.nodeServer(checkSsr);
 gate.report();

@@ -3,7 +3,7 @@ import { dirname, join, relative, resolve } from "node:path";
 
 import type { Plugin } from "vite";
 
-import { RUNTIME_PACKAGE, analyzeServerComponent } from "./analyze.js";
+import { RUNTIME_PACKAGE, analyzeServerComponent, createAnalysisCache } from "./analyze.js";
 import { renderSurrogate } from "./surrogate.js";
 import type { ServerComponentModule } from "./surrogate.js";
 
@@ -13,8 +13,10 @@ import type { ServerComponentModule } from "./surrogate.js";
  *
  * A module declaring a `@ServerComponent()` class is replaced, in Vite's
  * `client` environment only, by a generated surrogate: an ordinary Angular
- * component with the same selector, an empty template, and the server
- * component's interactive imports as client references. Every other
+ * component with the same selector, an empty template, and as client
+ * references every `[strataClient]` component found by walking the server
+ * component's template and, recursively, the templates of the unmarked local
+ * components it renders (all server-owned). Every other
  * environment (`ssr`, and therefore Nitro) keeps the real module. The
  * surrogate is written into the consuming app so its Angular compiler
  * AOT-compiles it like any other source file.
@@ -45,8 +47,12 @@ export function strataServerComponents(options: ServerComponentsOptions): Plugin
     rmSync(generatedDir, { recursive: true, force: true });
     bySource = new Map();
 
+    // Build-scoped: shared by every server component of this generation,
+    // so a child module composed under several of them is parsed once.
+    const cache = createAnalysisCache();
+
     for (const file of listSourceFiles(sourceDir, generatedDir)) {
-      const found = analyzeServerComponent(file, readFileSync(file, "utf8"), readSource);
+      const found = analyzeServerComponent(file, readFileSync(file, "utf8"), readSource, cache);
 
       if (!found) continue;
 

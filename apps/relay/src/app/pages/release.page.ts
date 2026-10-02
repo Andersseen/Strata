@@ -1,11 +1,12 @@
 import { ChangeDetectionStrategy, Component } from "@angular/core";
 
+import { BriefingMetadataServerComponent } from "../server-components/briefing/briefing-metadata.server-component";
 import { ReleaseGateServerComponent } from "../server-components/release/release-gate.server-component";
 
 @Component({
   selector: "relay-release-page",
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReleaseGateServerComponent],
+  imports: [ReleaseGateServerComponent, BriefingMetadataServerComponent],
   template: `
     <main class="release-page">
       <header class="release-header">
@@ -20,6 +21,15 @@ import { ReleaseGateServerComponent } from "../server-components/release/release
         </div>
       </header>
       <relay-release-gate />
+      <section class="briefing-context" aria-labelledby="briefing-context-title">
+        <p class="server-label">SERVER COMPONENT / IMPORTED DIRECTLY</p>
+        <h2 id="briefing-context-title">Operations briefing context</h2>
+        <p>
+          The same Server Component the overview nests inside its briefing, imported here by an
+          ordinary page. Its own surrogate hydrates the acknowledgement island.
+        </p>
+        <relay-briefing-metadata />
+      </section>
       <section class="implementation-notes" aria-labelledby="implementation-notes-title">
         <p class="server-label">WHAT THIS EXERCISES</p>
         <h2 id="implementation-notes-title">One route, two different graphs.</h2>
