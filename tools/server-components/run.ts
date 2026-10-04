@@ -3,6 +3,7 @@ import { join } from "node:path";
 
 import { listFiles } from "../analog/lib/scan.ts";
 
+import { checkBoundaryProtocol } from "./lib/boundaries.ts";
 import { checkDirectLoad } from "./lib/direct-load.ts";
 import {
   BROWSER_DIRS,
@@ -32,6 +33,8 @@ import type { GraphSize } from "./lib/harness.ts";
  *   4. production server: direct HTTP SSR assertion
  *   5. Chromium: hydration by DOM identity, then interaction
  *   (4 and 5 live in lib/direct-load.ts, shared with the Cloudflare run)
+ *   6. client boundary protocol (lib/boundaries.ts): positive path, tampered
+ *      markup, commit rollback, invalid props at SSR
  */
 
 const ROUTE = "/server-component";
@@ -129,6 +132,11 @@ const server = await startProductionServer();
 
 try {
   await checkDirectLoad(server.baseUrl, ROUTE);
+  await checkBoundaryProtocol(server.baseUrl, {
+    runtime: "Production server",
+    full: true,
+    serverOutput: server.output,
+  });
 } finally {
   await server.stop();
 }

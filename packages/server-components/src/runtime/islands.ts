@@ -13,11 +13,46 @@ import {
 } from "@angular/core";
 import type { ComponentRef, Provider, Type } from "@angular/core";
 
+import { BOUNDARY_HYDRATED_ATTRIBUTE } from "./boundary-protocol.js";
+import { BOUNDARY_HOST_SELECTOR, planClientBoundaries } from "./hydration-plan.js";
+import type { ClientReference, PlannedClientBoundary } from "./hydration-plan.js";
+
 /** The interactive components a server component may render, by selector. */
 const CLIENT_REFERENCES = new InjectionToken<readonly Type<unknown>[]>("STRATA_CLIENT_REFERENCES");
 
 export function provideClientReferences(references: readonly Type<unknown>[]): Provider {
   return { provide: CLIENT_REFERENCES, useValue: references };
+}
+
+function clientReferences(types: readonly Type<unknown>[]): Map<string, ClientReference> {
+  return new Map(
+    types.flatMap((type) => {
+      const mirror = reflectComponentType(type);
+
+      return mirror
+        ? [
+            [
+              mirror.selector,
+              {
+                type,
+                selector: mirror.selector,
+                inputs: new Map(mirror.inputs.map((i) => [i.propName, i.templateName])),
+              },
+            ] as const,
+          ]
+        : [];
+    }),
+  );
+}
+
+/** Boundary hosts under `host`, in document order, minus those nested in another boundary. */
+function discoverBoundaries(host: HTMLElement): HTMLElement[] {
+  return [...host.querySelectorAll<HTMLElement>(BOUNDARY_HOST_SELECTOR)].filter((element) => {
+    // A boundary nested in another client component belongs to that component.
+    const outer = element.parentElement?.closest(BOUNDARY_HOST_SELECTOR);
+
+    return !outer || !host.contains(outer);
+  });
 }
 
 /**
@@ -27,47 +62,63 @@ export function provideClientReferences(references: readonly Type<unknown>[]): P
  * server by StrataClientBoundary) is hydrated as its own Angular root,
  * attached to the application, from the hydration annotation (`ngh`) the
  * server already wrote on its host element.
+ *
+ * Hydration is all-or-nothing per host: discover every boundary, validate
+ * all of them (protocol, payload, selector, input names), then commit. A
+ * failed preflight throws before any component exists; a commit failure
+ * destroys the islands this commit created (restoring their inert SSR host
+ * elements in place) before rethrowing. Either way the server-rendered DOM
+ * stays, with no fallback or reload.
  */
 @Directive()
 export class StrataIslandHost {
   constructor() {
     const host = inject(ElementRef).nativeElement as HTMLElement;
-    const references = new Map(
-      inject(CLIENT_REFERENCES).map((type) => [reflectComponentType(type)?.selector, type]),
-    );
+    const references = clientReferences(inject(CLIENT_REFERENCES));
     const appRef = inject(ApplicationRef);
     const environmentInjector = inject(EnvironmentInjector);
     const elementInjector = inject(Injector);
     const islands: ComponentRef<unknown>[] = [];
 
-    afterNextRender(() => {
-      for (const hostElement of host.querySelectorAll<HTMLElement>("[data-strata-client]")) {
-        // A boundary nested in another client component belongs to that component.
-        const outer = hostElement.parentElement?.closest("[data-strata-client]");
+    const commit = (plan: readonly PlannedClientBoundary<HTMLElement>[]): void => {
+      const created: ComponentRef<unknown>[] = [];
+      const positions = plan.map(({ host }) => [host, host.parentNode, host.nextSibling] as const);
 
-        if (outer && host.contains(outer)) continue;
+      try {
+        for (const { host: hostElement, type, props } of plan) {
+          const island = createComponent(type, {
+            environmentInjector,
+            elementInjector,
+            hostElement,
+          });
 
-        const selector = hostElement.getAttribute("data-strata-client") ?? "";
-        const type = references.get(selector);
-
-        if (!type) {
-          throw new Error(`[strata] No client reference for <${selector}> in <${host.localName}>.`);
+          created.push(island);
+          for (const [name, value] of props) island.setInput(name, value);
+          appRef.attachView(island.hostView);
         }
-
-        const island = createComponent(type, { environmentInjector, elementInjector, hostElement });
-        const props = JSON.parse(hostElement.getAttribute("data-strata-props") ?? "{}") as Record<
-          string,
-          unknown
-        >;
-
-        for (const [name, value] of Object.entries(props)) island.setInput(name, value);
-
-        appRef.attachView(island.hostView);
-        islands.push(island);
-        hostElement.setAttribute("data-strata-hydrated", "");
+      } catch (error) {
+        // Destroying a view also detaches it from the ApplicationRef.
+        for (const island of created.reverse()) island.destroy();
+        // Destroying a root ComponentRef detaches its host element, subtree
+        // intact and inert: put the server-rendered DOM back where it was.
+        for (const [hostElement, parent, next] of positions.reverse()) {
+          if (!hostElement.isConnected) parent?.insertBefore(hostElement, next);
+        }
+        throw error;
       }
+
+      islands.push(...created);
+      for (const { host: hostElement } of plan) {
+        hostElement.setAttribute(BOUNDARY_HYDRATED_ATTRIBUTE, "");
+      }
+    };
+
+    afterNextRender(() => {
+      commit(planClientBoundaries(host.localName, discoverBoundaries(host), references));
     });
 
-    inject(DestroyRef).onDestroy(() => islands.forEach((island) => island.destroy()));
+    inject(DestroyRef).onDestroy(() => {
+      for (const island of islands.splice(0)) island.destroy();
+    });
   }
 }

@@ -29,7 +29,7 @@ test("the server render reads what a controller just wrote", async ({ request })
   expect(html).toContain(title);
   expect(html).toMatch(
     new RegExp(
-      `<relay-incident-triage data-strata-client="relay-incident-triage" data-strata-props="[^"]*${id}[^"]*" ngh="\\d+">`,
+      `<relay-incident-triage data-strata-client="relay-incident-triage" data-strata-protocol="1" data-strata-props="[^"]*${id}[^"]*" ngh="\\d+">`,
     ),
   );
   // Rendered by the ordinary server child and, per incident, the grandchild
