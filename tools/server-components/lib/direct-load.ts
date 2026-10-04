@@ -49,8 +49,8 @@ export async function checkDirectLoad(
       html.includes("<product-details") && html.includes("<add-to-cart"),
     ),
     check(
-      "SSR HTML annotates the child for hydration (ngh) and marks its boundary",
-      /<add-to-cart data-strata-client="add-to-cart" data-strata-props="[^"]*" ngh="\d+">/.test(
+      "SSR HTML annotates the child for hydration (ngh) and marks its boundary (protocol 1)",
+      /<add-to-cart data-strata-client="add-to-cart" data-strata-protocol="1" data-strata-props="[^"]*" ngh="\d+">/.test(
         html,
       ),
       html.match(/<add-to-cart[^>]*>/)?.[0] ?? "no <add-to-cart>",

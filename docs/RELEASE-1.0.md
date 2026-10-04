@@ -33,8 +33,15 @@ compatibility matrix; do not check it based on intent or a demonstration.
       including nested/interacting boundaries and clear errors for unsupported shapes.
 - [ ] Serialization value set, limits, escaping, boundary identity and version-skew behavior are
       stable and tested. Services, arbitrary closures and secrets cannot cross implicitly.
+      _Evidence so far (not certified):_ preview protocol v1 is tested for each of these (see
+      [STATE](STATE.md), "Client boundary protocol v1"). Still open: the protocol is not stable,
+      only one primitive value set exists, and it is qualified on local Node and workerd only.
 - [ ] Render, serialization, navigation and hydration failures have tested safe behavior; any
       streaming mode defines failure after headers, or streaming is explicitly unsupported.
+      _Partial:_ malformed boundary markup and island commit failures are tested fail-closed. An
+      invalid value at SSR is withheld from the HTML, but the response is still HTTP 200 (Angular
+      reports template errors to its `ErrorHandler`). Render, navigation and streaming failures are
+      untested.
 - [ ] Authorization, direct payload access if present, tenant/cache isolation, error redaction and
       code/data-leak negative tests pass. Passing graph checks alone does not satisfy this item.
 

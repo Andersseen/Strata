@@ -6,6 +6,7 @@ import { METHOD_REQUESTS } from "../analog/lib/constants.ts";
 import { httpGet, httpRequest } from "../analog/lib/process.ts";
 import { listFiles } from "../analog/lib/scan.ts";
 
+import { checkBoundaryProtocol } from "./lib/boundaries.ts";
 import { checkDirectLoad } from "./lib/direct-load.ts";
 import {
   ANGULAR_COMPILER_FINGERPRINT,
@@ -44,7 +45,9 @@ import { COMPATIBILITY_DATE, resolveWrangler, startWranglerPages } from "./lib/w
  *      controllers (GET/POST/PUT/PATCH/DELETE method table, JSON bodies),
  *      the SPEC-003 Angular DI route (characterized)
  *   5. direct load: HTTP SSR, hydration by DOM identity, interaction
- *   6. document navigation; Angular Router navigation stays NO-GO
+ *   6. client boundary protocol, positive path: protocol attribute, primitive
+ *      and adversarial-string round-trip, identical boundaries
+ *   7. document navigation; Angular Router navigation stays NO-GO
  *
  * The Angular DI assertions pin the measured workerd limitation (no JIT code
  * generation); they fail if that behaviour changes.
@@ -104,6 +107,7 @@ const verdict = {
   directSsr: false,
   hydration: false,
   interaction: false,
+  boundaryProtocol: false,
   documentNavigation: false,
   routerNegative: false,
 };
@@ -444,7 +448,15 @@ try {
   verdict.hydration = direct.hydration;
   verdict.interaction = direct.interaction;
 
-  // 6. Navigation.
+  // 6. Client boundary protocol (the fail-closed matrix runs on Node only).
+  const boundaries = await checkBoundaryProtocol(baseUrl, {
+    runtime: "Wrangler Pages",
+    full: false,
+  });
+
+  verdict.boundaryProtocol = boundaries.ssr && boundaries.positive;
+
+  // 7. Navigation.
   const seen = await observeNavigation(baseUrl);
   const doc = seen.document;
   const router = seen.router;
@@ -561,6 +573,7 @@ console.log(`Angular DI experiment                 ${verdict.angularDi}`);
 console.log(
   `Server Component direct load          ${verdict.directSsr && verdict.hydration && verdict.interaction && verdict.browserGraph && verdict.workerGraph ? "GO" : "NO-GO"}`,
 );
+console.log(`Client boundary protocol v1         ${verdict.boundaryProtocol ? "GO" : "NO-GO"}`);
 console.log(`Server Component document navigation ${verdict.documentNavigation ? "GO" : "NO-GO"}`);
 console.log(
   `Angular Router navigation             ${verdict.routerNegative ? "NO-GO (limitation reproduced, unchanged by the runtime)" : "UNEXPECTED: differs from the recorded limitation"}`,

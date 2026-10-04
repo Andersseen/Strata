@@ -37,18 +37,24 @@ export function provideNavigationProbe(): EnvironmentProviders {
  * created and destroyed in this document, as `window.__STRATA_ISLAND_PROBE__`.
  * `StrataIslandHost` (@strata-sc/server-components) attaches each island's
  * host view to the ApplicationRef; this wraps that instance's `attachView` to
- * count the views whose host is a client boundary, and when each is destroyed.
- * The package itself writes no globals. Does nothing during SSR. Not public API.
+ * count the views whose host is a client boundary, and when each is destroyed,
+ * and exposes the ApplicationRef's public `viewCount` (attached views) for
+ * leak checks. The package itself writes no globals. Does nothing during SSR.
+ * Not public API.
  */
 export function provideIslandProbe(): EnvironmentProviders {
   return provideEnvironmentInitializer(() => {
     if (!isPlatformBrowser(inject(PLATFORM_ID))) return;
 
     const scope = globalThis as {
-      __STRATA_ISLAND_PROBE__?: { created: number; destroyed: number };
+      __STRATA_ISLAND_PROBE__?: { created: number; destroyed: number; views(): number };
     };
-    const islands = (scope.__STRATA_ISLAND_PROBE__ ??= { created: 0, destroyed: 0 });
     const appRef = inject(ApplicationRef);
+    const islands = (scope.__STRATA_ISLAND_PROBE__ ??= {
+      created: 0,
+      destroyed: 0,
+      views: () => appRef.viewCount,
+    });
     const attachView = appRef.attachView.bind(appRef);
 
     appRef.attachView = (view) => {

@@ -267,6 +267,8 @@ export function checkServerGraph(
 
 export interface ProductionServer {
   readonly baseUrl: string;
+  /** The server's console output so far. */
+  output(): string;
   stop(): Promise<void>;
 }
 
@@ -286,5 +288,5 @@ export async function startProductionServer(): Promise<ProductionServer> {
     throw error;
   }
 
-  return { baseUrl, stop: () => server.stop() };
+  return { baseUrl, output: () => server.output(), stop: () => server.stop() };
 }
