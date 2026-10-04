@@ -39,6 +39,12 @@ export default defineConfig({
   ssr: {
     noExternal: ["tslib"],
   },
+  // Angular's server mode in the SSR graph, so `@defer (hydrate …)` renders
+  // its main content on the server. @analogjs/vite-plugin-angular 2.7.2
+  // defines `ngServerMode` as false for the whole multi-environment build and
+  // only rewrites files named `core.mjs`, missing Angular 22's defer runtime
+  // chunk. See docs/research/server-component-defer-poc.md.
+  environments: { ssr: { define: { ngServerMode: "true" } } },
   plugins: [
     strataServerComponents({
       root: import.meta.dirname,

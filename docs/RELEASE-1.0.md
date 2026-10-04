@@ -31,6 +31,14 @@ compatibility matrix; do not check it based on intent or a demonstration.
       unsupported client subtree hydration is not advertised.
 - [ ] Ordinary/incremental hydration and `@defer` coexist under documented composition rules,
       including nested/interacting boundaries and clear errors for unsupported shapes.
+      _Evidence so far (not certified):_ `@defer` inside a `[strataClient]` component is
+      Angular-owned and qualified for `hydrate on interaction` (lazy chunk on the trigger, event
+      replay, DOM reuse) and `hydrate on viewport`, under a server-owned child, on local Node and
+      workerd, with bundle evidence and Relay dogfood; every `@defer` in a server-owned template
+      fails the build with a shape-specific diagnostic (see [STATE](STATE.md), "Server Components
+      and Angular `@defer`"). Still open: other hydrate triggers, defer inside an island nested in
+      another island's subtree, Angular Router navigation into such a route, Analog's
+      `ngServerMode` SSR define (app-level workaround), and a deployed environment.
 - [ ] Serialization value set, limits, escaping, boundary identity and version-skew behavior are
       stable and tested. Services, arbitrary closures and secrets cannot cross implicitly.
       _Evidence so far (not certified):_ preview protocol v1 is tested for each of these (see

@@ -830,6 +830,25 @@ select[voltNativeSelect] {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.69rem;
 }
+.rollout-waves {
+  display: grid;
+  gap: 8px;
+}
+.rollout-waves span {
+  color: var(--subtle);
+  font-size: 0.58rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+.rollout-waves ol {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted-foreground);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.66rem;
+}
 .implementation-notes {
   margin-top: 18px;
 }

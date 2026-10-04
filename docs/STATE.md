@@ -27,6 +27,7 @@ Analog track increments since the 2026-09-17 audit:
 | SC pkg      | Server-component mechanism extracted into the private `@strata-sc/server-components` package (`private: true`, not published, still experimental, document-navigation-only); the fixture consumes it. Client references are explicit `[strataClient]` boundaries. PoC verdicts unchanged ([README](../packages/server-components/README.md))                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | SC compose  | Server Component composition (private package, still experimental): ordinary server-only child and grandchild components, nested Server Components, and transitive client-boundary discovery through local `imports`; interactive (event, two-way, host-listener) bindings in server-owned templates fail the build. Dogfooded by Relay (`pnpm test:relay:server-components`) ([README](../packages/server-components/README.md))                                                                                                                                                                                                                                                                                                                                 |
 | SC protocol | Client boundary protocol v1 (private package, preview, not stable): `[strataClient]` props are validated at runtime on the server (flat plain object; `string`, finite `number`, `boolean`, `null`; `__proto__`/`prototype`/`constructor` rejected; 64 props; 64 KiB UTF-8) and written beside `data-strata-protocol="1"`. The browser preflights every boundary of a Server Component host (protocol, JSON, values, limits, selector, public input names) before creating any island, and rolls back a failed commit. Fixture `/server-component-boundaries`; `pnpm test:server-components` (Node, fail-closed matrix) and `pnpm test:server-components:cloudflare` (positive path) ([README](../packages/server-components/README.md#client-boundary-protocol)) |
+| SC defer    | Server Components + Angular `@defer` (private package, experimental): `@defer` inside a `[strataClient]` component is Angular's (incremental hydration on interaction and viewport, lazy chunk fetched only on the trigger, event replay, SSR DOM reused); `@defer` in any server-owned template fails the build with a shape-specific diagnostic. Analog 2.7.2 apps need `environments.ssr.define.ngServerMode = "true"` for SSR to honour hydrate triggers. Fixture `/server-component-defer`, Relay rollout island; `pnpm test:server-component-defer` (Node), `pnpm test:server-components:cloudflare` (workerd) ([report](research/server-component-defer-poc.md))                                                                                           |
 
 Current lifecycle facts:
 
@@ -76,6 +77,28 @@ Current lifecycle facts:
   - An invalid value at SSR logs the Strata error and never reaches the HTML (no `data-strata-props`
     is written), so the browser refuses that host. Angular reports the binding error to its
     `ErrorHandler` and completes the render: the HTTP status stays 200, owned by Angular/Analog.
+- Server Components and Angular `@defer` (fixture `/server-component-defer`, Relay's rollout
+  island; [report](research/server-component-defer-poc.md)):
+  - Two layers: `StrataIslandHost` hydrates each `[strataClient]` root on load (unchanged, not
+    lazy); Angular hydrates each `@defer` block inside that root's own template on its trigger.
+  - `hydrate on interaction`: the lazy chunk is requested only by the click, the widget is
+    constructed once, one click produces one effect (event replay), and the SSR host, button and
+    text nodes are kept (Node, workerd, Relay). `hydrate on viewport`: the lazy chunk is requested
+    only when scrolled into view (Node, workerd).
+  - Bundle: each deferred dependency is a chunk reached only by dynamic `import()` from the island's
+    chunk, never in the static closure of the entry or the island; server parent and server-owned
+    child stay absent from the browser.
+  - Protocol v1 still gates the island: a tampered version refuses the host, and the deferred chunk
+    is never requested even on interaction (Angular then logs a `TypeError` from its replay
+    contract, recorded).
+  - `@defer` in a server-owned template (root, ordinary child, nested Server Component; any
+    trigger, `hydrate never` included, with or without a `[strataClient]` inside) fails the build.
+    Measured before the rule: the placeholder is never replaceable, hydrate triggers throw or never
+    complete, an island inside is hydrated on load regardless of its trigger, and under
+    `hydrate never` it is rendered twice.
+  - Analog 2.7.2 defines `ngServerMode` as `false` for the SSR graph of a production build (and
+    rewrites only `core.mjs`), so SSR renders hydrate-trigger placeholders until the app sets
+    `environments: { ssr: { define: { ngServerMode: "true" } } }` (fixture and Relay do).
 - Cloudflare Workers (local workerd only, nothing deployed): the same fixture built with
   `BUILD_PRESET=cloudflare-pages` passes the server-component, navigation and controller
   assertions under `wrangler pages dev`. The SPEC-003 Angular DI route fails there, because

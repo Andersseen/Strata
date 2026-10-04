@@ -29,6 +29,9 @@ export const MARKERS = {
   transitive: "STRATA_TRANSITIVE_SERVER_ONLY_MARKER",
   /** A server component import that is not a client boundary (explicit boundaries). */
   serverOnlyImport: "STRATA_SERVER_ONLY_IMPORT_MARKER",
+  /** The `@defer` fixture's Server Component and its server-owned child (lib/defer.ts). */
+  deferServerParent: "STRATA_DEFER_SERVER_PARENT_MARKER",
+  deferServerChild: "STRATA_DEFER_SERVER_CHILD_MARKER",
   client: "STRATA_CLIENT_COMPONENT_MARKER",
   control: "STRATA_ANALOG_CLIENT_CONTROL_MARKER",
 } as const;
@@ -37,6 +40,8 @@ export const SERVER_ONLY = [
   MARKERS.repository,
   MARKERS.transitive,
   MARKERS.serverOnlyImport,
+  MARKERS.deferServerParent,
+  MARKERS.deferServerChild,
 ] as const;
 /** A string only `@angular/compiler` contains: the compiler must stay server-side. */
 export const ANGULAR_COMPILER_FINGERPRINT = "Unterminated quote";
@@ -65,6 +70,7 @@ const SERVER_FILE_NAMES = [
   "product-repository",
   "server-secret",
   "server-price",
+  "defer-server-child",
 ];
 
 /** Where the browser graph ends up: Vite's client build and Nitro's public assets. */

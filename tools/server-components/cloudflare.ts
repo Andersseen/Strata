@@ -7,6 +7,7 @@ import { httpGet, httpRequest } from "../analog/lib/process.ts";
 import { listFiles } from "../analog/lib/scan.ts";
 
 import { checkBoundaryProtocol } from "./lib/boundaries.ts";
+import { checkDeferBrowser, checkDeferGraphs, checkDeferSsr } from "./lib/defer.ts";
 import { checkDirectLoad } from "./lib/direct-load.ts";
 import {
   ANGULAR_COMPILER_FINGERPRINT,
@@ -47,7 +48,10 @@ import { COMPATIBILITY_DATE, resolveWrangler, startWranglerPages } from "./lib/w
  *   5. direct load: HTTP SSR, hydration by DOM identity, interaction
  *   6. client boundary protocol, positive path: protocol attribute, primitive
  *      and adversarial-string round-trip, identical boundaries
- *   7. document navigation; Angular Router navigation stays NO-GO
+ *   7. Angular `@defer` inside client islands (lib/defer.ts), positive path:
+ *      SSR main content, island roots, hydrate on interaction (event replay)
+ *      and on viewport, each lazy chunk fetched only on its trigger
+ *   8. document navigation; Angular Router navigation stays NO-GO
  *
  * The Angular DI assertions pin the measured workerd limitation (no JIT code
  * generation); they fail if that behaviour changes.
@@ -108,6 +112,7 @@ const verdict = {
   hydration: false,
   interaction: false,
   boundaryProtocol: false,
+  defer: false,
   documentNavigation: false,
   routerNegative: false,
 };
@@ -245,6 +250,8 @@ const browserGraph = dirGraph(
 
 checkBrowserGraph(browserGraph);
 checkServerGraph({ markers: workerGraph, runtime: workerGraph });
+
+const deferGraphs = checkDeferGraphs(browserGraph, workerGraph);
 
 section("Transitive negative control: ProductRepository → server-secret.ts");
 
@@ -456,7 +463,18 @@ try {
 
   verdict.boundaryProtocol = boundaries.ssr && boundaries.positive;
 
-  // 7. Navigation.
+  // 7. Angular @defer inside client islands (unsupported shapes fail the
+  // build; the analyzer and the Node run cover them).
+  const deferSsr = await checkDeferSsr(baseUrl, "Wrangler Pages");
+  const defer = await checkDeferBrowser(baseUrl, {
+    runtime: "Wrangler Pages",
+    protocolGate: false,
+  });
+
+  verdict.defer =
+    deferGraphs && deferSsr && defer.layer1 && defer.interaction && defer.viewport && defer.clean;
+
+  // 8. Navigation.
   const seen = await observeNavigation(baseUrl);
   const doc = seen.document;
   const router = seen.router;
@@ -574,6 +592,7 @@ console.log(
   `Server Component direct load          ${verdict.directSsr && verdict.hydration && verdict.interaction && verdict.browserGraph && verdict.workerGraph ? "GO" : "NO-GO"}`,
 );
 console.log(`Client boundary protocol v1         ${verdict.boundaryProtocol ? "GO" : "NO-GO"}`);
+console.log(`Angular @defer inside client islands ${verdict.defer ? "GO" : "NO-GO"}`);
 console.log(`Server Component document navigation ${verdict.documentNavigation ? "GO" : "NO-GO"}`);
 console.log(
   `Angular Router navigation             ${verdict.routerNegative ? "NO-GO (limitation reproduced, unchanged by the runtime)" : "UNEXPECTED: differs from the recorded limitation"}`,

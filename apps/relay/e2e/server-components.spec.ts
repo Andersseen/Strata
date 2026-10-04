@@ -1,6 +1,29 @@
 import { expect, test } from "@playwright/test";
+import type { Page } from "@playwright/test";
 
 import { collectAngularErrors } from "./angular-errors";
+
+/** The deferred wave plan's marker: only its lazy chunk contains it. */
+const WAVE_PLAN_MARKER = "RELAY_ROLLOUT_WAVE_PLAN_DEFERRED_5C3A";
+
+/** Paths of the scripts the page loaded whose body contains a marker. */
+function collectScripts(page: Page): (marker: string) => Promise<string[]> {
+  const scripts: Promise<{ path: string; body: string }>[] = [];
+
+  page.on("response", (response) => {
+    if (response.request().resourceType() === "script") {
+      scripts.push(
+        response
+          .text()
+          .catch(() => "")
+          .then((body) => ({ path: new URL(response.url()).pathname, body })),
+      );
+    }
+  });
+
+  return async (marker) =>
+    (await Promise.all(scripts)).filter((s) => s.body.includes(marker)).map((s) => s.path);
+}
 
 test("hydrates multiple islands inside the operations briefing", async ({ page }) => {
   const consoleErrors = collectAngularErrors(page);
@@ -40,6 +63,7 @@ test("uses document navigation for the release gate and hydrates its rollout isl
   page,
 }) => {
   const errors = collectAngularErrors(page);
+  const scriptsWith = collectScripts(page);
 
   await page.goto("/");
   await page.locator('a[href="/release"]').click();
@@ -56,6 +80,16 @@ test("uses document navigation for the release gate and hydrates its rollout isl
   await expect(releaseGate.getByText("25% · 1200 req/min projected")).toBeVisible();
   await releaseGate.getByRole("button", { name: "Simulate rollout" }).click();
   await expect(releaseGate.getByRole("button", { name: "Canary simulated" })).toBeVisible();
+
+  // Angular's own @defer (hydrate on interaction) inside the island: the wave
+  // plan is server-rendered, its code is fetched only when it is first used,
+  // and that one click is replayed onto the hydrated component.
+  const wavePlan = releaseGate.locator("relay-rollout-wave-plan");
+  await expect(wavePlan.getByText("25% · 1200 req/min")).toBeVisible();
+  expect(await scriptsWith(WAVE_PLAN_MARKER)).toEqual([]);
+  await wavePlan.getByRole("button", { name: "Pin wave plan" }).click();
+  await expect(wavePlan.getByRole("button", { name: "Wave plan pinned" })).toBeVisible();
+  expect(await scriptsWith(WAVE_PLAN_MARKER)).toHaveLength(1);
 
   // The nested briefing Server Component, imported directly by this page:
   // its own surrogate hydrates its island.
