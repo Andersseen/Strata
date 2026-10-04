@@ -179,6 +179,11 @@ describe("analyzeServerComponent", () => {
       '<rating-stars> is marked [strataClient], but no component in imports from a relative app module has selector "rating-stars".',
     ],
     [
+      "an import from a module that does not declare it (a barrel)",
+      serverComponent().replace('from "./money.pipe"', 'from "./order-lines.component"'),
+      'MoneyPipe is imported from "./order-lines.component", which does not declare class MoneyPipe',
+    ],
+    [
       "a boundary on a component missing from imports",
       serverComponent({ imports: "StrataClientBoundary" }),
       "<quantity-picker> is marked [strataClient]",

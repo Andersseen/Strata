@@ -1063,3 +1063,42 @@ select[voltNativeSelect] {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.nested-meta {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 0.66rem;
+}
+.nested-meta code {
+  color: var(--primary);
+}
+.digest-item > relay-incident-row {
+  display: contents;
+}
+.digest-item .digest-runbook {
+  margin-top: 8px;
+  color: var(--subtle);
+  font-size: 0.66rem;
+}
+.briefing-context {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.briefing-context h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+.briefing-context > p:not(.server-label) {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 0.74rem;
+}
+.briefing-context relay-briefing-acknowledgement {
+  display: grid;
+  gap: 7px;
+}

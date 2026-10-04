@@ -32,8 +32,22 @@ test("the server render reads what a controller just wrote", async ({ request })
       `<relay-incident-triage data-strata-client="relay-incident-triage" data-strata-props="[^"]*${id}[^"]*" ngh="\\d+">`,
     ),
   );
-  expect(html).not.toContain("RELAY_INCIDENT_DIGEST_SERVER_SOURCE_3E77");
-  expect(html).not.toContain("RELAY_INCIDENT_DIGEST_SERVER_IMPLEMENTATION_5B02");
+  // Rendered by the ordinary server child and, per incident, the grandchild
+  // and its server-only runbook: hashes only, never the markers themselves.
+  expect(html.match(/data-server-child-evidence="[0-9a-f]+"/g)).toHaveLength(1);
+  expect(html.match(/data-server-grandchild-evidence="[0-9a-f]+"/g)).toHaveLength(
+    html.match(/class="digest-item"/g)?.length ?? -1,
+  );
+  expect(html).toContain("Runbook: Page the incident commander now");
+  for (const marker of [
+    "RELAY_INCIDENT_DIGEST_SERVER_SOURCE_3E77",
+    "RELAY_INCIDENT_DIGEST_SERVER_IMPLEMENTATION_5B02",
+    "RELAY_SERVER_ONLY_CHILD_MARKER",
+    "RELAY_SERVER_ONLY_GRANDCHILD_MARKER",
+    "RELAY_SERVER_CHILD_DEPENDENCY_MARKER",
+  ]) {
+    expect(html).not.toContain(marker);
+  }
 });
 
 test("hydrates one triage island per incident and resolves through the controller", async ({
@@ -43,6 +57,13 @@ test("hydrates one triage island per incident and resolves through the controlle
   const errors = collectAngularErrors(page);
   const title = `Triage island ${Date.now()}`;
   const id = await createIncident(request, title);
+  const patches: string[] = [];
+
+  page.on("request", (sent) => {
+    if (sent.method() === "PATCH" && sent.url().endsWith(`/api/ops/incidents/${id}`)) {
+      patches.push(sent.postData() ?? "");
+    }
+  });
 
   await page.goto("/");
   await page.locator('a[href="/incidents"]').click();
@@ -61,9 +82,19 @@ test("hydrates one triage island per incident and resolves through the controlle
   const triage = item.getByRole("group", { name: `Triage ${id}` });
   await expect(triage.locator("output")).toHaveText("Status: open");
 
+  // The server tree between the digest and the island is not hydrated.
+  await expect(digest.locator("relay-incident-list, relay-incident-row")).not.toHaveCount(0);
+  await expect(
+    digest.locator(
+      "relay-incident-list[data-strata-hydrated], relay-incident-row[data-strata-hydrated]",
+    ),
+  ).toHaveCount(0);
+
   await triage.getByRole("button", { name: "Start monitoring" }).click();
   await expect(triage.locator("output")).toHaveText("Status: monitoring");
   await expect(triage.getByRole("button", { name: "Start monitoring" })).toHaveCount(0);
+  // One interaction, one effect: one island instance, one listener, one PATCH.
+  expect(patches).toEqual([JSON.stringify({ status: "monitoring" })]);
 
   const patch = page.waitForResponse(
     (response) =>
@@ -73,6 +104,10 @@ test("hydrates one triage island per incident and resolves through the controlle
   await triage.getByRole("button", { name: `Resolve ${id}` }).click();
   expect((await patch).status()).toBe(200);
   await expect(triage.locator("output")).toHaveText("Status: resolved");
+  expect(patches).toEqual([
+    JSON.stringify({ status: "monitoring" }),
+    JSON.stringify({ status: "resolved" }),
+  ]);
 
   // A new document request: the server renders from the updated store.
   await page.reload();

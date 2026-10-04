@@ -13,6 +13,20 @@ test("hydrates multiple islands inside the operations briefing", async ({ page }
     /^[0-9a-f]+\.[0-9a-f]+$/,
   );
   await expect(briefing.locator("[data-strata-hydrated]")).toHaveCount(2);
+  await expect(page.locator("[data-strata-hydrated]")).toHaveCount(2);
+
+  // The acknowledgement island is marked inside a nested Server Component: the
+  // nested host is inert server HTML, its island hydrated by the outer surrogate.
+  const nested = briefing.locator("relay-briefing-metadata");
+  await expect(nested).not.toHaveAttribute("data-strata-hydrated");
+  await expect(nested.locator("[data-nested-server-evidence]")).toHaveAttribute(
+    "data-nested-server-evidence",
+    /^[0-9a-f]+$/,
+  );
+  await expect(nested.locator("relay-briefing-acknowledgement")).toHaveAttribute(
+    "data-strata-hydrated",
+    "",
+  );
 
   await briefing.getByRole("button", { name: "Acknowledge briefing" }).click();
   await expect(briefing.getByText("Client island handled the interaction.")).toBeVisible();
@@ -42,5 +56,13 @@ test("uses document navigation for the release gate and hydrates its rollout isl
   await expect(releaseGate.getByText("25% · 1200 req/min projected")).toBeVisible();
   await releaseGate.getByRole("button", { name: "Simulate rollout" }).click();
   await expect(releaseGate.getByRole("button", { name: "Canary simulated" })).toBeVisible();
+
+  // The nested briefing Server Component, imported directly by this page:
+  // its own surrogate hydrates its island.
+  const metadata = page.locator("relay-briefing-metadata");
+  await expect(metadata.locator("[data-strata-hydrated]")).toHaveCount(1);
+  await expect(page.locator("[data-strata-hydrated]")).toHaveCount(2);
+  await metadata.getByRole("button", { name: "Acknowledge briefing" }).click();
+  await expect(metadata.getByText("Client island handled the interaction.")).toBeVisible();
   expect(errors).toEqual([]);
 });

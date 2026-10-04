@@ -1,22 +1,27 @@
 import { ChangeDetectionStrategy, Component, inject } from "@angular/core";
-import { ServerComponent, StrataClientBoundary } from "@strata-sc/server-components";
+import { ServerComponent } from "@strata-sc/server-components";
 
 import { IncidentDigestSource, fingerprint } from "./incident-digest.source";
-import { IncidentTriageComponent } from "./incident-triage.component";
+import { IncidentListComponent } from "./incident-list.component";
 
 export const RELAY_INCIDENT_DIGEST_SERVER_MARKER =
   "RELAY_INCIDENT_DIGEST_SERVER_IMPLEMENTATION_5B02";
 
 /**
  * Live data, rendered on the server: the digest reads the same repository
- * the Strata controllers write to, on every document request. Each active
- * incident carries its own `[strataClient]` island, rendered inside `@for`.
+ * the Strata controllers write to, on every document request.
+ *
+ * The tree below it is ordinary Angular composition, all server-owned:
+ * IncidentListComponent renders an IncidentRowComponent per active incident
+ * inside `@for`, and each row (which injects a server-only runbook) marks its
+ * IncidentTriageComponent `[strataClient]`. Only those triage islands reach
+ * the browser; this component's surrogate hydrates them.
  */
 @ServerComponent()
 @Component({
   selector: "relay-incident-digest",
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [IncidentTriageComponent, StrataClientBoundary],
+  imports: [IncidentListComponent],
   template: `
     <section
       class="incident-digest"
@@ -55,29 +60,7 @@ export const RELAY_INCIDENT_DIGEST_SERVER_MARKER =
         </dl>
       </header>
 
-      <ol class="digest-list">
-        @for (incident of digest.active; track incident.id) {
-          <li class="digest-item" [attr.data-incident]="incident.id">
-            <div class="digest-copy">
-              <p class="digest-meta">
-                <span class="severity" [attr.data-severity]="incident.severity">{{
-                  incident.severity
-                }}</span>
-                {{ incident.id }} · {{ incident.serviceName }} · {{ incident.assignee }}
-              </p>
-              <h3>{{ incident.title }}</h3>
-              <p>{{ incident.summary }}</p>
-            </div>
-            <relay-incident-triage
-              [incidentId]="incident.id"
-              [initialStatus]="incident.status"
-              [strataClient]="{ incidentId: incident.id, initialStatus: incident.status }"
-            />
-          </li>
-        } @empty {
-          <li class="digest-empty">No active incidents in {{ digest.environment }}.</li>
-        }
-      </ol>
+      <relay-incident-list [incidents]="digest.active" [environment]="digest.environment" />
     </section>
   `,
 })

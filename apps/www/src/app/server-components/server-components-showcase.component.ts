@@ -14,9 +14,9 @@ const SERVER_COMPONENT_MARKER = "STRATA_WWW_SERVER_COMPONENT_MARKER";
  * ServerComponentFactsRepository (nor what that imports) ships. Only
  * ServerComponentDemoComponent, marked `[strataClient]`, hydrates.
  *
- * The template is plain HTML on purpose: an unmarked child *component* inside
- * a Server Component is not qualified yet, so Volt UI and Lumen Icons live in
- * the client island.
+ * The template is plain HTML on purpose, and Volt UI and Lumen Icons live in
+ * the client island: package components are opaque to the Server Component
+ * analysis, which only walks local application components.
  */
 @ServerComponent()
 @Component({
