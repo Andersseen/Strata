@@ -26,6 +26,14 @@ export default defineConfig(() => ({
   ssr: {
     noExternal: ["tslib"],
   },
+  // Angular's server mode in the SSR graph. @analogjs/vite-plugin-angular 2.7.2
+  // defines `ngServerMode` from `build.ssr`, which is false for the single
+  // multi-environment build, and its SSR rewrite only patches files named
+  // `core.mjs`; Angular 22 keeps the defer runtime in `_debug_node-chunk.mjs`.
+  // Without this, SSR treats hydrate triggers as browser triggers: it renders
+  // every `@defer (hydrate …)` placeholder and runs `on viewport` on the
+  // server. See docs/research/server-component-defer-poc.md.
+  environments: { ssr: { define: { ngServerMode: "true" } } },
   plugins: [
     strataServerComponents({
       root: import.meta.dirname,

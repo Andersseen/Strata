@@ -19,6 +19,9 @@ to the PoC.
   (`IncidentDigestServerComponent` → `IncidentListComponent` → `@for` → `IncidentRowComponent`,
   which injects a server-only service → `IncidentTriageComponent [strataClient]`):
   `pnpm test:relay:server-components`.
+- Angular `@defer` / incremental hydration inside client islands, on Node and workerd:
+  `pnpm test:server-component-defer`, `pnpm test:server-components:cloudflare`, and Relay's rollout
+  island (see [Angular `@defer`](#angular-defer-and-incremental-hydration)).
 - **Document navigation only.** An Angular Router navigation to a route containing a server
   component renders the empty surrogate, silently. There is no server payload or router
   integration.
@@ -231,6 +234,55 @@ crawled, never client references; an event binding on their element in a server-
 still fails. Not supported, and failing the build: re-exports and barrels, local `NgModule`s,
 composed components without a single custom element selector, and computed templates.
 
+## Angular `@defer` and incremental hydration
+
+Strata Server Components coexist with Angular incremental hydration inside explicit client
+boundaries. Strata implements no defer scheduler, trigger or event replay. Two layers:
+
+1. **Strata** hydrates each `[strataClient]` root when its Server Component host renders, after
+   the protocol v1 preflight. That is unchanged: the root is not hydrated lazily.
+2. **Angular** owns every `@defer` block in that client component's own template: SSR main
+   content, dehydrated until its hydrate trigger, its dependencies in a lazy chunk, event replay.
+
+| Shape                                                                | Status      | Owner   | Evidence                                                                                                  |
+| -------------------------------------------------------------------- | ----------- | ------- | --------------------------------------------------------------------------------------------------------- |
+| `@defer` in a `[strataClient]` component's own template              | supported   | Angular | never inspected by the analyzer                                                                           |
+| `hydrate on interaction` in a client island                          | supported   | Angular | lazy chunk only on the click; one click, one effect (replay); SSR DOM reused. Node, workerd, Relay        |
+| `hydrate on viewport` in a client island                             | supported   | Angular | lazy chunk only when scrolled into view; SSR DOM reused. Node, workerd                                    |
+| island with `@defer` under a server-owned child (nested composition) | supported   | Angular | parent and child absent from the browser; island eager; widget lazy                                       |
+| `@defer` in a server-owned template (any trigger)                    | build error | —       | placeholder rendered and never replaceable, or hydrate triggers that can never complete                   |
+| `[strataClient]` inside a server-owned `@defer`                      | build error | —       | measured: Strata hydrated the island on load, violating `hydrate on interaction`                          |
+| `hydrate never` in a server-owned template, server-only content      | build error | —       | static only if SSR honours `hydrate never`; under Analog 2.7.2's default build it renders the placeholder |
+| `hydrate never` around a `[strataClient]`                            | build error | —       | measured: no `ngh` written, Strata hydrated it anyway, rendered twice                                     |
+
+Server-owned means the Server Component's template, and the template of every unmarked local
+component it renders (any depth, nested Server Components included). The owner is absent from the
+browser graph, so no browser code could run the block. The diagnostic names the file, line, column
+and component path, gives the shape's reason, and points to `[strataClient]`:
+
+```
+src/app/orders/order-page.ts:12:5: @defer block in server-only component OrderDetails (rendered by
+OrderPage → OrderDetails). The owning component is absent from the browser graph, so Angular cannot
+run this defer block client-side. It contains the client boundary <quantity-picker>. Strata hydrates
+every client boundary under a Server Component when the page loads, so this block's triggers
+(hydrate on interaction) would not be honoured. Move the deferred behaviour inside a component
+marked [strataClient] (its own template may use @defer and hydrate triggers, which Angular owns),
+or render the server content directly.
+```
+
+Use `provideClientHydration()` alone: Angular 22 enables incremental hydration and event replay by
+default. **Analog 2.7.2 needs one Vite setting** for any `@defer (hydrate …)` to render its main
+content in SSR, because its production build defines `ngServerMode` as `false` for the SSR graph
+too:
+
+```ts
+// vite.config.ts
+environments: { ssr: { define: { ngServerMode: "true" } } },
+```
+
+Without it, SSR renders the placeholder and runs `on viewport` on the server. Details, the measured
+unsupported shapes and limitations: `docs/research/server-component-defer-poc.md`.
+
 ## Experimental restrictions
 
 - One named `@ServerComponent()` class per module, stacked on `@Component({...})`.
@@ -245,6 +297,9 @@ composed components without a single custom element selector, and computed templ
   and be declared in an app module imported by a relative specifier (`./x` → `./x.ts`).
   Components from packages cannot be client boundaries yet.
 - Recursive composition is not supported: a cycle fails the build.
+- `@defer` in a server-owned template fails the build (see
+  [Angular `@defer`](#angular-defer-and-incremental-hydration)); a client component's own
+  `@defer` is Angular's.
 - Dynamic rendering (`NgComponentOutlet`, `ViewContainerRef.createComponent`) is invisible to the
   analysis; such a component is server-owned and any boundary it renders has no client reference.
 - An ordinary component is server-owned only where a Server Component renders it. Imported

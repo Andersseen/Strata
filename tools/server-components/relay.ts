@@ -20,7 +20,9 @@ import { check, repoRoot, section } from "./lib/harness.ts";
  *      each route's Server Component and island annotations, then a
  *      controller write (POST, PATCH) the next server render must reflect
  *   3. Relay's Playwright suite against that server: hydration of every
- *      island, interaction, mutation through a controller, no Angular errors
+ *      island, interaction, mutation through a controller, the rollout
+ *      island's own `@defer` (lazy chunk on first click, event replay), no
+ *      Angular errors
  */
 
 // Ordinary components server-owned through composition, their dependency,
@@ -66,6 +68,8 @@ const gate = createAppGate({
     "RELAY_BRIEFING_WINDOW_CLIENT_ISLAND_68B4",
     "RELAY_ROLLOUT_CLIENT_ISLAND_91E3",
     "RELAY_INCIDENT_TRIAGE_CLIENT_ISLAND_A6C4",
+    // Angular's own @defer inside the rollout island: a lazy browser chunk.
+    "RELAY_ROLLOUT_WAVE_PLAN_DEFERRED_5C3A",
   ],
   serverModules: [
     "src/app/server-components/server-operations-intelligence.ts",
@@ -87,6 +91,7 @@ const gate = createAppGate({
     "src/app/server-components/briefing/briefing-acknowledgement.component.ts",
     "src/app/server-components/briefing/briefing-window.component.ts",
     "src/app/server-components/release/rollout-simulator.component.ts",
+    "src/app/server-components/release/rollout-wave-plan.component.ts",
     "src/app/server-components/incidents/incident-triage.component.ts",
     "src/generated/server-components/server-components/briefing/operations-briefing.server-component.ts",
     "src/generated/server-components/server-components/release/release-gate.server-component.ts",
@@ -195,6 +200,13 @@ async function checkSsr(baseUrl: string, runtime: string): Promise<boolean> {
             ],
           ]),
         JSON.stringify(islands(html)),
+      ),
+      check(
+        "the island's @defer (hydrate on interaction) wave plan is server-rendered and dehydrated (ngb)",
+        /<relay-rollout-wave-plan [^>]*\bngb="d\d+"/.test(html) &&
+          html.includes("25% · 1200 req/min") &&
+          !html.includes("Show wave plan"),
+        html.match(/<relay-rollout-wave-plan[^>]*>/)?.[0] ?? "no <relay-rollout-wave-plan>",
       ),
       noMarkers("/release", html),
     );

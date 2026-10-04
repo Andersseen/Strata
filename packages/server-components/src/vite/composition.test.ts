@@ -591,6 +591,156 @@ describe("Server Component composition: fails closed", () => {
   });
 });
 
+describe("Server Component composition: @defer ownership", () => {
+  /** The analysis error message; fails the test if the analysis succeeds. */
+  const failureOf = (files: Record<string, string>): string => {
+    try {
+      analyze(files);
+    } catch (error) {
+      return (error as Error).message;
+    }
+
+    throw new Error("the analysis must fail");
+  };
+
+  const ADVICE =
+    "Move the deferred behaviour inside a component marked [strataClient] (its own template may use @defer and hydrate triggers, which Angular owns), or render the server content directly.";
+  const ABSENT =
+    "The owning component is absent from the browser graph, so Angular cannot run this defer block client-side.";
+
+  it("rejects an ordinary @defer in the root server template, with its source position", () => {
+    const message = failureOf({
+      [`${DIR}/page.ts`]: page(
+        `<h1>Order</h1>\n@defer (on interaction) { <p>details</p> } @placeholder { <p>…</p> }`,
+        [],
+      ),
+    });
+
+    expect(message).toContain(
+      `${DIR}/page.ts:8:1: @defer block in server-only component OrderPage. ${ABSENT}`,
+    );
+    expect(message).toContain(
+      "The server renders its @placeholder (if any), and no browser code can ever load the main content.",
+    );
+    expect(message).toContain(ADVICE);
+  });
+
+  it("rejects @defer in an ordinary server-owned child, naming the component path", () => {
+    expect(
+      failureOf({
+        [`${DIR}/page.ts`]: page(`<order-details />`, [["OrderDetails", "./order-details"]]),
+        [`${DIR}/order-details.ts`]: child(
+          "OrderDetails",
+          "order-details",
+          `@defer { <p>details</p> }`,
+        ),
+      }),
+    ).toContain(
+      `${DIR}/order-details.ts:7:14: @defer block in server-only component OrderDetails (rendered by OrderPage → OrderDetails).`,
+    );
+  });
+
+  it("rejects @defer in a nested Server Component, through the outer one", () => {
+    expect(
+      failureOf({
+        [`${DIR}/page.ts`]: page(`<nested-server />`, [["NestedServer", "./nested"]]),
+        [`${DIR}/nested.ts`]: component("NestedServer", {
+          selector: "nested-server",
+          server: true,
+          template: `@defer (on viewport) { <p>late</p> } @placeholder { <p>…</p> }`,
+        }),
+      }),
+    ).toContain(
+      "@defer block in server-only component NestedServer (rendered by OrderPage → NestedServer).",
+    );
+  });
+
+  it("rejects hydrate triggers in a server-owned @defer: they could never complete", () => {
+    expect(
+      failureOf({
+        [`${DIR}/page.ts`]: page(
+          `@defer (hydrate on interaction; hydrate on viewport) { <p>details</p> }`,
+          [],
+        ),
+      }),
+    ).toContain(
+      "The server renders its main content, but no browser code owns the block, so its hydrate triggers (hydrate on interaction, hydrate on viewport) can never complete.",
+    );
+  });
+
+  it("rejects a [strataClient] boundary below a server-owned @defer: Strata would hydrate it on load", () => {
+    expect(
+      failureOf({
+        [`${DIR}/page.ts`]: page(
+          `@defer (hydrate on interaction) { <client-a [strataClient]="{}" /> }`,
+          [["ClientA", "./client-a"]],
+        ),
+      }),
+    ).toContain(
+      "It contains the client boundary <client-a>. Strata hydrates every client boundary under a Server Component when the page loads, so this block's triggers (hydrate on interaction) would not be honoured.",
+    );
+  });
+
+  it("rejects a boundary in a server-owned @defer's @placeholder too", () => {
+    expect(
+      failureOf({
+        [`${DIR}/page.ts`]: page(
+          `@defer (on idle) { <p>late</p> } @placeholder { <client-b [strataClient]="{}" /> }`,
+          [["ClientB", "./client-b"]],
+        ),
+      }),
+    ).toContain("It contains the client boundary <client-b>.");
+  });
+
+  it("rejects hydrate never around a client boundary: it would render twice", () => {
+    expect(
+      failureOf({
+        [`${DIR}/page.ts`]: page(`<order-details />`, [["OrderDetails", "./order-details"]]),
+        [`${DIR}/order-details.ts`]: child(
+          "OrderDetails",
+          "order-details",
+          `@defer (hydrate never) { <client-a [strataClient]="{}" /> }`,
+          [["ClientA", "./client-a"]],
+        ),
+      }),
+    ).toContain(
+      `It contains the client boundary <client-a>. Under "hydrate never" Angular writes no hydration annotation for it, yet Strata would still hydrate it when the page loads, rendering it a second time.`,
+    );
+  });
+
+  it("rejects hydrate never around server-only content: SSR depends on unverifiable config", () => {
+    expect(
+      failureOf({
+        [`${DIR}/page.ts`]: page(`@defer (hydrate never) { <p>static</p> }`, []),
+      }),
+    ).toContain(
+      `Whether the server renders its main content or its @placeholder under "hydrate never" depends on the application's hydration configuration, which the build cannot verify; a placeholder could never be replaced.`,
+    );
+  });
+
+  it("allows @defer inside a client boundary's own template: Angular's, never inspected", () => {
+    const deferredClient = component("DeferredClient", {
+      selector: "deferred-client",
+      template: `@defer (on interaction; hydrate on interaction) { <heavy-widget /> } @placeholder { <button>Load</button> }
+        @defer (hydrate never) { <p>static</p> }`,
+      imports: [["HeavyWidget", "./heavy-widget"]],
+    });
+
+    expect(
+      names({
+        [`${DIR}/page.ts`]: page(`<order-details />`, [["OrderDetails", "./order-details"]]),
+        [`${DIR}/order-details.ts`]: child(
+          "OrderDetails",
+          "order-details",
+          `<deferred-client [strataClient]="{ id: 1 }" />`,
+          [["DeferredClient", "./deferred-client"]],
+        ),
+        [`${DIR}/deferred-client.ts`]: deferredClient,
+      }),
+    ).toEqual(["DeferredClient"]);
+  });
+});
+
 describe("Server Component composition: surrogates", () => {
   const surrogateFor = (files: Record<string, string>): string => {
     const found = analyze(files);

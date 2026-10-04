@@ -1,10 +1,18 @@
 import { ChangeDetectionStrategy, Component, computed, input, signal } from "@angular/core";
 
+import { RolloutWavePlanComponent } from "./rollout-wave-plan.component";
+
 export const RELAY_ROLLOUT_CLIENT_MARKER = "RELAY_ROLLOUT_CLIENT_ISLAND_91E3";
 
+/**
+ * Client island of the release gate. Strata hydrates this root; the wave plan
+ * inside is Angular's own `@defer` block, incrementally hydrated on the first
+ * interaction with it.
+ */
 @Component({
   selector: "relay-rollout-simulator",
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [RolloutWavePlanComponent],
   template: `
     <div class="rollout-control" [attr.data-client-marker]="marker">
       <div>
@@ -30,6 +38,11 @@ export const RELAY_ROLLOUT_CLIENT_MARKER = "RELAY_ROLLOUT_CLIENT_ISLAND_91E3";
       >
         {{ launched() ? "Canary simulated" : "Simulate rollout" }}
       </button>
+      @defer (on interaction; hydrate on interaction) {
+        <relay-rollout-wave-plan [maxPercent]="maxPercent()" [baselineRpm]="baselineRpm()" />
+      } @placeholder {
+        <button type="button" class="server-action">Show wave plan</button>
+      }
     </div>
   `,
 })

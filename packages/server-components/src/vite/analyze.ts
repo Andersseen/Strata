@@ -2,7 +2,13 @@
    CommonJS, so only its default export is reliable from ESM. */
 import { dirname, resolve } from "node:path";
 
-import type { TmplAstBoundEvent, TmplAstElement, TmplAstTemplate } from "@angular/compiler";
+import type {
+  ParseSourceSpan,
+  TmplAstBoundEvent,
+  TmplAstDeferredBlock,
+  TmplAstElement,
+  TmplAstTemplate,
+} from "@angular/compiler";
 import {
   CssSelector,
   ParsedEventType,
@@ -417,8 +423,11 @@ function bindingText(event: TmplAstBoundEvent): string {
   return event.sourceSpan.toString().replace(/\s*=[\s\S]*$/, "");
 }
 
-function templateLocation(template: TemplateSource, event: TmplAstBoundEvent): string {
-  const start = event.sourceSpan.start;
+function templateLocation(
+  template: TemplateSource,
+  node: { readonly sourceSpan: ParseSourceSpan },
+): string {
+  const start = node.sourceSpan.start;
 
   if (template.inline) {
     const { line, character } = template.inline.source.getLineAndCharacterOfPosition(
@@ -429,6 +438,64 @@ function templateLocation(template: TemplateSource, event: TmplAstBoundEvent): s
   }
 
   return `${template.file}:${start.line + 1}:${start.col + 1}`;
+}
+
+function isBoundary(element: TmplAstElement): boolean {
+  return [...element.inputs, ...element.attributes].some(
+    (attribute) => attribute.name === BOUNDARY_INPUT,
+  );
+}
+
+/** The first `[strataClient]` element anywhere in a defer block, its sub-blocks included. */
+function firstBoundaryIn(deferred: TmplAstDeferredBlock): TmplAstElement | undefined {
+  let found: TmplAstElement | undefined;
+
+  class BoundaryFinder extends TmplAstRecursiveVisitor {
+    override visitElement(element: TmplAstElement): void {
+      if (!found && isBoundary(element)) found = element;
+      super.visitElement(element);
+    }
+  }
+
+  deferred.visitAll(new BoundaryFinder());
+
+  return found;
+}
+
+/** `@defer (hydrate on interaction; hydrate never)` → `hydrate on interaction, hydrate never`. */
+function hydrateTriggerText(deferred: TmplAstDeferredBlock): string {
+  return Object.keys(deferred.hydrateTriggers)
+    .map((kind) =>
+      kind === "never" ? "hydrate never" : kind === "when" ? "hydrate when" : `hydrate on ${kind}`,
+    )
+    .join(", ");
+}
+
+/**
+ * Why a `@defer` block cannot work in a server-owned template. The owner is
+ * absent from the browser graph (its surrogate template is empty), so
+ * Angular has no client-side defer block to schedule, load or hydrate.
+ * Measured in docs/research/server-component-defer-poc.md.
+ */
+function deferProblem(deferred: TmplAstDeferredBlock): string {
+  const boundary = firstBoundaryIn(deferred);
+  const hydrate = hydrateTriggerText(deferred);
+
+  if (boundary) {
+    return deferred.hydrateTriggers.never
+      ? `It contains the client boundary <${boundary.name}>. Under "hydrate never" Angular writes no hydration annotation for it, yet Strata would still hydrate it when the page loads, rendering it a second time.`
+      : `It contains the client boundary <${boundary.name}>. Strata hydrates every client boundary under a Server Component when the page loads, so this block's triggers${hydrate ? ` (${hydrate})` : ""} would not be honoured.`;
+  }
+
+  if (deferred.hydrateTriggers.never) {
+    return `Whether the server renders its main content or its @placeholder under "hydrate never" depends on the application's hydration configuration, which the build cannot verify; a placeholder could never be replaced.`;
+  }
+
+  if (hydrate) {
+    return `The server renders its main content, but no browser code owns the block, so its hydrate triggers (${hydrate}) can never complete.`;
+  }
+
+  return "The server renders its @placeholder (if any), and no browser code can ever load the main content.";
 }
 
 /**
@@ -495,9 +562,7 @@ function walk(
 
   class CompositionVisitor extends TmplAstRecursiveVisitor {
     override visitElement(element: TmplAstElement): void {
-      const marked = [...element.inputs, ...element.attributes].some(
-        (attribute) => attribute.name === BOUNDARY_INPUT,
-      );
+      const marked = isBoundary(element);
 
       checkOutputs(element.name, element.outputs, marked);
 
@@ -544,6 +609,13 @@ function walk(
       if (node.tagName === "ng-template") checkOutputs("ng-template", node.outputs, false);
       super.visitTemplate(node);
     }
+
+    override visitDeferredBlock(deferred: TmplAstDeferredBlock): void {
+      fail(
+        templateLocation(template, deferred),
+        `@defer block in ${owner}. The owning component is absent from the browser graph, so Angular cannot run this defer block client-side. ${deferProblem(deferred)} Move the deferred behaviour inside a component marked [${BOUNDARY_INPUT}] (its own template may use @defer and hydrate triggers, which Angular owns), or render the server content directly.`,
+      );
+    }
   }
 
   tmplAstVisitAll(new CompositionVisitor(), parsed.nodes);
@@ -566,7 +638,10 @@ function walk(
  *
  * Server-owned templates must not be interactive: an event or two-way
  * binding, a host listener, or a `@HostListener` anywhere in them fails the
- * build, as do composition cycles and ambiguous selectors.
+ * build, as do composition cycles and ambiguous selectors. So does any
+ * `@defer` block in them, whatever its triggers: no browser code owns it.
+ * A `@defer` inside a `[strataClient]` component's own template is
+ * Angular's, and never inspected.
  *
  * Experimental restrictions, enforced with an error rather than guessed around:
  * exactly one named `@ServerComponent()` class per module; string literal
