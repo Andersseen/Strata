@@ -55,7 +55,7 @@ describe("serializeBoundaryProps: accepted values", () => {
   });
 
   it("round-trips adversarial and non-Latin strings exactly through JSON", () => {
-    const text = `"'<>&</script><script>globalThis.__STRATA_XSS__=1</script>  😀 日本語 Ελληνικά`;
+    const text = `"'<>&</script><script>globalThis.__STRATA_XSS__=1</script>\u2028\u2029😀 日本語 Ελληνικά`;
     const parsed = parseBoundaryAttributes({
       protocol: STRATA_BOUNDARY_PROTOCOL,
       props: serialize({ text }),

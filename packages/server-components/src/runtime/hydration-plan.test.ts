@@ -1,4 +1,3 @@
-import type { Type } from "@angular/core";
 import { describe, expect, it } from "vitest";
 
 import { StrataBoundaryError } from "./boundary-protocol.js";
@@ -42,7 +41,7 @@ const references = new Map<string, ClientReference>([
   [
     "relay-triage",
     {
-      type: Triage as Type<unknown>,
+      type: Triage,
       selector: "relay-triage",
       inputs: new Map([
         ["incidentId", "incidentId"],
@@ -53,7 +52,7 @@ const references = new Map<string, ClientReference>([
   [
     "relay-window",
     {
-      type: Window as Type<unknown>,
+      type: Window,
       selector: "relay-window",
       // `readonly caption = input.required<string>({ alias: "label" })`
       inputs: new Map([["caption", "label"]]),

@@ -135,7 +135,7 @@ try {
   await checkBoundaryProtocol(server.baseUrl, {
     runtime: "Production server",
     full: true,
-    serverOutput: server.output,
+    serverOutput: () => server.output(),
   });
 } finally {
   await server.stop();

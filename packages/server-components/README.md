@@ -63,10 +63,118 @@ export class OrderSummary {}
   client references imported from the app's own modules. Every other environment (SSR, Nitro,
   Worker) keeps the real module. If the real module reaches the `client` environment by another
   path, `load` fails the build.
-- `StrataClientBoundary` props are plain data only: `string`, `number`, `boolean`, `null` values
-  in a flat object.
+- `StrataClientBoundary` props are plain data only, validated at runtime: see
+  [Client boundary protocol](#client-boundary-protocol).
 - `StrataIslandHost` hydrates each boundary as its own root from its `ngh` annotation and destroys
   those `ComponentRef`s when the host is destroyed.
+
+## Client boundary protocol
+
+Preview protocol, version 1. **Not stable.** It hardens the existing value set; it does not widen
+it. The authoring API is unchanged: `[strataClient]="{ someInput: value }"`.
+
+**Props are public browser data.** Everything placed in `[strataClient]` is written into the HTML
+and readable by anyone who loads the page. Serialization is not a security boundary, and Strata
+cannot tell whether a string is a secret: `[strataClient]="{ token: internalSecret }"` leaks it, by
+the developer's explicit choice. There is no name-based heuristic.
+
+What Strata does guarantee is that nothing crosses _implicitly_. The server validates the props at
+runtime, so a cast (`as unknown as ClientBoundaryProps`) or a dynamic value cannot carry a service,
+repository, class instance, function, closure, signal or nested object across. Reduce server values
+to explicit primitive props first.
+
+### Server: validate, then serialize
+
+| Rule        | Contract                                                                                                                                                                                        |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Shape       | One plain, non-array object (prototype `Object.prototype` or `null`) of own, enumerable, string-keyed data properties. Getters never run; accessors, symbol keys and non-enumerable props fail. |
+| Values      | `string`, `boolean`, `null`, and `number` only where `Number.isFinite`. `NaN` and `±Infinity` fail, because JSON would turn them into `null`.                                                   |
+| Rejected    | `undefined`, `BigInt`, functions (signals included), symbols, arrays, nested objects, `Date`, `Map`, `Set`, `RegExp`, `Promise`, `Observable`, any class instance.                              |
+| Keys        | `__proto__`, `prototype` and `constructor` fail.                                                                                                                                                |
+| Limits      | At most 64 props, and at most 64 KiB (65 536 bytes) of serialized JSON measured as UTF-8 with `TextEncoder`, not as UTF-16 length.                                                              |
+| Determinism | JSON of the validated entries in the object's own-property order. Keys are not sorted.                                                                                                          |
+| Fidelity    | Values round-trip exactly, except `-0`, which JSON writes as `0`.                                                                                                                               |
+
+A violation throws a `StrataBoundaryError` before `JSON.stringify` runs. Nothing is dropped,
+coerced or stringified. The message names the boundary selector, the prop, what was received and
+the allowed value set:
+
+```
+[strata] Cannot serialize client boundary <relay-widget>: prop "createdAt": Date is not supported.
+Allowed values: string | finite number | boolean | null, in one flat plain object of at most 64
+props and 65536 UTF-8 bytes serialized. …
+```
+
+Angular reports an error thrown by a template binding to its `ErrorHandler` and still completes the
+render. So the SSR log carries the Strata error and the invalid value never reaches the HTML (the
+host gets no `data-strata-props`), but the HTTP status stays whatever Angular/Analog return (200 in
+the fixture). The browser then refuses that host (missing props). No public Angular seam lets a
+directive fail the response; an application that wants a 5xx must make its own `ErrorHandler`
+rethrow.
+
+The props become host attribute bindings, so Angular's DOM serializer owns the escaping. There is no
+`innerHTML`, `<script>` JSON blob or manual string concatenation into HTML. The fixture proves that
+`" ' < > &`, `</script><script>globalThis.__STRATA_XSS__=1</script>`, U+2028, U+2029, emoji and
+non-Latin text stay inside the attribute and reach the island exactly.
+
+### SSR host markup
+
+```html
+<quantity-picker
+  data-strata-client="quantity-picker"
+  data-strata-protocol="1"
+  data-strata-props='{"max":3}'
+  ngh="0"
+></quantity-picker>
+```
+
+Each attribute has one job: `data-strata-client` holds the host's own selector,
+`data-strata-protocol` the protocol version, and `data-strata-props` the props (always written, `{}`
+included). The version is not wrapped in an envelope inside the props.
+
+**Identity is the host element.** A boundary is the concrete SSR host element that carries those
+three attributes and Angular's `ngh` annotation together. Its props belong to that host. There is no
+global payload (`window.__STRATA_DATA__`, `script[type=application/json]`, a central map), no
+boundary id, and no server counter, which concurrent requests, separate SSR/Nitro graphs and
+workerd isolates would make unsound. Islands are never matched by selector or payload equality: two
+boundaries with the same selector and identical props are two hosts, two `ComponentRef`s, with
+independent state.
+
+### Browser: preflight all, then commit
+
+Per Server Component host, `StrataIslandHost` hydrates all boundaries or none:
+
+1. **Discover** every element under the host that has any of the three attributes (minus those
+   nested in another boundary), so a partial boundary is still checked.
+2. **Validate all** of them before creating anything. Each must have `data-strata-protocol` equal to
+   `"1"`. A missing protocol is incompatible (it is not read as version 1), and an unknown protocol
+   is refused without parsing its props. `data-strata-props` must be present, within the size limit,
+   valid JSON, and pass the same value contract as on the server. `data-strata-client` must equal
+   the host's `localName` and the client reference's selector. Every prop must be a public input
+   name of that component, read from `reflectComponentType(type).inputs` (`templateName`, so input
+   aliases are honoured; the property name of an aliased input is refused with a hint).
+3. **Commit**: `createComponent` on each host, `setInput` per validated entry (the parsed object is
+   never merged into anything), `attachView`. Then each host gets `data-strata-hydrated`.
+
+A preflight failure throws one `StrataBoundaryError` naming the boundary, its position and the
+reason, before any `ComponentRef` exists. That covers version skew, invalid JSON, a missing
+protocol or props attribute, a reserved key, an unsupported value, an unknown input and a selector
+mismatch. The server-rendered DOM stays in place, inert. There is no client-side re-render, CSR
+fallback or reload. A reload strategy is not defined yet.
+
+If `createComponent` or `setInput` fails during commit, the islands this commit already created are
+destroyed (which also detaches their views from the `ApplicationRef`), their SSR host elements,
+which Angular detaches on destroy, are put back in place, and the error propagates. Host destroy
+destroys every island it created.
+
+Required inputs: `reflectComponentType` exposes no `required` flag, and Strata uses no `ɵ` API. So
+required-input completeness stays Angular-owned when the component is created: a required signal
+input that was never set throws Angular's NG0950 when it is read.
+
+Evidence: unit tests in `src/runtime/boundary-protocol.test.ts` and `src/runtime/hydration-plan.test.ts`.
+The Analog fixture route `/server-component-boundaries` runs the positive path on Node and workerd,
+and on Node the tampered-markup, rollback and invalid-SSR paths too (`pnpm test:server-components`,
+`pnpm test:server-components:cloudflare`).
 
 ## Composition
 

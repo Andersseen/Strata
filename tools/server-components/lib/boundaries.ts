@@ -205,13 +205,13 @@ function checkSsr(html: string): boolean {
   const hosts = [...html.matchAll(/<(boundary-counter|boundary-probe)\s[^>]*>/g)].map((m) => m[0]);
   const escapingTag = hosts.find((tag) => tag.includes('data-probe="escaping"')) ?? "";
   const escapingProps = escapingTag.match(/\sdata-strata-props="([^"]*)"/)?.[1];
-  let decoded: unknown = null;
-
-  try {
-    decoded = escapingProps === undefined ? null : JSON.parse(decodeAttribute(escapingProps));
-  } catch {
-    decoded = "(attribute is not JSON after HTML decoding)";
-  }
+  const decoded = ((): unknown => {
+    try {
+      return escapingProps === undefined ? null : JSON.parse(decodeAttribute(escapingProps));
+    } catch {
+      return "(attribute is not JSON after HTML decoding)";
+    }
+  })();
 
   console.log(`escaping boundary host: ${escapingTag}`);
 

@@ -32,7 +32,7 @@ import { ADVERSARIAL_TEXT, PRIMITIVES } from "./boundary-values";
         text: primitives.text,
         count: primitives.count,
         enabled: primitives.enabled,
-        empty: primitives.empty
+        empty: primitives.empty,
       }"
     />
     <boundary-probe
@@ -47,7 +47,7 @@ import { ADVERSARIAL_TEXT, PRIMITIVES } from "./boundary-values";
         text: adversarial,
         count: -1.5,
         enabled: false,
-        empty: null
+        empty: null,
       }"
     />
   </section>`,
