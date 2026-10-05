@@ -8,12 +8,15 @@ import { describe, expect, it } from "vitest";
 
 import { ServerComponent } from "./runtime/server-component.js";
 import { RUNTIME_PACKAGE } from "./vite/analyze.js";
+import { SERVER_ONLY_SPECIFIER } from "./vite/server-only.js";
 
 const packageDir = join(import.meta.dirname, "..");
 const manifest = JSON.parse(readFileSync(join(packageDir, "package.json"), "utf8")) as {
   name: string;
+  version: string;
   private?: boolean;
   publishConfig?: unknown;
+  exports: Record<string, unknown>;
 };
 
 function importsOf(dir: string): string[] {
@@ -32,7 +35,26 @@ function importsOf(dir: string): string[] {
 describe("package boundary", () => {
   it("is private and not configured for publishing", () => {
     expect(manifest.private).toBe(true);
+    expect(manifest.version).toBe("0.0.0");
     expect(manifest.publishConfig).toBeUndefined();
+  });
+
+  it("exports the server-only assertion entry the plugin recognises", () => {
+    expect(SERVER_ONLY_SPECIFIER).toBe(`${manifest.name}/server-only`);
+    expect(manifest.exports["./server-only"]).toEqual({
+      types: "./dist/server-only/index.d.ts",
+      default: "./dist/server-only.js",
+    });
+  });
+
+  it("keeps the server-only assertion entry empty: no imports, no runtime statements", () => {
+    const file = join(packageDir, "src", "server-only", "index.ts");
+    const source = ts.createSourceFile(file, readFileSync(file, "utf8"), ts.ScriptTarget.Latest);
+
+    expect(source.statements.map((statement) => ts.SyntaxKind[statement.kind])).toEqual([
+      "ExportDeclaration",
+    ]);
+    expect(source.statements[0]?.getText(source)).toBe("export {};");
   });
 
   it("generates surrogates that import this package by its own name", () => {

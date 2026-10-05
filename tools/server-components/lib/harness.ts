@@ -32,6 +32,11 @@ export const MARKERS = {
   /** The `@defer` fixture's Server Component and its server-owned child (lib/defer.ts). */
   deferServerParent: "STRATA_DEFER_SERVER_PARENT_MARKER",
   deferServerChild: "STRATA_DEFER_SERVER_CHILD_MARKER",
+  /**
+   * The synthetic canary of `server-secret.ts`, a module asserting
+   * `import "@strata-sc/server-components/server-only"` (lib/server-only.ts).
+   */
+  serverOnlyCanary: "STRATA_SERVER_ONLY_CANARY_7F3D9A41C2E5",
   client: "STRATA_CLIENT_COMPONENT_MARKER",
   control: "STRATA_ANALOG_CLIENT_CONTROL_MARKER",
 } as const;
@@ -42,6 +47,7 @@ export const SERVER_ONLY = [
   MARKERS.serverOnlyImport,
   MARKERS.deferServerParent,
   MARKERS.deferServerChild,
+  MARKERS.serverOnlyCanary,
 ] as const;
 /** A string only `@angular/compiler` contains: the compiler must stay server-side. */
 export const ANGULAR_COMPILER_FINGERPRINT = "Unterminated quote";
@@ -100,11 +106,16 @@ export function finish(title: string): never {
  * Production build of the fixture; ends the run (via `onFailure`) if it fails.
  * Returns the build's console output.
  */
-export function build(label: string, env: NodeJS.ProcessEnv, onFailure: () => never): string {
+export function build(
+  label: string,
+  env: NodeJS.ProcessEnv,
+  onFailure: () => never,
+  args: readonly string[] = [],
+): string {
   rmSync(distDir, { recursive: true, force: true });
 
   // A key set to `undefined` in `env` removes it from the inherited environment.
-  const result = run("pnpm", ["exec", "vite", "build"], {
+  const result = run("pnpm", ["exec", "vite", "build", ...args], {
     cwd: fixtureDir,
     env: Object.fromEntries(
       Object.entries({ ...process.env, ...env }).filter(([, value]) => value !== undefined),

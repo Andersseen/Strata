@@ -22,16 +22,23 @@ to the PoC.
 - Angular `@defer` / incremental hydration inside client islands, on Node and workerd:
   `pnpm test:server-component-defer`, `pnpm test:server-components:cloudflare`, and Relay's rollout
   island (see [Angular `@defer`](#angular-defer-and-incremental-hydration)).
+- Server-only modules (`import "@strata-sc/server-components/server-only"`): direct, dynamic,
+  barrel, chained-barrel, `?raw`, `?url` and `@defer`-lazy browser imports fail real production
+  builds; marked modules and a synthetic canary stay in the Node and Worker server graphs and out
+  of every browser file and source map: `pnpm test:server-component-server-only`,
+  `pnpm test:server-components:cloudflare`, and the www and Relay gates (see
+  [Server-only modules](#server-only-modules)).
 - **Document navigation only.** An Angular Router navigation to a route containing a server
   component renders the empty surrogate, silently. There is no server payload or router
   integration.
 
 ## Entries
 
-| Import                              | Contents                                                                                                        | Graph             |
-| ----------------------------------- | --------------------------------------------------------------------------------------------------------------- | ----------------- |
-| `@strata-sc/server-components`      | `ServerComponent`, `StrataClientBoundary`, `ClientBoundaryProps`, `StrataIslandHost`, `provideClientReferences` | server + browser  |
-| `@strata-sc/server-components/vite` | `strataServerComponents(options)`                                                                               | build (Node) only |
+| Import                                     | Contents                                                                                                        | Graph                       |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------- | --------------------------- |
+| `@strata-sc/server-components`             | `ServerComponent`, `StrataClientBoundary`, `ClientBoundaryProps`, `StrataIslandHost`, `provideClientReferences` | server + browser            |
+| `@strata-sc/server-components/vite`        | `strataServerComponents(options)`                                                                               | build (Node) only           |
+| `@strata-sc/server-components/server-only` | nothing: an empty module whose side-effect import is a build-time assertion                                     | server only (never browser) |
 
 The runtime entry imports only `@angular/core`. It is Angular partial-compiled by `ngc` into
 `dist/fesm2022/`; Analog 2.7.2's build optimizer runs the Angular linker only on paths matching
@@ -65,7 +72,8 @@ export class OrderSummary {}
   into the app's `generatedDir`: same selector, empty template, `StrataIslandHost`, and the
   client references imported from the app's own modules. Every other environment (SSR, Nitro,
   Worker) keeps the real module. If the real module reaches the `client` environment by another
-  path, `load` fails the build.
+  path (a query import such as `?raw`, a glob import), the build fails (see
+  [Server-only modules](#server-only-modules)).
 - `StrataClientBoundary` props are plain data only, validated at runtime: see
   [Client boundary protocol](#client-boundary-protocol).
 - `StrataIslandHost` hydrates each boundary as its own root from its `ngh` annotation and destroys
@@ -282,6 +290,66 @@ environments: { ssr: { define: { ngServerMode: "true" } } },
 
 Without it, SSR renders the placeholder and runs `on viewport` on the server. Details, the measured
 unsupported shapes and limitations: `docs/research/server-component-defer-poc.md`.
+
+## Server-only modules
+
+```ts
+// src/app/catalog/product.repository.ts
+import "@strata-sc/server-components/server-only";
+
+export class ProductRepository {
+  // database access, credentials, SDK clients …
+}
+```
+
+- **An explicit build-time assertion.** The side-effect import declares: _this module must never
+  enter a browser graph_. It is not a decorator, a function call or a runtime registry. The entry
+  is empty (no imports, no code), so it is safe in Node SSR and workerd and costs nothing at run
+  time; the plugin enforces it during the build.
+- **A marked module cannot enter the `client` environment.** Resolving it there fails the build
+  before any browser output is written, whatever the import shape: a direct import, a dynamic
+  `import()` (including inside a client component's own `@defer` lazy code), or a query import
+  (`?raw`, `?url`, …: the query is stripped and the underlying module is checked, because a source
+  string is a disclosure too). A `load` backstop rejects one reached without resolution (e.g. a glob
+  import). Server environments (SSR, Nitro, Worker) are never restricted: a Server Component and the
+  server-owned code it renders may import marked modules freely.
+- **`@ServerComponent()` modules are already protected automatically.** They do not need the
+  assertion; in the browser they are only ever replaced by their surrogate, and a query import or an
+  unresolved path to one fails the build with the same diagnostic shape.
+- **Re-export barrels inherit the restriction.** A module that re-exports a marked module
+  (`export * from`, `export { X } from`, `export * as X from`), directly or through a chain of
+  barrels, is server-only for the browser too, even when the browser only wanted another of its
+  exports. Re-export cycles are handled. `export type { … } from` loads nothing and does not
+  propagate.
+- **Ordinary imports do not propagate.** A marked repository importing `./shared-format` does not
+  make `shared-format` server-only, so shared modules remain possible: a client island may import
+  the same `shared-format`. A dependency that is itself sensitive (a secret loader, a database
+  client) must carry the assertion itself. There is no directory, file-name or secret-name
+  heuristic.
+
+The pre-scan runs when the plugin is configured: it parses every TypeScript module under
+`sourceDir` with the TypeScript AST (comments and strings that merely contain the specifier do not
+count), records the assertions and the local re-export edges, and propagates the restriction
+upward through re-exports to a fixpoint. The set is rebuilt for every build.
+
+```
+[strata] Server-only module entered the browser graph: src/app/server-component/product-repository.ts
+Imported from: src/app/catalog/product-widget.component.ts
+Reason: the module declares `import "@strata-sc/server-components/server-only";`.
+Move the dependency behind the Server Component boundary (use it only from a @ServerComponent() or
+the server-owned components it renders, and pass plain data to the island through [strataClient]),
+or remove the browser import.
+```
+
+A barrel names the chain instead: `Reason: it re-exports a server-only module: src/app/server/index.ts
+→ src/app/server/product.repository.ts, which declares …`.
+
+Limits of this preview: the pre-scan follows relative re-export specifiers only (an aliased or
+package re-export is not propagated, though the target is still rejected when Rollup resolves it);
+an import through an alias is rejected by the `load` backstop, whose diagnostic may not name the
+importer; a marked module outside `sourceDir` is not pre-scanned, and is rejected only when its own
+assertion import is resolved in the browser graph; the dev server does not re-scan on edits. Checked
+by `pnpm test:server-component-server-only` (real production builds) and unit tests.
 
 ## Experimental restrictions
 

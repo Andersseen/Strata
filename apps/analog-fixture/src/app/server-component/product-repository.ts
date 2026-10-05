@@ -1,8 +1,12 @@
+import "@strata-sc/server-components/server-only";
+
 import { Injectable } from "@angular/core";
 
 import { readServerSecret } from "./server-secret";
+import { formatShared } from "./shared-format";
 
-// Emitted only by this server-only data access module.
+// Emitted only by this server-only data access module. The side-effect import
+// above asserts it: the build fails if any browser code imports this module.
 const REPOSITORY_MARKER = "STRATA_SERVER_COMPONENT_REPOSITORY_MARKER";
 
 export interface Product {
@@ -24,7 +28,9 @@ export class ProductRepository {
       id,
       name: `Product ${id}`,
       description: "Server rendered product",
-      provenance: `${fingerprint(REPOSITORY_MARKER)}.${fingerprint(readServerSecret())}`,
+      provenance: formatShared(
+        `${fingerprint(REPOSITORY_MARKER)}.${fingerprint(readServerSecret())}`,
+      ),
     };
   }
 }

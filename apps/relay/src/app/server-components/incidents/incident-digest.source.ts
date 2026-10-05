@@ -1,3 +1,7 @@
+// Asserted server-only: it reaches into the controllers' store, and the build
+// fails if any browser code imports this module.
+import "@strata-sc/server-components/server-only";
+
 import { Injectable } from "@angular/core";
 
 import { operationsRepository } from "../../../server/strata/operations.repository";

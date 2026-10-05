@@ -1,3 +1,6 @@
+// Asserted server-only: the build fails if any browser code imports this module.
+import "@strata-sc/server-components/server-only";
+
 import { Injectable } from "@angular/core";
 
 // This marker is intentionally rendered through a hash and verified absent
