@@ -54,6 +54,6 @@
   },
   "dependencies": {
     "@strata-sc/core": "workspace:*",
-    "h3": "^2.0.1-rc.1"
+    "h3": "^2.0.1-rc.32"
   }
 }
