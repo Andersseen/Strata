@@ -16,6 +16,7 @@ import {
   section,
 } from "./harness.ts";
 import type { OutputGraph } from "./harness.ts";
+import { declaresServerOnly } from "./server-only.ts";
 
 /**
  * Shared, private harness of the dogfood gates for real apps consuming the
@@ -38,6 +39,11 @@ export interface AppGateConfig {
   readonly clientMarkers: readonly string[];
   /** App source modules (as source-map paths end) that must stay server-side. */
   readonly serverModules: readonly string[];
+  /**
+   * Server modules that assert `import "@strata-sc/server-components/server-only"`.
+   * Each must be one of `serverModules`, so the browser/server scans cover it.
+   */
+  readonly serverOnlyAssertions: readonly string[];
   /** Source modules the browser needs: islands and generated surrogates. */
   readonly clientModules: readonly string[];
   /** Name fragments that would reveal a server-only module as a browser file. */
@@ -153,7 +159,12 @@ export function createAppGate(config: AppGateConfig) {
       console.log(`browser chunks bundle ${sources.length} source modules`);
       results.push(check("browser source maps list the bundled modules", sources.length > 0));
 
-      for (const module of [...config.serverModules, "packages/server-components/dist/vite.js"]) {
+      for (const module of [
+        ...config.serverModules,
+        "packages/server-components/dist/vite.js",
+        // The assertion entry: consumed by the build, never a browser dependency.
+        "packages/server-components/dist/server-only.js",
+      ]) {
         results.push(
           check(
             `module ${module} not bundled for the browser`,
@@ -187,8 +198,22 @@ export function createAppGate(config: AppGateConfig) {
     );
   }
 
+  /** The app's own server-only assertions: declared in source, and scanned as server modules. */
+  function checkAssertions(): boolean {
+    section('Server-only assertions (import "@strata-sc/server-components/server-only")');
+
+    return all(
+      config.serverOnlyAssertions.flatMap((module) => [
+        check(`${module} declares the assertion`, declaresServerOnly(join(config.appDir, module))),
+        check(`${module} is scanned as a server module`, config.serverModules.includes(module)),
+      ]),
+    );
+  }
+
   /** Node build with hidden source maps (emitted .js unchanged), then both graphs. */
   function nodeBuild(): void {
+    verdict["server-only assertions declared"] = checkAssertions();
+
     section("Node build: vite build --sourcemap hidden");
     build("Node", ["--sourcemap", "hidden"]);
 

@@ -4,6 +4,11 @@ import { dirname, join, relative, resolve } from "node:path";
 import type { Plugin } from "vite";
 
 import { RUNTIME_PACKAGE, analyzeServerComponent, createAnalysisCache } from "./analyze.js";
+import { browserGraphError } from "./diagnostics.js";
+import type { BrowserForbidden, BrowserGraphContext } from "./diagnostics.js";
+import { stripQuery } from "./module-id.js";
+import { SERVER_ONLY_SPECIFIER, scanServerOnlyModules } from "./server-only.js";
+import type { ServerOnlyModule } from "./server-only.js";
 import { renderSurrogate } from "./surrogate.js";
 import type { ServerComponentModule } from "./surrogate.js";
 
@@ -20,6 +25,14 @@ import type { ServerComponentModule } from "./surrogate.js";
  * environment (`ssr`, and therefore Nitro) keeps the real module. The
  * surrogate is written into the consuming app so its Angular compiler
  * AOT-compiles it like any other source file.
+ *
+ * It is also the browser-graph firewall. A `@ServerComponent()` module is
+ * forbidden in the `client` environment automatically; any other app module
+ * opts in with `import "@strata-sc/server-components/server-only";`, and so
+ * does, implicitly, every module that re-exports one (`export … from`).
+ * Resolving or loading a forbidden module in the `client` environment, under
+ * any query (`?raw`, `?url`, …), statically or through `import()`, fails the
+ * build. Server environments are never restricted.
  */
 export interface ServerComponentsOptions {
   /** The Analog app root (the directory holding `vite.config.ts`). */
@@ -42,16 +55,32 @@ export function strataServerComponents(options: ServerComponentsOptions): Plugin
   const sourceDir = join(root, options.sourceDir);
   const generatedDir = join(root, options.generatedDir);
   let bySource = new Map<string, ServerComponentModule>();
+  let bySurrogate = new Map<string, ServerComponentModule>();
+  let serverOnly: ReadonlyMap<string, ServerOnlyModule> = new Map();
+
+  const context: BrowserGraphContext = {
+    root,
+    get serverOnly() {
+      return serverOnly;
+    },
+    surrogateOf: (id) => bySurrogate.get(stripQuery(id))?.file,
+  };
 
   const generate = (): void => {
     rmSync(generatedDir, { recursive: true, force: true });
     bySource = new Map();
+    bySurrogate = new Map();
 
     // Build-scoped: shared by every server component of this generation,
     // so a child module composed under several of them is parsed once.
     const cache = createAnalysisCache();
+    const files = listSourceFiles(sourceDir, generatedDir);
 
-    for (const file of listSourceFiles(sourceDir, generatedDir)) {
+    // Explicit assertions, then re-export taint to a fixpoint; replaced (never
+    // mutated) by each generation, so nothing survives from a previous build.
+    serverOnly = scanServerOnlyModules(files, readSource);
+
+    for (const file of files) {
       const found = analyzeServerComponent(file, readFileSync(file, "utf8"), readSource, cache);
 
       if (!found) continue;
@@ -62,7 +91,20 @@ export function strataServerComponents(options: ServerComponentsOptions): Plugin
       mkdirSync(dirname(surrogate), { recursive: true });
       writeFileSync(surrogate, renderSurrogate(module, root));
       bySource.set(file, module);
+      bySurrogate.set(surrogate, module);
     }
+  };
+
+  /** The module behind `id` if the client environment must never load it. */
+  const forbiddenIn = (id: string): BrowserForbidden | undefined => {
+    const file = stripQuery(id);
+    const component = bySource.get(file);
+
+    if (component) return { kind: "server-component", file };
+
+    const module = serverOnly.get(file);
+
+    return module ? { kind: "server-only", module } : undefined;
   };
 
   return {
@@ -84,25 +126,46 @@ export function strataServerComponents(options: ServerComponentsOptions): Plugin
 
     async resolveId(source, importer, resolveOptions) {
       if (!options.enabled || this.environment.name !== "client" || !importer) return null;
+
+      // Only a marked module imports the assertion, and a marked module inside
+      // sourceDir is stopped at its own import site below. Reaching this means
+      // one the pre-scan never saw (outside sourceDir) is being loaded.
+      if (source === SERVER_ONLY_SPECIFIER) {
+        this.error(
+          browserGraphError({ kind: "server-only-specifier" }, importer, undefined, context),
+        );
+      }
+
       if (!source.startsWith(".") && !source.startsWith("/")) return null;
 
       const resolved = await this.resolve(source, importer, { ...resolveOptions, skipSelf: true });
-      const module = resolved && bySource.get(stripQuery(resolved.id));
 
-      return module ? module.surrogate : null;
+      if (!resolved) return null;
+
+      const forbidden = forbiddenIn(resolved.id);
+
+      if (!forbidden) return null;
+
+      // A Server Component imported as a module is replaced by its surrogate.
+      // A query import of one (`?raw`, `?url`) would ship its source or its
+      // file instead, so that fails like any other server-only module.
+      if (forbidden.kind === "server-component" && resolved.id === forbidden.file) {
+        return bySource.get(forbidden.file)?.surrogate ?? null;
+      }
+
+      this.error(browserGraphError(forbidden, resolved.id, importer, context));
     },
 
-    // A server component module reaching the browser graph by any other path
-    // (e.g. a glob import that bypasses resolveId) fails the build instead of leaking.
+    // A forbidden module reaching the browser graph by any other path (e.g. a
+    // glob import or an alias that bypasses the check above) fails the build
+    // instead of leaking.
     load(id) {
       if (!options.enabled || this.environment.name !== "client") return null;
 
-      const module = bySource.get(stripQuery(id));
+      const forbidden = forbiddenIn(id);
 
-      if (module) {
-        this.error(
-          `Server component module ${relative(root, module.file)} entered the browser graph.`,
-        );
+      if (forbidden) {
+        this.error(browserGraphError(forbidden, id, this.getModuleInfo(id)?.importers[0], context));
       }
 
       return null;
@@ -112,10 +175,6 @@ export function strataServerComponents(options: ServerComponentsOptions): Plugin
 
 function readSource(path: string): string {
   return readFileSync(path, "utf8");
-}
-
-function stripQuery(id: string): string {
-  return id.split("?")[0] ?? id;
 }
 
 function listSourceFiles(dir: string, exclude: string): string[] {

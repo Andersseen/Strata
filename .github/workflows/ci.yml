@@ -67,6 +67,11 @@ jobs:
       - name: Server Components + Angular @defer (incremental hydration, lazy chunks)
         run: pnpm test:server-component-defer
 
+      # `import "@strata-sc/server-components/server-only"`: illegal browser
+      # imports (direct, dynamic, barrel, ?raw, @defer-lazy) fail real builds.
+      - name: Server-only modules (build-graph firewall)
+        run: pnpm test:server-component-server-only
+
       # Local workerd via the Wrangler pinned in @strata-sc/www: no account, no secrets.
       - name: Server-component PoC on Cloudflare Pages (local Wrangler runtime)
         run: pnpm test:server-components:cloudflare

@@ -1,3 +1,6 @@
+// Asserted server-only: the build fails if any browser code imports this module.
+import "@strata-sc/server-components/server-only";
+
 import { Injectable } from "@angular/core";
 
 import { SHOWCASE_GRAPH, fingerprint, transitiveProof } from "./server-component-proof";

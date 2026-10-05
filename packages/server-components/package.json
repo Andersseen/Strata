@@ -18,6 +18,10 @@
       "types": "./dist/vite/index.d.ts",
       "default": "./dist/vite.js"
     },
+    "./server-only": {
+      "types": "./dist/server-only/index.d.ts",
+      "default": "./dist/server-only.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [

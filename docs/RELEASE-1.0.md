@@ -23,6 +23,18 @@ compatibility matrix; do not check it based on intent or a demonstration.
 - [ ] Server implementation excluded from every browser chunk, asset and public source map.
 - [ ] Server-only dependencies excluded transitively; direct, re-exported and dynamic illegal
       imports fail closed with useful diagnostics.
+      _Evidence so far (not certified):_ the private package's
+      `import "@strata-sc/server-components/server-only"` assertion fails real production builds
+      for direct, dynamic `import()`, `@defer`-lazy, barrel, chained-barrel, `?raw` and `?url`
+      browser imports, each with a diagnostic naming the module, the importer, the reason (with the
+      re-export chain) and the fix; a legal Server Component → marked repository build and a shared
+      module imported by both a marked module and an island build. A synthetic canary and the marked
+      modules are present in the Node SSR/Nitro and Worker server graphs and absent from browser JS,
+      assets and source maps, with plugin-off positive controls (fixture, www and Relay; see
+      [STATE](STATE.md), "Server-only modules"). Not ticked: no release candidate; dev server/HMR
+      unqualified; aliased/package re-exports are not propagated by the pre-scan and an aliased
+      import is rejected only by the `load` backstop without naming its importer; local Node and
+      workerd only.
 - [ ] Normal interactive Angular descendants are shipped and hydrated without shipping the server
       parent; DOM reuse and exactly-once events are asserted.
 - [ ] Initial SSR, direct URL loading and server-side service access work with request isolation.

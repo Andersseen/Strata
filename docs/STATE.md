@@ -28,6 +28,7 @@ Analog track increments since the 2026-09-17 audit:
 | SC compose  | Server Component composition (private package, still experimental): ordinary server-only child and grandchild components, nested Server Components, and transitive client-boundary discovery through local `imports`; interactive (event, two-way, host-listener) bindings in server-owned templates fail the build. Dogfooded by Relay (`pnpm test:relay:server-components`) ([README](../packages/server-components/README.md))                                                                                                                                                                                                                                                                                                                                 |
 | SC protocol | Client boundary protocol v1 (private package, preview, not stable): `[strataClient]` props are validated at runtime on the server (flat plain object; `string`, finite `number`, `boolean`, `null`; `__proto__`/`prototype`/`constructor` rejected; 64 props; 64 KiB UTF-8) and written beside `data-strata-protocol="1"`. The browser preflights every boundary of a Server Component host (protocol, JSON, values, limits, selector, public input names) before creating any island, and rolls back a failed commit. Fixture `/server-component-boundaries`; `pnpm test:server-components` (Node, fail-closed matrix) and `pnpm test:server-components:cloudflare` (positive path) ([README](../packages/server-components/README.md#client-boundary-protocol)) |
 | SC defer    | Server Components + Angular `@defer` (private package, experimental): `@defer` inside a `[strataClient]` component is Angular's (incremental hydration on interaction and viewport, lazy chunk fetched only on the trigger, event replay, SSR DOM reused); `@defer` in any server-owned template fails the build with a shape-specific diagnostic. Analog 2.7.2 apps need `environments.ssr.define.ngServerMode = "true"` for SSR to honour hydrate triggers. Fixture `/server-component-defer`, Relay rollout island; `pnpm test:server-component-defer` (Node), `pnpm test:server-components:cloudflare` (workerd) ([report](research/server-component-defer-poc.md))                                                                                           |
+| SC firewall | Server-only modules (private package, experimental): `import "@strata-sc/server-components/server-only";` is a build-time assertion that the module must never enter the browser graph; barrels re-exporting a marked module inherit it; ordinary imports do not propagate. Illegal direct, dynamic, `@defer`-lazy, barrel, chained-barrel, `?raw` and `?url` browser imports fail real production builds with a Strata diagnostic. Fixture canary, www and Relay dogfood; `pnpm test:server-component-server-only` ([README](../packages/server-components/README.md#server-only-modules))                                                                                                                                                                       |
 
 Current lifecycle facts:
 
@@ -99,6 +100,43 @@ Current lifecycle facts:
   - Analog 2.7.2 defines `ngServerMode` as `false` for the SSR graph of a production build (and
     rewrites only `core.mjs`), so SSR renders hydrate-trigger placeholders until the app sets
     `environments: { ssr: { define: { ngServerMode: "true" } } }` (fixture and Relay do).
+- Server-only modules (fixture `src/app/server-component/`, www, Relay;
+  [README](../packages/server-components/README.md#server-only-modules)):
+  - Assertion: `import "@strata-sc/server-components/server-only";`, an empty package entry (no
+    imports, no code). The plugin pre-scans `sourceDir` with the TypeScript AST at `config()`; the
+    specifier inside a comment, string or template literal does not mark a module (unit).
+  - Re-export taint: `export * from`, `export { X } from` and `export * as X from` propagate the
+    restriction upward to a fixpoint (chains and cycles, unit); ordinary imports and
+    `export type { … } from` do not. `shared-format.ts`, imported by the marked repository and by
+    the `AddToCart` island, is bundled for both graphs.
+  - Direct browser import rejected: a temporary `[strataClient]` island importing the marked
+    `ProductRepository` fails `vite build` with `[strata] Server-only module entered the browser
+graph: src/app/server-component/product-repository.ts` / `Imported from:` the island /
+    `Reason:` / fix.
+  - Dynamic import rejected: `await import("…/product-repository")` in the island fails the build
+    with the island as importer; no lazy browser chunk is emitted. The same holds for a dynamic
+    import inside a component loaded by the island's own `@defer` (importer: the lazy component).
+  - Re-export/barrel rejected: a barrel re-exporting the repository, and a barrel B → barrel A →
+    repository chain, fail the build naming the barrel the browser reached and the full chain.
+  - Raw-source import rejected: `server-secret.ts?raw` and `?url` fail the build (query stripped,
+    underlying module checked). A query import of a `@ServerComponent()` module now fails the same
+    way instead of resolving to its surrogate.
+  - No browser output exists after any of these failures; a legal control (Server Component →
+    marked repository, island → shared module) builds.
+  - Node graph proof: the canary `STRATA_SERVER_ONLY_CANARY_7F3D9A41C2E5` (in the marked
+    `server-secret.ts`) is in `dist/ssr` and the Nitro server, absent from `dist/client`,
+    `dist/analog/public` and every browser source map; the marked modules are in SSR source maps
+    only; the assertion entry is bundled nowhere in the browser; the page renders through the marked
+    repository on Nitro `node-server`. The plugin-off control leaks the canary and both modules.
+  - workerd graph proof: `pnpm test:server-components:cloudflare` finds the canary in the Worker
+    graph reachable from `_worker.js` and not in the public assets; www's marked repository and
+    proof module are in its Worker graph and absent from its Pages assets.
+  - Dogfood: Relay marks `server-operations-intelligence.ts` and `incident-digest.source.ts`; www
+    marks `server-component-facts.repository.ts` and `server-component-proof.ts`. Their gates check
+    the assertion in source (AST) and the modules' absence from browser source maps.
+  - Not covered: dev server/HMR, aliased or package re-exports in the pre-scan, marked modules
+    outside `sourceDir` (rejected only when their assertion import is resolved), data disclosure
+    through HTML, errors or caches (R11). Security as a whole is not complete.
 - Cloudflare Workers (local workerd only, nothing deployed): the same fixture built with
   `BUILD_PRESET=cloudflare-pages` passes the server-component, navigation and controller
   assertions under `wrangler pages dev`. The SPEC-003 Angular DI route fails there, because

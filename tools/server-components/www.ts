@@ -51,6 +51,10 @@ const gate = createAppGate({
     "src/app/server-components/server-component-facts.repository.ts",
     "src/app/server-components/server-component-proof.ts",
   ],
+  serverOnlyAssertions: [
+    "src/app/server-components/server-component-facts.repository.ts",
+    "src/app/server-components/server-component-proof.ts",
+  ],
   clientModules: [
     "src/app/server-components/server-component-demo.component.ts",
     "src/generated/server-components/server-components/server-components-showcase.component.ts",

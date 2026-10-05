@@ -87,6 +87,10 @@ const gate = createAppGate({
     // Nested in the briefing, and imported directly by the release page.
     "src/app/server-components/briefing/briefing-metadata.server-component.ts",
   ],
+  serverOnlyAssertions: [
+    "src/app/server-components/server-operations-intelligence.ts",
+    "src/app/server-components/incidents/incident-digest.source.ts",
+  ],
   clientModules: [
     "src/app/server-components/briefing/briefing-acknowledgement.component.ts",
     "src/app/server-components/briefing/briefing-window.component.ts",

@@ -1,3 +1,6 @@
+// Asserted server-only: the build fails if any browser code imports this module.
+import "@strata-sc/server-components/server-only";
+
 // Server-only by construction: only ServerComponentFactsRepository imports this
 // module, never the server component itself. It keeps the landing's graph split
 // transitive, the property the section describes. Qualification evidence
