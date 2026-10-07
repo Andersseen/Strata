@@ -20,6 +20,7 @@ pnpm test:consumer # installed consumer qualification; currently blocked on stri
 pnpm test:analog # Analog fixture: @strata-sc/analog in dev + production, client-bundle scan
 pnpm test:server-components            # Server Component graph split, SSR, hydration (Node)
 pnpm test:server-component-navigation  # document navigation GO, router navigation NO-GO (Node)
+pnpm test:server-component-dev        # graph regeneration and reload semantics under `vite` dev (Chromium)
 pnpm test:server-components:cloudflare # the same on local Cloudflare workerd (Wrangler)
 ```
 

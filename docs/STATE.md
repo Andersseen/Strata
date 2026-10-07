@@ -136,10 +136,48 @@ graph: src/app/server-component/product-repository.ts` / `Imported from:` the is
   - Dogfood: Relay marks `server-operations-intelligence.ts` and `incident-digest.source.ts`; www
     marks `server-component-facts.repository.ts` and `server-component-proof.ts`. Their gates check
     the assertion in source (AST) and the modules' absence from browser source maps.
-  - Not covered: dev server/HMR, aliased or package re-exports in the pre-scan, marked modules
+  - Not covered: aliased or package re-exports in the pre-scan, marked modules
     outside `sourceDir` (rejected only when their assertion import is resolved), data disclosure
     through HTML, errors or caches (R11: covered for synthetic canaries by the SC security entry
     below). Security as a whole is not complete.
+- Server Component dev server (`vite`; fixture `/server-component-dev`,
+  [report](research/server-component-dev-hmr.md), `pnpm test:server-component-dev`, real Analog dev
+  server and Chromium, Vite `hotUpdate`):
+  - Initial dev graph: derived at `config()` before Analog reads its tsconfig, as in a build; the
+    page SSRs, its island hydrates once and a click has one effect; the server-only repository
+    runs on the server and its canary is in no browser response or HMR frame (positive control: a
+    public module's canary is).
+  - Hot regeneration: after every `.ts`/`.html` edit under `sourceDir` the graph is analyzed whole
+    in memory and then committed (generated surrogates synchronized: unchanged ones not rewritten,
+    stale ones deleted); an analysis error keeps the committed graph and files. 128+ refreshes in the
+    gate: median 6 ms on the fixture.
+  - Server-owned reload: an edit to the Server Component, an ordinary server child, a `templateUrl`
+    grandchild each replaces the JS realm (sentinel gone) with exactly one document request and one
+    Strata reload; SSR HTML has the new text and not the old; the island hydrates once; one click is
+    one effect.
+  - Boundary lifecycle: add, swap (B → C) and remove a `[strataClient]` boundary regenerate the
+    surrogate (imports exactly the current client reference), reload once and leave only the current
+    islands; repeated server/boundary cycles leave one island and one ComponentRef per realm.
+  - Client coexistence: a client-island edit leaves the graph unchanged and Strata sends no reload.
+    Analog's default (`liveReload: false`) then has Vite reload the page itself; with `liveReload:
+true` Angular's component HMR updates the island (same realm, no document request, state kept).
+    Server-owned edits under `liveReload: true` are not qualified: Analog leaves SSR stale for any
+    edited component there (reproduced with the plugin off).
+  - Live server-only: adding the assertion to a public module, or making a barrel re-export a marked
+    module, while Vite runs terminates the old realm and fails the new one closed (HTTP 500 with the
+    Strata diagnostic; dynamic `import()`, `?raw` and `?url` rejected; no canary in any response or
+    HMR frame after the edit); removing it recovers without a restart. Bytes already delivered to
+    the old realm cannot be revoked; the reload ends that realm.
+  - Invalid edits: `@defer`, an event binding, an unresolved `[strataClient]` each give the
+    analyzer's own diagnostic in the server log and Vite's overlay, the client graph refuses every
+    app module (including ones Vite had cached) and the fix recovers with a reload, no restart.
+  - Create/delete: a new `@ServerComponent()` module gets a surrogate while Vite runs and renders
+    once wired into the page; deleting it removes the stale surrogate.
+  - Dogfood smoke: Relay (`/release`: SSR, rollout island hydrates, interaction, one server-owned
+    text edit reloads the document, restored) and www (`/`: demo island hydrates, one click).
+  - Not covered: Analog `liveReload: true` for server-owned edits, plain helper modules shared
+    with client code (not tracked as server-owned), an app invalid at startup (Vite fails to start),
+    streaming, Router navigation, a deployed environment.
 - Server Component confidentiality, in three independent layers (fixture `/server-component-security*`,
   [report](research/server-component-data-security.md)):
   - **Module confidentiality** (PR #49, unchanged): the server-only assertion keeps marked modules
@@ -171,8 +209,9 @@ graph: src/app/server-component/product-repository.ts` / `Imported from:` the is
     registry, process-wide boundary store or secret cache (source scan and browser global scan);
     module-level state shared between Angular SSR and Nitro (Relay's `processSingleton`) is a
     domain-state workaround, not request or tenant isolation.
-  - Not covered: authorization, tenant/cache isolation, origin/CSRF, dev server, a real deployed
-    environment, log redaction, third-party error reporters.
+  - Not covered: authorization, tenant/cache isolation, origin/CSRF, dev-server confidentiality
+    beyond the live firewall below, a real deployed environment, log redaction, third-party error
+    reporters.
 - Server Component failure and recovery (fixture `/server-component-failures` and
   `/server-component-failure/:mode`, [report](research/server-component-failure-recovery.md)); buffered SSR and
   document navigation only, Node and local workerd:

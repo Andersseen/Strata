@@ -67,6 +67,11 @@ describe("analyzeServerComponent", () => {
       clientReferences: [
         { name: "QuantityPicker", module: "/app/src/app/orders/quantity-picker.component" },
       ],
+      serverOwnedFiles: [
+        "/app/src/app/orders/money.pipe.ts",
+        "/app/src/app/orders/order-lines.component.ts",
+        "/app/src/app/orders/order-summary.component.ts",
+      ],
     });
   });
 

@@ -50,6 +50,12 @@ hydration:
 - `pnpm test:server-component-navigation`: document navigation, Angular Router navigation (pinned
   as the recorded NO-GO) and island teardown through fixture-owned probes.
 - `pnpm test:server-components:cloudflare`: the same contract on local workerd via Wrangler.
+- `pnpm test:server-component-dev`: the real Analog/Vite **dev** server and Chromium. Edits the
+  fixture's `server-component-dev/*` files while `vite` runs (every byte restored) and proves: a
+  server-owned edit regenerates the graph and replaces the JS realm with one document reload; a
+  client island edit is not reloaded by Strata; a module that starts asserting server-only is
+  refused live (import, `import()`, `?raw`, `?url`) with no canary in any response; invalid edits
+  fail the client graph closed with the analyzer's diagnostic and recover when fixed.
 
 These cover one code shape. Items 5 and 6 of the strict bundle proof below (forbidden-import
 fixtures with import-chain diagnostics, renamed/barrel/dynamic imports) are still open.

@@ -33,6 +33,9 @@ to the PoC.
 - Server-owned DATA confidentiality (synthetic canaries on HTML, headers, boundary payload,
   hydrated DOM, network, browser output, source maps, production errors and build diagnostics, on
   Node and local workerd): `pnpm test:server-component-security` (see [Security](#security)).
+- Dev server (`vite`): graph regeneration, document reload for server-owned edits, the live
+  server-only firewall and invalid-edit recovery, against the real Analog dev server in Chromium:
+  `pnpm test:server-component-dev` (see [Dev server](#dev-server-vite)).
 - **Document navigation only.** An Angular Router navigation to a route containing a server
   component renders the empty surrogate, silently. There is no server payload or router
   integration.
@@ -336,7 +339,8 @@ export class ProductRepository {
 The pre-scan runs when the plugin is configured: it parses every TypeScript module under
 `sourceDir` with the TypeScript AST (comments and strings that merely contain the specifier do not
 count), records the assertions and the local re-export edges, and propagates the restriction
-upward through re-exports to a fixpoint. The set is rebuilt for every build.
+upward through re-exports to a fixpoint. The set is rebuilt for every build and, in dev, for every
+source edit that can change it.
 
 ```
 [strata] Server-only module entered the browser graph: src/app/server-component/product-repository.ts
@@ -354,8 +358,90 @@ Limits of this preview: the pre-scan follows relative re-export specifiers only 
 package re-export is not propagated, though the target is still rejected when Rollup resolves it);
 an import through an alias is rejected by the `load` backstop, whose diagnostic may not name the
 importer; a marked module outside `sourceDir` is not pre-scanned, and is rejected only when its own
-assertion import is resolved in the browser graph; the dev server does not re-scan on edits. Checked
-by `pnpm test:server-component-server-only` (real production builds) and unit tests.
+assertion import is resolved in the browser graph. Under `vite` the scan runs again after every
+source edit (see [Dev server](#dev-server-vite)). Checked by `pnpm test:server-component-server-only`
+(real production builds), `pnpm test:server-component-dev` (live edits) and unit tests.
+
+## Dev server (`vite`)
+
+The graph is derived at `config()`, before Analog reads its tsconfig, exactly as in a build. Under
+`vite` it is derived **again** after every source edit that can change it, so the generated
+surrogates, the server-only set and the set of server-owned files never go stale. There is no
+option for this: it is on whenever the plugin is `enabled`.
+
+```
+SERVER-OWNED CHANGE   →  regenerate the graph  →  ONE document reload  →  fresh SSR  →  islands hydrate
+CLIENT-OWNED CHANGE   →  graph unchanged       →  the framework's own update path (Vite / Angular)
+INVALID GRAPH EDIT    →  Strata diagnostic     →  the client graph fails closed
+FIX                   →  graph regenerates     →  reload, no restart of Vite
+```
+
+**Why a Server Component edit reloads the document.** A Server Component's implementation is
+deliberately absent from the browser graph: the browser only has its generated surrogate, an empty
+component. There is nothing in the browser to hot-patch, so the only way to show the new
+implementation is to render it again on the server, which is a new document. That is the dev
+contract, not a fallback. Strata does not ship a Server Component HMR protocol, an HTML fragment
+patcher or a client HMR runtime; the reload goes through Vite's own `full-reload` message.
+
+What counts as server-owned (an edit reloads, even when no surrogate changes):
+
+- the `@ServerComponent()` module, and every local component, directive and pipe it renders
+  without `[strataClient]`, at any depth (nested Server Components included);
+- their `templateUrl` files;
+- a module that asserts `import "@strata-sc/server-components/server-only"` (or re-exports one).
+
+A client island edit (its template, logic, styles) that leaves every surrogate and the server-only
+set identical is **not** reloaded by Strata. What the framework does with it is the framework's:
+under Analog's default (`liveReload: false`) Vite reloads the page for any Angular TypeScript edit;
+with `liveReload: true` Angular's component HMR updates the island in place (same realm, state
+kept). An edit that changes the graph (a boundary added, removed or swapped; a module becoming
+server-only) is graph-changing wherever it was made, and reloads.
+
+How it works, all through Vite 8's public API:
+
+- **`hotUpdate`** (environment-aware; it also sees file creation and deletion, which
+  `handleHotUpdate` does not). One watcher event is shared by every environment it visits: the
+  graph is refreshed once, in the `client` environment's call, and the reload is sent once, from
+  the last environment's call.
+- **Transactional refresh.** Every source is read once, the whole next graph is analyzed in memory,
+  and only if that succeeds are the generated files synchronized and the graph swapped in. An
+  analysis error leaves the committed graph and the generated files exactly as they were.
+- **Generated files** are synchronized, not recreated: an identical surrogate is not rewritten (no
+  watcher event, no HMR churn), a changed one is, a surrogate whose Server Component is gone is
+  deleted. The plugin ignores events from `generatedDir`, so its own writes never loop.
+- **Order.** Regenerate, commit, invalidate the `client` environment's cached modules for the
+  changed surrogates and for every module whose forbidden status flipped, and only then reload; when
+  a surrogate was written, the reload waits for the watcher to report it (so Angular has compiled
+  it), with a two-second fallback.
+- **Fail closed.** While the sources cannot be analyzed into a graph, the committed server-only
+  set is not trusted: the `client` environment refuses every module of the app (`sourceDir` and
+  `generatedDir`) with the analyzer's own diagnostic, Vite's cached transforms are dropped so the
+  refusal cannot be bypassed, and the diagnostic is logged and sent to Vite's error overlay. The
+  next successful refresh reopens the graph and reloads the document.
+
+```
+[strata] The Server Component graph could not be refreshed, so the browser graph is closed until it can: …/dev-child.component.ts:12:5: @defer block in server-only component DevChildComponent (…)
+```
+
+**Live firewall.** The server-only rules of [Server-only modules](#server-only-modules) hold in dev:
+a module that starts asserting server-only (or a barrel that starts re-exporting one) is refused to
+the browser on the next request, by import, dynamic `import()`, `?raw` and `?url`, without
+restarting Vite. The diagnostic names modules and the reason, never their contents.
+
+**Temporal limit.** Marking a module server-only prevents _future_ browser loads; it cannot revoke
+bytes the current page already received and executed. Strata ends that realm with the document
+reload; it does not claim retrospective secrecy.
+
+Limits: Strata reads `sourceDir`'s TypeScript and the `templateUrl` files the analysis reaches; a
+module that a Server Component imports for its logic but that is neither a component, directive,
+pipe nor server-only (a plain helper shared with client code) is not tracked, so editing it follows
+the client path while the next server render picks it up. A graph that is invalid when `vite`
+starts fails the start, as before. Analog's `liveReload: true` (off by default) keeps its edited
+component modules from being re-evaluated in the SSR module runner for any component, with or
+without Strata: Server Component dev is qualified with the default only; the `liveReload: true`
+run in the gate covers client-island HMR coexistence. The graph refresh costs a few milliseconds
+(median 7 ms on the Analog fixture, 4 ms on Relay, 2 ms on the website), a full scan with no
+incremental state. Report: `docs/research/server-component-dev-hmr.md`.
 
 ## Failure and recovery
 
@@ -440,7 +526,8 @@ original error, because that is the operator's surface; redact it in your loggin
 
 Not covered, and not claimed: authorization, tenant or cache isolation, origin/CSRF rules,
 request-scoped Server Component data (there is no request context API; see
-`docs/research/server-component-data-security.md`), the dev server, a real deployment, and
+`docs/research/server-component-data-security.md`), the dev server's confidentiality beyond the
+live firewall (see [Dev server](#dev-server-vite)), a real deployment, and
 secrets in logs or third-party error reporters. This is not a claim of complete application
 security. Module-level state shared between Angular SSR and Nitro (`processSingleton` in Relay) is a
 domain-state workaround, not request isolation, tenant isolation or a security boundary.
@@ -475,6 +562,6 @@ domain-state workaround, not request isolation, tenant isolation or a security b
   Relay's `processSingleton` does) or in external storage.
 - Relies on undocumented Angular hydration behaviour (hydrating a root onto an `ngh`-annotated
   host) and on Analog's Vite environment names (`client`).
-- Dev server (`vite`): smoke-checked by hand only (hydration, one click, no console errors). The
-  plugin adds the runtime package to `optimizeDeps.include`, because Analog links partial-compiled
+- Dev server (`vite`): see [Dev server](#dev-server-vite) for the measured contract. The plugin
+  adds the runtime package to `optimizeDeps.include`, because Analog links partial-compiled
   Angular libraries in dev only while pre-bundling them.
