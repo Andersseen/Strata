@@ -296,7 +296,21 @@ describe("parseBoundaryAttributes: browser re-validation", () => {
   });
 
   it("reports invalid JSON as a Strata problem", () => {
-    expect(problem("1", "{broken")).toMatch(/^data-strata-props is not valid JSON \(/);
+    expect(problem("1", "{broken")).toBe("data-strata-props is not valid JSON.");
+  });
+
+  it("never repeats the engine's parse message, which some engines build from the payload", () => {
+    const parse = vi.spyOn(JSON, "parse").mockImplementation((text: string) => {
+      throw new SyntaxError(`Unexpected token in ${text}`);
+    });
+
+    try {
+      expect(problem("1", '{"token":"PAYLOAD-VALUE" x')).toBe(
+        "data-strata-props is not valid JSON.",
+      );
+    } finally {
+      parse.mockRestore();
+    }
   });
 
   it("rejects a JSON __proto__ key (an own property after JSON.parse)", () => {

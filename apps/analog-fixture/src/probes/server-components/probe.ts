@@ -1,6 +1,12 @@
 import { isPlatformBrowser } from "@angular/common";
-import { ApplicationRef, PLATFORM_ID, inject, provideEnvironmentInitializer } from "@angular/core";
-import type { EmbeddedViewRef, EnvironmentProviders } from "@angular/core";
+import {
+  ApplicationRef,
+  ErrorHandler,
+  PLATFORM_ID,
+  inject,
+  provideEnvironmentInitializer,
+} from "@angular/core";
+import type { EmbeddedViewRef, EnvironmentProviders, Provider } from "@angular/core";
 import {
   NavigationCancel,
   NavigationEnd,
@@ -68,4 +74,40 @@ export function provideIslandProbe(): EnvironmentProviders {
       }
     };
   });
+}
+
+/**
+ * Fixture-only evidence for `pnpm test:server-component-failures`: an
+ * ErrorHandler that records every error Angular hands it and then delegates to
+ * Angular's own, so the console and server log behave as without it. In the
+ * browser the records go to `window.__STRATA_ERROR_PROBE__` (name and first
+ * message line); on the server one `[fixture-error-handler]` line (console.error: workerd
+ * prints no console.log) names only the error's name, never its message. The Strata package does not
+ * provide an ErrorHandler. Not public API.
+ */
+export function provideErrorProbe(): Provider {
+  return {
+    provide: ErrorHandler,
+    useFactory: () => {
+      const browser = isPlatformBrowser(inject(PLATFORM_ID));
+
+      return new (class ProbeErrorHandler extends ErrorHandler {
+        override handleError(error: unknown): void {
+          const name = error instanceof Error ? error.name : typeof error;
+
+          if (browser) {
+            const scope = globalThis as { __STRATA_ERROR_PROBE__?: string[] };
+
+            (scope.__STRATA_ERROR_PROBE__ ??= []).push(
+              `${name}: ${error instanceof Error ? (error.message.split("\n")[0] ?? "") : ""}`,
+            );
+          } else {
+            console.error(`[fixture-error-handler] handleError ${name}`);
+          }
+
+          super.handleError(error);
+        }
+      })();
+    },
+  };
 }

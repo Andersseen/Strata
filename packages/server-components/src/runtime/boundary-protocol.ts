@@ -209,10 +209,9 @@ export function parseBoundaryAttributes(attributes: BoundaryAttributes): Checked
 
   try {
     parsed = JSON.parse(props);
-  } catch (error) {
-    return fail(
-      `${BOUNDARY_PROPS_ATTRIBUTE} is not valid JSON (${error instanceof Error ? error.message : String(error)}).`,
-    );
+  } catch {
+    // Not the engine's message: some engines quote part of the payload in it.
+    return fail(`${BOUNDARY_PROPS_ATTRIBUTE} is not valid JSON.`);
   }
 
   return checkBoundaryProps(parsed);

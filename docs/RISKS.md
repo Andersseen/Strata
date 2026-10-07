@@ -43,6 +43,16 @@ isolation; a Strata request context (cross-request Server Component data is NOT 
 CSRF rules for mutations; log and error-reporter redaction; the dev server; a real deployed
 environment.
 
+Evidence note (2026-10-07), failure and recovery; R08, R09, R10 and R11 are **not closed**:
+[`pnpm test:server-component-failures`](research/server-component-failure-recovery.md) pins the buffered-SSR
+failure contract on Node and local workerd. R09: a failing host is inert per host (preflight and commit
+failures) while sibling hosts hydrate, one `ErrorHandler` report, same DOM nodes restored, no retry. R10: an
+invalid value is never serialized, and the preflight error no longer quotes the payload (it could, through
+some engines' `JSON.parse` messages). R11: failures add no data to public responses. R08: document navigation
+into a failing route, Back and re-entry are clean lifecycles; Angular Router navigation stays NO-GO. New finding:
+a Server Component render error answers HTTP 200 (an empty outlet, or a half-rendered component for a template
+error) and no supported Strata seam can change that. Streaming is unsupported, not qualified.
+
 | ID  | Risk and impact                                                                   | Uncertainty today                                                                                                                                                                                                                                                            | Resolve by                                   | Experimental proof / fallback                                                                                                                                                                                               |
 | --- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | R01 | Package versus consumer standard decorator compilation                            | Partially proven: packed packages and consumer `tsc → JS → Vite → Node` work. Observed: direct Vite retains decorator syntax and Node rejects it.                                                                                                                            | M1 baseline; M2 integration                  | Preserve SPEC-001 runtime evidence and its actual tuple limits; do not infer a public plugin or Angular AOT safety. Type errors are tracked separately below.                                                               |

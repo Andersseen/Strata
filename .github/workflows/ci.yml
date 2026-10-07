@@ -79,6 +79,12 @@ jobs:
       - name: Server Component data confidentiality (synthetic canaries, Node + workerd)
         run: pnpm test:server-component-security
 
+      # Failure contract for buffered SSR + document navigation: render and
+      # serialization failures, preflight/commit failures, sibling-host
+      # isolation, navigation/Back/re-entry, on Node and local workerd.
+      - name: Server Component failure and recovery (Node + workerd)
+        run: pnpm test:server-component-failures
+
       # Local workerd via the Wrangler pinned in @strata-sc/www: no account, no secrets.
       - name: Server-component PoC on Cloudflare Pages (local Wrangler runtime)
         run: pnpm test:server-components:cloudflare

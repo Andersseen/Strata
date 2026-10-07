@@ -2,7 +2,11 @@ import { provideFileRouter } from "@analogjs/router";
 import type { ApplicationConfig } from "@angular/core";
 import { provideClientHydration } from "@angular/platform-browser";
 
-import { provideIslandProbe, provideNavigationProbe } from "../probes/server-components/probe";
+import {
+  provideErrorProbe,
+  provideIslandProbe,
+  provideNavigationProbe,
+} from "../probes/server-components/probe";
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -10,5 +14,6 @@ export const appConfig: ApplicationConfig = {
     provideClientHydration(),
     provideNavigationProbe(),
     provideIslandProbe(),
+    provideErrorProbe(),
   ],
 };
