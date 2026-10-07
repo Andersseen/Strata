@@ -64,6 +64,14 @@ compatibility matrix; do not check it based on intent or a demonstration.
       untested.
 - [ ] Authorization, direct payload access if present, tenant/cache isolation, error redaction and
       code/data-leak negative tests pass. Passing graph checks alone does not satisfy this item.
+      _Evidence so far (not certified):_ synthetic-canary leak qualification of server-owned data
+      on HTML, headers, boundary payload, hydrated DOM, network, browser output, source maps,
+      secret-bearing production errors and build diagnostics, with a PUBLIC positive control and a
+      server-graph positive control, on Node and local workerd
+      ([report](research/server-component-data-security.md),
+      `pnpm test:server-component-security`). Still open, and why this stays unchecked: authorization,
+      tenant and cache isolation, a request context for Server Components, origin/CSRF rules, log
+      redaction and a real deployed environment.
 
 ## Deployment
 

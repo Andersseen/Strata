@@ -72,6 +72,13 @@ jobs:
       - name: Server-only modules (build-graph firewall)
         run: pnpm test:server-component-server-only
 
+      # Server-owned DATA stays off every public surface (HTML, boundary props,
+      # hydrated DOM, network, browser output, source maps, errors, build
+      # diagnostics) on Node and local workerd, scanned with synthetic canaries
+      # and a PUBLIC positive control. No external secrets.
+      - name: Server Component data confidentiality (synthetic canaries, Node + workerd)
+        run: pnpm test:server-component-security
+
       # Local workerd via the Wrangler pinned in @strata-sc/www: no account, no secrets.
       - name: Server-component PoC on Cloudflare Pages (local Wrangler runtime)
         run: pnpm test:server-components:cloudflare

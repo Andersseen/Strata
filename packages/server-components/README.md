@@ -8,7 +8,9 @@ to the PoC.
 
 ## Qualification
 
-- Angular 22.1.7, Analog 2.7.2, Vite 8.
+- Installed tuple of the latest full run: `@angular/core`, `common`, `compiler` and `router` 22.1.7
+  with `@angular/platform-browser` and `platform-server` 22.2.1, Analog 2.7.2, nitropack 2.13.4,
+  Vite 8.3.0, TypeScript 6.0.3 (printed by `pnpm test:server-component-security`).
 - Node (Nitro `node-server`): `pnpm test:server-components`, `pnpm test:server-component-navigation`.
 - Cloudflare Pages, local workerd only: `pnpm test:server-components:cloudflare`.
 - Dogfooded by the official website's homepage (`apps/www`), on its Node and Cloudflare Pages
@@ -28,6 +30,9 @@ to the PoC.
   of every browser file and source map: `pnpm test:server-component-server-only`,
   `pnpm test:server-components:cloudflare`, and the www and Relay gates (see
   [Server-only modules](#server-only-modules)).
+- Server-owned DATA confidentiality (synthetic canaries on HTML, headers, boundary payload,
+  hydrated DOM, network, browser output, source maps, production errors and build diagnostics, on
+  Node and local workerd): `pnpm test:server-component-security` (see [Security](#security)).
 - **Document navigation only.** An Angular Router navigation to a route containing a server
   component renders the empty surrogate, silently. There is no server payload or router
   integration.
@@ -350,6 +355,54 @@ an import through an alias is rejected by the `load` backstop, whose diagnostic 
 importer; a marked module outside `sourceDir` is not pre-scanned, and is rejected only when its own
 assertion import is resolved in the browser graph; the dev server does not re-scan on edits. Checked
 by `pnpm test:server-component-server-only` (real production builds) and unit tests.
+
+## Security
+
+```text
+SERVER-OWNED DATA                          [strataClient] DATA
+does not cross implicitly.                 is explicitly browser-public.
+```
+
+A value a Server Component reads or uses (a repository, a credential, a connection string) does not
+reach any public browser surface merely because the Server Component used it. Everything the
+developer passes on purpose through `[strataClient]` is public browser data: Strata protects
+implicit crossings and cannot know that a primitive string you pass is a business secret.
+
+Three separate mechanisms, each with its own evidence:
+
+- **Server-only import assertion** (module confidentiality). `import
+"@strata-sc/server-components/server-only"` makes the build reject any browser import of the
+  module ([Server-only modules](#server-only-modules)). This keeps the _module_ out of the browser
+  graph; it says nothing about what a server-side module returns.
+- **Protocol runtime validation** (boundary confidentiality). `[strataClient]` accepts one flat plain
+  object of strings, finite numbers, booleans and `null` (protocol v1). A repository, service,
+  class instance, function, signal or nested object that a cast smuggles in is rejected with a
+  `StrataBoundaryError` before anything is serialized. The diagnostic names the prop, the value's
+  type and the allowed types, and never prints the value.
+- **Synthetic leak qualification.** `pnpm test:server-component-security` renders a Server
+  Component that reads a server-only repository using a synthetic DATA canary and passes a PUBLIC
+  control canary through `[strataClient]`. The DATA canary must be absent, in any of its encodings,
+  from the raw SSR HTML (comments, inline scripts, `ng-state`, `ngh`, `data-strata-*`), response
+  headers, the parsed boundary payload, the hydrated DOM before and after an interaction, every
+  public network response, `dist/client` and `dist/analog/public` (including source maps), the
+  browser's error surface and the output of a failed illegal-import build. The PUBLIC control must
+  be present everywhere it deliberately crosses, and the DATA canary must be present in the server
+  graph, so a clean scan cannot be a blind one. The same surfaces run on Nitro `node-server` and on
+  local workerd.
+
+Errors. Strata adds no exception filter. In the measured production builds (Node and workerd) a
+Server Component that throws a secret-bearing error (plain, `Error.cause`, `AggregateError`) leaves
+the public response carrying neither the message nor a stack nor a path: Angular completes the
+render without the failing component and answers HTTP 200 (status and log content are
+Angular's and Analog's, and are recorded rather than asserted). The server's own log does contain the
+original error, because that is the operator's surface; redact it in your logging pipeline.
+
+Not covered, and not claimed: authorization, tenant or cache isolation, origin/CSRF rules,
+request-scoped Server Component data (there is no request context API; see
+`docs/research/server-component-data-security.md`), the dev server, a real deployment, and
+secrets in logs or third-party error reporters. This is not a claim of complete application
+security. Module-level state shared between Angular SSR and Nitro (`processSingleton` in Relay) is a
+domain-state workaround, not request isolation, tenant isolation or a security boundary.
 
 ## Experimental restrictions
 

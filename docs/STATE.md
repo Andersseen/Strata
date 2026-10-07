@@ -29,6 +29,7 @@ Analog track increments since the 2026-09-17 audit:
 | SC protocol | Client boundary protocol v1 (private package, preview, not stable): `[strataClient]` props are validated at runtime on the server (flat plain object; `string`, finite `number`, `boolean`, `null`; `__proto__`/`prototype`/`constructor` rejected; 64 props; 64 KiB UTF-8) and written beside `data-strata-protocol="1"`. The browser preflights every boundary of a Server Component host (protocol, JSON, values, limits, selector, public input names) before creating any island, and rolls back a failed commit. Fixture `/server-component-boundaries`; `pnpm test:server-components` (Node, fail-closed matrix) and `pnpm test:server-components:cloudflare` (positive path) ([README](../packages/server-components/README.md#client-boundary-protocol)) |
 | SC defer    | Server Components + Angular `@defer` (private package, experimental): `@defer` inside a `[strataClient]` component is Angular's (incremental hydration on interaction and viewport, lazy chunk fetched only on the trigger, event replay, SSR DOM reused); `@defer` in any server-owned template fails the build with a shape-specific diagnostic. Analog 2.7.2 apps need `environments.ssr.define.ngServerMode = "true"` for SSR to honour hydrate triggers. Fixture `/server-component-defer`, Relay rollout island; `pnpm test:server-component-defer` (Node), `pnpm test:server-components:cloudflare` (workerd) ([report](research/server-component-defer-poc.md))                                                                                           |
 | SC firewall | Server-only modules (private package, experimental): `import "@strata-sc/server-components/server-only";` is a build-time assertion that the module must never enter the browser graph; barrels re-exporting a marked module inherit it; ordinary imports do not propagate. Illegal direct, dynamic, `@defer`-lazy, barrel, chained-barrel, `?raw` and `?url` browser imports fail real production builds with a Strata diagnostic. Fixture canary, www and Relay dogfood; `pnpm test:server-component-server-only` ([README](../packages/server-components/README.md#server-only-modules))                                                                                                                                                                       |
+| SC security | Server Component data confidentiality (private package, **no runtime change**): a server-only repository uses a synthetic DATA canary; only a safe verdict and a PUBLIC control cross. The DATA canary is absent from raw SSR HTML, headers, protocol v1 payload, hydrated DOM, public network, browser output, source maps, production errors and build diagnostics on Node and local workerd; present in the server/Worker graphs. Fixture `/server-component-security*`; `pnpm test:server-component-security` ([report](research/server-component-data-security.md))                                                                                                                                                                                          |
 
 Current lifecycle facts:
 
@@ -136,7 +137,41 @@ graph: src/app/server-component/product-repository.ts` / `Imported from:` the is
     the assertion in source (AST) and the modules' absence from browser source maps.
   - Not covered: dev server/HMR, aliased or package re-exports in the pre-scan, marked modules
     outside `sourceDir` (rejected only when their assertion import is resolved), data disclosure
-    through HTML, errors or caches (R11). Security as a whole is not complete.
+    through HTML, errors or caches (R11: covered for synthetic canaries by the SC security entry
+    below). Security as a whole is not complete.
+- Server Component confidentiality, in three independent layers (fixture `/server-component-security*`,
+  [report](research/server-component-data-security.md)):
+  - **Module confidentiality** (PR #49, unchanged): the server-only assertion keeps marked modules
+    out of the browser graph. It says nothing about the values those modules return.
+  - **Data confidentiality**: a value that stays server-owned does not cross merely because a
+    Server Component reads or uses it. A synthetic DATA canary used through a server-only repository
+    is absent, in raw and encoded forms, from the raw SSR HTML and its comments, inline scripts,
+    `ng-state`, `ngh` and `data-strata-*` attributes, every response header, the parsed protocol v1
+    payload, the hydrated DOM and text before and after an interaction, cookies and storage, every
+    public text/script response, `dist/client`, `dist/analog/public` and every browser source map
+    (Node and workerd); it is present in `dist/ssr`, `dist/analog/server` and the Worker graph, and
+    changing it in the server output changes the render (it is consumed, not merely present). A
+    PUBLIC control passed through `[strataClient]` is present in the SSR HTML, the payload, the
+    island's input and the hydrated DOM. A repository instance or a nested object cast into
+    `[strataClient]` fails with `StrataBoundaryError` before serialization, the diagnostic naming
+    only prop and type. Everything passed through `[strataClient]` is browser-public by definition.
+  - **Error-response confidentiality**: a plain `Error`, an `Error` with a secret `cause` and an
+    `AggregateError` thrown by the server-only repository leave the public response (status,
+    headers, body, browser console and rendered document) without the secret, a stack or an
+    absolute path, on Node and workerd. Angular completes the render without the failing component
+    and the response is HTTP 200 (owned by Angular/Analog, recorded, not asserted). The original
+    error is only in the server's log, which is the operator surface, not a public one. PR #49's
+    illegal-import build diagnostic prints module, importer and reason and never a source line or
+    the canary.
+  - **Request isolation**: Strata has no request context for Server Components. The only
+    request-varying input measured is Angular's route parameter through DI in the routed page: 24
+    overlapping requests (A/B) each rendered only their own value on Node and workerd. A Strata-level
+    request context does not exist and is **NOT QUALIFIED**. The runtime holds no global payload
+    registry, process-wide boundary store or secret cache (source scan and browser global scan);
+    module-level state shared between Angular SSR and Nitro (Relay's `processSingleton`) is a
+    domain-state workaround, not request or tenant isolation.
+  - Not covered: authorization, tenant/cache isolation, origin/CSRF, dev server, a real deployed
+    environment, log redaction, third-party error reporters.
 - Cloudflare Workers (local workerd only, nothing deployed): the same fixture built with
   `BUILD_PRESET=cloudflare-pages` passes the server-component, navigation and controller
   assertions under `wrangler pages dev`. The SPEC-003 Angular DI route fails there, because
