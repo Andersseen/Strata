@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   MAX_BOUNDARY_PAYLOAD_BYTES,
@@ -131,6 +131,95 @@ describe("serializeBoundaryProps: rejected values fail before JSON.stringify", (
       serializeError(Object.defineProperty({}, "hidden", { value: "x", enumerable: false }))
         .message,
     ).toContain('prop "hidden" is not enumerable');
+  });
+});
+
+/** A synthetic server-owned value; nothing the diagnostics print may carry it. */
+const SECRET = "STRATA_DATA_SECRET_CANARY_UNIT_TEST_0001";
+
+describe("serializeBoundaryProps: diagnostics never print the rejected value", () => {
+  class SecretRepository {
+    readonly credential = SECRET;
+    readonly nested = { deeper: { credential: SECRET } };
+    toString(): string {
+      throw new Error("toString must not run");
+    }
+    toJSON(): string {
+      throw new Error("toJSON must not run");
+    }
+    valueOf(): string {
+      throw new Error("valueOf must not run");
+    }
+  }
+  const secretFunction = () => SECRET;
+  const secretError = new Error(`Synthetic server failure ${SECRET}`);
+  const secretPromise = Promise.resolve(SECRET);
+
+  it.each([
+    [
+      "the repository (a class instance)",
+      new SecretRepository(),
+      "an instance of SecretRepository",
+    ],
+    ["a nested object", { credential: SECRET, deeper: { credential: SECRET } }, "a nested object"],
+    ["a function whose source holds the secret", secretFunction, "a function"],
+    ["an Error whose message holds the secret", secretError, "an instance of Error"],
+    ["an array of secrets", [SECRET, SECRET], "an array"],
+    ["a Map of secrets", new Map([["k", SECRET]]), "Map"],
+    ["a Promise of the secret", secretPromise, "an instance of Promise"],
+    [
+      "a null-prototype object holding the secret",
+      Object.assign(Object.create(null) as object, { s: SECRET }),
+      "a nested object",
+    ],
+  ])("%s: names the prop and the type, never the contents", (_, value, type) => {
+    const stringify = vi.spyOn(JSON, "stringify");
+
+    try {
+      const error = serializeError({ label: "fine", repository: value as unknown as string });
+
+      expect(error).toBeInstanceOf(StrataBoundaryError);
+      expect(error.message).toContain(`prop "repository": ${type}`);
+      expect(error.message).not.toContain(SECRET);
+      expect(error.message).not.toMatch(/credential|deeper|[{}]/);
+      expect(error.stack ?? "").not.toContain(SECRET);
+      // Rejected before serialization: nothing was stringified, nothing coerced.
+      expect(stringify).not.toHaveBeenCalled();
+    } finally {
+      stringify.mockRestore();
+    }
+  });
+
+  it("does not run toString, toJSON or valueOf of a rejected value", () => {
+    // SecretRepository's methods throw if called: a diagnostic that coerced the
+    // value to text would surface that error instead of a StrataBoundaryError.
+    expect(serializeError({ repository: new SecretRepository() })).toBeInstanceOf(
+      StrataBoundaryError,
+    );
+  });
+
+  it("rejects the props object itself without printing it", () => {
+    const error = serializeError(new SecretRepository());
+
+    expect(error.message).toContain("the props must be a plain object; received an instance of");
+    expect(error.message).not.toContain(SECRET);
+  });
+
+  it("does not print a rejected value in the browser-side diagnostic either", () => {
+    const parsed = parseBoundaryAttributes({
+      protocol: STRATA_BOUNDARY_PROTOCOL,
+      props: JSON.stringify({ configuration: { credential: SECRET } }),
+    });
+
+    expect(parsed.ok).toBe(false);
+    expect(JSON.stringify(parsed)).toContain("a nested object is not supported");
+    expect(JSON.stringify(parsed)).not.toContain(SECRET);
+  });
+
+  it("documents the rule it cannot enforce: a string is public data by definition", () => {
+    // Strata protects implicit crossings. A developer who passes a secret string
+    // explicitly through [strataClient] has made it browser-public.
+    expect(serialize({ token: SECRET })).toBe(`{"token":"${SECRET}"}`);
   });
 });
 

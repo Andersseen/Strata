@@ -283,9 +283,12 @@ const ILLEGAL: readonly IllegalShape[] = [
     shape: "client island → server-only?url",
     files: {
       [ISLAND]: island(
-        `import url from "../server-component/server-secret.ts?url";`,
+        // A namespace import: the server build (legal for it) reports a missing
+        // default export of `?url` on a TypeScript module as an error for a
+        // default import, racing the client build's Strata diagnostic.
+        `import * as asset from "../server-component/server-secret.ts?url";`,
         "<p>{{ url }}</p>",
-        "  protected readonly url = url;",
+        "  protected readonly url = String(asset.default);",
       ),
     },
     module: `${SECRET}?url`,
@@ -393,7 +396,7 @@ export function checkServerOnlyFailsClosed(): boolean {
       const start = output.indexOf("[strata] Server-only module entered the browser graph:");
       const diagnostic = start === -1 ? "" : output.slice(start).split("\n").slice(0, 4).join("\n");
 
-      console.log(`\n${shape}:\n${diagnostic || output.slice(-1_500)}`);
+      console.log(`\n${shape}:\n${diagnostic || output.slice(0, 3_000)}`);
       results.push(
         check(`${shape}: build exits non-zero`, status !== 0, String(status)),
         check(

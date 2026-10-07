@@ -37,6 +37,11 @@ export const MARKERS = {
    * `import "@strata-sc/server-components/server-only"` (lib/server-only.ts).
    */
   serverOnlyCanary: "STRATA_SERVER_ONLY_CANARY_7F3D9A41C2E5",
+  /**
+   * The DATA canary of the security fixture's `security-secret.ts` (lib/leak-scan.ts):
+   * a value a Server Component uses but that never crosses to the browser.
+   */
+  dataSecretCanary: "STRATA_DATA_SECRET_CANARY_8E41B7D2A6F9",
   client: "STRATA_CLIENT_COMPONENT_MARKER",
   control: "STRATA_ANALOG_CLIENT_CONTROL_MARKER",
 } as const;
@@ -48,6 +53,7 @@ export const SERVER_ONLY = [
   MARKERS.deferServerParent,
   MARKERS.deferServerChild,
   MARKERS.serverOnlyCanary,
+  MARKERS.dataSecretCanary,
 ] as const;
 /** A string only `@angular/compiler` contains: the compiler must stay server-side. */
 export const ANGULAR_COMPILER_FINGERPRINT = "Unterminated quote";
@@ -75,6 +81,8 @@ const SERVER_FILE_NAMES = [
   "product-details",
   "product-repository",
   "server-secret",
+  "security-secret",
+  "security-repository",
   "server-price",
   "defer-server-child",
 ];
