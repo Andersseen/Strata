@@ -176,7 +176,8 @@ A preflight failure throws one `StrataBoundaryError` naming the boundary, its po
 reason, before any `ComponentRef` exists. That covers version skew, invalid JSON, a missing
 protocol or props attribute, a reserved key, an unsupported value, an unknown input and a selector
 mismatch. The server-rendered DOM stays in place, inert. There is no client-side re-render, CSR
-fallback or reload. A reload strategy is not defined yet.
+fallback or reload. A reload strategy is not defined yet. The error reaches the application's
+`ErrorHandler` once; see [Failure and recovery](#failure-and-recovery).
 
 If `createComponent` or `setInput` fails during commit, the islands this commit already created are
 destroyed (which also detaches their views from the `ApplicationRef`), their SSR host elements,
@@ -356,6 +357,46 @@ importer; a marked module outside `sourceDir` is not pre-scanned, and is rejecte
 assertion import is resolved in the browser graph; the dev server does not re-scan on edits. Checked
 by `pnpm test:server-component-server-only` (real production builds) and unit tests.
 
+## Failure and recovery
+
+Qualified for **buffered SSR + document navigation + `[strataClient]` hydration**, on Nitro `node-server`
+and local workerd (`pnpm test:server-component-failures`,
+[report](../../docs/research/server-component-failure-recovery.md)). Six cases, never merged:
+
+| Case                          | What happens                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Server render error**       | Angular and Analog's behaviour, not Strata's. A Server Component that throws while Angular renders it (constructor, injected provider, template) is reported to the server's `ErrorHandler` once. The response is **HTTP 200**: an empty router outlet when construction fails, a half-rendered component (no `data-strata-*` attribute on its boundary host) when a template binding fails. **HTTP 200 plus an empty shell is the current Angular/Analog buffered failure behaviour, not a Strata success response.** The browser then shows the page around an empty component, or the inert half-rendered DOM. No supported Strata seam can turn this into a failed response or a fallback (a global `ErrorHandler` that rethrows would change unrelated errors, so Strata ships none). |
+| **Serialization error**       | `[strataClient]` rejects a class instance, nested object, `NaN`, … at SSR: one `StrataBoundaryError` to the server `ErrorHandler`, the value is never written, HTTP 200 with the rest of the component. The boundary host keeps `data-strata-client` and `data-strata-protocol` and has **no** `data-strata-props`; the browser refuses it at preflight.                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| **Boundary preflight**        | Per host, before anything exists: all boundaries valid or none. A failing host is entirely inert (even its valid boundaries), its SSR DOM stays (same nodes), one data-safe `StrataBoundaryError` (boundary position and reason; never props, DOM or payload) goes to `ErrorHandler`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| **Hydration commit rollback** | `createComponent` / `setInput` throws: every island that host's commit created is destroyed (views detached), the SSR host elements are put back (same objects, same position), no `data-strata-hydrated`, and the component's own error goes to `ErrorHandler` once, unchanged (not relabelled).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| **Sibling-host isolation**    | One Server Component host is one hydration transaction. All-or-nothing is **per host**, not per page: host B failing leaves A and C hydrated and interactive.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| **Errors after hydration**    | After `data-strata-hydrated` an island is an ordinary Angular component. A throwing handler is Angular's and the application's; Strata does not roll back, destroy the host, retry or wrap it.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+
+**Where errors are reported.** Strata registers no `ErrorHandler` and never replaces yours. A Strata-owned
+hydration failure is thrown from the host's `afterNextRender` callback; Angular catches it per callback,
+hands it to the application's `ErrorHandler` exactly once and does not rethrow (so Angular's default
+handler logs it; it is neither silent nor an unhandled rejection or `window` error). An `ErrorHandler`
+that itself throws is your decision.
+
+**Retry.** None. Hydration is attempted once per host lifecycle: no timer, observer, reload or retry.
+Destroying the host after a failure is safe and reports nothing more. A new document is a new lifecycle
+with one fresh attempt.
+
+**Document navigation.** A plain-anchor navigation into a failing route is a new request and a new
+realm with the same server contract; the old page's islands and DOM are gone. Back and re-entry are fresh
+lifecycles (observed in Chromium as a new document, `back_forward`; no stale failed-host state, one report
+per lifecycle). Angular Router navigation into a Server Component subtree remains unsupported.
+
+**Version skew.** `data-strata-protocol` different from the browser runtime's: that host is inert with
+its SSR DOM, one `StrataBoundaryError`, sibling hosts hydrate. Automatic stale-client recovery
+(reload, asset reconciliation, build ids) is **not** implemented.
+
+**Streaming.** Unsupported and not qualified. Strata Server Components are qualified with buffered SSR
+only; Analog's experimental streaming (`experimental.streaming`, `renderStream`) is not, and Strata does
+not detect it. No failure-after-headers behaviour is defined.
+
+There is no `ErrorBoundary`, fallback template, `retry()` or other recovery API yet.
+
 ## Security
 
 ```text
@@ -392,9 +433,9 @@ Three separate mechanisms, each with its own evidence:
 
 Errors. Strata adds no exception filter. In the measured production builds (Node and workerd) a
 Server Component that throws a secret-bearing error (plain, `Error.cause`, `AggregateError`) leaves
-the public response carrying neither the message nor a stack nor a path: Angular completes the
-render without the failing component and answers HTTP 200 (status and log content are
-Angular's and Analog's, and are recorded rather than asserted). The server's own log does contain the
+the public response carrying neither the message nor a stack nor a path: Angular answers HTTP 200
+with an empty outlet (or, for a template error, a half-rendered component), exactly pinned in
+[Failure and recovery](#failure-and-recovery); the status and log content are Angular's and Analog's. The server's own log does contain the
 original error, because that is the operator's surface; redact it in your logging pipeline.
 
 Not covered, and not claimed: authorization, tenant or cache isolation, origin/CSRF rules,
@@ -417,6 +458,8 @@ domain-state workaround, not request isolation, tenant isolation or a security b
   local component composed under a Server Component, must have a single custom element selector
   and be declared in an app module imported by a relative specifier (`./x` → `./x.ts`).
   Components from packages cannot be client boundaries yet.
+- **Buffered SSR only.** Analog's experimental streaming is unsupported and not qualified (see
+  [Failure and recovery](#failure-and-recovery)).
 - Recursive composition is not supported: a cycle fails the build.
 - `@defer` in a server-owned template fails the build (see
   [Angular `@defer`](#angular-defer-and-incremental-hydration)); a client component's own

@@ -68,7 +68,14 @@ function discoverBoundaries(host: HTMLElement): HTMLElement[] {
  * failed preflight throws before any component exists; a commit failure
  * destroys the islands this commit created (restoring their inert SSR host
  * elements in place) before rethrowing. Either way the server-rendered DOM
- * stays, with no fallback or reload.
+ * stays, with no fallback, retry or reload.
+ *
+ * The throw is the report: Angular runs each `afterNextRender` callback in its
+ * own try/catch, hands the error to the application's `ErrorHandler` exactly
+ * once and does not rethrow, so a failing host is inert while its sibling
+ * hosts (their own callbacks) still hydrate. Strata registers no ErrorHandler
+ * of its own; pinned by `pnpm test:server-component-failures`
+ * (docs/research/server-component-failure-recovery.md).
  */
 @Directive()
 export class StrataIslandHost {

@@ -58,10 +58,15 @@ compatibility matrix; do not check it based on intent or a demonstration.
       only one primitive value set exists, and it is qualified on local Node and workerd only.
 - [ ] Render, serialization, navigation and hydration failures have tested safe behavior; any
       streaming mode defines failure after headers, or streaming is explicitly unsupported.
-      _Partial:_ malformed boundary markup and island commit failures are tested fail-closed. An
-      invalid value at SSR is withheld from the HTML, but the response is still HTTP 200 (Angular
-      reports template errors to its `ErrorHandler`). Render, navigation and streaming failures are
-      untested.
+      _Evidence so far (not certified; box left unticked):_ for the preview, buffered-SSR and
+      document-navigation contract only, `pnpm test:server-component-failures` (Node and local workerd,
+      [report](research/server-component-failure-recovery.md)) pins render, serialization, preflight, commit
+      rollback, sibling-host isolation and navigation/Back/re-entry failures with one `ErrorHandler`
+      report each and no retry; streaming is explicitly **unsupported** (not qualified). Still open: a
+      Server Component render error answers HTTP 200 (empty outlet or half-rendered component) with no
+      supported Strata seam to change it, there is no fallback API, Router navigation into a Server
+      Component subtree is NO-GO, dev/HMR and a deployed environment are unqualified, and release-candidate
+      evidence is absent.
 - [ ] Authorization, direct payload access if present, tenant/cache isolation, error redaction and
       code/data-leak negative tests pass. Passing graph checks alone does not satisfy this item.
       _Evidence so far (not certified):_ synthetic-canary leak qualification of server-owned data
