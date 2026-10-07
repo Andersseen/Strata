@@ -71,7 +71,7 @@ const HTML_ENTITIES: Readonly<Record<string, string>> = {
 };
 
 /** Decodes an HTML attribute value as a browser would (the entities SSR emits). */
-function decodeAttribute(value: string): string {
+export function decodeAttribute(value: string): string {
   return value.replace(/&(#x[\da-f]+|#\d+|[a-z]+);/gi, (entity, name: string) => {
     if (name.startsWith("#x") || name.startsWith("#X")) {
       return String.fromCodePoint(parseInt(name.slice(2), 16));

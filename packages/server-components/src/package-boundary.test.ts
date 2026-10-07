@@ -72,6 +72,92 @@ describe("package boundary", () => {
   });
 });
 
+describe("no global data registry", () => {
+  const runtimeDir = join(packageDir, "src", "runtime");
+  const runtimeFiles = readdirSync(runtimeDir).filter(
+    (name) => name.endsWith(".ts") && !name.endsWith(".test.ts"),
+  );
+  /** Process- or window-wide state: where a payload or secret cache could hide. */
+  const GLOBAL_STATE = new Set([
+    "globalThis",
+    "window",
+    "self",
+    "global",
+    "process",
+    "localStorage",
+    "sessionStorage",
+    "indexedDB",
+    "caches",
+  ]);
+  /** Module-scope constants that are immutable lookup tables, not registries. */
+  const ALLOWED_MODULE_SCOPE_COLLECTIONS = new Set(["FORBIDDEN_KEYS"]);
+
+  function parsed(name: string): ts.SourceFile {
+    const file = join(runtimeDir, name);
+
+    return ts.createSourceFile(file, readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true);
+  }
+
+  it("never reads or writes a global, process-wide or browser-storage object", () => {
+    const used = runtimeFiles.flatMap((name) => {
+      const found: string[] = [];
+      const visit = (node: ts.Node): void => {
+        if (ts.isIdentifier(node) && GLOBAL_STATE.has(node.text)) {
+          const parent = node.parent;
+          const isMember =
+            (ts.isPropertyAccessExpression(parent) && parent.name === node) ||
+            (ts.isPropertyAssignment(parent) && parent.name === node);
+
+          if (!isMember) found.push(`${name}: ${node.text}`);
+        }
+
+        ts.forEachChild(node, visit);
+      };
+
+      visit(parsed(name));
+
+      return found;
+    });
+
+    expect(used).toEqual([]);
+  });
+
+  it("holds no module-scope mutable collection (no registry, cache or secret store)", () => {
+    const collections = runtimeFiles.flatMap((name) =>
+      parsed(name)
+        .statements.filter(ts.isVariableStatement)
+        .flatMap((statement) =>
+          statement.declarationList.declarations.flatMap((declaration) => {
+            const initializer = declaration.initializer;
+            const label = `${name}: ${declaration.name.getText()}`;
+            const mutable = !(statement.declarationList.flags & ts.NodeFlags.Const);
+            const collection =
+              initializer !== undefined &&
+              ((ts.isNewExpression(initializer) &&
+                /^(?:Weak)?(?:Map|Set)$/.test(initializer.expression.getText())) ||
+                ts.isArrayLiteralExpression(initializer) ||
+                ts.isObjectLiteralExpression(initializer));
+
+            return (mutable || collection) &&
+              !ALLOWED_MODULE_SCOPE_COLLECTIONS.has(declaration.name.getText())
+              ? [label]
+              : [];
+          }),
+        ),
+    );
+
+    expect(collections).toEqual([]);
+  });
+
+  it("does not use Symbol.for, which would share state across realms and bundles", () => {
+    expect(
+      runtimeFiles.filter((name) =>
+        readFileSync(join(runtimeDir, name), "utf8").includes("Symbol.for"),
+      ),
+    ).toEqual([]);
+  });
+});
+
 describe("ServerComponent", () => {
   it("is a marker: it returns the class unchanged and adds nothing to it", () => {
     class Marked {}

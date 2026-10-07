@@ -50,6 +50,7 @@
     "test:server-component-navigation": "node --experimental-strip-types tools/server-components/navigation.ts",
     "test:server-component-defer": "node --experimental-strip-types tools/server-components/defer.ts",
     "test:server-component-server-only": "node --experimental-strip-types tools/server-components/server-only.ts",
+    "test:server-component-security": "node --experimental-strip-types tools/server-components/security.ts",
     "test:server-components:cloudflare": "node --experimental-strip-types tools/server-components/cloudflare.ts",
     "test:www:server-components": "node --experimental-strip-types tools/server-components/www.ts",
     "test:relay:server-components": "node --experimental-strip-types tools/server-components/relay.ts",
