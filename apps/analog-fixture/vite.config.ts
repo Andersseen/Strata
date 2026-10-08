@@ -43,6 +43,11 @@ export default defineConfig(() => ({
     }),
     analog({
       nitro: { moduleSideEffects: ["@angular/compiler"] },
+      // Off by default, as in the stock template (every Angular TypeScript
+      // edit then reloads the page). `pnpm test:server-component-dev` also runs
+      // `vite` with this on, to prove Strata leaves Angular's component HMR
+      // alone for edits that do not touch the Server Component graph.
+      liveReload: process.env["STRATA_DEV_LIVE_RELOAD"] === "on",
     }),
   ],
 }));

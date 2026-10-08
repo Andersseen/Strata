@@ -11,6 +11,7 @@ const surrogate = renderSurrogate(
     clientReferences: [
       { name: "QuantityPicker", module: "/app/src/app/orders/quantity-picker.component" },
     ],
+    serverOwnedFiles: ["/app/src/app/orders/order-summary.component.ts"],
   },
   "/app",
 );

@@ -110,6 +110,7 @@ describe("Server Component composition: transitive client-boundary discovery", (
       className: "OrderPage",
       selector: "order-page",
       clientReferences: [{ name: "ClientA", module: `${DIR}/client-a` }],
+      serverOwnedFiles: [`${DIR}/page.ts`],
     });
   });
 
@@ -167,6 +168,7 @@ describe("Server Component composition: transitive client-boundary discovery", (
       className: "NestedServer",
       selector: "nested-server",
       clientReferences: [{ name: "ClientB", module: `${DIR}/client-b` }],
+      serverOwnedFiles: [`${DIR}/nested.ts`],
     });
   });
 
@@ -831,5 +833,68 @@ describe("Server Component composition: surrogates", () => {
       'import { ClientA as ClientA$2 } from "../../../app/orders/other/client-a";',
     );
     expect(surrogate).toContain("providers: [provideClientReferences([ClientA, ClientA$2])],");
+  });
+
+  describe("server-owned files", () => {
+    const owned = (files: Record<string, string>, entry?: string): readonly string[] | undefined =>
+      analyze(files, entry)?.serverOwnedFiles;
+
+    it("lists the root, ordinary children at any depth, nested server components and templateUrl files", () => {
+      expect(
+        owned({
+          [`${DIR}/page.ts`]: page(`<part-a /><nested-server />`, [
+            ["PartA", "./a"],
+            ["NestedServer", "./nested"],
+          ]),
+          [`${DIR}/a.ts`]: child("PartA", "part-a", "", [["PartB", "./b"]]).replace(
+            "template: ``,",
+            'templateUrl: "./a.html",',
+          ),
+          [`${DIR}/a.html`]: `<part-b />`,
+          [`${DIR}/b.ts`]: child("PartB", "part-b", `<client-a [strataClient]="{}" />`, [
+            ["ClientA", "./client-a"],
+          ]),
+          [`${DIR}/nested.ts`]: component("NestedServer", {
+            selector: "nested-server",
+            server: true,
+            template: `<p>nested</p>`,
+          }),
+        }),
+      ).toEqual([
+        `${DIR}/a.html`,
+        `${DIR}/a.ts`,
+        `${DIR}/b.ts`,
+        `${DIR}/nested.ts`,
+        `${DIR}/page.ts`,
+      ]);
+    });
+
+    it("never includes a client boundary's module", () => {
+      expect(
+        owned({
+          [`${DIR}/page.ts`]: page(`<client-a [strataClient]="{}" />`, [["ClientA", "./client-a"]]),
+        }),
+      ).not.toContain(`${DIR}/client-a.ts`);
+    });
+
+    it("includes the local directives and pipes the server render executes", () => {
+      expect(
+        owned({
+          [`${DIR}/page.ts`]: page(`<p>{{ 1 | money }}</p>`, [["MoneyPipe", "./money.pipe"]]),
+        }),
+      ).toContain(`${DIR}/money.pipe.ts`);
+    });
+
+    it("explains an unreadable templateUrl instead of leaking an ENOENT", () => {
+      expect(() =>
+        analyze({
+          [`${DIR}/page.ts`]: page(`<part-a />`, [["PartA", "./a"]]),
+          [`${DIR}/a.ts`]: child("PartA", "part-a", "").replace(
+            "template: ``,",
+            'templateUrl: "./gone.html",',
+          ),
+        }),
+      ).toThrow(`PartA has templateUrl "./gone.html", but ${DIR}/gone.html cannot be read`);
+    });
   });
 });

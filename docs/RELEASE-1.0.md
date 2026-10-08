@@ -31,8 +31,10 @@ compatibility matrix; do not check it based on intent or a demonstration.
       module imported by both a marked module and an island build. A synthetic canary and the marked
       modules are present in the Node SSR/Nitro and Worker server graphs and absent from browser JS,
       assets and source maps, with plugin-off positive controls (fixture, www and Relay; see
-      [STATE](STATE.md), "Server-only modules"). Not ticked: no release candidate; dev server/HMR
-      unqualified; aliased/package re-exports are not propagated by the pre-scan and an aliased
+      [STATE](STATE.md), "Server-only modules"). Not ticked: no release candidate; the dev server is
+      qualified for Analog's default configuration ([report](research/server-component-dev-hmr.md): live
+      firewall, regeneration, fail-closed recovery) but that is not a release certification;
+      aliased/package re-exports are not propagated by the pre-scan and an aliased
       import is rejected only by the `load` backstop without naming its importer; local Node and
       workerd only.
 - [ ] Normal interactive Angular descendants are shipped and hydrated without shipping the server
@@ -65,7 +67,8 @@ compatibility matrix; do not check it based on intent or a demonstration.
       report each and no retry; streaming is explicitly **unsupported** (not qualified). Still open: a
       Server Component render error answers HTTP 200 (empty outlet or half-rendered component) with no
       supported Strata seam to change it, there is no fallback API, Router navigation into a Server
-      Component subtree is NO-GO, dev/HMR and a deployed environment are unqualified, and release-candidate
+      Component subtree is NO-GO, a deployed environment is unqualified (dev/HMR is qualified for Analog's default configuration, see the
+      [dev report](research/server-component-dev-hmr.md)), and release-candidate
       evidence is absent.
 - [ ] Authorization, direct payload access if present, tenant/cache isolation, error redaction and
       code/data-leak negative tests pass. Passing graph checks alone does not satisfy this item.

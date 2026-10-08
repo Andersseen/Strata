@@ -85,6 +85,13 @@ jobs:
       - name: Server Component failure and recovery (Node + workerd)
         run: pnpm test:server-component-failures
 
+      # The REAL Analog/Vite dev server in Chromium: server-owned edits regenerate
+      # the graph and reload the document once, client-owned edits do not, a module
+      # that starts asserting server-only is refused live, and an invalid edit
+      # fails the client graph closed until fixed. Restores every edited file.
+      - name: Server Component dev server (graph regeneration, reload semantics, live firewall)
+        run: pnpm test:server-component-dev
+
       # Local workerd via the Wrangler pinned in @strata-sc/www: no account, no secrets.
       - name: Server-component PoC on Cloudflare Pages (local Wrangler runtime)
         run: pnpm test:server-components:cloudflare

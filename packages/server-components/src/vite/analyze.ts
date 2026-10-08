@@ -38,6 +38,14 @@ export interface ServerComponentDeclaration {
   readonly className: string;
   readonly selector: string;
   readonly clientReferences: readonly ClientReference[];
+  /**
+   * Absolute paths of every file whose content this Server Component's
+   * server render depends on and the browser graph never contains: its own
+   * module, the modules of the unmarked local components, directives and pipes
+   * it renders (at any depth, nested Server Components included) and their
+   * `templateUrl` files. A client boundary's files are not among them.
+   */
+  readonly serverOwnedFiles: readonly string[];
 }
 
 /** Reads a source or template file; throws if it does not exist. */
@@ -51,10 +59,12 @@ export type ReadFile = (path: string) => string;
 export interface AnalysisCache {
   readonly modules: Map<string, ParsedModule>;
   readonly subtrees: Map<string, readonly FoundReference[]>;
+  /** Component key → the server-owned files of its subtree, itself included. */
+  readonly owned: Map<string, ReadonlySet<string>>;
 }
 
 export function createAnalysisCache(): AnalysisCache {
-  return { modules: new Map(), subtrees: new Map() };
+  return { modules: new Map(), subtrees: new Map(), owned: new Map() };
 }
 
 // ---------------------------------------------------------------------------
@@ -306,7 +316,14 @@ function templateOf(
 
   const file = resolve(dirname(component.file), templateUrl.text);
 
-  return { file, text: context.readFile(file) };
+  try {
+    return { file, text: context.readFile(file) };
+  } catch {
+    return fail(
+      component.file,
+      `${component.className} has templateUrl "${templateUrl.text}", but ${file} cannot be read. Create the file or fix the templateUrl.`,
+    );
+  }
 }
 
 /**
@@ -352,6 +369,7 @@ function checkHostListeners(
 function componentScope(
   component: AngularComponentDeclaration,
   context: AnalysisContext,
+  owned: Set<string>,
 ): Map<string, AngularComponentDeclaration> {
   const scope = new Map<string, AngularComponentDeclaration>();
   const imports = property(component.metadata, "imports");
@@ -394,12 +412,18 @@ function componentScope(
 
     if (directive) {
       checkHostListeners(declaration, directive, module.source, `directive ${binding.exported}`);
+      owned.add(module.file);
       continue;
     }
 
     const metadata = decoratorMetadata(declaration, "Component");
 
-    if (!metadata) continue; // A pipe, or not an Angular class: nothing to render.
+    if (!metadata) {
+      // A pipe, or not an Angular class: nothing to render, but the server
+      // render executes it, so editing it needs a new server render.
+      owned.add(module.file);
+      continue;
+    }
 
     const child = componentDeclaration(module, declaration, metadata);
     const name = elementName(child);
@@ -514,6 +538,8 @@ function walk(
 
   if (memo) return memo;
 
+  const owned = new Set<string>([component.file]);
+
   const trail = [...path, component];
   const owner = `server-only component ${component.className}${
     trail.length > 1 ? ` (rendered by ${trailOf(trail)})` : ""
@@ -521,8 +547,10 @@ function walk(
 
   checkHostListeners(component.declaration, component.metadata, component.module.source, owner);
 
-  const scope = componentScope(component, context);
+  const scope = componentScope(component, context, owned);
   const template = templateOf(component, context);
+
+  owned.add(template.file);
   const parsed = parseTemplate(template.text, template.file, {});
 
   if (parsed.errors?.length) {
@@ -599,6 +627,7 @@ function walk(
         }
 
         for (const reference of walk(local, trail, context)) add(reference);
+        for (const file of context.cache.owned.get(local.key) ?? []) owned.add(file);
       }
 
       // Projected content is still this template's: keep checking it.
@@ -620,6 +649,7 @@ function walk(
 
   tmplAstVisitAll(new CompositionVisitor(), parsed.nodes);
   context.cache.subtrees.set(component.key, found);
+  context.cache.owned.set(component.key, owned);
 
   return found;
 }
@@ -691,5 +721,6 @@ export function analyzeServerComponent(
     className: root.className,
     selector: root.selector,
     clientReferences: found.map(({ name, module: path }) => ({ name, module: path })),
+    serverOwnedFiles: [...(cache.owned.get(root.key) ?? [])].sort(),
   };
 }
