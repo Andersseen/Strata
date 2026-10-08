@@ -97,8 +97,12 @@ compatibility matrix; do not check it based on intent or a demonstration.
 - [ ] Production bundle assertions and adversarial leak detectors include positive controls.
 - [ ] Small explicit compatibility matrix with exact tested tuples, engine/peer ranges and CI links.
 - [ ] Published candidate installs cleanly outside the workspace; exports, declarations, dependency
-      rewriting and documented consumer build instructions work. Not ticked: there is no published
-      candidate. Evidence so far for `@strata-sc/server-components` only: **private tarball external-consumer
+      rewriting and documented consumer build instructions work. Not ticked until the registry gate
+      runs successfully on a published candidate: first release preparation is complete (private
+      tarball qualification GO, release tooling and workflow prepared) and registry candidate
+      verification is automated (`pnpm test:server-component-registry-consumer`, run by `release.yml`
+      after publication), but nothing is published yet and this is not a 1.0 claim
+      ([report](research/server-component-first-release.md)). Evidence so far for `@strata-sc/server-components` only: **private tarball external-consumer
       qualification** (`pnpm test:server-component-package-consumer`,
       [report](research/server-component-package-consumer.md)) — the packed, still private package
       installs with `npm` into a real Analog app outside the workspace; exports, declarations (TypeScript

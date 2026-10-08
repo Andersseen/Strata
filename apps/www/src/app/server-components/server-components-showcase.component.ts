@@ -119,11 +119,12 @@ const SERVER_COMPONENT_MARKER = "STRATA_WWW_SERVER_COMPONENT_MARKER";
 
     <div class="sc-notes">
       <p>
-        <b>Preview status.</b> Currently dogfooded in this site and qualified in the repository on
-        Node/Nitro and Cloudflare workerd. The public package is not released yet.
+        <b>Experimental.</b> Dogfooded in this site and qualified on Node/Nitro and Cloudflare
+        workerd. Published on the experimental <code>next</code> channel as
+        <code>&#64;strata-sc/server-components&#64;next</code>; the API may change before 1.0.
       </p>
       <p>
-        <b>Navigation.</b> The preview supports initial and document navigation. Angular Router SPA
+        <b>Navigation.</b> Initial and document navigation are supported. Angular Router SPA
         navigation into a new Server Component subtree is not supported yet.
       </p>
     </div>

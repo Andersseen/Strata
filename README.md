@@ -15,8 +15,8 @@ Strata makes server-side Angular a coherent application model, on two pillars:
 - **Server Components** — run Angular components on the server without shipping
   their implementation or server dependencies to the browser. Only children
   marked as explicit client boundaries (`[strataClient]`) hydrate, as
-  interactive islands. **Private preview:** `@strata-sc/server-components` is
-  experimental and not published; it is dogfooded on the official website and
+  interactive islands. **Experimental:** `@strata-sc/server-components` is
+  prepared for its first release on the npm `next` channel (0.x, API may change before 1.0); it is dogfooded on the official website and
   qualified in this repository on Node/Nitro and Cloudflare workerd, for
   initial/document navigation only (Angular Router SPA navigation into a new
   Server Component subtree is not supported yet). See
@@ -346,7 +346,7 @@ integration:** `@strata-sc/analog` has request input, per-request controllers, r
 conditional go for Angular DI ([SPEC-003](./docs/specs/003-analog-request-lifecycle-angular-di.md)).
 Strict Server Component PoCs reached a conditional go on Node and on local Cloudflare workerd, for
 document navigation only; Angular Router navigation is a recorded no-go. Their mechanism lives in the
-private, unpublished `@strata-sc/server-components` package. Analog integration is still limited to
+experimental `@strata-sc/server-components` package (first `next` release in preparation). Analog integration is still limited to
 GET controllers on the Nitro router, and Strata will not use legacy parameter decorators.
 
 Strata 1.0 requires production-ready **Server Components** in a real
@@ -358,12 +358,12 @@ See the [1.0 release gates](./docs/RELEASE-1.0.md).
 
 ## Packages
 
-| Package                                                        | Description                                                                                                                        |
-| -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| [`@strata-sc/core`](./packages/core)                           | Experimental `@Controller` / `@Get` metadata primitive.                                                                            |
-| [`@strata-sc/h3`](./packages/h3)                               | Experimental H3 adapter: registers Strata controllers on an H3 app.                                                                |
-| [`@strata-sc/analog`](./packages/analog)                       | Experimental Analog adapter: registers Strata controllers on the Nitro router.                                                     |
-| [`@strata-sc/server-components`](./packages/server-components) | **Private, not published.** Experimental Server Component graph split: marker, client boundary, island runtime and Vite transform. |
+| Package                                                        | Description                                                                                                          |
+| -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| [`@strata-sc/core`](./packages/core)                           | Experimental `@Controller` / `@Get` metadata primitive.                                                              |
+| [`@strata-sc/h3`](./packages/h3)                               | Experimental H3 adapter: registers Strata controllers on an H3 app.                                                  |
+| [`@strata-sc/analog`](./packages/analog)                       | Experimental Analog adapter: registers Strata controllers on the Nitro router.                                       |
+| [`@strata-sc/server-components`](./packages/server-components) | **Experimental (`next`).** Server Component graph split: marker, client boundary, island runtime and Vite transform. |
 
 ## Stack
 

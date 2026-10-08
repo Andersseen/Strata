@@ -69,7 +69,7 @@ const SSR_EXPECTATIONS = [
   ["section heading", "Angular components that stay on the server."],
   ["repository data (module graph)", "ServerComponentFactsRepository"],
   ["repository data (runtime)", "Angular + Analog"],
-  ["preview status", "The public package is not released yet."],
+  ["experimental status", "the API may change before 1.0"],
   ["router limitation", "is not supported yet"],
   ["client island initial state", "Interactions: 0"],
 ] as const;

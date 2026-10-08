@@ -1,10 +1,29 @@
 {
   "name": "@strata-sc/server-components",
   "version": "0.0.0",
-  "private": true,
-  "description": "PRIVATE / EXPERIMENTAL. The server-component graph mechanism qualified by the Analog fixture: a build-time marker, the client boundary and island runtime, and the Vite transform. Not published.",
+  "description": "Experimental Server Components for Angular and Analog with explicit client boundaries and server-only graph isolation.",
   "type": "module",
   "license": "MIT",
+  "author": "Andersseen",
+  "homepage": "https://github.com/Andersseen/strata#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Andersseen/strata.git",
+    "directory": "packages/server-components"
+  },
+  "bugs": {
+    "url": "https://github.com/Andersseen/strata/issues"
+  },
+  "keywords": [
+    "angular",
+    "analogjs",
+    "server-components",
+    "ssr",
+    "hydration",
+    "vite",
+    "server",
+    "typescript"
+  ],
   "sideEffects": false,
   "engines": {
     "node": ">=22"
@@ -27,6 +46,9 @@
   "files": [
     "dist"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "vite build && ngc -p tsconfig.runtime.json",
     "clean": "rm -rf dist",
@@ -34,10 +56,10 @@
     "test": "vitest run"
   },
   "peerDependencies": {
-    "@angular/compiler": "^22.0.0",
-    "@angular/core": "^22.0.0",
+    "@angular/compiler": "^22.1.7",
+    "@angular/core": "^22.1.7",
     "typescript": "^5.9.0 || ^6.0.0",
-    "vite": "^8.0.0"
+    "vite": ">=8.3.0 <9"
   },
   "devDependencies": {
     "@angular/compiler": "^22.0.0",

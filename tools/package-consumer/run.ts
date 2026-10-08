@@ -20,7 +20,7 @@ import {
   describeTarball,
   inspectTarball,
   packPackage,
-  PUBLISHABLE_PACKAGES,
+  CONTROLLER_PACKAGE_CONSUMER_PACKAGES,
   readManifest,
 } from "../release/lib/packages.ts";
 
@@ -73,7 +73,7 @@ const tmpRoot = mkdtempSync(join(tmpdir(), "strata-package-consumer-"));
 let passed = false;
 
 try {
-  assertPublishSelection(PUBLISHABLE_PACKAGES);
+  assertPublishSelection(CONTROLLER_PACKAGE_CONSUMER_PACKAGES);
 
   // --- Build + pack --------------------------------------------------------
   step("Building @strata-sc/core and @strata-sc/analog");
@@ -81,7 +81,11 @@ try {
     "pnpm build",
     run(
       "pnpm",
-      [...PUBLISHABLE_PACKAGES.flatMap(({ name }) => ["--filter", name]), "run", "build"],
+      [
+        ...CONTROLLER_PACKAGE_CONSUMER_PACKAGES.flatMap(({ name }) => ["--filter", name]),
+        "run",
+        "build",
+      ],
       { cwd: repoRoot },
     ),
   );
@@ -91,7 +95,7 @@ try {
   mkdirSync(tarballDir, { recursive: true });
   const tarballs = new Map<string, string>();
 
-  for (const pkg of PUBLISHABLE_PACKAGES) {
+  for (const pkg of CONTROLLER_PACKAGE_CONSUMER_PACKAGES) {
     const tarballPath = packPackage(repoRoot, pkg, tarballDir);
     const inspection = inspectTarball(repoRoot, tarballPath);
 

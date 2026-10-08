@@ -4,18 +4,24 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { run } from "../consumer/lib/exec.ts";
+
 import {
   assertPublishSelection,
   describeTarball,
   DIST_TAG,
   inspectTarball,
   packPackage,
-  PUBLISHABLE_PACKAGES,
+  REGISTRY_PACKAGES,
 } from "./lib/packages.ts";
 
 /**
- * Publishes the qualified packages (@strata-sc/core, @strata-sc/analog) to npm under
- * the `next` dist-tag. Never publishes @strata-sc/h3 or moves `latest`.
+ * Local pack → inspect → `npm publish` of the registry packages
+ * (@strata-sc/core, @strata-sc/analog, @strata-sc/server-components) under the
+ * `next` dist-tag. Never publishes @strata-sc/h3 (excluded, private) or moves
+ * `latest`. The automated release is `changesets/action` in
+ * .github/workflows/release.yml (`changeset publish --tag next`); this script is
+ * its dry-run rehearsal (`pnpm release:packages:dry-run`) and manual fallback.
+ * A package still at 0.0.0 (version owned by Changesets) fails inspection.
  *
  *   --dry-run     pack, inspect and `npm publish --dry-run`; scope preflight
  *                 problems are reported but do not fail the run
@@ -92,9 +98,9 @@ const tarballDir = mkdtempSync(join(tmpdir(), "strata-release-"));
 let failed = false;
 
 try {
-  assertPublishSelection(PUBLISHABLE_PACKAGES);
+  assertPublishSelection(REGISTRY_PACKAGES);
   console.log(
-    `${label} packages: ${PUBLISHABLE_PACKAGES.map(({ name }) => name).join(", ")} → dist-tag "${DIST_TAG}"`,
+    `${label} packages: ${REGISTRY_PACKAGES.map(({ name }) => name).join(", ")} → dist-tag "${DIST_TAG}"`,
   );
 
   const blocker = scopePreflight();
@@ -103,7 +109,7 @@ try {
     console.warn(`${label} WARNING (not fatal in dry-run): ${blocker}`);
   }
 
-  for (const pkg of PUBLISHABLE_PACKAGES) {
+  for (const pkg of REGISTRY_PACKAGES) {
     const inspection = inspectTarball(repoRoot, packPackage(repoRoot, pkg, tarballDir));
     const { name, version } = inspection.manifest;
 
