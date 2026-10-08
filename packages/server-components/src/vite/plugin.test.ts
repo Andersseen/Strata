@@ -99,6 +99,23 @@ beforeAll(() => {
 
 afterAll(() => rmSync(root, { recursive: true, force: true }));
 
+describe("config", () => {
+  it("pre-bundles the runtime for dev and bundles it into the SSR graph so the Angular linker processes it", () => {
+    const instance = strataServerComponents({
+      root,
+      sourceDir: "src/app",
+      generatedDir: "src/generated",
+    });
+
+    expect(
+      (instance.config as Hook).call({}, {}, { command: "build", mode: "production" }),
+    ).toEqual({
+      optimizeDeps: { include: ["@strata-sc/server-components"] },
+      ssr: { noExternal: ["@strata-sc/server-components"] },
+    });
+  });
+});
+
 describe("browser-graph firewall", () => {
   it("rejects a direct client import of a server-only module, naming module, importer and reason", async () => {
     const error = await resolveIn("client", "./repository").catch((e: Error) => e.message);
@@ -144,6 +161,20 @@ describe("browser-graph firewall", () => {
 
     await expect(resolveIn("client", "./repository", undefined, control)).resolves.toBeNull();
     expect(loadIn("client", join(app, "repository.ts?raw"), control)).toBeNull();
+  });
+
+  it("is ON when `enabled` is omitted (a forgotten option must not fail open)", async () => {
+    const instance = strataServerComponents({
+      root,
+      sourceDir: "src/app",
+      generatedDir: "src/generated",
+    });
+
+    (instance.config as Hook).call({}, {}, { command: "build", mode: "production" });
+
+    await expect(
+      resolveIn("client", "./repository", join(app, "island.ts"), instance),
+    ).rejects.toThrow(/server-only/);
   });
 
   it("fails the load backstop for a module that bypassed resolution", () => {

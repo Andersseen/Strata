@@ -178,6 +178,35 @@ true` Angular's component HMR updates the island (same realm, no document reques
   - Not covered: Analog `liveReload: true` for server-owned edits, plain helper modules shared
     with client code (not tracked as server-owned), an app invalid at startup (Vite fails to start),
     streaming, Router navigation, a deployed environment.
+- Server Component packed-package consumer (private tarball, outside the workspace;
+  [report](research/server-component-package-consumer.md), `pnpm test:server-component-package-consumer`):
+  - Packed tarball: `pnpm pack` of the built private package, 33 files, 72,222 bytes, with a
+    package-local MIT `LICENSE` (added; `pnpm pack` does not inherit the root one). Every export
+    target exists; no source, test or config shipped; no workspace ranges, no absolute paths; emitted
+    imports are `@angular/core`, `@angular/compiler`, `typescript`, `vite` (types), `node:fs`,
+    `node:path`, all declared peers; no `tslib` import. The package is still `0.0.0`, `private`,
+    excluded from release publishing.
+  - External install: `npm install` of the tarball into a real Analog app in an OS temp directory,
+    empty npm config; a real directory (no symlink), one copy, no other `@strata-sc` package; `.`,
+    `/vite`, `/server-only` resolve under `consumer/node_modules` and nothing resolves into the
+    repository; one Angular/TypeScript universe; no UNMET or Strata-related `npm ls` problem.
+  - Declaration portability: TypeScript 6.0.3 and 5.9.2, `strict`, `skipLibCheck: false`, Bundler
+    resolution, 0 diagnostics, every Strata declaration from `node_modules/.../dist`.
+  - External production build: graph split (three server markers only in the Node server output, the
+    client marker in the browser), 708 browser source-map sources with none of the consumer's server
+    files, no compiler/plugin tooling in the browser; SSR, protocol v1, DOM-identity hydration, one
+    click one effect, document navigation and Back re-entry.
+  - External firewall: direct, dynamic and `?raw` imports of a server-only repository fail the
+    production build with the installed plugin's diagnostic; sources restored, next build clean.
+  - External dev: `vite` from the consumer's `node_modules` hydrates and, after one server-owned edit,
+    reloads the document with fresh SSR and a new realm.
+  - External workerd: Cloudflare Pages build, server graph in the Worker only, SSR/protocol/hydration
+    and one click on the consumer's own Wrangler 4.135.0.
+  - Defects found and fixed in the package: `enabled` omitted silently shipped the implementation to
+    the browser (now defaults to true); the installed runtime fell back to the JIT compiler in Node SSR
+    (the plugin now sets `ssr.noExternal` for it); source maps pointed at unshipped `src/`.
+  - Not covered: a registry install, a published version, Angular/Vite versions other than the tested
+    tuple, a deployed environment. Router navigation stays NO-GO.
 - Server Component confidentiality, in three independent layers (fixture `/server-component-security*`,
   [report](research/server-component-data-security.md)):
   - **Module confidentiality** (PR #49, unchanged): the server-only assertion keeps marked modules

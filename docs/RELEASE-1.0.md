@@ -97,7 +97,14 @@ compatibility matrix; do not check it based on intent or a demonstration.
 - [ ] Production bundle assertions and adversarial leak detectors include positive controls.
 - [ ] Small explicit compatibility matrix with exact tested tuples, engine/peer ranges and CI links.
 - [ ] Published candidate installs cleanly outside the workspace; exports, declarations, dependency
-      rewriting and documented consumer build instructions work.
+      rewriting and documented consumer build instructions work. Not ticked: there is no published
+      candidate. Evidence so far for `@strata-sc/server-components` only: **private tarball external-consumer
+      qualification** (`pnpm test:server-component-package-consumer`,
+      [report](research/server-component-package-consumer.md)) — the packed, still private package
+      installs with `npm` into a real Analog app outside the workspace; exports, declarations (TypeScript
+      6.0.3 and 5.9.2), Node build/SSR/hydration, the server-only firewall, `vite` dev and a Cloudflare
+      build on local workerd work from `node_modules`. It is not a registry install, not a version and not
+      a release; `@strata-sc/core` and `@strata-sc/analog` are covered by `test:package-consumer`.
 - [ ] SemVer, prerelease handling, deprecation and migration policy documented; upgrades exercised.
 - [ ] Public documentation, examples, error diagnostics and native H3 escape-hatch guidance complete.
 - [ ] Architectural/security blockers in RISKS have evidence-backed dispositions; no unresolved

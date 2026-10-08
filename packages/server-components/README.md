@@ -4,7 +4,8 @@
 
 The server-component graph mechanism qualified in `docs/research/server-component-*.md`, extracted
 from the Analog fixture so an Analog app consumes it as a workspace package. Behaviour is identical
-to the PoC.
+to the PoC. The packed tarball has also been qualified in an external Analog app (see
+[Qualification](#qualification)); the package is still private.
 
 ## Qualification
 
@@ -36,6 +37,13 @@ to the PoC.
 - Dev server (`vite`): graph regeneration, document reload for server-owned edits, the live
   server-only firewall and invalid-edit recovery, against the real Analog dev server in Chromium:
   `pnpm test:server-component-dev` (see [Dev server](#dev-server-vite)).
+- **Packed tarball, outside the workspace** (private tarball qualification, not a published
+  candidate): the package built and packed with `pnpm pack`, installed with `npm install` into a real
+  Analog app in an OS temp directory, then production Node build/SSR/hydration/navigation, the
+  server-only firewall, `vite` dev with a server-owned edit and a Cloudflare build on local workerd,
+  plus declarations under TypeScript 6.0.3 and 5.9.2: `pnpm test:server-component-package-consumer`
+  (see [Consumer setup](#consumer-setup-preview--package-not-published)). **The package is still
+  private and unpublished despite this evidence.**
 - **Document navigation only.** An Angular Router navigation to a route containing a server
   component renders the empty surrogate, silently. There is no server payload or router
   integration.
@@ -61,7 +69,7 @@ strataServerComponents({
   root: import.meta.dirname,
   sourceDir: "src/app",
   generatedDir: "src/generated/server-components", // in the Angular program, gitignored
-  enabled: true, // false: plain-SSR control build
+  enabled: true, // optional, default true; false: plain-SSR control build
 });
 ```
 
@@ -86,6 +94,47 @@ export class OrderSummary {}
   [Client boundary protocol](#client-boundary-protocol).
 - `StrataIslandHost` hydrates each boundary as its own root from its `ngh` annotation and destroys
   those `ComponentRef`s when the host is destroyed.
+
+## Consumer setup (preview — package not published)
+
+> **Preview.** `@strata-sc/server-components` is private and not on any registry; there is no
+> `npm install` step to copy. This is the configuration the packed-tarball gate
+> (`pnpm test:server-component-package-consumer`, `tests/server-component-package-consumer/fixture`)
+> installs and builds outside the workspace.
+
+```ts
+// vite.config.ts — a stock create-analog app plus the Strata plugin
+import analog from "@analogjs/platform";
+import { strataServerComponents } from "@strata-sc/server-components/vite";
+import { defineConfig } from "vite";
+
+export default defineConfig({
+  ssr: { noExternal: ["tslib"] }, // required: see below
+  plugins: [
+    // Before analog(): the surrogates must be in the Angular program when Analog reads its tsconfig.
+    strataServerComponents({
+      root: import.meta.dirname,
+      sourceDir: "src/app",
+      generatedDir: "src/generated/server-components", // in tsconfig.app.json `include`, gitignored
+    }),
+    analog(),
+  ],
+});
+```
+
+- Peers: `@angular/core` and `@angular/compiler` `^22.0.0`, `typescript` `^5.9.0 || ^6.0.0`, `vite`
+  `^8.0.0`. The package has no dependencies of its own and the emitted code imports no `tslib`.
+- `ssr.noExternal: ["tslib"]` is an Analog/Nitro requirement, not the package's: `@ServerComponent()`
+  makes TypeScript emit `__decorate` through `importHelpers`, and Nitro would otherwise trace
+  `tslib.es6.mjs` while Node resolves `modules/index.js`.
+- Using Angular `@defer`? Also define `ngServerMode: "true"` in `environments.ssr.define` (see
+  [Angular `@defer`](#angular-defer-and-incremental-hydration)). Not needed otherwise.
+- The plugin itself adds `optimizeDeps.include` (dev) and `ssr.noExternal` for the runtime package:
+  installed from `node_modules` (not linked), Vite would externalize the partial-compiled runtime for
+  Node SSR and Angular would fall back to the JIT compiler, which is not loaded.
+- Cloudflare Pages: `BUILD_PRESET=cloudflare-pages vite build`, as for the in-repo gates.
+- `enabled` is optional and defaults to `true`, so a config that forgets it cannot silently ship Server
+  Component implementations to the browser. Only `enabled: false` is the plain-SSR control build.
 
 ## Client boundary protocol
 
@@ -564,4 +613,5 @@ domain-state workaround, not request isolation, tenant isolation or a security b
   host) and on Analog's Vite environment names (`client`).
 - Dev server (`vite`): see [Dev server](#dev-server-vite) for the measured contract. The plugin
   adds the runtime package to `optimizeDeps.include`, because Analog links partial-compiled
-  Angular libraries in dev only while pre-bundling them.
+  Angular libraries in dev only while pre-bundling them, and to `ssr.noExternal`, so an installed
+  (not linked) copy is linked by Analog for Node SSR instead of falling back to the JIT compiler.
