@@ -74,8 +74,12 @@ export interface ServerComponentsOptions {
    * app's Angular program, outside `sourceDir` or excluded from it, and gitignored.
    */
   readonly generatedDir: string;
-  /** `false` keeps the real modules in the browser graph: the plain-SSR control build. */
-  readonly enabled: boolean;
+  /**
+   * `false` keeps the real modules in the browser graph: the plain-SSR control build.
+   * Omitted means `true`: a config that forgets the option must not silently ship
+   * Server Component implementations to the browser.
+   */
+  readonly enabled?: boolean;
 }
 
 const SOURCE_EXTENSION = ".ts";
@@ -122,6 +126,7 @@ interface PendingReload {
 }
 
 export function strataServerComponents(options: ServerComponentsOptions): Plugin {
+  const enabled = options.enabled ?? true;
   const root = resolve(options.root);
   const sourceDir = join(root, options.sourceDir);
   const generatedDir = join(root, options.generatedDir);
@@ -305,7 +310,16 @@ export function strataServerComponents(options: ServerComponentsOptions): Plugin
       // only while pre-bundling; unlinked, they fall back to the JIT compiler,
       // which the browser does not load. Production builds link in the build
       // optimizer instead, so this only affects `vite` dev.
-      return { optimizeDeps: { include: [RUNTIME_PACKAGE] } };
+      //
+      // The same holds for SSR once the package is installed from a registry or
+      // a tarball instead of linked: Vite externalizes `node_modules` for Node
+      // SSR, so Nitro would load the partial declarations unlinked and fall back
+      // to the JIT compiler. Bundling the runtime through the SSR graph lets
+      // Analog's linker process it, as it does for a linked workspace package.
+      return {
+        optimizeDeps: { include: [RUNTIME_PACKAGE] },
+        ssr: { noExternal: [RUNTIME_PACKAGE] },
+      };
     },
 
     configureServer(server) {
@@ -325,7 +339,7 @@ export function strataServerComponents(options: ServerComponentsOptions): Plugin
     hotUpdate(update) {
       const server = devServer ?? update.server;
 
-      if (!options.enabled) return;
+      if (!enabled) return;
 
       const file = resolve(update.file);
       const environment = this.environment;
@@ -383,7 +397,7 @@ export function strataServerComponents(options: ServerComponentsOptions): Plugin
     },
 
     async resolveId(source, importer, resolveOptions) {
-      if (!options.enabled || this.environment.name !== "client" || !importer) return null;
+      if (!enabled || this.environment.name !== "client" || !importer) return null;
 
       // Only a marked module imports the assertion, and a marked module inside
       // sourceDir is stopped at its own import site below. Reaching this means
@@ -420,7 +434,7 @@ export function strataServerComponents(options: ServerComponentsOptions): Plugin
     // glob import or an alias that bypasses the check above) fails the build
     // instead of leaking.
     load(id) {
-      if (!options.enabled || this.environment.name !== "client") return null;
+      if (!enabled || this.environment.name !== "client") return null;
 
       if (failure !== undefined && inApp(id)) this.error(failClosedMessage());
 

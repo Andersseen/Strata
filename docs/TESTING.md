@@ -57,6 +57,14 @@ hydration:
   refused live (import, `import()`, `?raw`, `?url`) with no canary in any response; invalid edits
   fail the client graph closed with the analyzer's diagnostic and recover when fixed.
 
+- `pnpm test:server-component-package-consumer`: builds and `pnpm pack`s the private package, installs
+  the tarball with `npm` into a real Analog app copied to an OS temp directory outside the workspace
+  (`tests/server-component-package-consumer/fixture`), and proves tarball layout, export targets,
+  dependency/peer closure, declarations under TypeScript 6.0.3 and 5.9.2, a Node production build
+  (graph split, hidden source maps, SSR, protocol v1, hydration, document navigation), the server-only
+  firewall (direct, dynamic, `?raw`) from the installed plugin, `vite` dev with one server-owned edit and
+  a Cloudflare build on local workerd. Nothing is published; the package stays private.
+
 These cover one code shape. Items 5 and 6 of the strict bundle proof below (forbidden-import
 fixtures with import-chain diagnostics, renamed/barrel/dynamic imports) are still open.
 

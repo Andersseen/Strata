@@ -92,6 +92,13 @@ jobs:
       - name: Server Component dev server (graph regeneration, reload semantics, live firewall)
         run: pnpm test:server-component-dev
 
+      # The PACKED (still private) package, installed with npm into a real Analog app in
+      # an OS temp directory outside the workspace: tarball and declarations (TypeScript
+      # 6 and 5.9), Node build/SSR/hydration, server-only firewall, `vite` dev with one
+      # server-owned edit, Cloudflare build on local workerd. Never publishes anything.
+      - name: Server Component packed-package consumer (outside the workspace)
+        run: pnpm test:server-component-package-consumer
+
       # Local workerd via the Wrangler pinned in @strata-sc/www: no account, no secrets.
       - name: Server-component PoC on Cloudflare Pages (local Wrangler runtime)
         run: pnpm test:server-components:cloudflare

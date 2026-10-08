@@ -21,6 +21,7 @@ pnpm test:analog # Analog fixture: @strata-sc/analog in dev + production, client
 pnpm test:server-components            # Server Component graph split, SSR, hydration (Node)
 pnpm test:server-component-navigation  # document navigation GO, router navigation NO-GO (Node)
 pnpm test:server-component-dev        # graph regeneration and reload semantics under `vite` dev (Chromium)
+pnpm test:server-component-package-consumer  # packed tarball installed with npm into an Analog app outside the workspace
 pnpm test:server-components:cloudflare # the same on local Cloudflare workerd (Wrangler)
 ```
 

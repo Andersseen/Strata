@@ -25,6 +25,9 @@ export default config(
       // Packed-package consumer (test:package-consumer): compiled only by its
       // own isolated TypeScript 5.9.2 install against the packed tarballs.
       "tests/package-consumer/fixture/**",
+      // External Analog consumer of the packed @strata-sc/server-components,
+      // installed with npm outside the workspace (test:server-component-package-consumer).
+      "tests/server-component-package-consumer/fixture/**",
       // Analog integration fixture (apps/analog-fixture): compiled by Analog's
       // own Angular/Nitro pipelines with the stock `experimentalDecorators`
       // tsconfig, never by this repo's tsconfigs. Its authored TypeScript is

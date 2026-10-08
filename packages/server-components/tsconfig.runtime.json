@@ -9,8 +9,12 @@
     "lib": ["ES2023", "DOM"],
     "types": [],
     "declaration": true,
-    "declarationMap": true,
+    // The package ships no `src/`: declaration maps would point at files that are not
+    // there, and the JS maps carry their sources inline, so a consumer's dev server
+    // never warns about missing source files.
+    "declarationMap": false,
     "sourceMap": true,
+    "inlineSources": true,
     "allowImportingTsExtensions": false,
     "experimentalDecorators": true
   },
