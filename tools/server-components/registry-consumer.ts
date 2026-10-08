@@ -59,8 +59,9 @@ import type { RunningServer } from "./lib/package-consumer.ts";
 const TITLE = "server-component registry consumer";
 const PACKAGE = "@strata-sc/server-components";
 const REGISTRY = "https://registry.npmjs.org";
-const PROPAGATION_ATTEMPTS = 24;
-const PROPAGATION_INTERVAL_MS = 10_000;
+// Bounded: at most 24 × 10 s. The env overrides exist to exercise the failure path quickly.
+const PROPAGATION_ATTEMPTS = Number(process.env["STRATA_SC_REGISTRY_ATTEMPTS"] ?? 24);
+const PROPAGATION_INTERVAL_MS = Number(process.env["STRATA_SC_REGISTRY_INTERVAL_MS"] ?? 10_000);
 
 const sanitize = (text: string): string => stripVTControlCharacters(text);
 
