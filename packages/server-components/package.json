@@ -1,6 +1,6 @@
 {
   "name": "@strata-sc/server-components",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Experimental Server Components for Angular and Analog with explicit client boundaries and server-only graph isolation.",
   "type": "module",
   "license": "MIT",
