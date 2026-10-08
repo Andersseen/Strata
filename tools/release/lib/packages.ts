@@ -9,26 +9,31 @@ export interface PublishablePackage {
   readonly dir: string;
 }
 
+const CORE: PublishablePackage = { name: "@strata-sc/core", dir: "packages/core" };
+const ANALOG: PublishablePackage = { name: "@strata-sc/analog", dir: "packages/analog" };
+const SERVER_COMPONENTS: PublishablePackage = {
+  name: "@strata-sc/server-components",
+  dir: "packages/server-components",
+};
+
 /**
- * The only packages the registry release may publish, in publish order
+ * Every package the registry release may publish, in publish order
  * (dependencies first). `@strata-sc/h3` is deliberately absent: its consumer
  * type closure is blocked by H3 v2/crossws declarations (SPEC-002), so it
  * stays out of the registry until that blocker is resolved or accepted.
  */
-export const PUBLISHABLE_PACKAGES: readonly PublishablePackage[] = [
-  { name: "@strata-sc/core", dir: "packages/core" },
-  { name: "@strata-sc/analog", dir: "packages/analog" },
-];
+export const REGISTRY_PACKAGES: readonly PublishablePackage[] = [CORE, ANALOG, SERVER_COMPONENTS];
 
 /**
- * Never published. `@strata-sc/server-components` is `private: true` and
- * experimental (docs/research/server-component-graph-poc.md); listing it here
- * also fails the release if a publishable package ever starts depending on it.
+ * The subset consumed by `pnpm test:package-consumer`, the controllers/Analog
+ * adapter consumer. Being registry-publishable does not make a package part of
+ * that test: Server Components has its own gates
+ * (`test:server-component-package-consumer`, `test:server-component-registry-consumer`).
  */
-export const EXCLUDED_PACKAGES: readonly string[] = [
-  "@strata-sc/h3",
-  "@strata-sc/server-components",
-];
+export const CONTROLLER_PACKAGE_CONSUMER_PACKAGES: readonly PublishablePackage[] = [CORE, ANALOG];
+
+/** Never published: still private. */
+export const EXCLUDED_PACKAGES: readonly string[] = ["@strata-sc/h3"];
 
 /** Experimental releases never move `latest`. */
 export const DIST_TAG: string = "next";
@@ -88,21 +93,29 @@ export function packPackage(
   return join(destination, packedTarballName(packageDir));
 }
 
+/** What the inspector needs from a package, independent of how it was obtained. */
+export interface PackedPackage {
+  readonly manifest: PackageManifest;
+  /** Tarball paths relative to the package root, e.g. `dist/index.js`. */
+  readonly files: readonly string[];
+  /** Version of a registry package in this workspace, to check internal ranges. */
+  readonly workspaceVersion?: (name: string) => string | undefined;
+}
+
+const ROOT_FILES = ["package.json", "README.md", "LICENSE", "CHANGELOG.md"];
+const REQUIRED_ROOT_FILES = ["package.json", "README.md", "LICENSE"];
+
 /**
- * Reads a packed tarball's real `package.json` and file list and reports
- * everything that would make it unfit for an external install.
+ * Layout-agnostic package rules: required root files, every `main`/`types`/
+ * `exports` target present, nothing outside `dist/` and root metadata, no
+ * source or test files, no non-registry dependency ranges. The expected
+ * layout is derived from the manifest, never from the package name.
  */
-export function inspectTarball(repoRoot: string, tarballPath: string): TarballInspection {
-  const files = run("tar", ["-tzf", tarballPath])
-    .stdout.trim()
-    .split("\n")
-    .filter((entry) => entry && !entry.endsWith("/"))
-    .map((entry) => entry.replace(/^package\//, ""))
-    .sort();
-  const manifest = JSON.parse(
-    run("tar", ["-xOzf", tarballPath, "package/package.json"]).stdout,
-  ) as PackageManifest;
-  const sizeBytes = readFileSync(tarballPath).byteLength;
+export function inspectPackedPackage({
+  manifest,
+  files,
+  workspaceVersion,
+}: PackedPackage): string[] {
   const problems: string[] = [];
 
   if (manifest.private) problems.push("package is private");
@@ -110,27 +123,23 @@ export function inspectTarball(repoRoot: string, tarballPath: string): TarballIn
     problems.push(`version "${manifest.version}" is not a released semver version`);
   }
 
-  for (const required of [
-    "package.json",
-    "README.md",
-    "LICENSE",
-    "dist/index.js",
-    "dist/index.d.ts",
-  ]) {
+  for (const required of REQUIRED_ROOT_FILES) {
     if (!files.includes(required)) problems.push(`missing ${required}`);
   }
 
   for (const file of files) {
-    if (
-      !file.startsWith("dist/") &&
-      !["package.json", "README.md", "LICENSE", "CHANGELOG.md"].includes(file)
-    ) {
+    if (!file.startsWith("dist/") && !ROOT_FILES.includes(file)) {
       problems.push(`unexpected file ${file}`);
     }
-    if (/\.test\.|\/src\//.test(file)) problems.push(`source or test file shipped: ${file}`);
+    if (/\.test\.|(^|\/)src\/|(^|\/)tsconfig[^/]*$|(^|\/)vite\.config[^/]*$/.test(file)) {
+      problems.push(`source, test or config file shipped: ${file}`);
+    }
   }
 
-  for (const target of exportTargets(manifest)) {
+  const targets = exportTargets(manifest);
+  if (targets.length === 0) problems.push("manifest declares no main, types or exports target");
+
+  for (const target of targets) {
     if (!files.includes(target.replace(/^\.\//, "")))
       problems.push(`export target ${target} not in tarball`);
   }
@@ -147,17 +156,44 @@ export function inspectTarball(repoRoot: string, tarballPath: string): TarballIn
         problems.push(`dependency ${name}@${range} is not installable from a registry`);
       }
 
-      const workspacePackage = PUBLISHABLE_PACKAGES.find((pkg) => pkg.name === name);
-      if (workspacePackage) {
-        const expected = readManifest(join(repoRoot, workspacePackage.dir)).version;
-        if (range !== expected) {
-          problems.push(`dependency ${name}@${range} does not match workspace version ${expected}`);
-        }
+      const expected = workspaceVersion?.(name);
+      if (expected !== undefined && range !== expected) {
+        problems.push(`dependency ${name}@${range} does not match workspace version ${expected}`);
       }
 
       if (EXCLUDED_PACKAGES.includes(name)) problems.push(`depends on excluded package ${name}`);
     }
   }
+
+  return problems;
+}
+
+/**
+ * Reads a packed tarball's real `package.json` and file list and reports
+ * everything that would make it unfit for an external install.
+ */
+export function inspectTarball(repoRoot: string, tarballPath: string): TarballInspection {
+  const files = run("tar", ["-tzf", tarballPath])
+    .stdout.trim()
+    .split("\n")
+    .filter((entry) => entry && !entry.endsWith("/"))
+    .map((entry) => entry.replace(/^package\//, ""))
+    .sort();
+  const manifest = JSON.parse(
+    run("tar", ["-xOzf", tarballPath, "package/package.json"]).stdout,
+  ) as PackageManifest;
+  const sizeBytes = readFileSync(tarballPath).byteLength;
+  const problems = inspectPackedPackage({
+    manifest,
+    files,
+    workspaceVersion: (name) => {
+      const workspacePackage = REGISTRY_PACKAGES.find((pkg) => pkg.name === name);
+
+      return workspacePackage
+        ? readManifest(join(repoRoot, workspacePackage.dir)).version
+        : undefined;
+    },
+  });
 
   return { path: tarballPath, manifest, files, sizeBytes, problems };
 }

@@ -33,10 +33,11 @@ function importsOf(dir: string): string[] {
 }
 
 describe("package boundary", () => {
-  it("is private and not configured for publishing", () => {
-    expect(manifest.private).toBe(true);
-    expect(manifest.version).toBe("0.0.0");
-    expect(manifest.publishConfig).toBeUndefined();
+  it("is public with Changesets owning the version and the release workflow owning the dist-tag", () => {
+    expect(manifest.private).toBeUndefined();
+    expect(manifest.version).toMatch(/^\d+\.\d+\.\d+$/);
+    // No `tag`: `changeset publish --tag next` (release.yml) is the single source of truth.
+    expect(manifest.publishConfig).toEqual({ access: "public" });
   });
 
   it("exports the server-only assertion entry the plugin recognises", () => {

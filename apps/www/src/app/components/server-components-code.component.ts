@@ -71,10 +71,11 @@ import { CodePanelComponent } from "./code-panel.component";
           </p>
           <div class="note-rule"></div>
           <span class="note-number">03</span>
-          <h3>Preview, not a package yet.</h3>
+          <h3>Experimental, on the <code>next</code> channel.</h3>
           <p>
-            <code>&#64;strata-sc/server-components</code> is private and experimental. It powers
-            this page, but it is not published for installation.
+            <code>&#64;strata-sc/server-components&#64;next</code> is experimental (0.x): the API
+            may change before 1.0. It powers this page. Streaming SSR and Router navigation into a
+            new Server Component subtree are not supported.
           </p>
         </volt-card-content></volt-card
       >

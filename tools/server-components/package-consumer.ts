@@ -19,9 +19,17 @@ import { httpGet } from "../analog/lib/process.ts";
 import { listFiles } from "../analog/lib/scan.ts";
 import { run } from "../consumer/lib/exec.ts";
 import type { CommandResult } from "../consumer/lib/exec.ts";
-import { EXCLUDED_PACKAGES, PUBLISHABLE_PACKAGES } from "../release/lib/packages.ts";
+import { EXCLUDED_PACKAGES, REGISTRY_PACKAGES } from "../release/lib/packages.ts";
 
 import { observeBrowser } from "./lib/browser.ts";
+import {
+  EXPECTED_EVIDENCE,
+  MARKERS,
+  SERVER_MARKERS,
+  SERVER_MESSAGE_A,
+  SERVER_MESSAGE_B,
+  SERVER_SOURCES,
+} from "./lib/consumer-fixture.ts";
 import { ANGULAR_COMPILER_FINGERPRINT, check, finish, repoRoot, section } from "./lib/harness.ts";
 import { moduleGraph } from "./lib/module-graph.ts";
 import {
@@ -52,7 +60,7 @@ import {
 import type { RunningServer, Snapshot, Tarball } from "./lib/package-consumer.ts";
 
 /**
- * `pnpm test:server-component-package-consumer`: can the PACKED, still private
+ * `pnpm test:server-component-package-consumer`: can the PACKED
  * @strata-sc/server-components be installed and used by a real Analog
  * application completely outside the Strata workspace?
  * (docs/research/server-component-package-consumer.md)
@@ -74,41 +82,10 @@ const fixtureTemplate = join(repoRoot, "tests", "server-component-package-consum
 const packageDir = join(repoRoot, "packages", "server-components");
 const PACKAGE = "@strata-sc/server-components";
 
-const MARKERS = {
-  server: "EXTERNAL_CONSUMER_SERVER_MARKER",
-  transitive: "EXTERNAL_CONSUMER_TRANSITIVE_MARKER",
-  implementation: "EXTERNAL_CONSUMER_IMPLEMENTATION_MARKER",
-  client: "EXTERNAL_CONSUMER_CLIENT_MARKER",
-} as const;
-const SERVER_MARKERS = [MARKERS.server, MARKERS.transitive, MARKERS.implementation] as const;
-
-/** Consumer-authored files that must never reach the browser graph or its maps. */
-const SERVER_SOURCES = [
-  "product.repository.ts",
-  "server-helper.ts",
-  "product-details.server-component.ts",
-] as const;
-
-const SERVER_MESSAGE_A = "External server A";
-const SERVER_MESSAGE_B = "External server B";
-
 const TS59_VERSION = "5.9.2";
 
 const sanitize = (text: string): string => stripVTControlCharacters(text);
 const all = (results: readonly boolean[]): boolean => results.every(Boolean);
-
-/** Same hash as the fixture's `fingerprint`, to predict the server-computed evidence. */
-function fingerprint(value: string): string {
-  let hash = 0;
-
-  for (let index = 0; index < value.length; index++) {
-    hash = (Math.imul(hash, 31) + value.charCodeAt(index)) | 0;
-  }
-
-  return (hash >>> 0).toString(16);
-}
-
-const EXPECTED_EVIDENCE = `${fingerprint(MARKERS.implementation)}.${fingerprint(MARKERS.server)}.${fingerprint(MARKERS.transitive)}`;
 
 const verdict = {
   tarball: false,
@@ -217,24 +194,30 @@ try {
   templateBefore = snapshotDir(fixtureTemplate, () => false);
 
   // ------------------------------------------------------------------------
-  section("Release invariants: the package stays private and unpublished");
+  section("Release invariants: registry-eligible, version owned by Changesets");
 
   const sourceManifest = JSON.parse(readFileSync(join(packageDir, "package.json"), "utf8")) as {
     name: string;
     version: string;
     private?: boolean;
+    publishConfig?: { access?: string; tag?: string };
   };
 
+  // The qualification packs the current package whatever its version: 0.0.0
+  // before the Version Packages PR is expected and is not a failure here
+  // (the release inspector, not this gate, requires a released version).
   check(
-    `package is still ${sourceManifest.name}@${sourceManifest.version} private`,
+    `package is ${sourceManifest.name}@${sourceManifest.version}, public and registry-eligible`,
     sourceManifest.name === PACKAGE &&
-      sourceManifest.version === "0.0.0" &&
-      sourceManifest.private === true,
+      sourceManifest.private === undefined &&
+      sourceManifest.publishConfig?.access === "public" &&
+      sourceManifest.publishConfig.tag === undefined,
   );
   check(
-    "still excluded from release publishing, not publishable",
-    EXCLUDED_PACKAGES.includes(PACKAGE) &&
-      !PUBLISHABLE_PACKAGES.some(({ name }) => name === PACKAGE),
+    "selected for registry release; @strata-sc/h3 stays excluded",
+    REGISTRY_PACKAGES.some(({ name }) => name === PACKAGE) &&
+      !EXCLUDED_PACKAGES.includes(PACKAGE) &&
+      EXCLUDED_PACKAGES.includes("@strata-sc/h3"),
   );
 
   // ------------------------------------------------------------------------
@@ -271,8 +254,8 @@ try {
 
   tarballOk.push(
     check(
-      "packed manifest is the unmodified private 0.0.0",
-      tarball.manifest.private === true && tarball.manifest.version === "0.0.0",
+      "packed manifest is the unmodified source manifest (public, same version)",
+      tarball.manifest.private === undefined && tarball.manifest.version === sourceManifest.version,
     ),
     check(
       "required files present",
@@ -1433,13 +1416,12 @@ try {
     templateNow.join(", "),
   );
   check(
-    "the package manifest is still private 0.0.0",
+    "the package manifest is unchanged by the qualification",
     (
       JSON.parse(readFileSync(join(packageDir, "package.json"), "utf8")) as {
-        private?: boolean;
         version: string;
       }
-    ).private === true,
+    ).version === sourceManifest.version,
   );
 } catch (error) {
   if (!(error instanceof Abort)) {

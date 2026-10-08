@@ -25,9 +25,10 @@ pnpm test:server-component-package-consumer  # packed tarball installed with npm
 pnpm test:server-components:cloudflare # the same on local Cloudflare workerd (Wrangler)
 ```
 
-The Server Component runners build the Analog fixture, which consumes the private
+The Server Component runners build the Analog fixture, which consumes the
 `@strata-sc/server-components` package from `dist`: run `pnpm build` first. That package is
-`private: true` and needs no changeset.
+experimental and released on the `next` channel through Changesets like the others; a user-facing
+change needs a changeset.
 
 Other useful scripts:
 

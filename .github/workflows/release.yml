@@ -7,7 +7,9 @@ name: Release
 #   writes the CHANGELOGs.
 # - If there are none (e.g. that version PR was just merged), it publishes every
 #   non-private package whose version is not on npm yet, under the `next`
-#   dist-tag, and creates the git tags and GitHub Releases.
+#   dist-tag (never `latest`) with npm provenance, and creates the git tags and
+#   GitHub Releases. When @strata-sc/server-components was among the published
+#   packages, the registry consumer then verifies that exact version.
 #
 # Requires the repository secret NPM_TOKEN (npm granular token with publish
 # access to @strata-sc/*), and "Allow GitHub Actions to create and approve pull
@@ -52,6 +54,7 @@ jobs:
         run: pnpm build
 
       - name: Version PR or publish to npm
+        id: changesets
         uses: changesets/action@v2
         with:
           commit-message: "chore(release): version packages"
@@ -60,3 +63,19 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: "true"
+
+      # Post-publish gate: only when this run actually published
+      # @strata-sc/server-components. Installs that exact version from
+      # registry.npmjs.org into a fresh temp app and verifies dist-tags, integrity,
+      # build, SSR, hydration and the server-only firewall. A failure fails the
+      # workflow visibly; it never unpublishes, moves a dist-tag or republishes.
+      # Remediation is a human decision.
+      - name: Setup Playwright browser (registry consumer)
+        if: steps.changesets.outputs.published == 'true' && contains(fromJSON(steps.changesets.outputs.publishedPackages).*.name, '@strata-sc/server-components')
+        run: pnpm --filter @strata-sc/www exec playwright install --with-deps chromium
+
+      - name: Verify @strata-sc/server-components from the npm registry
+        if: steps.changesets.outputs.published == 'true' && contains(fromJSON(steps.changesets.outputs.publishedPackages).*.name, '@strata-sc/server-components')
+        run: pnpm test:server-component-registry-consumer
+        env:
+          STRATA_PUBLISHED_PACKAGES: ${{ steps.changesets.outputs.publishedPackages }}
