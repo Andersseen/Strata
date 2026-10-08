@@ -53,6 +53,21 @@ jobs:
       - name: Build
         run: pnpm build
 
+      # changesets/action's `publishedPackages` output is not reliably populated
+      # (changesets 3 prints no "New tag:" lines), so the post-publish gate is
+      # keyed on the registry instead: this version is not on npm before the
+      # publish step runs.
+      - name: Detect unpublished @strata-sc/server-components version
+        id: pre
+        run: |
+          VERSION=$(node -p "require('./packages/server-components/package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if npm view "@strata-sc/server-components@$VERSION" version >/dev/null 2>&1; then
+            echo "unpublished=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "unpublished=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Version PR or publish to npm
         id: changesets
         uses: changesets/action@v2
@@ -71,11 +86,11 @@ jobs:
       # workflow visibly; it never unpublishes, moves a dist-tag or republishes.
       # Remediation is a human decision.
       - name: Setup Playwright browser (registry consumer)
-        if: steps.changesets.outputs.published == 'true' && contains(fromJSON(steps.changesets.outputs.publishedPackages).*.name, '@strata-sc/server-components')
+        if: steps.pre.outputs.unpublished == 'true' && steps.changesets.outputs.hasChangesets == 'false'
         run: pnpm --filter @strata-sc/www exec playwright install --with-deps chromium
 
       - name: Verify @strata-sc/server-components from the npm registry
-        if: steps.changesets.outputs.published == 'true' && contains(fromJSON(steps.changesets.outputs.publishedPackages).*.name, '@strata-sc/server-components')
+        if: steps.pre.outputs.unpublished == 'true' && steps.changesets.outputs.hasChangesets == 'false'
         run: pnpm test:server-component-registry-consumer
         env:
-          STRATA_PUBLISHED_PACKAGES: ${{ steps.changesets.outputs.publishedPackages }}
+          STRATA_SC_REGISTRY_VERSION: ${{ steps.pre.outputs.version }}
