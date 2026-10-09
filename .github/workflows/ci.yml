@@ -103,6 +103,13 @@ jobs:
       - name: Server-component PoC on Cloudflare Pages (local Wrangler runtime)
         run: pnpm test:server-components:cloudflare
 
+      # The PUBLISHED package from registry.npmjs.org, built for Cloudflare Pages in a fresh
+      # app outside the workspace, graph-scanned, and verified end to end on local workerd.
+      # No account, no secrets, no deployment: the real-deployment verdict stays NOT RUN here
+      # (the manual workflow server-component-deployed-cloudflare.yml deploys and qualifies).
+      - name: Published package on Cloudflare Pages (build + local workerd rehearsal)
+        run: pnpm test:server-components:deployed-cloudflare
+
       # The official site dogfoods the private package on its homepage: graph
       # split, SSR and its Playwright suite on Nitro and on local workerd.
       - name: Website Server Component dogfood (Node + Cloudflare builds)

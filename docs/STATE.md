@@ -272,6 +272,15 @@ true` Angular's component HMR updates the island (same realm, no document reques
   assertions under `wrangler pages dev`. The SPEC-003 Angular DI route fails there, because
   workerd refuses Angular's JIT code generation. Checked by
   `pnpm test:server-components:cloudflare` (in CI).
+- Published package on Cloudflare Pages (`@strata-sc/server-components@0.1.0` from registry.npmjs.org, fresh
+  external app, `cloudflare-pages` preset, compatibility date 2026-09-21, no flags): the **local build
+  qualification** passes (Worker graph holds the three server markers, the browser graph and its source maps
+  none) and the HTTP/Playwright/confidentiality/concurrency verifier passes against local workerd. The
+  **real deployment qualification is NOT RUN**: no Cloudflare credentials were available to the run that
+  added the gate. Runner `pnpm test:server-components:deployed-cloudflare`, manual workflow
+  `server-component-deployed-cloudflare.yml` ([report](research/server-component-deployed-cloudflare.md)).
+  Until that workflow has deployed to `strata-sc-qualification` and passed, a deployed environment stays
+  unqualified.
 - Not yet verified on the Analog track: a deployed Cloudflare Pages project, abort/timeout cleanup,
   streamed-body lifetimes. (Packed `@strata-sc/analog` consumers and non-GET methods are now covered;
   see the gaps section.)
