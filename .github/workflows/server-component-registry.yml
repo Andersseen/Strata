@@ -1,0 +1,105 @@
+name: Verify published Server Components
+
+# Re-runnable, read-only verification of an ALREADY PUBLISHED
+# @strata-sc/server-components version, independent of the publish transaction
+# in release.yml (which also runs the same gate right after a real publish).
+#
+# - workflow_dispatch: optional exact `version` (e.g. 0.1.0); empty means the
+#   version in packages/server-components/package.json.
+# - pull_request: the same default, only when the gate or its inputs change.
+#
+# If the resolved version is not on npm yet (e.g. a Version Packages PR), the
+# browser qualification is skipped cleanly: it is not applicable, not a failure.
+# The gate itself is tools/server-components/registry-consumer.ts. It never
+# publishes, unpublishes or moves a dist-tag, and needs no secret.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Exact version to verify, e.g. 0.1.0 (empty: packages/server-components/package.json)"
+        required: false
+        type: string
+  pull_request:
+    paths:
+      - .github/workflows/server-component-registry.yml
+      - .github/workflows/release.yml
+      - tools/server-components/registry-consumer.ts
+      - tools/server-components/lib/**
+      - tools/release/**
+      - tests/server-component-package-consumer/**
+      - packages/server-components/package.json
+
+permissions:
+  contents: read
+
+concurrency:
+  group: server-component-registry-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  registry:
+    name: Verify npm registry artifact
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Resolve version
+        id: version
+        run: |
+          VERSION=$(node --experimental-strip-types tools/release/resolve-registry-version.ts "$INPUT_VERSION")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+
+      - name: Detect whether the version is on npm
+        id: npm
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if OUT=$(npm view "@strata-sc/server-components@$VERSION" version 2>&1); then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+            echo "@strata-sc/server-components@$VERSION is on npm; running registry qualification."
+          elif grep -q "E404" <<<"$OUT"; then
+            echo "published=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "### Registry qualification not applicable"
+              echo
+              echo "Version \`$VERSION\` is not on npm yet; registry qualification is not applicable."
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "npm view failed for a reason other than E404:" >&2
+            echo "$OUT" >&2
+            exit 1
+          fi
+
+      - name: Setup Playwright browser
+        if: steps.npm.outputs.published == 'true'
+        run: pnpm --filter @strata-sc/www exec playwright install --with-deps chromium
+
+      - name: Verify @strata-sc/server-components from the npm registry
+        if: steps.npm.outputs.published == 'true'
+        run: pnpm test:server-component-registry-consumer
+        env:
+          STRATA_SC_REGISTRY_VERSION: ${{ steps.version.outputs.version }}
+
+      - name: Summary
+        if: steps.npm.outputs.published == 'true'
+        run: |
+          echo "### Registry qualification passed" >> "$GITHUB_STEP_SUMMARY"
+          echo >> "$GITHUB_STEP_SUMMARY"
+          echo "\`@strata-sc/server-components@$VERSION\` verified from registry.npmjs.org." >> "$GITHUB_STEP_SUMMARY"
+        env:
+          VERSION: ${{ steps.version.outputs.version }}

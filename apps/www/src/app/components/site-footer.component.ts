@@ -20,9 +20,9 @@ import { LmnGithubIcon } from "lumen-icons/github";
           <p class="eyebrow">EARLY, OPEN, AND DELIBERATE</p>
           <h2>Build the next layer with us.</h2>
           <p>
-            Strata is experimental today. Server Components are a private preview dogfooded on this
-            site; controllers ship as 0.x releases. The design work is public and contributions are
-            welcome.
+            Strata is experimental today. Server Components are an experimental 0.x package on the
+            next channel, dogfooded on this site; controllers ship as 0.x releases. The design work
+            is public and contributions are welcome.
           </p>
           <volt-button class="primary-action" (click)="openGitHub()"
             >View on GitHub <lmn-github [size]="16"

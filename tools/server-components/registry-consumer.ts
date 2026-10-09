@@ -16,6 +16,7 @@ import { httpGet } from "../analog/lib/process.ts";
 import { listFiles } from "../analog/lib/scan.ts";
 import { run } from "../consumer/lib/exec.ts";
 import { publishedVersion } from "../release/lib/published.ts";
+import { isExactVersion, latestTagVerdict } from "../release/lib/registry-version.ts";
 
 import { observeBrowser } from "./lib/browser.ts";
 import {
@@ -69,7 +70,7 @@ const version = process.env["STRATA_SC_REGISTRY_VERSION"]?.trim()
   ? process.env["STRATA_SC_REGISTRY_VERSION"].trim()
   : publishedVersion(process.env["STRATA_PUBLISHED_PACKAGES"], PACKAGE);
 
-if (!version || !/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(version)) {
+if (!version || !isExactVersion(version)) {
   console.error(
     `${TITLE}: set STRATA_SC_REGISTRY_VERSION to an exact version, or STRATA_PUBLISHED_PACKAGES to a changesets publishedPackages list that contains ${PACKAGE}.`,
   );
@@ -159,7 +160,13 @@ try {
   console.log(`dist-tags: ${JSON.stringify(tags)}`);
   check(`next → ${version}`, tags["next"] === version, JSON.stringify(tags));
   // Read-only: this gate never edits tags; it only confirms the release did not move latest.
-  check("latest was not moved by this release", tags["latest"] !== version, JSON.stringify(tags));
+  // npm itself assigns `latest` to a package's first-ever version, so that single case is accepted.
+  const allVersions = JSON.parse(npm(["view", PACKAGE, "versions", "--json"]).stdout || "[]") as
+    string | string[];
+  const latest = latestTagVerdict(tags, [allVersions].flat(), version);
+
+  console.log(`latest: ${latest.reason}`);
+  check("latest was not moved by this release", latest.ok, JSON.stringify(tags));
 
   // ------------------------------------------------------------------------
   section("External install from the registry (fresh temp app, plain `npm install`)");

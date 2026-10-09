@@ -148,3 +148,78 @@ workflow and the registry consumer's success path (needs a published package).
 ## Verdict
 
 First experimental release preparation: **GO**.
+
+## Publication and registry evidence
+
+Everything above describes the state before publication and stays as written. This section records
+what happened afterwards. The automation problem below was a **release-verification bug, not a
+publication failure**: the package was published correctly.
+
+| Step                          | Result                                                                                                                                                                                            |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| PR #55                        | Version Packages: `@strata-sc/server-components` `0.0.0` → `0.1.0` (merge commit `ee38035`, which is also the target of the git tag).                                                             |
+| Release run 37791376843       | Changesets published `@strata-sc/server-components@0.1.0` under `next` with provenance. Package publication succeeded.                                                                            |
+| Post-publish registry check   | Did not run: `fromJSON(steps.changesets.outputs.publishedPackages)` received an empty string (changesets 3 prints no "New tag:" lines), so the Playwright/registry-consumer steps never executed. |
+| PR #56                        | Re-keyed the trigger on the registry: a pre-publish step checks whether the current version is absent from npm.                                                                                   |
+| Release run 37826890462       | Green. The registry verification was skipped, correctly under the new logic, because `0.1.0` was already on npm.                                                                                  |
+| Registry backfill (this PR)   | The exact `0.1.0` npm consumer, run locally and by the new workflow on the PR. See below.                                                                                                         |
+| Rerunnable workflow (this PR) | `.github/workflows/server-component-registry.yml` ("Verify published Server Components"): `contents: read`, no secrets, `workflow_dispatch` plus relevant PR paths.                               |
+
+### Registry facts (read-only queries)
+
+- `npm view @strata-sc/server-components@0.1.0 version` → `0.1.0`.
+- dist-tags: `{"latest":"0.1.0","next":"0.1.0"}`.
+- `dist.integrity`: `sha512-ZdCw/Bkm0+vBlSUDfHOEPxthSX9JkcA99fcJGp3tlTtJvmBjrcMf82etLnAlG6kTRD0FOxFPx/wCgNcazg4eXQ==`.
+- `dist.tarball`: `https://registry.npmjs.org/@strata-sc/server-components/-/server-components-0.1.0.tgz`
+  (33 files); npm records a SLSA provenance attestation.
+- Versions on the registry: `0.0.0-stage` (published 2026-10-08T14:19:44Z, a name placeholder) and
+  `0.1.0` (14:20:41Z).
+- Git tag `@strata-sc/server-components@0.1.0` → `ee38035159ecc594ea776b48593e008e53b06b88`; a GitHub
+  Release for the tag **exists**. Nothing was created or moved.
+
+### The `latest` finding
+
+The first run of the unmodified gate against `0.1.0` passed every check except one: "`latest` was not
+moved by this release". `latest` **is** `0.1.0`. npm assigns `latest` to a package when it has no
+`latest` tag, so the package's first real release (published with `--tag next`) received it; no one
+moved it. This was a wrong assumption in the harness, not a package defect, and no dist-tag was
+touched. The check is now `latestTagVerdict` (`tools/release/lib/registry-version.ts`, unit-tested):
+`latest === version` is accepted only when every other version on the registry is a `0.0.0-*`
+placeholder, so a later release (`0.1.1`, ...) that moves `latest` still fails. Consumer-facing effect:
+a bare `pnpm add @strata-sc/server-components` installs `0.1.0`; `@next` remains the documented channel.
+
+### Exact-version registry consumer
+
+Baseline (unmodified gate, `STRATA_SC_REGISTRY_VERSION=0.1.0`): all checks passed except the `latest`
+check above. After the fix: **PASS, 0 failing checks**: version visible, integrity `sha512-`, tarball on
+registry.npmjs.org, `next → 0.1.0`; fresh OS-temp consumer, plain `npm install` of exactly `0.1.0`; a
+real directory (not a symlink) under `consumer/node_modules`; `.`, `/vite` and `/server-only` resolve
+under `consumer/node_modules`, never the repository; Node production build; implementation, server-only
+repository and transitive helper present in the server output only, client island in the browser
+graph; `GET /product` 200 `text/html` with server-rendered content and no server marker; protocol v1
+plus an `ngh` annotation; island hydrated, SSR DOM reused; `Count: 0` → one click → `Count: 1`; no
+console errors; no loaded script carries a server marker; a direct server-only import in a client
+module fails the production build with `[strata] Server-only module entered the browser graph` and no
+marker. `npm audit signatures`: 546 packages with verified registry signatures, 149 with verified
+attestations, no invalid signature or attestation.
+
+### Rerunnable workflow
+
+Version resolution: an explicit `version` input must be an exact semver (`0.1.0`, `0.2.0-beta.1`);
+`next`, `latest`, ranges and `*` are rejected. With no input it reads
+`packages/server-components/package.json`. If `npm view <pkg>@<version>` answers E404 the job writes
+"Version X is not on npm yet; registry qualification is not applicable." and skips Chromium and the
+gate, so a Version Packages PR with an unpublished version does not fail. Any other `npm view` error
+fails. The gate is the same `tools/server-components/registry-consumer.ts` that `release.yml` runs;
+`release.yml` is unchanged.
+
+### Verdicts
+
+| Item                               | Verdict                                                                                                                                                                                          |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| npm publication                    | **GO**                                                                                                                                                                                           |
+| `0.1.0` registry artifact          | **GO** (exact-version consumer passes)                                                                                                                                                           |
+| Original post-publish verification | **NO-GO** (never ran)                                                                                                                                                                            |
+| PR #56 future publish trigger      | **CONDITIONAL GO**: logically qualified, but no publish has yet exercised "unpublished before publish → publish → registry consumer"; the first real next release (`0.1.1`/`0.2.0`) is the proof |
+| Rerunnable registry verification   | **GO**                                                                                                                                                                                           |
+| Overall first public release       | **GO**; the open item is the deployed-environment qualification, not the registry artifact                                                                                                       |
