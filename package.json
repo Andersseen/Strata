@@ -57,6 +57,7 @@
     "test:server-component-package-consumer": "node --experimental-strip-types tools/server-components/package-consumer.ts",
     "test:server-component-registry-consumer": "node --experimental-strip-types tools/server-components/registry-consumer.ts",
     "test:server-components:cloudflare": "node --experimental-strip-types tools/server-components/cloudflare.ts",
+    "test:server-components:deployed-cloudflare": "node --experimental-strip-types tools/server-components/deployed-cloudflare.ts",
     "test:www:server-components": "node --experimental-strip-types tools/server-components/www.ts",
     "test:relay:server-components": "node --experimental-strip-types tools/server-components/relay.ts",
     "test:package-consumer": "node --experimental-strip-types tools/package-consumer/run.ts",

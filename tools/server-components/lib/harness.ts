@@ -101,6 +101,9 @@ export function check(name: string, passed: boolean, detail = ""): boolean {
   return passed;
 }
 
+/** Failing checks so far, to attribute failures to one phase of a multi-phase run. */
+export const failureCount = (): number => failures;
+
 export function section(title: string): void {
   console.log(`\n## ${title}`);
 }
