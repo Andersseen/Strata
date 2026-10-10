@@ -90,8 +90,33 @@ export async function observeBrowser(url: string): Promise<BrowserObservation> {
       await route.continue();
     });
 
-    await page.goto(url, { waitUntil: "commit" });
-    await page.waitForSelector("add-to-cart output", { state: "attached" });
+    const navigation = await page.goto(url, { waitUntil: "commit" });
+
+    try {
+      await page.waitForSelector("add-to-cart output", { state: "attached" });
+    } catch (error) {
+      // Say what Chromium actually received (a CDN challenge, an error page, an empty
+      // shell), not just that the selector never appeared.
+      const received = {
+        title: await page.title().catch(() => null),
+        html: await page.content().then(
+          (content) => content.slice(0, 600),
+          () => null,
+        ),
+      };
+
+      throw new Error(
+        `no "add-to-cart output" in the server-rendered document: ${JSON.stringify({
+          requested: url,
+          finalUrl: page.url(),
+          status: navigation?.status() ?? null,
+          contentType: navigation ? await navigation.headerValue("content-type") : null,
+          received,
+          browserErrors: errors,
+        })}`,
+        { cause: error },
+      );
+    }
 
     const beforeScripts = await page.evaluate(() => {
       const child = document.querySelector("add-to-cart");
