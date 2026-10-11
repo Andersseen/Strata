@@ -146,6 +146,8 @@ export interface DeployedVerification {
     readonly consecutiveRequired: number;
     /** Every answer that was not 200 text/html, in order, with which edge gave it. */
     readonly notReady: readonly NotReadyObservation[];
+    /** The same readiness observed through fresh Chromium contexts (set by the runner for a real deployment). */
+    readonly browserReady?: Awaited<ReturnType<typeof awaitBrowserReady>>;
     readonly note: string;
   };
   readonly headers: readonly string[];
@@ -235,6 +237,74 @@ export async function awaitReady(
   }
 
   return result(false, attempts, "never became ready");
+}
+
+/**
+ * The Node probe above does not prove what Chromium will be served: a real run saw Node get 5 good answers and
+ * Chromium, a fresh connection 0.7 s later, get Cloudflare's own "Deployment Not Found" 404 page. So readiness
+ * is also required through the client the later checks use: `consecutive` loads in a FRESH Chromium context
+ * (new connection, no shared cache) that return 200 with the server-rendered `<h1>Product 42</h1>` in the
+ * document response. Same observable as the Node probe, bounded, and every miss is recorded.
+ */
+export async function awaitBrowserReady(
+  baseUrl: string,
+  attempts = 30,
+  intervalMs = 2_000,
+  consecutive = 3,
+): Promise<{
+  readonly ready: boolean;
+  readonly attempts: number;
+  readonly consecutiveRequired: number;
+  readonly readyAfterMs: number;
+  readonly notReady: readonly NotReadyObservation[];
+}> {
+  const begin = performance.now();
+  const notReady: NotReadyObservation[] = [];
+  const browser = await chromium.launch();
+  let streak = 0;
+  let made = 0;
+
+  try {
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+      made = attempt;
+      const context = await browser.newContext();
+
+      try {
+        const page = await context.newPage();
+        const response = await page.goto(`${baseUrl}${ROUTE}`, {
+          waitUntil: "domcontentloaded",
+          timeout: 15_000,
+        });
+        const status = response?.status() ?? null;
+        const headers = edgeHeaders(Object.entries((await response?.allHeaders()) ?? {}));
+        const body = (await response?.text().catch(() => "")) ?? "";
+        const ok =
+          status === 200 &&
+          !!headers["content-type"]?.includes("text/html") &&
+          body.includes("<h1>Product 42</h1>");
+
+        if (!ok) notReady.push({ attempt, status, headers });
+        streak = ok ? streak + 1 : 0;
+      } catch (error) {
+        streak = 0;
+        notReady.push({ attempt, status: null, headers: {}, error: String(error).slice(0, 160) });
+      } finally {
+        await context.close().catch(() => {});
+      }
+      if (streak >= consecutive) break;
+      await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    }
+  } finally {
+    await browser.close().catch(() => {});
+  }
+
+  return {
+    ready: streak >= consecutive,
+    attempts: made,
+    consecutiveRequired: consecutive,
+    readyAfterMs: round(performance.now() - begin),
+    notReady,
+  };
 }
 
 /** Static asset URLs the document references (same origin only). */

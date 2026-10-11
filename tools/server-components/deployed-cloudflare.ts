@@ -18,7 +18,12 @@ import { run } from "../consumer/lib/exec.ts";
 import { isExactVersion, resolveRegistryVersion } from "../release/lib/registry-version.ts";
 
 import { MARKERS, SERVER_MARKERS } from "./lib/consumer-fixture.ts";
-import { awaitReady, serverSourcesInMap, verifyDeployment } from "./lib/deployed.ts";
+import {
+  awaitBrowserReady,
+  awaitReady,
+  serverSourcesInMap,
+  verifyDeployment,
+} from "./lib/deployed.ts";
 import type { DeployedVerification } from "./lib/deployed.ts";
 import { check, failureCount, repoRoot, section } from "./lib/harness.ts";
 import { isNodeBuiltin, moduleGraph } from "./lib/module-graph.ts";
@@ -63,6 +68,7 @@ import { COMPATIBILITY_DATE } from "./lib/wrangler.ts";
 
 /** A deployment is ready after this many 200 text/html answers in a row. */
 const READY_CONSECUTIVE = 5;
+const BROWSER_READY_CONSECUTIVE = 3;
 
 const TITLE = "server-component deployed Cloudflare qualification";
 const PACKAGE = "@strata-sc/server-components";
@@ -532,10 +538,21 @@ async function main(): Promise<void> {
       first.ready,
       JSON.stringify(first.notReady.slice(0, 5)),
     );
-    if (first.ready) {
+    const browserReady = first.ready
+      ? await awaitBrowserReady(deployedUrl, 40, 2_000, BROWSER_READY_CONSECUTIVE)
+      : undefined;
+
+    if (browserReady) {
+      check(
+        `fresh Chromium contexts load /product with the server-rendered Product 42 ${BROWSER_READY_CONSECUTIVE} times in a row (attempt ${browserReady.attempts}, ${browserReady.readyAfterMs} ms, ${browserReady.notReady.length} not-ready answers)`,
+        browserReady.ready,
+        JSON.stringify(browserReady.notReady.slice(0, 5)),
+      );
+    }
+    if (first.ready && browserReady?.ready) {
       evidence.deployment ??= { url: deployedUrl, source: deploymentSource };
       try {
-        evidence.deployed = await verifyDeployment(deployedUrl, first);
+        evidence.deployed = await verifyDeployment(deployedUrl, { ...first, browserReady });
       } catch (error) {
         check(
           "the deployed verification ran to completion",
