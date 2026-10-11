@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "skills": {
+    "entwine-deployment": {
+      "source": "Andersseen/Entwine",
+      "ref": "main",
+      "sourceType": "github",
+      "skillPath": "skills/entwine-deployment/SKILL.md",
+      "computedHash": "a47ac8bfa72b49197ff1256122e534f5b52248fd2d21adf12a812d2e26cb97f9"
+    },
+    "entwine-get-started": {
+      "source": "Andersseen/Entwine",
+      "ref": "main",
+      "sourceType": "github",
+      "skillPath": "skills/entwine-get-started/SKILL.md",
+      "computedHash": "69e58fe674dcf2bfcb708f0de111b7f6826378fd0034005bbd38541f8786c51f"
+    },
+    "entwine-knowledge": {
+      "source": "Andersseen/Entwine",
+      "ref": "main",
+      "sourceType": "github",
+      "skillPath": "skills/entwine-knowledge/SKILL.md",
+      "computedHash": "6546edb56abe587d0f290c2bc4a1c1aa593f0469e70a25a1ffeac994eb376eff"
+    }
+  }
+}

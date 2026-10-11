@@ -42,6 +42,35 @@ small: a build-time server/browser graph split for Server Components, and
 controller metadata with runtime adapters, without taking control of the H3 or
 Nitro application you already own.
 
+## Documentation
+
+Technical documentation lives as Markdown in [`docs/`](./docs/README.md), starting with
+[Getting started](./docs/GETTING-STARTED.md). It is compiled by
+[Entwine](https://github.com/Andersseen/Entwine) into a separate static site:
+<https://andersseen.github.io/Strata/> (**pending first deployment**: it is live only after GitHub
+Pages is set to the "GitHub Actions" source and a run on `main` succeeds).
+
+- [`apps/www`](./apps/www) remains the official Analog site, deployed to Cloudflare Pages. The
+  Entwine site is independent of it.
+- The documentation is the committed Markdown; nothing is generated from source code. Pushes to
+  `main` rebuild it through [`entwine.yml`](./.github/workflows/entwine.yml); pull requests only
+  validate it.
+- Entwine's read-only MCP server and three agent skills help coding agents read and maintain the
+  docs. The skills are installed under `.agents/skills/` and `.claude/skills/`; the MCP package is
+  not on npm yet. Agent instructions and skills are never published to the site.
+
+Local commands (the CLI version is pinned to the one the workflow uses):
+
+```bash
+npx --yes @entwine/cli@0.5.1 check   # validate documentation
+npx --yes @entwine/cli@0.5.1 build   # generate dist/
+npx --yes @entwine/cli@0.5.1 dev     # preview locally
+```
+
+MCP registration (needs a local build, not yet installable from npm), skill reinstallation and
+regenerating the workflow after an Entwine upgrade are in the
+[documentation workflow](./docs/DOCUMENTATION.md).
+
 ## Official website
 
 The repository includes the official Strata landing page at

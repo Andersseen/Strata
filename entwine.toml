@@ -1,0 +1,8 @@
+# Entwine configuration. Optional; see https://github.com/Andersseen/Entwine
+[discovery]
+agent_instructions = true
+skills = true
+
+[site]
+# Agent instructions and skills inform the context/MCP model only; never publish them.
+include_agent_knowledge = false

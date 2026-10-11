@@ -1,9 +1,13 @@
+---
+type: decision
+---
+
 # ADR-004: Experimental npm distribution of core and analog under `next`
 
 - Status: Accepted — distribution boundary only; no API or stability change
 - Date: 2026-09-25
 - Evidence: `pnpm test:package-consumer`, `pnpm release:packages:dry-run`,
-  [publish workflow](../../.github/workflows/publish-packages.yml)
+  `publish-packages.yml` workflow (later replaced by [release workflow](../../.github/workflows/release.yml))
 
 ## Context
 

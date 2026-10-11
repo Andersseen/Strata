@@ -1,3 +1,7 @@
+---
+type: decision
+---
+
 # ADR-002: Independent core; initially an H3 v2 adapter
 
 - Status: Accepted — existing package boundary and experimental target, not production support
