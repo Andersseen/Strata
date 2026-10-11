@@ -15,10 +15,7 @@ deployed to Cloudflare Pages and is unaffected by this workflow.
 ## Published site
 
 Pull requests run `entwine check` only. A push to `main` rebuilds and publishes to GitHub Pages
-through [`entwine.yml`](../.github/workflows/entwine.yml). Target URL:
-<https://andersseen.github.io/Strata/>. GitHub Pages must be set to the **GitHub Actions** source
-(Settings → Pages → Build and deployment); until that is done and a `main` run succeeds, the site
-is not live.
+through [`entwine.yml`](../.github/workflows/entwine.yml). Live at <https://andersseen.github.io/Strata/>. The repository's Pages source is **GitHub Actions** (Settings → Pages → Build and deployment); if it is ever disabled, the deploy job fails with a 404 until it is set again.
 
 ## Local commands
 
