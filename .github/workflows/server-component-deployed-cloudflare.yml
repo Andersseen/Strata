@@ -72,6 +72,7 @@ jobs:
           STRATA_SC_REQUIRE_DEPLOYED: "1"
           STRATA_SC_PAGES_PROJECT: strata-sc-qualification
           STRATA_SC_EVIDENCE_FILE: ${{ runner.temp }}/deployed-cloudflare-evidence.json
+          STRATA_SC_DIAGNOSTICS_DIR: ${{ runner.temp }}/deployed-cloudflare-diagnostics
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
@@ -81,4 +82,13 @@ jobs:
         with:
           name: deployed-cloudflare-evidence
           path: ${{ runner.temp }}/deployed-cloudflare-evidence.json
+          if-no-files-found: ignore
+
+      # Only a failed run has a screenshot and a Playwright trace of the public site.
+      - name: Upload browser diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployed-cloudflare-browser-diagnostics
+          path: ${{ runner.temp }}/deployed-cloudflare-diagnostics
           if-no-files-found: ignore

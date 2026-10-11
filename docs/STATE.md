@@ -276,11 +276,17 @@ true` Angular's component HMR updates the island (same realm, no document reques
   external app, `cloudflare-pages` preset, compatibility date 2026-09-21, no flags): the **local build
   qualification** passes (Worker graph holds the three server markers, the browser graph and its source maps
   none) and the HTTP/Playwright/confidentiality/concurrency verifier passes against local workerd. The
-  **real deployment qualification is NOT RUN**: no Cloudflare credentials were available to the run that
-  added the gate. Runner `pnpm test:server-components:deployed-cloudflare`, manual workflow
-  `server-component-deployed-cloudflare.yml` ([report](research/server-component-deployed-cloudflare.md)).
-  Until that workflow has deployed to `strata-sc-qualification` and passed, a deployed environment stays
-  unqualified.
+  **real deployment is EXECUTED but NOT FULLY QUALIFIED**: three real deployments to
+  `strata-sc-qualification` (Actions runs 38055222217, 38055684868, 38133853890). Real Cloudflare Server
+  Components: **CONDITIONAL / NO-GO**. Local workerd: GO. Remote HTTP/SSR/protocol: passed on the second
+  deployment, failed on the third (404 thirty milliseconds after a 200). Remote browser hydration: passed from a
+  workstation (second and third deployment) and on the runner for the third, failed on the runner for the
+  second; the navigation check failed on the runner for the third. No workflow run has passed the whole
+  verifier. Root cause: unresolved. PR `fix/server-components-cloudflare-runner` makes readiness require 5
+  consecutive SSR-bearing 200s and records edge headers, failed requests, a screenshot and a trace on failure;
+  it must be merged and the workflow re-run from `main` before this can become GO. Runner
+  `pnpm test:server-components:deployed-cloudflare`, workflow `server-component-deployed-cloudflare.yml`
+  ([report](research/server-component-deployed-cloudflare.md)).
 - Not yet verified on the Analog track: a deployed Cloudflare Pages project, abort/timeout cleanup,
   streamed-body lifetimes. (Packed `@strata-sc/analog` consumers and non-GET methods are now covered;
   see the gaps section.)

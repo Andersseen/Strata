@@ -1,6 +1,6 @@
 import { chromium } from "playwright";
 
-import { observeBrowser } from "./browser.ts";
+import { edgeHeaders, observeBrowser, openDiagnosedPage } from "./browser.ts";
 import {
   EXPECTED_EVIDENCE,
   MARKERS,
@@ -128,6 +128,13 @@ export interface ConcurrencyRound {
   readonly crossRequestAnomalies: number;
 }
 
+export interface NotReadyObservation {
+  readonly attempt: number;
+  readonly status: number | null;
+  readonly headers: Record<string, string>;
+  readonly error?: string;
+}
+
 export interface DeployedVerification {
   readonly baseUrl: string;
   readonly firstRequest: {
@@ -135,6 +142,10 @@ export interface DeployedVerification {
     readonly firstAttemptStatus: number | null;
     readonly firstAttemptMs: number | null;
     readonly readyAfterMs: number;
+    /** Consecutive 200 text/html answers required before the deployment counted as ready. */
+    readonly consecutiveRequired: number;
+    /** Every answer that was not 200 text/html, in order, with which edge gave it. */
+    readonly notReady: readonly NotReadyObservation[];
     readonly note: string;
   };
   readonly headers: readonly string[];
@@ -159,18 +170,36 @@ const timed = async (url: string): Promise<{ response: CapturedResponse; ms: num
 
 /**
  * A fresh Pages deployment can answer 404/5xx for a short while after
- * `wrangler pages deploy` returns. Polls `/product` (bounded) and records what
- * the very first attempt saw; it is the "first observed request", NOT a
- * confirmed Cloudflare cold start (nothing in the response says so).
+ * `wrangler pages deploy` returns, and a first 200 does not mean every request
+ * is answered the same way: a real run saw 200 then 404 within 30 ms. So the
+ * deployment is "ready" only after `consecutive` 200 text/html answers carrying the server-rendered Product 42 in a row
+ * (a miss resets the streak), within a bounded number of attempts. Every answer
+ * that was not ready is recorded with which edge gave it. The first attempt is
+ * the "first observed request", NOT a confirmed Cloudflare cold start (nothing
+ * in the response says so).
  */
 export async function awaitReady(
   baseUrl: string,
   attempts = 30,
   intervalMs = 2_000,
+  consecutive = 1,
 ): Promise<DeployedVerification["firstRequest"] & { readonly ready: boolean }> {
   const begin = performance.now();
+  const notReady: NotReadyObservation[] = [];
   let firstStatus: number | null = null;
   let firstMs: number | null = null;
+  let streak = 0;
+
+  const result = (ready: boolean, made: number, note: string) => ({
+    ready,
+    attempts: made,
+    firstAttemptStatus: firstStatus,
+    firstAttemptMs: firstMs,
+    readyAfterMs: round(performance.now() - begin),
+    consecutiveRequired: consecutive,
+    notReady,
+    note,
+  });
 
   for (let attempt = 1; attempt <= attempts; attempt++) {
     const start = performance.now();
@@ -181,36 +210,31 @@ export async function awaitReady(
       const response = await captureResponse(`${baseUrl}${ROUTE}`, 15_000);
 
       status = response.status;
-      ok = html(response);
-    } catch {
+      // An unrouted URL on this app is HTTP 200 with an empty SSR shell, so status alone
+      // cannot tell a ready route from a placeholder: the Server Component output must be there.
+      ok = html(response) && response.body.includes("<h1>Product 42</h1>");
+      if (!ok) notReady.push({ attempt, status, headers: edgeHeaders(response.headers) });
+    } catch (error) {
       status = null;
       ok = false;
+      notReady.push({ attempt, status, headers: {}, error: String(error).slice(0, 160) });
     }
     if (attempt === 1) {
       firstStatus = status;
       firstMs = round(performance.now() - start);
     }
-    if (ok) {
-      return {
-        ready: true,
-        attempts: attempt,
-        firstAttemptStatus: firstStatus,
-        firstAttemptMs: firstMs,
-        readyAfterMs: round(performance.now() - begin),
-        note: "first observed request after deploy/start; platform cold-start evidence is not exposed, so this is not classified as a cold start",
-      };
+    streak = ok ? streak + 1 : 0;
+    if (streak >= consecutive) {
+      return result(
+        true,
+        attempt,
+        "first observed request after deploy/start; platform cold-start evidence is not exposed, so this is not classified as a cold start",
+      );
     }
     await new Promise((resolve) => setTimeout(resolve, intervalMs));
   }
 
-  return {
-    ready: false,
-    attempts,
-    firstAttemptStatus: firstStatus,
-    firstAttemptMs: firstMs,
-    readyAfterMs: round(performance.now() - begin),
-    note: "never became ready",
-  };
+  return result(false, attempts, "never became ready");
 }
 
 /** Static asset URLs the document references (same origin only). */
@@ -299,11 +323,11 @@ async function navigationCheck(
   baseUrl: string,
 ): Promise<{ fromProductToAbout: boolean; reloaded: boolean; errors: string[] }> {
   const browser = await chromium.launch();
+  const { page, diagnostics, finish } = await openDiagnosedPage(browser, "navigation");
+  const errors: string[] = [];
+  let passed = false;
 
   try {
-    const page = await browser.newPage();
-    const errors: string[] = [];
-
     page.on("console", (message) => {
       if (message.type() === "error" || message.type() === "warning")
         errors.push(`console.${message.type()}: ${message.text()}`);
@@ -355,8 +379,18 @@ async function navigationCheck(
       (await page.locator("add-to-cart output").textContent()) === "Count: 0" &&
       (await page.getByRole("heading", { name: "Product 42" }).isVisible());
 
+    passed = true;
+
     return { fromProductToAbout: afterNavigation, reloaded, errors };
+  } catch (error) {
+    throw new Error(
+      `${error instanceof Error ? error.message : String(error)}\n` +
+        `page at failure: ${page.url()}; browser errors: ${JSON.stringify(errors)}; ` +
+        `diagnostics: ${JSON.stringify(diagnostics)}`,
+      { cause: error },
+    );
   } finally {
+    await finish(passed);
     await browser.close();
   }
 }
@@ -382,7 +416,7 @@ export async function verifyDeployment(
   check(
     "HTTP 200 text/html",
     html(direct.response),
-    `${direct.response.status} ${direct.response.contentType}`,
+    `${direct.response.status} ${direct.response.contentType}; edge ${JSON.stringify(edgeHeaders(direct.response.headers))}; body starts ${JSON.stringify(direct.response.body.slice(0, 160))}`,
   );
   check(
     "SSR HTML has the server-rendered <h1>Product 42</h1>",

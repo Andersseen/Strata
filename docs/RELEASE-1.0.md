@@ -91,9 +91,11 @@ compatibility matrix; do not check it based on intent or a demonstration.
       builds for Cloudflare Pages in an external app and passes the full verifier on local workerd
       (preset, compatibility date and flags recorded in
       [the report](research/server-component-deployed-cloudflare.md)). The real deployment to the isolated
-      `strata-sc-qualification` project is **NOT RUN** (no credentials at the time); run the manual workflow
-      `server-component-deployed-cloudflare.yml` to produce it. Even then this item also asks for the complete
-      Analog SSR/controller path and bindings, which the external fixture does not cover.
+      `strata-sc-qualification` project is **EXECUTED, NOT FULLY QUALIFIED**: three deployments, the full
+      verifier has not yet passed from a GitHub runner (Server Components only: CONDITIONAL / NO-GO; the narrower
+      evidence is the second and third deployment passing the verifier from a workstation). This item also asks
+      for the complete Analog SSR/controller path and bindings, which the external fixture does not cover, so it
+      stays unticked even once the workflow passes.
 - [ ] Resource use, cold start, concurrent requests, cancellation and cleanup measured; agreed
       service and bundle budgets pass on each claimed runtime.
 - [ ] Release/rollback procedure tested, including client assets from an older deployment.
