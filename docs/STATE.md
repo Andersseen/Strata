@@ -276,15 +276,18 @@ true` Angular's component HMR updates the island (same realm, no document reques
   external app, `cloudflare-pages` preset, compatibility date 2026-09-21, no flags): the **local build
   qualification** passes (Worker graph holds the three server markers, the browser graph and its source maps
   none) and the HTTP/Playwright/confidentiality/concurrency verifier passes against local workerd. The
-  **real deployment is EXECUTED but NOT FULLY QUALIFIED**: three real deployments to
-  `strata-sc-qualification` (Actions runs 38055222217, 38055684868, 38133853890). Real Cloudflare Server
+  **real deployment is EXECUTED but NOT FULLY QUALIFIED**: four real deployments to
+  `strata-sc-qualification` (Actions runs 38055222217, 38055684868, 38133853890, 38137809896). Real Cloudflare Server
   Components: **CONDITIONAL / NO-GO**. Local workerd: GO. Remote HTTP/SSR/protocol: passed on the second
   deployment, failed on the third (404 thirty milliseconds after a 200). Remote browser hydration: passed from a
   workstation (second and third deployment) and on the runner for the third, failed on the runner for the
   second; the navigation check failed on the runner for the third. No workflow run has passed the whole
-  verifier. Root cause: unresolved. PR `fix/server-components-cloudflare-runner` makes readiness require 5
-  consecutive SSR-bearing 200s and records edge headers, failed requests, a screenshot and a trace on failure;
-  it must be merged and the workflow re-run from `main` before this can become GO. Runner
+  verifier. Run 38137809896 (first on `main` after PR #60) passed Node readiness and
+  direct load/SSR/protocol, then Chromium, 0.7 s later, received Cloudflare's own "Deployment Not Found" 404
+  for the same URL, so hydration failed; navigation, confidentiality and concurrency were not reached. Why edges
+  disagree is unresolved (no evidence implicates the package or the app). Branch
+  `fix/server-components-cloudflare-qualification` adds a fresh-Chromium readiness gate; it must be merged and
+  the workflow re-run from `main` before this can become GO. Runner
   `pnpm test:server-components:deployed-cloudflare`, workflow `server-component-deployed-cloudflare.yml`
   ([report](research/server-component-deployed-cloudflare.md)).
 - Not yet verified on the Analog track: a deployed Cloudflare Pages project, abort/timeout cleanup,
