@@ -1,4 +1,101 @@
+import { mkdirSync } from "node:fs";
+import { join } from "node:path";
+
 import { chromium } from "playwright";
+import type { Browser, Page } from "playwright";
+
+/** Response headers that say which edge answered; never cookies, tokens or request headers. */
+const EDGE_HEADERS = [
+  "server",
+  "cf-ray",
+  "cf-cache-status",
+  "age",
+  "content-type",
+  "content-length",
+  "location",
+  "cache-control",
+];
+
+export const edgeHeaders = (
+  headers: readonly (readonly [string, string])[],
+): Record<string, string> =>
+  Object.fromEntries(headers.filter(([name]) => EDGE_HEADERS.includes(name.toLowerCase())));
+
+/** What a Chromium page was actually served, for a failure message. */
+export interface PageDiagnostics {
+  /** Every document response: status, URL, which edge answered, and when (ms since open). */
+  readonly documents: {
+    status: number;
+    url: string;
+    atMs: number;
+    headers: Record<string, string>;
+  }[];
+  readonly failedRequests: { url: string; resourceType: string; error: string | null }[];
+  readonly navigations: string[];
+}
+
+/**
+ * A page whose document responses, failed requests and navigations are recorded,
+ * and which keeps a Playwright trace and a screenshot of a FAILED run under
+ * STRATA_SC_DIAGNOSTICS_DIR (nothing is written when it is unset or the run
+ * passed). The deployed site is public and the browser sends no credentials, so
+ * neither the trace nor the screenshot can carry a secret.
+ */
+export async function openDiagnosedPage(
+  browser: Browser,
+  label: string,
+): Promise<{
+  page: Page;
+  diagnostics: PageDiagnostics;
+  finish: (passed: boolean) => Promise<void>;
+}> {
+  const directory = process.env["STRATA_SC_DIAGNOSTICS_DIR"];
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  const opened = performance.now();
+  const diagnostics: PageDiagnostics = { documents: [], failedRequests: [], navigations: [] };
+
+  await context.tracing.start({ screenshots: true, snapshots: true });
+  page.on("response", (response) => {
+    if (response.request().resourceType() !== "document") return;
+    void response
+      .allHeaders()
+      .catch((): Record<string, string> => ({}))
+      .then((headers) =>
+        diagnostics.documents.push({
+          status: response.status(),
+          url: response.url(),
+          atMs: Math.round(performance.now() - opened),
+          headers: edgeHeaders(Object.entries(headers)),
+        }),
+      );
+  });
+  page.on("requestfailed", (request) =>
+    diagnostics.failedRequests.push({
+      url: request.url(),
+      resourceType: request.resourceType(),
+      error: request.failure()?.errorText ?? null,
+    }),
+  );
+  page.on("framenavigated", (frame) => {
+    if (frame === page.mainFrame()) diagnostics.navigations.push(frame.url());
+  });
+
+  return {
+    page,
+    diagnostics,
+    finish: async (passed) => {
+      const keep = !passed && !!directory;
+
+      if (keep) mkdirSync(directory, { recursive: true });
+      if (keep) await page.screenshot({ path: join(directory, `${label}.png`) }).catch(() => {});
+      await context.tracing
+        .stop(keep ? { path: join(directory, `${label}.trace.zip`) } : undefined)
+        .catch(() => {});
+      await context.close().catch(() => {});
+    },
+  };
+}
 
 /** What the browser run observed; every field is asserted by run.ts. */
 export interface BrowserObservation {
@@ -63,9 +160,10 @@ declare const window: {
  */
 export async function observeBrowser(url: string): Promise<BrowserObservation> {
   const browser = await chromium.launch();
+  const { page, diagnostics, finish } = await openDiagnosedPage(browser, "hydration");
+  let passed = false;
 
   try {
-    const page = await browser.newPage();
     const errors: string[] = [];
     const scripts: { url: string; body: string }[] = [];
     let releaseScripts: () => void = () => undefined;
@@ -113,6 +211,7 @@ export async function observeBrowser(url: string): Promise<BrowserObservation> {
           contentType: navigation ? await navigation.headerValue("content-type") : null,
           received,
           browserErrors: errors,
+          diagnostics,
         })}`,
         { cause: error },
       );
@@ -184,6 +283,8 @@ export async function observeBrowser(url: string): Promise<BrowserObservation> {
       () => window.__strataSsrNodes?.button === document.querySelector("add-to-cart button"),
     );
 
+    passed = true;
+
     return {
       beforeScripts,
       hydratedWithinTimeout,
@@ -196,6 +297,7 @@ export async function observeBrowser(url: string): Promise<BrowserObservation> {
       scripts,
     };
   } finally {
+    await finish(passed);
     await browser.close();
   }
 }

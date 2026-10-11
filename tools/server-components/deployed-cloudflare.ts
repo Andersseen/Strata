@@ -61,6 +61,9 @@ import { COMPATIBILITY_DATE } from "./lib/wrangler.ts";
  * and never prints a credential.
  */
 
+/** A deployment is ready after this many 200 text/html answers in a row. */
+const READY_CONSECUTIVE = 5;
+
 const TITLE = "server-component deployed Cloudflare qualification";
 const PACKAGE = "@strata-sc/server-components";
 const REGISTRY = "https://registry.npmjs.org";
@@ -522,11 +525,12 @@ async function main(): Promise<void> {
     section(`REAL DEPLOYMENT QUALIFICATION — ${deployedUrl} (${deploymentSource})`);
 
     const before = failureCount();
-    const first = await awaitReady(deployedUrl);
+    const first = await awaitReady(deployedUrl, 40, 2_000, READY_CONSECUTIVE);
 
     check(
-      `the deployment answers 200 text/html on /product (attempt ${first.attempts}, ${first.readyAfterMs} ms)`,
+      `the deployment answers 200 text/html with the server-rendered Product 42 on /product ${READY_CONSECUTIVE} times in a row (attempt ${first.attempts}, ${first.readyAfterMs} ms, ${first.notReady.length} not-ready answers)`,
       first.ready,
+      JSON.stringify(first.notReady.slice(0, 5)),
     );
     if (first.ready) {
       evidence.deployment ??= { url: deployedUrl, source: deploymentSource };
@@ -536,7 +540,7 @@ async function main(): Promise<void> {
         check(
           "the deployed verification ran to completion",
           false,
-          redact(String(error)).slice(0, 600),
+          redact(String(error)).slice(0, 3000),
         );
       }
     }
