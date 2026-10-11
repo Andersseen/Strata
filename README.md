@@ -47,8 +47,7 @@ Nitro application you already own.
 Technical documentation lives as Markdown in [`docs/`](./docs/README.md), starting with
 [Getting started](./docs/GETTING-STARTED.md). It is compiled by
 [Entwine](https://github.com/Andersseen/Entwine) into a separate static site:
-<https://andersseen.github.io/Strata/> (**pending first deployment**: it is live only after GitHub
-Pages is set to the "GitHub Actions" source and a run on `main` succeeds).
+<https://andersseen.github.io/Strata/>.
 
 - [`apps/www`](./apps/www) remains the official Analog site, deployed to Cloudflare Pages. The
   Entwine site is independent of it.
