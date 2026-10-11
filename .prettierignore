@@ -3,3 +3,6 @@ coverage
 .turbo
 node_modules
 pnpm-lock.yaml
+# Vendored by `skills add`; reinstalling replaces them, so never reformat.
+.agents/skills/entwine-*
+.claude/skills/entwine-*

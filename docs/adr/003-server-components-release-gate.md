@@ -1,3 +1,7 @@
+---
+type: decision
+---
+
 # ADR-003: Production Server Components gate 1.0
 
 - Status: Accepted — product/architecture requirement, implementation unproven

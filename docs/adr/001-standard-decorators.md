@@ -1,3 +1,7 @@
+---
+type: decision
+---
+
 # ADR-001: Standard decorators with explicit metadata
 
 - Status: Accepted — records the existing implementation and project constraint

@@ -4,6 +4,15 @@ Strata is a structured server application layer for Angular and Analog, powered 
 This directory separates implemented facts, architectural decisions, and unproven hypotheses.
 Documentation is in English to follow the existing OSS repository conventions.
 
+## Start here
+
+| I want to...                                                      | Read                                                   |
+| ----------------------------------------------------------------- | ------------------------------------------------------ |
+| Install Strata and run the examples                               | [Getting started](GETTING-STARTED.md)                  |
+| Use controllers with Analog/Nitro or H3, or use Server Components | [Controllers and server integrations](INTEGRATIONS.md) |
+| Know what is implemented and what was verified                    | [Current state](STATE.md)                              |
+| Maintain, validate or preview these docs                          | [Documentation workflow](DOCUMENTATION.md)             |
+
 ## Sources of truth
 
 | Question                                     | Authoritative document                                          |
