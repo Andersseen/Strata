@@ -67,7 +67,7 @@ compatibility matrix; do not check it based on intent or a demonstration.
       report each and no retry; streaming is explicitly **unsupported** (not qualified). Still open: a
       Server Component render error answers HTTP 200 (empty outlet or half-rendered component) with no
       supported Strata seam to change it, there is no fallback API, Router navigation into a Server
-      Component subtree is NO-GO, a deployed environment is unqualified (dev/HMR is qualified for Analog's default configuration, see the
+      Component subtree is NO-GO, the complete Analog deployment is unqualified (Server Components alone: narrow Cloudflare Pages GO, see the [deployed report](research/server-component-deployed-cloudflare.md)) (dev/HMR is qualified for Analog's default configuration, see the
       [dev report](research/server-component-dev-hmr.md)), and release-candidate
       evidence is absent.
 - [ ] Authorization, direct payload access if present, tenant/cache isolation, error redaction and
@@ -91,12 +91,12 @@ compatibility matrix; do not check it based on intent or a demonstration.
       builds for Cloudflare Pages in an external app and passes the full verifier on local workerd
       (preset, compatibility date and flags recorded in
       [the report](research/server-component-deployed-cloudflare.md)). The real deployment to the isolated
-      `strata-sc-qualification` project is **EXECUTED, NOT FULLY QUALIFIED**: four deployments, the full
-      verifier has not yet passed from a GitHub runner (the fourth failed when Chromium was served Cloudflare's
-      "Deployment Not Found" 404 0.7 s after Node saw five good answers) (Server Components only: CONDITIONAL / NO-GO; the narrower
-      evidence is the second and third deployment passing the verifier from a workstation). This item also asks
-      for the complete Analog SSR/controller path and bindings, which the external fixture does not cover, so it
-      stays unticked even once the workflow passes.
+      `strata-sc-qualification` project is **QUALIFIED for Server Components only (GO, narrow)**: the fifth
+      deployment (Actions run 38243892864, `main` at `2c3f495c`, 2026-10-12) passed the whole verifier from a
+      GitHub runner with 0 failed checks (readiness, SSR, protocol v1, hydration, interaction, document
+      navigation, confidentiality, 5/10/25 request smoke). The first four runs failed and are kept in the report.
+      This item also asks for the complete Analog SSR/controller path and bindings, which the external fixture
+      does not cover, so it **stays unticked**.
 - [ ] Resource use, cold start, concurrent requests, cancellation and cleanup measured; agreed
       service and bundle budgets pass on each claimed runtime.
 - [ ] Release/rollback procedure tested, including client assets from an older deployment.
