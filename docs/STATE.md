@@ -275,22 +275,21 @@ true` Angular's component HMR updates the island (same realm, no document reques
 - Published package on Cloudflare Pages (`@strata-sc/server-components@0.1.0` from registry.npmjs.org, fresh
   external app, `cloudflare-pages` preset, compatibility date 2026-09-21, no flags): the **local build
   qualification** passes (Worker graph holds the three server markers, the browser graph and its source maps
-  none) and the HTTP/Playwright/confidentiality/concurrency verifier passes against local workerd. The
-  **real deployment is EXECUTED but NOT FULLY QUALIFIED**: four real deployments to
-  `strata-sc-qualification` (Actions runs 38055222217, 38055684868, 38133853890, 38137809896). Real Cloudflare Server
-  Components: **CONDITIONAL / NO-GO**. Local workerd: GO. Remote HTTP/SSR/protocol: passed on the second
-  deployment, failed on the third (404 thirty milliseconds after a 200). Remote browser hydration: passed from a
-  workstation (second and third deployment) and on the runner for the third, failed on the runner for the
-  second; the navigation check failed on the runner for the third. No workflow run has passed the whole
-  verifier. Run 38137809896 (first on `main` after PR #60) passed Node readiness and
-  direct load/SSR/protocol, then Chromium, 0.7 s later, received Cloudflare's own "Deployment Not Found" 404
-  for the same URL, so hydration failed; navigation, confidentiality and concurrency were not reached. Why edges
-  disagree is unresolved (no evidence implicates the package or the app). Branch
-  `fix/server-components-cloudflare-qualification` adds a fresh-Chromium readiness gate; it must be merged and
-  the workflow re-run from `main` before this can become GO. Runner
-  `pnpm test:server-components:deployed-cloudflare`, workflow `server-component-deployed-cloudflare.yml`
-  ([report](research/server-component-deployed-cloudflare.md)).
-- Not yet verified on the Analog track: a deployed Cloudflare Pages project, abort/timeout cleanup,
+  none) and the verifier passes against local workerd. The **real deployed Server Components qualification is
+  GO (narrow scope)**: Actions run 38243892864 (`main` at `2c3f495c`, 2026-10-12, deployment
+  `https://9b341445.strata-sc-qualification.pages.dev`) passed the whole verifier from a GitHub runner with 0
+  failed checks: Node readiness (5 consecutive 200s on attempt 6, 10.9 s; attempt 1 was Cloudflare's 404), fresh
+  Chromium readiness (3 consecutive on attempt 3, 0 misses), SSR and protocol v1, hydration with SSR DOM reuse,
+  `Count: 0` → `Count: 1`, document navigation `/product` → `/about` → back, reload, confidentiality (HTML,
+  headers, scripts, assets, source maps, Worker bundle not served, props payload) and the 5/10/25 request smoke
+  (all 200; p50 35.1/137.4/210.3 ms). It is **not** a tenant-isolation result, not Angular Router navigation, not
+  streaming. History: four earlier deployments (runs 38055222217, 38055684868, 38133853890, 38137809896) failed
+  on readiness or Chromium receiving Cloudflare's "Deployment Not Found" 404; the cause of that edge
+  disagreement was never proven, and PR #61's fresh-Chromium readiness gate is what the passing run adds. One
+  passing run is one data point. Runner `pnpm test:server-components:deployed-cloudflare`, workflow
+  `server-component-deployed-cloudflare.yml` ([report](research/server-component-deployed-cloudflare.md)).
+  The complete Analog deployment criterion (controllers, services, bindings) is still **not qualified**.
+- Not yet verified on the Analog track: a deployed Cloudflare Pages project with controllers, services and bindings, abort/timeout cleanup,
   streamed-body lifetimes. (Packed `@strata-sc/analog` consumers and non-GET methods are now covered;
   see the gaps section.)
 

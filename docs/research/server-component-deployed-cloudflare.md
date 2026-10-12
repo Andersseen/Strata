@@ -1,6 +1,6 @@
 # Published Server Components on Cloudflare Pages: deployed qualification
 
-Date: 2026-10-09 (updated 2026-10-11). Original baseline: `main` at `40b5d789` (PR #57 merged). Latest run: current `main` at `2b50798f` (PR #60 merged).
+Date: 2026-10-09 (updated 2026-10-12). Original baseline: `main` at `40b5d789` (PR #57 merged). Latest run: current `main` at `2c3f495c` (PR #61 merged), run 38243892864, PASSED.
 Question: does the PUBLISHED `@strata-sc/server-components@0.1.0` work in a fresh external Analog app built
 for Cloudflare Pages and served from a real deployment?
 
@@ -12,20 +12,26 @@ verifier `tools/server-components/lib/deployed.ts` (reuses `lib/browser.ts`, `li
 
 ## Verdict
 
-Updated 2026-10-11 (baseline `main` at `2b50798f`, PR #60 merged; fourth deployment recorded).
+Updated 2026-10-12 (baseline `main` at `2c3f495c`, PR #61 merged; fifth deployment recorded).
 
-| Part                                                     | Result                                                                            |
-| -------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| LOCAL BUILD QUALIFICATION (below)                        | **GO**                                                                            |
-| LOCAL WORKERD REHEARSAL of the verifier (not deployment) | PASS                                                                              |
-| **DEPLOYMENT EXECUTED**                                  | **YES**: four real deployments to `strata-sc-qualification`                       |
-| **DEPLOYMENT FULLY QUALIFIED**                           | **NO**: no GitHub Actions run has passed the whole verifier (see the table below) |
-| Remote qualification from a workstation                  | PASS (second and third deployment; run by hand, not by the workflow)              |
-| Overall deployed qualification                           | **CONDITIONAL / NO-GO** until the workflow passes from a GitHub runner            |
+| Part                                                     | Result                                                                                              |
+| -------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| LOCAL BUILD QUALIFICATION (below)                        | **GO**                                                                                              |
+| LOCAL WORKERD REHEARSAL of the verifier (not deployment) | PASS                                                                                                |
+| **DEPLOYMENT EXECUTED**                                  | **YES**: five real deployments to `strata-sc-qualification`                                         |
+| **DEPLOYMENT FULLY QUALIFIED**                           | **YES, narrowly**: run 38243892864 passed the whole verifier from a GitHub runner (0 failed checks) |
+| Remote qualification from a workstation                  | PASS (second and third deployment; run by hand, not by the workflow)                                |
+| Real deployed Server Components qualification            | **GO** (narrow scope below). The first four runs are kept as recorded.                              |
 
 "Executed" means `wrangler pages deploy` succeeded and a public URL exists. "Fully qualified" means HTTP, SSR,
 protocol, Chromium hydration, DOM reuse, interaction, navigation, confidentiality and the concurrency smoke all
-passed against that URL in the workflow. Only the first is true.
+passed against that URL in the workflow. As of run 5 both are true.
+
+**Scope of the GO.** It covers the published `@strata-sc/server-components@0.1.0`, one fixture route
+(`/product`), Server Components only, document navigation, on one Cloudflare Pages project from one runner
+location. It is **not** the complete Analog deployment criterion (that also needs controllers, services,
+bindings and the full Analog path), not a tenant-isolation result, not Angular Router navigation and not
+streaming. Strata 1.0 is not qualified.
 
 ## LOCAL BUILD QUALIFICATION
 
@@ -97,6 +103,7 @@ Credentials are the repository's existing Actions secrets; nothing else (DNS, ro
 | [38055684868](https://github.com/Andersseen/Strata/actions/runs/38055684868) | `https://26fdc388.strata-sc-qualification.pages.dev` | Deployment succeeded. Ready on attempt 2 (2405.7 ms). Direct load, SSR (`Product 42`, server message, evidence fingerprints) and protocol v1 PASSED. Chromium then timed out after 30 s on `add-to-cart output`. The same deployment passed the full verifier from a workstation. This run predates the PR #59 diagnostic, so what Chromium received was not captured.                                                                                                                                                                                                                                                                                                                                                                                |
 | [38133853890](https://github.com/Andersseen/Strata/actions/runs/38133853890) | `https://cffaf6cc.strata-sc-qualification.pages.dev` | Deployment succeeded. Ready on attempt 1 (580 ms). **30 ms later** the direct `GET /product` returned **404 `text/html`**: HTTP/SSR/protocol checks FAILED (4 + 2). Chromium hydration, DOM reuse, interaction and "no console error" PASSED on the same URL. The navigation check then failed: `click #to-product` timed out (`element is not stable`, then `detached from the DOM`). Confidentiality and concurrency were not reached. 8 failing checks.                                                                                                                                                                                                                                                                                            |
 | [38137809896](https://github.com/Andersseen/Strata/actions/runs/38137809896) | `https://af850827.strata-sc-qualification.pages.dev` | First run on `main` after PR #60 (SHA `2b50798f`, 2026-10-11 12:03 UTC, package 0.1.0). Deployment succeeded. Node readiness passed: 5 consecutive 200 `text/html` answers with `<h1>Product 42</h1>` on attempt 5 (8358.9 ms, 0 not-ready). Direct load, SSR (`Product 42`, `External server A`, fingerprints) and protocol v1 PASSED. **0.7 s later** Chromium's document response for the same URL was **404 `text/html`, `server: cloudflare`, cf-ray `a48dbb82e838080d-LAX`, title "Deployment Not Found"** (screenshot: Cloudflare's "Nothing is here yet" page); no failed request, a single navigation. Hydration therefore failed (no `add-to-cart output`). Navigation, confidentiality and concurrency were not reached. 2 failing checks. |
+| [38243892864](https://github.com/Andersseen/Strata/actions/runs/38243892864) | `https://9b341445.strata-sc-qualification.pages.dev` | First run on `main` after PR #61 (SHA `2c3f495c`, 2026-10-12 11:37 UTC, package 0.1.0). **PASSED, 0 failed checks.** See "Run 5" below.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 
 PR #59 added the browser failure diagnostic (requested and final URL, status, content type, title, a 600-char HTML
 excerpt, console and page errors). It changed no runtime behaviour. Run 3 is the first run that had it; the
@@ -172,6 +179,66 @@ it is **unverified until merged and the workflow is re-run from `main`**. If a l
 `browserReady.notReady` will show how long, and from which edge, Chromium was served the not-ready page, which
 would be evidence of a Cloudflare propagation delay rather than a harness defect.
 
+### Run 5 (38243892864): PASSED
+
+Workflow `Qualify Server Components on Cloudflare`, `workflow_dispatch` on `main` at
+`2c3f495c52a3760d7789344dec5d0fb082fcf392`, started 2026-10-12 11:37:56 UTC, job 2 m 34 s, conclusion
+`success`. Run: <https://github.com/Andersseen/Strata/actions/runs/38243892864>. Evidence artifact
+`deployed-cloudflare-evidence` (the failure-only diagnostics artifact was correctly not produced). The log ends
+`PASS: ... (@strata-sc/server-components@0.1.0) — 0 failed`, and no check is skipped (`STRATA_SC_REQUIRE_DEPLOYED=1`).
+
+- **Package**: `@strata-sc/server-components@0.1.0` from `https://registry.npmjs.org`, `dist.integrity`
+  `sha512-ZdCw/Bkm0+vBlSUDfHOEPxthSX9JkcA99fcJGp3tlTtJvmBjrcMf82etLnAlG6kTRD0FOxFPx/wCgNcazg4eXQ==`
+  (same as the local qualification), npm provenance attestation present. The consumer was outside the repository,
+  the dependency was the bare exact string `0.1.0`, the install was a real directory under
+  `consumer/node_modules`, and `.`, `/vite`, `/server-only` resolved there.
+- **Toolchain**: Node v22.23.3, Angular 22.1.7, `@analogjs/platform` 2.7.2, Nitro 2.13.4, Vite 8.3.0,
+  Wrangler 4.135.0, TypeScript 6.0.3.
+- **Deployment**: project `strata-sc-qualification` (never `strata-www`), branch `qualification-0.1.0`,
+  deployment `9b341445`, public URL `https://9b341445.strata-sc-qualification.pages.dev`; Nitro preset
+  `cloudflare-pages`, compatibility date `2026-09-21`, **no compatibility flags**; Worker entry
+  `dist/analog/public/_worker.js/index.js`; Worker graph 7 modules, 0 Node built-ins; browser graph 18 files,
+  8 source maps.
+- **Node readiness**: 5 consecutive 200 `text/html` answers with `<h1>Product 42</h1>` on attempt 6 (10 909.2 ms).
+  Attempt 1 (390.5 ms after the first probe) was **404 `text/html`, `server: cloudflare`**, cf-ray
+  `a495d3db486fa1cf-MSP`; it was recorded as not-ready and reset the streak. No empty-shell answer counted as
+  ready.
+- **Chromium readiness**: 3 consecutive fresh-context loads with the server-rendered `Product 42` in the
+  document response on attempt 3 (4 958.1 ms), 0 not-ready answers. The gate added by PR #61 held; the
+  fresh-deployment 404 that broke runs 3 and 4 did not reach the browser checks.
+- **SSR and protocol**: `GET /product` 200 `text/html`; `<h1>Product 42</h1>`, `External server A` and the
+  server-computed evidence fingerprints are in the raw HTML; `data-strata-protocol="1"` with an `ngh`
+  annotation, exactly one client boundary.
+- **Hydration and interaction**: server HTML visible before any script (`Count: 0`); the island hydrates; SSR
+  article, heading, button and count text nodes are reused; one hydrated island, no `ngh` left, no duplicate
+  nodes; one click gives `Count: 1`; no console error or warning.
+- **Navigation**: link click is a document navigation `/product` → `/about` (new JS realm), back to `/product`
+  hydrates and counts, reload hydrates with `Count: 0`, direct `GET /about` is 200 with the About page.
+- **Confidentiality**: no server-only marker or server source name in the HTML, response headers (no
+  `x-powered-by`), every script the browser loaded, three served assets, three served source maps (their
+  `sources` list no server file), or `/_worker.js/index.js` (not served); `data-strata-props` carries only the
+  public props. Positive controls passed (client marker in the browser scripts, client island listed in the maps,
+  scanner control).
+- **Concurrency smoke** (`GET /product?request=<synthetic id>`, from the runner to the public URL; every body
+  identical to the baseline, 0 request ids echoed, 0 cross-request anomalies):
+
+| Round               | Requests | OK  | Failed | Statuses     | p50 ms | p90 ms | p95 ms | max ms | wall ms |
+| ------------------- | -------- | --- | ------ | ------------ | ------ | ------ | ------ | ------ | ------- |
+| sequential baseline | 5        | 5   | 0      | `{"200":5}`  | 35.1   | 57.3   | 57.3   | 57.3   | 195.2   |
+| 10 concurrent       | 10       | 10  | 0      | `{"200":10}` | 137.4  | 197.3  | 268.9  | 268.9  | 272.7   |
+| 25 concurrent       | 25       | 25  | 0      | `{"200":25}` | 210.3  | 351.8  | 376.6  | 403.1  | 410.9   |
+
+These are single-location, 40-request latencies, no SLA, no CPU or memory figures. The page ignores the query
+string, so this shows no data from another request appeared; it is **not** a tenant-isolation test.
+
+What run 5 adds to the open question from runs 1 to 4: the same runner, on a fresh deployment, again saw
+Cloudflare's own 404 first (attempt 1, `server: cloudflare`, no application headers) and 200s from attempt 2
+on, about 10.9 s after the first probe. This is consistent with a fresh Pages deployment not yet being served
+everywhere, and it shows the readiness gate doing its job. It does not prove the cause: only one 404 was
+observed, from one edge (`MSP`), and run 4's browser-side 404 came 0.7 s after five good Node answers. Whether
+Cloudflare exposes a readiness signal is not established. The gate is a harness decision (do not start the
+browser checks until the client that will be used is served the app), not a Cloudflare guarantee.
+
 Timing semantics: the "first observed request" is the first poll after the deploy and is recorded with its
 status and latency; it is not labelled a Cloudflare cold start, because Cloudflare exposes no such signal.
 Warm and concurrent figures are separate rounds. CPU time and memory are not exposed and are not reported.
@@ -179,8 +246,9 @@ Warm and concurrent figures are separate rounds. CPU time and memory are not exp
 ## Failures and limitations
 
 - No defect in the published package was found; nothing was republished and no Changeset was added.
-- The deploy path of the runner (`wrangler pages project create` / `deploy`, URL parsing) now works against
-  Cloudflare (four deployments). The verifier is not yet green from a GitHub runner; see above.
+- The deploy path of the runner (`wrangler pages project create` / `deploy`, URL parsing) works against
+  Cloudflare (five deployments). The verifier passed from a GitHub runner on run 5 (a single passing run after
+  three failures; it is one data point, not a flake-rate measurement).
 - The external fixture covers Server Components only; it has no controllers, bindings or request context.
   Authorization, tenant isolation, cancellation and cleanup, resource budgets, rollback and 1.0 readiness
   are not addressed. Angular Router navigation remains NO-GO. Source maps are generated as `hidden` by the
