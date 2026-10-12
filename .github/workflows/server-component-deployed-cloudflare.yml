@@ -78,7 +78,7 @@ jobs:
 
       - name: Upload evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: deployed-cloudflare-evidence
           path: ${{ runner.temp }}/deployed-cloudflare-evidence.json
@@ -87,7 +87,7 @@ jobs:
       # Only a failed run has a screenshot and a Playwright trace of the public site.
       - name: Upload browser diagnostics
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: deployed-cloudflare-browser-diagnostics
           path: ${{ runner.temp }}/deployed-cloudflare-diagnostics
