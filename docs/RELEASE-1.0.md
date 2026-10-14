@@ -76,7 +76,10 @@ compatibility matrix; do not check it based on intent or a demonstration.
       rollback, sibling-host isolation and navigation/Back/re-entry failures with one `ErrorHandler`
       report each and no retry; streaming is explicitly **unsupported** (not qualified). Still open: a
       Server Component render error answers HTTP 200 (empty outlet or half-rendered component) with no
-      supported Strata seam to change it, there is no fallback API, Router navigation into a Server
+      supported general Strata seam to change it. The narrow consumer-owned expected-service
+      recovery fixture passes HTTP 503/no-store on Node and local workerd, but is not a general
+      fallback API and does not close this criterion ([report](research/server-component-ssr-response.md)).
+      Router navigation into a Server
       Component subtree is NO-GO, the complete Analog deployment is unqualified (Server Components alone: narrow Cloudflare Pages GO, see the [deployed report](research/server-component-deployed-cloudflare.md)) (dev/HMR is qualified for Analog's default configuration, see the
       [dev report](research/server-component-dev-hmr.md)), and release-candidate
       evidence is absent.

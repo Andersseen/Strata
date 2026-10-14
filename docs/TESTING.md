@@ -53,6 +53,12 @@ hydration:
   the recorded NO-GO), and island teardown through fixture-owned probes.
 - `pnpm test:server-components:cloudflare`: the same contract, including the document fallback,
   on local workerd via Wrangler.
+- `pnpm test:server-component-ssr-response`: the consumer-owned expected-service recovery contract
+  on Nitro node-server and local Wrangler/workerd. It checks 200 success, 503/no-store generic
+  recovery, 400 invalid-context fallback, response/body confidentiality, overlap isolation and
+  document navigation/Back/re-entry. Constructor, injected-service and template render failures
+  remain explicit HTTP 200 controls; this gate does not claim a general Angular render-error
+  status bridge, streaming, or SPA subtree navigation.
 - `pnpm test:server-component-dev`: the real Analog/Vite **dev** server and Chromium. Edits the
   fixture's `server-component-dev/*` files while `vite` runs (every byte restored) and proves: a
   server-owned edit regenerates the graph and replaces the JS realm with one document reload; a

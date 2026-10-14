@@ -581,10 +581,7 @@ try {
 
   console.log(`after: ${describe(spa)}`);
   verdict.routerNegative = all([
-    check(
-      "same JavaScript realm (sentinel kept)",
-      spa.sentinel && spa.url === CONTROL_DESTINATION,
-    ),
+    check("same JavaScript realm (sentinel kept)", spa.sentinel && spa.url === CONTROL_DESTINATION),
     check(
       "no document request, no server payload",
       routerRequests.every(
