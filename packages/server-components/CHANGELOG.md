@@ -1,5 +1,12 @@
 # @strata-sc/server-components
 
+## 0.2.0
+
+### Minor Changes
+
+- ddf052e: Add the experimental `@strata-sc/server-components/navigation` entry with an opt-in
+  `strataDocumentNavigationGuard` for same-origin document navigation into designated Server Component routes.
+
 ## 0.1.0
 
 ### Minor Changes
