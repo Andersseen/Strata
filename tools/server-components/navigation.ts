@@ -12,7 +12,7 @@ import {
   section,
   startProductionServer,
 } from "./lib/harness.ts";
-import { DESTINATION, ORIGIN, observeNavigation } from "./lib/navigation.ts";
+import { CONTROL_DESTINATION, DESTINATION, ORIGIN, observeNavigation } from "./lib/navigation.ts";
 import type { DomSnapshot, RequestRecord, ScriptRecord } from "./lib/navigation.ts";
 
 /**
@@ -273,10 +273,10 @@ try {
   console.log(`before: ${describe(before)}`);
   console.log(`after:  ${describe(spa)}`);
   verdict.routerNegative = all([
-    check("route URL changed", spa.url === DESTINATION, spa.url),
+    check("route URL changed", spa.url === CONTROL_DESTINATION, spa.url),
     check(
       "router navigation completed (NavigationEnd)",
-      spa.routerEvents.includes(`end ${DESTINATION}?strataNavigationControl=1`),
+      spa.routerEvents.includes(`end ${CONTROL_DESTINATION}`),
       spa.routerEvents.join(", "),
     ),
     check("sentinel kept: no document reload", spa.sentinel),
@@ -291,7 +291,9 @@ try {
     ),
     check(
       "the destination's client route chunk was downloaded",
-      routerRequests.some((r) => /^\/assets\/server-component\.page-[\w-]+\.js$/.test(r.url)),
+      routerRequests.some((r) =>
+        /^\/assets\/server-component-unprotected\.page-[\w-]+\.js$/.test(r.url),
+      ),
     ),
     check(
       "no request to Nitro other than static scripts (no fetch/xhr, no server payload)",
@@ -330,7 +332,7 @@ try {
 
   check(
     "control mode keeps the historical empty-surrogate scenario observable",
-    router.afterNavigation.search === "?strataNavigationControl=1" &&
+    router.afterNavigation.url === CONTROL_DESTINATION &&
       router.afterNavigation.serverComponentChildren === 0 &&
       router.afterNavigation.islandsCreated === 0,
   );

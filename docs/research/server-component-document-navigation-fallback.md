@@ -13,8 +13,9 @@ Component surrogate. It cancels the transition in a public `canActivate` guard a
 browser document request with the target URL. This is a document reload, not seamless SPA
 navigation and not hydration of a newly fetched subtree.
 
-The starting `main` SHA was `f62722b3e0ba23c80e61669bca7f4f056081979c`. The implementation remains
-fixture-owned; no framework or package public API was added and no package was published.
+The starting `main` SHA was `f62722b3e0ba23c80e61669bca7f4f056081979c`. This increment promotes
+the qualified policy to the optional `@strata-sc/server-components/navigation` package entry;
+the fixture consumes that entry and no package was published.
 
 ## Qualified versions
 
@@ -42,14 +43,16 @@ click interception were rejected.
 
 ## Candidate
 
-The fixture exports `serverComponentDocumentNavigation` and attaches it through the page's
+The package exports `strataDocumentNavigationGuard`, which a consumer attaches through the page's
 `defineRouteMeta({ canActivate: [...] })`. On the server and on the browser's initial navigation it
-returns `true`. After the initial client navigation it calls the browser `Location.assign` with the
-snapshot URL and returns `false`, so activation cannot render the empty surrogate. The fresh document
-then performs normal SSR and Angular hydration; its initial navigation is allowed, preventing a loop.
+returns `true`. After the initial client navigation it validates a same-origin target, calls the
+browser `Location.assign` with its path, query and fragment, and returns `false`, so activation
+cannot render the empty surrogate. The fresh document then performs normal SSR and Angular
+hydration; its initial navigation is allowed, preventing a loop.
 
-The query `strataNavigationControl=1` is a fixture-only control mode that deliberately bypasses the
-guard so the historical empty-surrogate failure remains observable.
+The fixture's separately identified `/server-component-unprotected` route deliberately has no guard,
+so the historical empty-surrogate failure remains observable without a URL-controllable bypass on
+the production-style guarded route.
 
 ## Results
 
@@ -62,7 +65,8 @@ guard so the historical empty-surrogate failure remains observable.
 - query parameters and `#details` are preserved;
 - Back, Forward and re-entry produce fresh hydrated documents with no reload loop;
 - leaving to an ordinary Angular route still destroys the island with no orphaned view;
-- the control mode still produces the same-realm, empty surrogate with no server request or warning;
+- the separately unprotected control route still produces the same-realm, empty surrogate with no
+  server request or warning;
 - graph and runtime scans still exclude server-only markers from browser assets and loaded scripts.
 
 `pnpm test:server-components:cloudflare` passes its Cloudflare Pages build and local workerd runtime.

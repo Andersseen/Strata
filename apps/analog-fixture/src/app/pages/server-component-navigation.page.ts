@@ -20,11 +20,7 @@ import { Router, RouterLink } from "@angular/router";
           >Router navigation with document fallback</a
         >
       </li>
-      <li>
-        <a routerLink="/server-component" [queryParams]="{ strataNavigationControl: 1 }"
-          >Router navigation (control)</a
-        >
-      </li>
+      <li><a routerLink="/server-component-unprotected">Router navigation (control)</a></li>
     </ul>
     <button type="button" (click)="navigateProgrammatically()">
       Programmatic navigation with document fallback

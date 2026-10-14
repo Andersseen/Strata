@@ -27,7 +27,7 @@ import {
 } from "./lib/harness.ts";
 import type { GraphSize, OutputGraph } from "./lib/harness.ts";
 import { isNodeBuiltin, moduleGraph } from "./lib/module-graph.ts";
-import { DESTINATION, ORIGIN, observeNavigation } from "./lib/navigation.ts";
+import { CONTROL_DESTINATION, DESTINATION, ORIGIN, observeNavigation } from "./lib/navigation.ts";
 import type { DomSnapshot } from "./lib/navigation.ts";
 import { COMPATIBILITY_DATE, resolveWrangler, startWranglerPages } from "./lib/wrangler.ts";
 
@@ -581,7 +581,10 @@ try {
 
   console.log(`after: ${describe(spa)}`);
   verdict.routerNegative = all([
-    check("same JavaScript realm (sentinel kept)", spa.sentinel && spa.url === DESTINATION),
+    check(
+      "same JavaScript realm (sentinel kept)",
+      spa.sentinel && spa.url === CONTROL_DESTINATION,
+    ),
     check(
       "no document request, no server payload",
       routerRequests.every(

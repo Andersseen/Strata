@@ -9,6 +9,7 @@ import type { Browser, Page, Request } from "playwright";
 
 export const ORIGIN = "/server-component-navigation";
 export const DESTINATION = "/server-component";
+export const CONTROL_DESTINATION = "/server-component-unprotected";
 
 export interface RequestRecord {
   readonly phase: string;

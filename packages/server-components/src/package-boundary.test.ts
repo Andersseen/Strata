@@ -48,6 +48,13 @@ describe("package boundary", () => {
     });
   });
 
+  it("exports the optional Angular Router navigation entry separately", () => {
+    expect(manifest.exports["./navigation"]).toEqual({
+      types: "./dist/fesm2022/navigation/index.d.ts",
+      default: "./dist/fesm2022/navigation/index.js",
+    });
+  });
+
   it("keeps the server-only assertion entry empty: no imports, no runtime statements", () => {
     const file = join(packageDir, "src", "server-only", "index.ts");
     const source = ts.createSourceFile(file, readFileSync(file, "utf8"), ts.ScriptTarget.Latest);

@@ -92,17 +92,17 @@ itself. See [Server-only modules](#server-only-modules).
 
 ## Limitations (read these first)
 
-| Area                                                            | Status                                                                                                                                    |
-| --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| Document navigation into a Server Component page                | supported                                                                                                                                 |
-| Buffered SSR (Nitro `node-server`, Cloudflare Pages/workerd)    | supported                                                                                                                                 |
-| Angular Router navigation into a new Server Component subtree   | **unsupported** (SPA hydration renders the empty surrogate; use an explicitly configured consumer-owned document fallback experimentally) |
-| Streaming SSR                                                   | **unsupported**                                                                                                                           |
-| Components from packages as `[strataClient]` islands            | **unsupported**                                                                                                                           |
-| `NgComponentOutlet` / dynamic `createComponent` in analysis     | **unsupported** (invisible to the plugin)                                                                                                 |
-| Content projection into islands                                 | **not qualified**                                                                                                                         |
-| Request-scoped Server Component context                         | experimental: Angular `REQUEST_CONTEXT`                                                                                                   |
-| Module-level state shared between the SSR bundle and Nitro code | **separate bundles**: each evaluates its own copy                                                                                         |
+| Area                                                            | Status                                                                                                         |
+| --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Document navigation into a Server Component page                | supported                                                                                                      |
+| Buffered SSR (Nitro `node-server`, Cloudflare Pages/workerd)    | supported                                                                                                      |
+| Angular Router navigation into a new Server Component subtree   | **unsupported** (SPA hydration renders the empty surrogate; use the opt-in `/navigation` guard experimentally) |
+| Streaming SSR                                                   | **unsupported**                                                                                                |
+| Components from packages as `[strataClient]` islands            | **unsupported**                                                                                                |
+| `NgComponentOutlet` / dynamic `createComponent` in analysis     | **unsupported** (invisible to the plugin)                                                                      |
+| Content projection into islands                                 | **not qualified**                                                                                              |
+| Request-scoped Server Component context                         | experimental: Angular `REQUEST_CONTEXT`                                                                        |
+| Module-level state shared between the SSR bundle and Nitro code | **separate bundles**: each evaluates its own copy                                                              |
 
 The full list is under [Experimental restrictions](#experimental-restrictions).
 
@@ -161,9 +161,9 @@ and the Vite environment-aware `hotUpdate` dev integration have only been tested
 - **Document navigation only.** Explicit document navigation into a route containing a server
   component is supported. SPA hydration of a newly rendered server subtree remains unsupported:
   without a consumer-owned fallback it renders the empty surrogate, silently. A consumer may
-  experimentally use a public Angular `canActivate` guard and browser document navigation to
-  protect designated routes, but this is a full reload, not seamless router integration, and is
-  not a package API or a 1.0 qualification.
+  experimentally protect designated routes with `strataDocumentNavigationGuard` from the optional
+  `/navigation` entry. This is a full reload, not seamless router integration, and is not a 1.0
+  qualification.
 
 ## Entries
 
@@ -171,12 +171,34 @@ and the Vite environment-aware `hotUpdate` dev integration have only been tested
 | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------- | --------------------------- |
 | `@strata-sc/server-components`             | `ServerComponent`, `StrataClientBoundary`, `ClientBoundaryProps`, `StrataIslandHost`, `provideClientReferences` | server + browser            |
 | `@strata-sc/server-components/vite`        | `strataServerComponents(options)`                                                                               | build (Node) only           |
+| `@strata-sc/server-components/navigation`  | `strataDocumentNavigationGuard`                                                                                 | Angular Router + browser    |
 | `@strata-sc/server-components/server-only` | nothing: an empty module whose side-effect import is a build-time assertion                                     | server only (never browser) |
 
 The runtime entry imports only `@angular/core`. It is Angular partial-compiled by `ngc` into
 `dist/fesm2022/`; Analog 2.7.2's build optimizer runs the Angular linker only on paths matching
 `/fesm20/`. The `/vite` entry imports `typescript`, `@angular/compiler` (template parsing), `vite`
 types and Node built-ins; nothing in the runtime entry imports it.
+
+### Experimental document-navigation fallback
+
+For a route whose rendered subtree contains Server Components, opt into the narrow document
+navigation fallback through normal Analog route metadata:
+
+```ts
+import { defineRouteMeta } from "@analogjs/router";
+import { strataDocumentNavigationGuard } from "@strata-sc/server-components/navigation";
+
+export const routeMeta = defineRouteMeta({
+  canActivate: [strataDocumentNavigationGuard],
+});
+```
+
+The guard allows SSR and the browser's initial navigation. Later same-origin Angular Router
+activations are cancelled before the empty surrogate can render and retried with
+`Location.assign`, preserving the path, query parameters and fragment. It uses only public Angular
+Router APIs and browser `Location`; it does not discover routes globally, implement SPA hydration,
+or apply to routes that do not opt in. The `/navigation` entry therefore adds `@angular/common` and
+`@angular/router` as peer dependencies while keeping them out of the default runtime entry.
 
 ## Use
 
@@ -259,7 +281,9 @@ export default defineConfig({
 ```
 
 - Peers: `@angular/core` and `@angular/compiler` `^22.1.7`, `typescript` `^5.9.0 || ^6.0.0`, `vite`
-  `>=8.3.0 <9` (see [Compatibility](#compatibility)). The package has no dependencies of its own and the emitted code imports no `tslib`.
+  `>=8.3.0 <9` (see [Compatibility](#compatibility)). The optional `/navigation` entry additionally
+  uses `@angular/common` and `@angular/router` `^22.1.7`. The package has no dependencies of its own
+  and the emitted code imports no `tslib`.
 - `ssr.noExternal: ["tslib"]` is an Analog/Nitro requirement, not the package's: `@ServerComponent()`
   makes TypeScript emit `__decorate` through `importHelpers`, and Nitro would otherwise trace
   `tslib.es6.mjs` while Node resolves `modules/index.js`.

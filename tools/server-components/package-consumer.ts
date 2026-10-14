@@ -401,6 +401,7 @@ try {
   console.log(
     `peer usage: ${peerUse.map(({ peer, used }) => `${peer}=${used ? "used" : "UNUSED"}`).join(", ")}`,
   );
+  const declaredPeerNames = new Set(Object.keys(declared.peerDependencies));
   tarballOk.push(
     check(
       "every declared peer is imported by the emitted code or declarations (no padding)",
@@ -411,14 +412,13 @@ try {
         .join(", "),
     ),
     check(
-      "no undeclared peer-like import: only @angular/core, @angular/compiler, typescript, vite, node:*",
+      "no undeclared peer-like import: only declared peers, typescript, vite, node:*",
       [...classified.keys()].every(
         (s) =>
           s.startsWith("node:") ||
           s === "typescript" ||
           s === "vite" ||
-          s.startsWith("@angular/core") ||
-          s === "@angular/compiler" ||
+          declaredPeerNames.has(packageNameOf(s)) ||
           classified.get(s)!.kind.startsWith("self"),
       ),
     ),
