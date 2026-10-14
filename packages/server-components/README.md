@@ -281,7 +281,9 @@ export default defineConfig({
 ```
 
 - Peers: `@angular/core` and `@angular/compiler` `^22.1.7`, `typescript` `^5.9.0 || ^6.0.0`, `vite`
-  `>=8.3.0 <9` (see [Compatibility](#compatibility)). The package has no dependencies of its own and the emitted code imports no `tslib`.
+  `>=8.3.0 <9` (see [Compatibility](#compatibility)). The optional `/navigation` entry additionally
+  uses `@angular/common` and `@angular/router` `^22.1.7`. The package has no dependencies of its own
+  and the emitted code imports no `tslib`.
 - `ssr.noExternal: ["tslib"]` is an Analog/Nitro requirement, not the package's: `@ServerComponent()`
   makes TypeScript emit `__decorate` through `importHelpers`, and Nitro would otherwise trace
   `tslib.es6.mjs` while Node resolves `modules/index.js`.
