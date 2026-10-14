@@ -45,6 +45,10 @@ compatibility matrix; do not check it based on intent or a demonstration.
       workerd with 24 overlapping alpha/beta requests in both orders
       ([request-context report](research/server-component-request-context.md)); this does not
       qualify tenant isolation, authorization, Router navigation or streaming.
+      The follow-up service-isolation fixture uses distinct synthetic alpha/beta
+      private values, explicit allow-listed identity resolution, shared parent/child
+      service-instance evidence, failure/recovery checks and the same Node/workerd
+      overlap gate ([isolation report](research/server-component-request-isolation.md)).
 - [ ] One navigation strategy is explicitly selected, documented and production-safe. Document
       navigation may qualify only with complete routing/history coverage and consumer acceptance;
       unsupported client subtree hydration is not advertised.

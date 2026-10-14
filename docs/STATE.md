@@ -1,18 +1,21 @@
 # Current implementation audit
 
-## Request-scoped Server Component context (2026-10-14)
+## Request-scoped Server Component context and service isolation (2026-10-14)
 
-At baseline `b282aa6`, Angular 22.1.7 publicly exposes the SSR-only
+At baseline `e06fae5`, Angular 22.1.7 publicly exposes the SSR-only
 `REQUEST_CONTEXT` token and Analog 2.7.2 publicly forwards per-render
-`platformProviders` to `renderApplication`. The fixture now provides an immutable
+`platformProviders` to `renderApplication`. The fixture provides an immutable
 synthetic value through that seam and consumes it from a parent Server Component,
-a nested server-owned child and a server-only service. Missing context is
-optional and renders `null`/`missing`; no fallback or process-wide request state
-is used. `pnpm test:server-component-request-context` passes 24 overlapping
-requests in forward and reverse alpha/beta order on Nitro node-server and local
-Cloudflare workerd, including browser-graph and confidential-value scans.
+a nested server-owned child and a server-only service/repository. The fixture
+now allow-lists alpha/beta, rejects unknown or mismatched identities into an
+empty safe state for rejected identities, consumes distinct private values, and proves the parent
+and child share the component-provided service instance within one render.
+`pnpm test:server-component-request-context` covers overlapping and sequential
+requests, failure/recovery, Node and local Cloudflare workerd, graph controls,
+and browser-output absence of both private values.
 
-This is a narrow experimental GO for buffered document SSR. It does not qualify
+This is a narrow experimental GO for buffered document SSR and synthetic fixture
+data isolation. It does not qualify
 controller/SSR shared DI, Angular Router navigation, streaming, authentication,
 authorization, tenant/cache isolation or Strata 1.0.
 
@@ -249,13 +252,15 @@ true` Angular's component HMR updates the island (same realm, no document reques
     error is only in the server's log, which is the operator surface, not a public one. PR #49's
     illegal-import build diagnostic prints module, importer and reason and never a source line or
     the canary.
-  - **Request isolation**: Strata has no request context for Server Components. The only
-    request-varying input measured is Angular's route parameter through DI in the routed page: 24
-    overlapping requests (A/B) each rendered only their own value on Node and workerd. A Strata-level
-    request context does not exist and is **NOT QUALIFIED**. The runtime holds no global payload
-    registry, process-wide boundary store or secret cache (source scan and browser global scan);
-    module-level state shared between Angular SSR and Nitro (Relay's `processSingleton`) is a
-    domain-state workaround, not request or tenant isolation.
+  - **Request isolation**: Angular's public `REQUEST_CONTEXT` seam is now qualified narrowly for
+    buffered Server Component SSR. The fixture allow-lists synthetic alpha/beta identities,
+    consumes distinct private repository values, proves parent/child service-instance agreement,
+    and passes 24 overlapping requests in both orders plus sequential and failure/recovery checks
+    on Node and workerd ([isolation report](research/server-component-request-isolation.md)). This
+    remains fixture-only evidence, not authentication, authorization, tenant/cache isolation or a
+    Strata-owned request API. The runtime holds no global payload registry, process-wide boundary
+    store or secret cache; module-level state shared between Angular SSR and Nitro (Relay's
+    `processSingleton`) is a domain-state workaround, not request or tenant isolation.
   - Not covered: authorization, tenant/cache isolation, origin/CSRF, dev-server confidentiality
     beyond the live firewall below, a real deployed environment, log redaction, third-party error
     reporters.
