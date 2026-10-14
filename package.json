@@ -54,6 +54,7 @@
     "test:server-component-security": "node --experimental-strip-types tools/server-components/security.ts",
     "test:server-component-request-context": "node --experimental-strip-types tools/server-components/request-context.ts",
     "test:server-component-failures": "node --experimental-strip-types tools/server-components/failures.ts",
+    "test:server-component-ssr-response": "node --experimental-strip-types tools/server-components/ssr-response.ts",
     "test:server-component-dev": "node --experimental-strip-types tools/server-components/dev.ts",
     "test:server-component-package-consumer": "node --experimental-strip-types tools/server-components/package-consumer.ts",
     "test:server-component-registry-consumer": "node --experimental-strip-types tools/server-components/registry-consumer.ts",

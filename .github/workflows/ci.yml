@@ -91,6 +91,12 @@ jobs:
       - name: Server Component failure and recovery (Node + workerd)
         run: pnpm test:server-component-failures
 
+      # Consumer-owned expected-service recovery can set a response status through
+      # Analog's public per-request response token. Unexpected render failures stay
+      # a separate HTTP-200 limitation control.
+      - name: Server Component SSR response and recovery (Node + workerd)
+        run: pnpm test:server-component-ssr-response
+
       # The REAL Analog/Vite dev server in Chromium: server-owned edits regenerate
       # the graph and reload the document once, client-owned edits do not, a module
       # that starts asserting server-only is refused live, and an invalid edit

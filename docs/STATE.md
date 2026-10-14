@@ -1,5 +1,26 @@
 # Current implementation audit
 
+## Server Component SSR response and expected service recovery (2026-10-14)
+
+At `7738b475fd82e1e6f4db8dcb642e4092c42f9356`, the public Angular/Analog API investigation found
+no general bridge from an unexpected buffered Server Component render error to an HTTP status or
+fallback response. Angular's public `RESPONSE_INIT` is not provided by Analog; Analog's public
+`RESPONSE` token is a mutable consumer-owned response passed through the Nitro renderer. The
+existing constructor, injected-service and template failure controls therefore remain HTTP 200
+with Angular's empty or half-rendered output.
+
+The fixture now demonstrates a narrower supported pattern at
+`/server-component-ssr-recovery`: a typed application service catches only an expected repository
+failure, sets Analog `RESPONSE` to 503/no-store and renders generic HTML; missing or malformed
+request context is 400/no-store. Unexpected errors are rethrown. The new
+`pnpm test:server-component-ssr-response` gate passes on Nitro node-server and local Wrangler/
+workerd, including concurrent isolation and document navigation/Back/re-entry. This is a narrow
+consumer-owned GO, not a Strata package API or a general render-failure fix. See the
+[response and recovery report](research/server-component-ssr-response.md).
+
+The full failure criterion, streaming, true SPA Server Component navigation and Strata 1.0 remain
+unqualified.
+
 ## Server Component document-navigation fallback (2026-10-14)
 
 At `f62722b3e0ba23c80e61669bca7f4f056081979c`, the fixture qualified a consumer-owned experimental
