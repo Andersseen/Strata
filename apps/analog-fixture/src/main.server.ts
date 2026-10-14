@@ -5,6 +5,10 @@ import { render } from "@analogjs/router/server";
 
 import { App } from "./app/app";
 import { config } from "./app/app.config.server";
+import {
+  AUTHORIZATION_CONTEXT,
+  resolveAuthorizationContext,
+} from "./app/server-component-authorization/authorization-context";
 import { resolveRequestContext } from "./app/server-component-request-context/request-context-resolver";
 
 export default render(App, config, [
@@ -14,5 +18,9 @@ export default render(App, config, [
       const request = inject(ANALOG_REQUEST);
       return resolveRequestContext(request.originalUrl ?? request.url);
     },
+  },
+  {
+    provide: AUTHORIZATION_CONTEXT,
+    useFactory: () => resolveAuthorizationContext(inject(ANALOG_REQUEST)),
   },
 ]);

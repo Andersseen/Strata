@@ -92,7 +92,11 @@ compatibility matrix; do not check it based on intent or a demonstration.
       ([report](research/server-component-data-security.md),
       `pnpm test:server-component-security`). Still open, and why this stays unchecked: authorization,
       tenant and cache isolation, broader request-context lifecycle contracts, origin/CSRF rules, log
-      redaction and a real deployed environment.
+      redaction and a real deployed environment. A follow-up fixture now provides narrow synthetic
+      authorization evidence (`pnpm test:server-component-authorization`) with an opaque HttpOnly
+      test cookie, server-side ownership checks before repository access, 401/403/404 no-store
+      responses, Node/workerd overlap and browser navigation ([report](research/server-component-authorization-isolation.md)).
+      It does not qualify production authentication, sessions, tenant-aware caching or this 1.0 item.
 
 ## Deployment
 

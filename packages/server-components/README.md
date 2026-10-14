@@ -741,13 +741,16 @@ with an empty outlet (or, for a template error, a half-rendered component), exac
 [Failure and recovery](#failure-and-recovery); the status and log content are Angular's and Analog's. The server's own log does contain the
 original error, because that is the operator's surface; redact it in your logging pipeline.
 
-Not covered, and not claimed: authorization, tenant or cache isolation, origin/CSRF rules,
-real authenticated request identity, or a general request-scoped data API. The fixture-only
-synthetic `REQUEST_CONTEXT` and service-isolation evidence is recorded in
-`docs/research/server-component-request-isolation.md`; it does not change those limits. The dev
-server's confidentiality beyond the live firewall (see [Dev server](#dev-server-vite)), a real deployment, and
-secrets in logs or third-party error reporters. This is not a claim of complete application
-security. Module-level state shared between Angular SSR and Nitro (`processSingleton` in Relay) is a
+Not covered, and not claimed: production authentication, sessions, authorization APIs, tenant or
+cache isolation, origin/CSRF rules, or a general request-scoped data API. A fixture-only synthetic
+authorization qualification now exists at
+`docs/research/server-component-authorization-isolation.md` and is exercised by
+`pnpm test:server-component-authorization`; it does not add a package API or change these limits.
+The synthetic `REQUEST_CONTEXT` and service-isolation evidence is recorded in
+`docs/research/server-component-request-isolation.md`. The dev server's confidentiality beyond the
+live firewall (see [Dev server](#dev-server-vite)), a real deployment, and secrets in logs or
+third-party error reporters remain open. This is not a claim of complete application security.
+Module-level state shared between Angular SSR and Nitro (`processSingleton` in Relay) is a
 domain-state workaround, not request isolation, tenant isolation or a security boundary.
 
 ## Experimental restrictions
