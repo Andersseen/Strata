@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.runtime.json",
+  "compilerOptions": {
+    "rootDir": "src/navigation",
+    "outDir": "dist/fesm2022/navigation"
+  },
+  "include": ["src/navigation/**/*.ts"],
+  "exclude": ["src/**/*.test.ts"]
+}

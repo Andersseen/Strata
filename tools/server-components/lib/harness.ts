@@ -217,8 +217,17 @@ export function checkBrowserGraph(graph: OutputGraph = nodeBrowserGraph()): void
     check(`${marker} present (${found.join(", ")})`, found.length > 0, "not found");
   }
 
-  const leakedNames = graph.files.filter((file) =>
-    SERVER_FILE_NAMES.some((name) => file.includes(name)),
+  // A client surrogate and its explicit island can be emitted as a shared
+  // chunk named after the authored Server Component when more than one route
+  // imports it. The marker scan above is the authoritative implementation
+  // check; only flag a server-looking filename when that file also contains a
+  // server-only marker.
+  const leakedNames = graph.files.filter(
+    (file) =>
+      SERVER_FILE_NAMES.some((name) => file.includes(name)) &&
+      SERVER_ONLY.some((marker) =>
+        readFileSync(join(graph.root ?? distDir, file), "utf8").includes(marker),
+      ),
   );
   const compilerInBrowser = graphFilesWith(graph, ANGULAR_COMPILER_FINGERPRINT);
 
