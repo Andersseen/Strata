@@ -52,6 +52,7 @@
     "test:server-component-defer": "node --experimental-strip-types tools/server-components/defer.ts",
     "test:server-component-server-only": "node --experimental-strip-types tools/server-components/server-only.ts",
     "test:server-component-security": "node --experimental-strip-types tools/server-components/security.ts",
+    "test:server-component-request-context": "node --experimental-strip-types tools/server-components/request-context.ts",
     "test:server-component-failures": "node --experimental-strip-types tools/server-components/failures.ts",
     "test:server-component-dev": "node --experimental-strip-types tools/server-components/dev.ts",
     "test:server-component-package-consumer": "node --experimental-strip-types tools/server-components/package-consumer.ts",

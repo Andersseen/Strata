@@ -40,6 +40,11 @@ compatibility matrix; do not check it based on intent or a demonstration.
 - [ ] Normal interactive Angular descendants are shipped and hydrated without shipping the server
       parent; DOM reuse and exactly-once events are asserted.
 - [ ] Initial SSR, direct URL loading and server-side service access work with request isolation.
+      _Evidence so far (not certified):_ Angular's public `REQUEST_CONTEXT` provider seam is
+      qualified narrowly for buffered Server Component SSR on Nitro node-server and local
+      workerd with 24 overlapping alpha/beta requests in both orders
+      ([request-context report](research/server-component-request-context.md)); this does not
+      qualify tenant isolation, authorization, Router navigation or streaming.
 - [ ] One navigation strategy is explicitly selected, documented and production-safe. Document
       navigation may qualify only with complete routing/history coverage and consumer acceptance;
       unsupported client subtree hydration is not advertised.
@@ -78,7 +83,7 @@ compatibility matrix; do not check it based on intent or a demonstration.
       server-graph positive control, on Node and local workerd
       ([report](research/server-component-data-security.md),
       `pnpm test:server-component-security`). Still open, and why this stays unchecked: authorization,
-      tenant and cache isolation, a request context for Server Components, origin/CSRF rules, log
+      tenant and cache isolation, broader request-context lifecycle contracts, origin/CSRF rules, log
       redaction and a real deployed environment.
 
 ## Deployment

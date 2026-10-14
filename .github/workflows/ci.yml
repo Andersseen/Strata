@@ -79,6 +79,12 @@ jobs:
       - name: Server Component data confidentiality (synthetic canaries, Node + workerd)
         run: pnpm test:server-component-security
 
+      # Angular's public REQUEST_CONTEXT token, per-render Analog providers,
+      # deterministic 24-request overlap, and missing-context behavior on Node
+      # and local workerd.
+      - name: Server Component request context (Node + workerd)
+        run: pnpm test:server-component-request-context
+
       # Failure contract for buffered SSR + document navigation: render and
       # serialization failures, preflight/commit failures, sibling-host
       # isolation, navigation/Back/re-entry, on Node and local workerd.

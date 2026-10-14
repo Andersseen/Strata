@@ -1,5 +1,21 @@
 # Current implementation audit
 
+## Request-scoped Server Component context (2026-10-14)
+
+At baseline `b282aa6`, Angular 22.1.7 publicly exposes the SSR-only
+`REQUEST_CONTEXT` token and Analog 2.7.2 publicly forwards per-render
+`platformProviders` to `renderApplication`. The fixture now provides an immutable
+synthetic value through that seam and consumes it from a parent Server Component,
+a nested server-owned child and a server-only service. Missing context is
+optional and renders `null`/`missing`; no fallback or process-wide request state
+is used. `pnpm test:server-component-request-context` passes 24 overlapping
+requests in forward and reverse alpha/beta order on Nitro node-server and local
+Cloudflare workerd, including browser-graph and confidential-value scans.
+
+This is a narrow experimental GO for buffered document SSR. It does not qualify
+controller/SSR shared DI, Angular Router navigation, streaming, authentication,
+authorization, tenant/cache isolation or Strata 1.0.
+
 ## Reconciliation 2026-09-24
 
 Inspected at `c671ba4` (`main`, merge of PR #19) plus the SPEC-003 branch. The sections after this
