@@ -1,5 +1,5 @@
-import { ChangeDetectionStrategy, Component } from "@angular/core";
-import { RouterLink } from "@angular/router";
+import { ChangeDetectionStrategy, Component, inject } from "@angular/core";
+import { Router, RouterLink } from "@angular/router";
 
 /**
  * Origin page of the server-component navigation PoC
@@ -15,8 +15,26 @@ import { RouterLink } from "@angular/router";
     <h1>Server Component Navigation Probe</h1>
     <ul>
       <li><a href="/server-component">Document navigation</a></li>
-      <li><a routerLink="/server-component">Router navigation</a></li>
+      <li>
+        <a routerLink="/server-component" [queryParams]="{ product: 42 }" fragment="details"
+          >Router navigation with document fallback</a
+        >
+      </li>
+      <li>
+        <a routerLink="/server-component" [queryParams]="{ strataNavigationControl: 1 }"
+          >Router navigation (control)</a
+        >
+      </li>
     </ul>
+    <button type="button" (click)="navigateProgrammatically()">
+      Programmatic navigation with document fallback
+    </button>
   </main>`,
 })
-export default class ServerComponentNavigationPage {}
+export default class ServerComponentNavigationPage {
+  private readonly router = inject(Router);
+
+  navigateProgrammatically(): void {
+    void this.router.navigateByUrl("/server-component?product=43#details");
+  }
+}

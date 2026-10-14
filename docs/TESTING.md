@@ -47,9 +47,12 @@ hydration:
   server-only-import canaries, `@angular/compiler`, the TypeScript compiler, the Vite transform and
   Node built-ins; the server output must contain them. Then HTTP SSR and Chromium hydration by DOM
   node identity, one island, one increment per click.
-- `pnpm test:server-component-navigation`: document navigation, Angular Router navigation (pinned
-  as the recorded NO-GO) and island teardown through fixture-owned probes.
-- `pnpm test:server-components:cloudflare`: the same contract on local workerd via Wrangler.
+- `pnpm test:server-component-navigation`: direct SSR, document navigation, the fixture's
+  consumer-owned Router document fallback (RouterLink and `navigateByUrl`), Back/Forward,
+  query/fragment preservation, the isolated Angular Router empty-surrogate control (pinned as
+  the recorded NO-GO), and island teardown through fixture-owned probes.
+- `pnpm test:server-components:cloudflare`: the same contract, including the document fallback,
+  on local workerd via Wrangler.
 - `pnpm test:server-component-dev`: the real Analog/Vite **dev** server and Chromium. Edits the
   fixture's `server-component-dev/*` files while `vite` runs (every byte restored) and proves: a
   server-owned edit regenerates the graph and replaces the JS realm with one document reload; a

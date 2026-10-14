@@ -92,17 +92,17 @@ itself. See [Server-only modules](#server-only-modules).
 
 ## Limitations (read these first)
 
-| Area                                                            | Status                                                  |
-| --------------------------------------------------------------- | ------------------------------------------------------- |
-| Document navigation into a Server Component page                | supported                                               |
-| Buffered SSR (Nitro `node-server`, Cloudflare Pages/workerd)    | supported                                               |
-| Angular Router navigation into a new Server Component subtree   | **unsupported** (renders the empty surrogate, silently) |
-| Streaming SSR                                                   | **unsupported**                                         |
-| Components from packages as `[strataClient]` islands            | **unsupported**                                         |
-| `NgComponentOutlet` / dynamic `createComponent` in analysis     | **unsupported** (invisible to the plugin)               |
-| Content projection into islands                                 | **not qualified**                                       |
-| Request-scoped Server Component context                         | experimental: Angular `REQUEST_CONTEXT`                 |
-| Module-level state shared between the SSR bundle and Nitro code | **separate bundles**: each evaluates its own copy       |
+| Area                                                            | Status                                                                                                                                    |
+| --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Document navigation into a Server Component page                | supported                                                                                                                                 |
+| Buffered SSR (Nitro `node-server`, Cloudflare Pages/workerd)    | supported                                                                                                                                 |
+| Angular Router navigation into a new Server Component subtree   | **unsupported** (SPA hydration renders the empty surrogate; use an explicitly configured consumer-owned document fallback experimentally) |
+| Streaming SSR                                                   | **unsupported**                                                                                                                           |
+| Components from packages as `[strataClient]` islands            | **unsupported**                                                                                                                           |
+| `NgComponentOutlet` / dynamic `createComponent` in analysis     | **unsupported** (invisible to the plugin)                                                                                                 |
+| Content projection into islands                                 | **not qualified**                                                                                                                         |
+| Request-scoped Server Component context                         | experimental: Angular `REQUEST_CONTEXT`                                                                                                   |
+| Module-level state shared between the SSR bundle and Nitro code | **separate bundles**: each evaluates its own copy                                                                                         |
 
 The full list is under [Experimental restrictions](#experimental-restrictions).
 
@@ -158,9 +158,12 @@ and the Vite environment-aware `hotUpdate` dev integration have only been tested
   registry.npmjs.org into a fresh app and re-checks resolution, the production build and graph
   split, SSR, protocol v1, hydration, one interaction and the server-only firewall (the full
   Cloudflare/workerd and dev-server qualification stays with the tarball gate).
-- **Document navigation only.** An Angular Router navigation to a route containing a server
-  component renders the empty surrogate, silently. There is no server payload or router
-  integration.
+- **Document navigation only.** Explicit document navigation into a route containing a server
+  component is supported. SPA hydration of a newly rendered server subtree remains unsupported:
+  without a consumer-owned fallback it renders the empty surrogate, silently. A consumer may
+  experimentally use a public Angular `canActivate` guard and browser document navigation to
+  protect designated routes, but this is a full reload, not seamless router integration, and is
+  not a package API or a 1.0 qualification.
 
 ## Entries
 

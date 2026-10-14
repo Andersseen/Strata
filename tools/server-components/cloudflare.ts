@@ -51,7 +51,8 @@ import { COMPATIBILITY_DATE, resolveWrangler, startWranglerPages } from "./lib/w
  *   7. Angular `@defer` inside client islands (lib/defer.ts), positive path:
  *      SSR main content, island roots, hydrate on interaction (event replay)
  *      and on viewport, each lazy chunk fetched only on its trigger
- *   8. document navigation; Angular Router navigation stays NO-GO
+ *   8. document navigation and the consumer-owned Router document fallback;
+ *      the isolated control mode keeps Angular Router navigation NO-GO
  *
  * The Angular DI assertions pin the measured workerd limitation (no JIT code
  * generation); they fail if that behaviour changes.
@@ -114,6 +115,7 @@ const verdict = {
   boundaryProtocol: false,
   defer: false,
   documentNavigation: false,
+  routerFallback: false,
   routerNegative: false,
 };
 
@@ -477,6 +479,7 @@ try {
   // 8. Navigation.
   const seen = await observeNavigation(baseUrl);
   const doc = seen.document;
+  const fallback = seen.fallback;
   const router = seen.router;
 
   section(`Document navigation: ${ORIGIN} → <a href="${DESTINATION}">`);
@@ -531,6 +534,41 @@ try {
       "no console errors, warnings or page errors",
       doc.session.errors.length === 0,
       doc.session.errors.join(" | "),
+    ),
+  ]);
+
+  section("Router document fallback: RouterLink and navigateByUrl");
+
+  const fallbackRequests = fallback.session.requests.filter(
+    (r) => r.phase === "document fallback" || r.phase === "programmatic document fallback",
+  );
+  verdict.routerFallback = all([
+    check(
+      "RouterLink and navigateByUrl reached the Worker as document requests",
+      fallbackRequests.filter(
+        (r) => r.navigation && r.resourceType === "document" && r.url === DESTINATION,
+      ).length >= 2,
+    ),
+    check(
+      "both fallback documents rendered server data and hydrated one island",
+      fallback.firstDocument.includes("<h1>Product 42</h1>") &&
+        fallback.programmaticDocument.includes("<h1>Product 42</h1>") &&
+        fallback.first.hydratedIslands === 1 &&
+        fallback.programmatic.hydratedIslands === 1 &&
+        fallback.first.remainingHydrationAnnotations === 0 &&
+        fallback.programmatic.remainingHydrationAnnotations === 0,
+    ),
+    check(
+      "query and fragment survive the Worker document fallback",
+      fallback.first.search === "?product=42" &&
+        fallback.first.hash === "#details" &&
+        fallback.programmatic.search === "?product=43" &&
+        fallback.programmatic.hash === "#details",
+    ),
+    check(
+      "no fallback browser errors",
+      fallback.session.errors.length === 0,
+      fallback.session.errors.join(" | "),
     ),
   ]);
 
@@ -594,6 +632,9 @@ console.log(
 console.log(`Client boundary protocol v1         ${verdict.boundaryProtocol ? "GO" : "NO-GO"}`);
 console.log(`Angular @defer inside client islands ${verdict.defer ? "GO" : "NO-GO"}`);
 console.log(`Server Component document navigation ${verdict.documentNavigation ? "GO" : "NO-GO"}`);
+console.log(
+  `Router document fallback            ${verdict.routerFallback ? "EXPERIMENTAL GO" : "NO-GO"}`,
+);
 console.log(
   `Angular Router navigation             ${verdict.routerNegative ? "NO-GO (limitation reproduced, unchanged by the runtime)" : "UNEXPECTED: differs from the recorded limitation"}`,
 );

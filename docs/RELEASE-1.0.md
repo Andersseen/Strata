@@ -49,9 +49,10 @@ compatibility matrix; do not check it based on intent or a demonstration.
       private values, explicit allow-listed identity resolution, shared parent/child
       service-instance evidence, failure/recovery checks and the same Node/workerd
       overlap gate ([isolation report](research/server-component-request-isolation.md)).
-- [ ] One navigation strategy is explicitly selected, documented and production-safe. Document
-      navigation may qualify only with complete routing/history coverage and consumer acceptance;
-      unsupported client subtree hydration is not advertised.
+- [ ] One navigation strategy is explicitly selected, documented and production-safe. Explicit
+      document navigation is supported; the consumer-owned Angular guard fallback is experimental
+      and a full reload, not seamless SPA navigation. Unsupported client subtree hydration is not
+      advertised and Strata 1.0 remains unqualified.
 - [ ] Ordinary/incremental hydration and `@defer` coexist under documented composition rules,
       including nested/interacting boundaries and clear errors for unsupported shapes.
       _Evidence so far (not certified):_ `@defer` inside a `[strataClient]` component is

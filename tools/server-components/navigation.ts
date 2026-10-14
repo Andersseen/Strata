@@ -59,7 +59,13 @@ checkBrowserGraph();
 checkServerGraph();
 
 const server = await startProductionServer();
-const verdict = { direct: false, document: false, routerNegative: false, teardown: false };
+const verdict = {
+  direct: false,
+  document: false,
+  fallback: false,
+  routerNegative: false,
+  teardown: false,
+};
 const scripts: ScriptRecord[] = [];
 
 try {
@@ -96,10 +102,12 @@ try {
 
   const seen = await observeNavigation(baseUrl);
   const doc = seen.document;
+  const fallback = seen.fallback;
   const router = seen.router;
   const teardown = seen.teardown;
 
   for (const flow of [doc, router, teardown]) scripts.push(...flow.session.scripts);
+  scripts.push(...fallback.session.scripts);
 
   // 3. Document navigation.
   section(`Document navigation: ${ORIGIN} → <a href="${DESTINATION}">`);
@@ -164,6 +172,67 @@ try {
     ),
   ]);
 
+  section("Router fallback: cancel SPA transition → document navigation");
+
+  const fallbackRequests = fallback.session.requests.filter(
+    (r) => r.phase === "document fallback" || r.phase === "programmatic document fallback",
+  );
+  console.log(`fallback first: ${describe(fallback.first)}`);
+  console.log(`fallback programmatic: ${describe(fallback.programmatic)}`);
+  verdict.fallback = all([
+    check(
+      "RouterLink fallback made a real document request",
+      fallbackRequests.some(
+        (r) => r.navigation && r.url === DESTINATION && r.resourceType === "document",
+      ),
+    ),
+    check("RouterLink fallback replaced the JavaScript realm", !fallback.first.sentinel),
+    check(
+      "query parameter preserved",
+      fallback.first.search === "?product=42",
+      fallback.first.search,
+    ),
+    check("fragment preserved", fallback.first.hash === "#details", fallback.first.hash),
+    check(
+      "fallback HTML contains server-rendered product",
+      fallback.firstDocument.includes("<h1>Product 42</h1>"),
+    ),
+    check("fallback HTML contains Count: 0", fallback.firstDocument.includes("Count: 0")),
+    check("fallback island hydrates", fallback.first.hydratedIslands === 1),
+    check("fallback reused SSR DOM", fallback.first.remainingHydrationAnnotations === 0),
+    check(
+      "no duplicate fallback island",
+      fallback.first.islandsCreated === 1 && fallback.first.addToCartHosts === 1,
+    ),
+    check(
+      "Back returns to the ordinary route",
+      fallback.afterBack.originHeading && fallback.afterBack.serverComponentHosts === 0,
+    ),
+    check(
+      "programmatic navigateByUrl also made a document request",
+      fallbackRequests.filter(
+        (r) => r.navigation && r.url === DESTINATION && r.resourceType === "document",
+      ).length >= 2,
+    ),
+    check(
+      "programmatic fallback preserved its query and fragment",
+      fallback.programmatic.search === "?product=43" && fallback.programmatic.hash === "#details",
+    ),
+    check(
+      "programmatic destination contains server-rendered data",
+      fallback.programmaticDocument.includes("<h1>Product 42</h1>"),
+    ),
+    check(
+      "Forward returns to a hydrated document",
+      fallback.afterForward.hydratedIslands === 1 && !fallback.afterForward.sentinel,
+    ),
+    check(
+      "no fallback console errors",
+      fallback.session.errors.length === 0,
+      fallback.session.errors.join(" | "),
+    ),
+  ]);
+
   section("Document navigation: re-entry (origin → destination → origin → destination)");
 
   const again = doc.reentry;
@@ -207,7 +276,7 @@ try {
     check("route URL changed", spa.url === DESTINATION, spa.url),
     check(
       "router navigation completed (NavigationEnd)",
-      spa.routerEvents.includes(`end ${DESTINATION}`),
+      spa.routerEvents.includes(`end ${DESTINATION}?strataNavigationControl=1`),
       spa.routerEvents.join(", "),
     ),
     check("sentinel kept: no document reload", spa.sentinel),
@@ -258,6 +327,13 @@ try {
       router.session.errors.join(" | "),
     ),
   ]);
+
+  check(
+    "control mode keeps the historical empty-surrogate scenario observable",
+    router.afterNavigation.search === "?strataNavigationControl=1" &&
+      router.afterNavigation.serverComponentChildren === 0 &&
+      router.afterNavigation.islandsCreated === 0,
+  );
 
   section("Angular Router navigation: Back and re-entry");
 
@@ -349,6 +425,7 @@ check(
 section("Classification (as measured)");
 console.log(`direct load                 ${verdict.direct ? "✓" : "✗"}`);
 console.log(`document navigation         ${verdict.document ? "GO" : "NO-GO"}`);
+console.log(`router document fallback    ${verdict.fallback ? "EXPERIMENTAL GO" : "NO-GO"}`);
 console.log(
   `router navigation           ${verdict.routerNegative ? "NO-GO (empty surrogate, no server subtree; limitation reproduced)" : "UNEXPECTED: differs from the recorded limitation"}`,
 );

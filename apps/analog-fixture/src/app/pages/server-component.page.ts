@@ -1,7 +1,13 @@
 import { ChangeDetectionStrategy, Component } from "@angular/core";
+import { defineRouteMeta } from "@analogjs/router";
 import { RouterLink } from "@angular/router";
 
+import { serverComponentDocumentNavigation } from "../server-component-document-navigation";
 import { ProductDetailsComponent } from "../server-component/product-details.component";
+
+export const routeMeta = defineRouteMeta({
+  canActivate: [serverComponentDocumentNavigation],
+});
 
 /**
  * Server-component graph PoC (docs/research/server-component-graph-poc.md).
