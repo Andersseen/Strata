@@ -101,7 +101,7 @@ itself. See [Server-only modules](#server-only-modules).
 | Components from packages as `[strataClient]` islands            | **unsupported**                                         |
 | `NgComponentOutlet` / dynamic `createComponent` in analysis     | **unsupported** (invisible to the plugin)               |
 | Content projection into islands                                 | **not qualified**                                       |
-| Request-scoped Server Component context                         | **absent**                                              |
+| Request-scoped Server Component context                         | experimental: Angular `REQUEST_CONTEXT`                 |
 | Module-level state shared between the SSR bundle and Nitro code | **separate bundles**: each evaluates its own copy       |
 
 The full list is under [Experimental restrictions](#experimental-restrictions).
@@ -176,6 +176,26 @@ The runtime entry imports only `@angular/core`. It is Angular partial-compiled b
 types and Node built-ins; nothing in the runtime entry imports it.
 
 ## Use
+
+### Request context (experimental)
+
+Angular's public `REQUEST_CONTEXT` token is available inside a Server Component,
+its nested server-owned components and server-only services during buffered SSR.
+The application provides the immutable value per render through Analog's public
+`render(..., platformProviders)` argument:
+
+```ts
+import { REQUEST_CONTEXT, inject } from "@angular/core";
+
+const context = inject(REQUEST_CONTEXT, { optional: true });
+```
+
+The optional result is `null` outside SSR or when the host did not provide a
+context. The value is server-owned: do not pass confidential fields through
+`[strataClient]` or render them into HTML. This is an experimental request
+context mechanism, not authentication, authorization, sessions or tenant
+isolation. It is qualified only for buffered document SSR; Angular Router
+navigation and streaming remain unsupported.
 
 ```ts
 // vite.config.ts

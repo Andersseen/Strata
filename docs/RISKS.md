@@ -44,7 +44,7 @@ crosses. Unsupported values (a repository instance, a nested object) are rejecte
 carrying the canary (plain, `Error.cause`, `AggregateError`) leave the public response clean on both
 runtimes, with the original error only in the server log; no runtime code changed
 ([report](research/server-component-data-security.md)). Still open: authorization; tenant and cache
-isolation; a Strata request context (cross-request Server Component data is NOT QUALIFIED); origin and
+isolation; broader request-context lifecycle and tenant semantics are NOT QUALIFIED; origin and
 CSRF rules for mutations; log and error-reporter redaction; the dev server; a real deployed
 environment.
 
@@ -57,6 +57,13 @@ some engines' `JSON.parse` messages). R11: failures add no data to public respon
 into a failing route, Back and re-entry are clean lifecycles; Angular Router navigation stays NO-GO. New finding:
 a Server Component render error answers HTTP 200 (an empty outlet, or a half-rendered component for a template
 error) and no supported Strata seam can change that. Streaming is unsupported, not qualified.
+
+Evidence note (2026-10-14), request context: the public Angular `REQUEST_CONTEXT`
+token plus Analog's public per-render `platformProviders` seam now has a narrow
+GO for Server Component buffered SSR. A deterministic 24-request overlap test
+passes in both orders on Nitro node-server and local workerd; missing context is
+safe and confidential data stays server-side. R11 remains open for authorization,
+tenant/cache isolation, logs, deployment and broader lifecycle contracts.
 
 | ID  | Risk and impact                                                                   | Uncertainty today                                                                                                                                                                                                                                                                                                                                                                                                           | Resolve by                                   | Experimental proof / fallback                                                                                                                                                                                               |
 | --- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
