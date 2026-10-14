@@ -1,5 +1,25 @@
 # Current implementation audit
 
+## Server Component request-bound authorization isolation (2026-10-14)
+
+At `4ffee83d874c86d425d5c6ea21191bbb290e5e2c`, the fixture adds a narrow,
+fixture-owned authorization scenario at `/server-component-authorized/:tenant`.
+An independent per-render provider resolves a principal only from exactly one
+synthetic opaque `HttpOnly` cookie. Route, query and arbitrary identity-header
+values remain untrusted resource or override inputs. The protected service
+checks the verified principal against the requested resource before calling its
+server-only repository; a request-local read trace proves denied requests never
+read the target record.
+
+`pnpm test:server-component-authorization` passes on Nitro node-server and
+local Wrangler/workerd with 200/no-store own-tenant reads, 401/no-store missing
+or invalid credentials, 403/no-store cross-tenant denials, 404/no-store unknown
+resources, duplicate-cookie rejection, 24-request overlap in both orders,
+expected-failure recovery, graph scans and browser document navigation with
+HttpOnly cookies. This is synthetic fixture evidence, not production
+authentication, a Strata authorization API, tenant-aware caching or a 1.0
+qualification. See the [authorization report](research/server-component-authorization-isolation.md).
+
 ## Server Component SSR response and expected service recovery (2026-10-14)
 
 At `7738b475fd82e1e6f4db8dcb642e4092c42f9356`, the public Angular/Analog API investigation found

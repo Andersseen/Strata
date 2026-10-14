@@ -97,6 +97,12 @@ jobs:
       - name: Server Component SSR response and recovery (Node + workerd)
         run: pnpm test:server-component-ssr-response
 
+      # Fixture-only synthetic principal resolution and resource authorization: the
+      # credential comes from an HttpOnly cookie, route/query/header identity inputs
+      # stay untrusted, and repository reads are observable only per request.
+      - name: Server Component authorization isolation (Node + workerd)
+        run: pnpm test:server-component-authorization
+
       # The REAL Analog/Vite dev server in Chromium: server-owned edits regenerate
       # the graph and reload the document once, client-owned edits do not, a module
       # that starts asserting server-only is refused live, and an invalid edit

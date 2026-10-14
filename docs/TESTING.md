@@ -59,6 +59,13 @@ hydration:
   document navigation/Back/re-entry. Constructor, injected-service and template render failures
   remain explicit HTTP 200 controls; this gate does not claim a general Angular render-error
   status bridge, streaming, or SPA subtree navigation.
+- `pnpm test:server-component-authorization`: fixture-only request-bound authorization for two
+  synthetic tenants. It uses one opaque HttpOnly cookie as the trusted principal, rejects missing,
+  invalid and duplicate credentials, ignores route/query/header identity overrides, proves the
+  repository is called only after ownership authorization, checks 200/401/403/404 no-store
+  responses, mixed 24-request overlap, browser cookie confidentiality and document navigation on
+  Nitro node-server and local workerd. It does not qualify production authentication or tenant-aware
+  caching.
 - `pnpm test:server-component-dev`: the real Analog/Vite **dev** server and Chromium. Edits the
   fixture's `server-component-dev/*` files while `vite` runs (every byte restored) and proves: a
   server-owned edit regenerates the graph and replaces the JS realm with one document reload; a
