@@ -42,7 +42,10 @@ export default defineConfig(() => ({
       enabled: process.env["STRATA_SERVER_COMPONENTS"] !== "off",
     }),
     analog({
-      nitro: { moduleSideEffects: ["@angular/compiler"] },
+      nitro: {
+        moduleSideEffects: ["@angular/compiler"],
+        timing: false,
+      },
       // Off by default, as in the stock template (every Angular TypeScript
       // edit then reloads the page). `pnpm test:server-component-dev` also runs
       // `vite` with this on, to prove Strata leaves Angular's component HMR
