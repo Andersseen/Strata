@@ -28,7 +28,9 @@ renders `missing` and does not select another request's value.
 - Nitro `node-server`: two rounds of 24 overlapping SSR requests, alternating
   `alpha`/`beta`, then reversing the order;
 - Cloudflare Pages through local Wrangler/workerd with the same two rounds;
-- a deterministic 12-arrival barrier across each 24-request round, not a timer delay;
+- a 250ms per-render asynchronous hold and a batch-duration check, proving the
+  24-request rounds overlap without depending on a runtime-specific in-flight
+  request barrier;
 - parent, nested child and server-only service assertions for the same identity;
 - a missing-context request after the server starts;
 - browser-output and server-output scans for the synthetic confidential value;

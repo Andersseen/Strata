@@ -30,7 +30,9 @@ async function overlappingRound(
     const alpha = index % 2 === 0 ? "alpha" : "beta";
     return reverse ? (alpha === "alpha" ? "beta" : "alpha") : alpha;
   });
+  const startedAt = performance.now();
   const bodies = await Promise.all(ids.map((id) => responseFor(baseUrl, id, round)));
+  const elapsedMs = performance.now() - startedAt;
 
   const passed = bodies.every((body, index) => {
     const id = ids[index];
@@ -50,6 +52,10 @@ async function overlappingRound(
     console.log(
       `round ${round} failed; sample response:\n${bodies[0]?.slice(-2_000) ?? "(empty)"}`,
     );
+  }
+  if (elapsedMs >= 4_000) {
+    console.log(`round ${round} took ${Math.round(elapsedMs)}ms; expected overlapping renders`);
+    return false;
   }
   return passed;
 }
