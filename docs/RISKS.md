@@ -60,10 +60,13 @@ error) and no supported Strata seam can change that. Streaming is unsupported, n
 
 Evidence note (2026-10-14), request context: the public Angular `REQUEST_CONTEXT`
 token plus Analog's public per-render `platformProviders` seam now has a narrow
-GO for Server Component buffered SSR. A deterministic 24-request overlap test
-passes in both orders on Nitro node-server and local workerd; missing context is
-safe and confidential data stays server-side. R11 remains open for authorization,
-tenant/cache isolation, logs, deployment and broader lifecycle contracts.
+GO for Server Component buffered SSR. The service-isolation fixture adds an
+allow-listed alpha/beta resolver, distinct synthetic private values, same-render
+parent/child service identity, sequential/failure recovery, and deterministic
+24-request overlap on Nitro node-server and local workerd. Missing or invalid
+context renders an empty safe state and never selects another actor.
+R11 remains open for authorization, tenant/cache isolation, logs, deployment and
+broader lifecycle contracts.
 
 | ID  | Risk and impact                                                                   | Uncertainty today                                                                                                                                                                                                                                                                                                                                                                                                           | Resolve by                                   | Experimental proof / fallback                                                                                                                                                                                               |
 | --- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

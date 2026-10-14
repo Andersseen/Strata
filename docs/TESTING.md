@@ -154,3 +154,10 @@ Each spec/report records baseline commit, exact versions/lockfile, commands, exp
 test names, artifact locations and limitations. A release record links CI runs and deployment
 results for one candidate. Mark unavailable checks as **not run**, never passed. Required remote
 checks can run in CI later but keep their gate open until their result exists.
+
+The request-context isolation fixture additionally uses two distinct synthetic
+private canaries and an identity allow-list. Its gate must prove parent, nested
+child and server-only repository agreement across 24 overlapping requests in
+both orders, fresh sequential contexts, invalid identity inputs, repository
+failure/recovery, Node and local workerd. A rejected fixture identity must render
+only the empty safe state; it must never select another actor's data.

@@ -1,5 +1,7 @@
+export type RequestContextIdentity = "alpha" | "beta";
+
 export interface RequestContextFixtureValue {
-  readonly id: "alpha" | "beta";
+  readonly id: RequestContextIdentity;
   readonly round: string;
-  readonly confidential: string;
+  readonly operation: "read" | "fail";
 }

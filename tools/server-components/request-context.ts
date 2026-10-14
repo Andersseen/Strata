@@ -1,4 +1,5 @@
 import { httpGet } from "../analog/lib/process.ts";
+import type { HttpResult } from "../analog/lib/process.ts";
 
 import {
   BROWSER_DIRS,
@@ -14,11 +15,21 @@ import { COMPATIBILITY_DATE, resolveWrangler, startWranglerPages } from "./lib/w
 
 const TITLE = "Server Component request context";
 const ROUTE = "/server-component-request-context";
-const CONFIDENTIAL = "request-context-confidential-alpha-beta";
+const PRIVATE_VALUES = [
+  "STRATA_REQUEST_PRIVATE_ALPHA_5B7C9D1E",
+  "STRATA_REQUEST_PRIVATE_BETA_2F8A4C6D",
+] as const;
 const stop = (): never => finish(TITLE);
+const rendered = (body: string, attribute: string, value: string): boolean =>
+  new RegExp(`${attribute}[^>]*>${value}</`).test(body);
 
-function responseFor(baseUrl: string, id: "alpha" | "beta", round: string): Promise<string> {
-  return httpGet(`${baseUrl}${ROUTE}/${id}?round=${round}`).then((response) => response.body);
+function responseFor(
+  baseUrl: string,
+  id: "alpha" | "beta",
+  round: string,
+  query = "",
+): Promise<HttpResult> {
+  return httpGet(`${baseUrl}${ROUTE}/${id}?round=${round}${query}`, 10_000);
 }
 
 async function overlappingRound(
@@ -31,7 +42,8 @@ async function overlappingRound(
     return reverse ? (alpha === "alpha" ? "beta" : "alpha") : alpha;
   });
   const startedAt = performance.now();
-  const bodies = await Promise.all(ids.map((id) => responseFor(baseUrl, id, round)));
+  const responses = await Promise.all(ids.map((id) => responseFor(baseUrl, id, round)));
+  const bodies = responses.map((response) => response.body);
   const elapsedMs = performance.now() - startedAt;
 
   const passed = bodies.every((body, index) => {
@@ -43,9 +55,10 @@ async function overlappingRound(
       parent.test(body) &&
       child.test(body) &&
       service.test(body) &&
+      /data-request-context-service-instance[^>]*>shared<\/p>/.test(body) &&
       body.includes("client-ready 0") &&
       !body.includes(id === "alpha" ? "beta:verified" : "alpha:verified") &&
-      !body.includes(CONFIDENTIAL)
+      PRIVATE_VALUES.every((value) => !body.includes(value))
     );
   });
   if (!passed) {
@@ -60,15 +73,84 @@ async function overlappingRound(
   return passed;
 }
 
+async function adversarialRequests(baseUrl: string, runtime: string): Promise<boolean> {
+  section(`${runtime}: rejected context and failure recovery`);
+  const cases = [
+    ["missing context", "/alpha?missing=true"],
+    ["unknown identity", "/gamma"],
+    ["malformed identity", "/%20alpha"],
+    ["mismatched requested resource", "/alpha?resource=beta"],
+  ] as const;
+  const rejected = await Promise.all(
+    cases.map(async ([label, path]) => ({
+      label,
+      response: await httpGet(`${baseUrl}${ROUTE}${path}`, 5_000),
+    })),
+  );
+  const rejectedSafely = rejected.every(
+    ({ response }) =>
+      response.status === 200 &&
+      !rendered(response.body, "data-request-context-parent", "alpha") &&
+      !rendered(response.body, "data-request-context-parent", "beta") &&
+      PRIVATE_VALUES.every((value) => !response.body.includes(value)),
+  );
+  for (const { label, response } of rejected) {
+    check(
+      `${label} fails closed with HTTP ${response.status} and empty safe render`,
+      response.status === 200 &&
+        !rendered(response.body, "data-request-context-parent", "alpha") &&
+        !rendered(response.body, "data-request-context-parent", "beta"),
+    );
+  }
+  check("invalid contexts never select another actor or expose private values", rejectedSafely);
+
+  const failed = await responseFor(baseUrl, "alpha", `${runtime}-failure`, "&fail=true");
+  check(
+    "a failing repository operation is rejected without a safe success result",
+    failed.status === 200 &&
+      !failed.body.includes("alpha:verified") &&
+      rendered(failed.body, "data-request-context-parent", "alpha"),
+  );
+  const recovered = await responseFor(baseUrl, "beta", `${runtime}-recovery`);
+  return check(
+    "a successful request immediately after failure is isolated",
+    recovered.status === 200 &&
+      rendered(recovered.body, "data-request-context-parent", "beta") &&
+      rendered(recovered.body, "data-request-context-service", "beta:verified") &&
+      !recovered.body.includes("alpha:verified"),
+  );
+}
+
+async function sequentialRequests(baseUrl: string, runtime: string): Promise<boolean> {
+  section(`${runtime}: sequential renders with fresh contexts`);
+  const responses = [];
+  for (const [index, id] of (["alpha", "beta", "alpha", "beta"] as const).entries()) {
+    responses.push(await responseFor(baseUrl, id, `${runtime}-sequential-${index}`));
+  }
+  return check(
+    "sequential renders do not inherit the previous private state",
+    responses.every(
+      (response, index) =>
+        response.status === 200 &&
+        rendered(
+          response.body,
+          "data-request-context-parent",
+          index % 2 === 0 ? "alpha" : "beta",
+        ) &&
+        response.body.includes(`${index % 2 === 0 ? "alpha" : "beta"}:verified`),
+    ),
+  );
+}
+
 async function qualifyNode(): Promise<boolean> {
   section("Nitro node-server: overlapping SSR renders");
   const server = await startProductionServer();
   try {
-    const missing = await httpGet(`${server.baseUrl}${ROUTE}/alpha?missing=true`);
-    check("missing context is safe and explicit", missing.body.includes(">missing</p>"));
     return (
       (await overlappingRound(server.baseUrl, "node-forward", false)) &&
-      (await overlappingRound(server.baseUrl, "node-reverse", true))
+      (await overlappingRound(server.baseUrl, "node-reverse", true)) &&
+      (await sequentialRequests(server.baseUrl, "Node")) &&
+      (await adversarialRequests(server.baseUrl, "Node"))
     );
   } finally {
     await server.stop();
@@ -82,7 +164,9 @@ async function qualifyWorkerd(): Promise<boolean> {
   try {
     return (
       (await overlappingRound(server.baseUrl, "workerd-forward", false)) &&
-      (await overlappingRound(server.baseUrl, "workerd-reverse", true))
+      (await overlappingRound(server.baseUrl, "workerd-reverse", true)) &&
+      (await sequentialRequests(server.baseUrl, "workerd")) &&
+      (await adversarialRequests(server.baseUrl, "workerd"))
     );
   } finally {
     await server.stop();
@@ -92,8 +176,14 @@ async function qualifyWorkerd(): Promise<boolean> {
 build("Node", { BUILD_PRESET: undefined }, stop);
 const browser = dirGraph("browser", BROWSER_DIRS);
 check(
-  "confidential fixture value is absent from browser output",
-  graphFilesWith(browser, CONFIDENTIAL).length === 0,
+  "both private fixture values are absent from browser output",
+  PRIVATE_VALUES.every((value) => graphFilesWith(browser, value).length === 0),
+);
+check(
+  "both private fixture values are present in the server graph",
+  PRIVATE_VALUES.every(
+    (value) => graphFilesWith(dirGraph("server", ["analog/server"]), value).length > 0,
+  ),
 );
 check(
   "request-context server module is present in SSR output",
