@@ -29,6 +29,8 @@ export interface ScriptRecord {
 /** A point-in-time read of the document. */
 export interface DomSnapshot {
   readonly url: string;
+  readonly search: string;
+  readonly hash: string;
   /** The sentinel set before the navigation survived: the same JavaScript realm. */
   readonly sentinel: boolean;
   /** Navigation Timing entry of the current document: its URL and type. */
@@ -77,7 +79,7 @@ declare const window: {
   __STRATA_NAVIGATION_SENTINEL__?: string;
   __STRATA_ISLAND_PROBE__?: { created: number; destroyed: number };
   __STRATA_ROUTER_PROBE__?: string[];
-  readonly location: { readonly pathname: string };
+  readonly location: { readonly pathname: string; readonly search: string; readonly hash: string };
 };
 declare const performance: {
   getEntriesByType(type: string): readonly { readonly name: string; readonly type: string }[];
@@ -139,6 +141,8 @@ async function open(browser: Browser, url: string): Promise<Session> {
 
         return {
           url: window.location.pathname,
+          search: window.location.search,
+          hash: window.location.hash,
           sentinel: window.__STRATA_NAVIGATION_SENTINEL__ === "set-before-navigation",
           documentEntry: entry ? `${new URL(entry.name).pathname} (${entry.type})` : "none",
           originHeading:
@@ -275,6 +279,67 @@ export interface RouterFlow {
   readonly session: Session;
 }
 
+export interface FallbackFlow {
+  readonly first: DomSnapshot;
+  readonly firstDocument: string;
+  readonly afterBack: DomSnapshot;
+  readonly programmatic: DomSnapshot;
+  readonly programmaticDocument: string;
+  readonly afterBackFromProgrammatic: DomSnapshot;
+  readonly afterForward: DomSnapshot;
+  readonly session: Session;
+}
+
+async function waitForDocumentDestination(session: Session, search: string): Promise<void> {
+  await session.page.waitForURL((url) => url.pathname === DESTINATION && url.search === search);
+  await session.page.waitForLoadState("networkidle");
+}
+
+async function fallbackFlow(browser: Browser, baseUrl: string): Promise<FallbackFlow> {
+  const session = await open(browser, `${baseUrl}${ORIGIN}`);
+  const { page } = session;
+
+  await setSentinel(session);
+  session.phase("document fallback");
+  await page.getByRole("link", { name: "Router navigation with document fallback" }).click();
+  await waitForDocumentDestination(session, "?product=42");
+  const first = await session.snapshot();
+  const firstDocument = session.documents.get(DESTINATION) ?? "";
+
+  session.phase("document fallback back");
+  await page.goBack({ waitUntil: "load" });
+  await page.waitForLoadState("networkidle");
+  const afterBack = await session.snapshot();
+
+  session.phase("programmatic document fallback");
+  await page
+    .getByRole("button", { name: "Programmatic navigation with document fallback" })
+    .click();
+  await waitForDocumentDestination(session, "?product=43");
+  const programmatic = await session.snapshot();
+  const programmaticDocument = session.documents.get(DESTINATION) ?? "";
+
+  session.phase("programmatic fallback back");
+  await page.goBack({ waitUntil: "load" });
+  await page.waitForLoadState("networkidle");
+  const afterBackFromProgrammatic = await session.snapshot();
+
+  session.phase("programmatic fallback forward");
+  await page.goForward({ waitUntil: "load" });
+  await page.waitForLoadState("networkidle");
+
+  return {
+    first,
+    firstDocument,
+    afterBack,
+    programmatic,
+    programmaticDocument,
+    afterBackFromProgrammatic,
+    afterForward: await session.snapshot(),
+    session,
+  };
+}
+
 /**
  * origin → RouterLink → destination → Back → RouterLink again. The
  * characterization under test: nothing is fixed before it is measured.
@@ -288,7 +353,7 @@ async function routerFlow(browser: Browser, baseUrl: string): Promise<RouterFlow
   const beforeNavigation = await session.snapshot();
 
   session.phase("router navigation");
-  await page.getByRole("link", { name: "Router navigation" }).click();
+  await page.getByRole("link", { name: "Router navigation (control)" }).click();
   await routerSettled(session, DESTINATION, beforeNavigation.routerEvents.length);
 
   const afterNavigation = await session.snapshot();
@@ -300,7 +365,7 @@ async function routerFlow(browser: Browser, baseUrl: string): Promise<RouterFlow
   const afterBack = await session.snapshot();
 
   session.phase("router re-entry");
-  await page.getByRole("link", { name: "Router navigation" }).click();
+  await page.getByRole("link", { name: "Router navigation (control)" }).click();
   await routerSettled(session, DESTINATION, afterBack.routerEvents.length);
 
   return {
@@ -342,7 +407,7 @@ async function teardownFlow(browser: Browser, baseUrl: string): Promise<Teardown
   const afterLeave = await session.snapshot();
 
   session.phase("router re-entry after teardown");
-  await page.getByRole("link", { name: "Router navigation" }).click();
+  await page.getByRole("link", { name: "Router navigation (control)" }).click();
   await routerSettled(session, DESTINATION, afterLeave.routerEvents.length);
 
   return {
@@ -356,6 +421,7 @@ async function teardownFlow(browser: Browser, baseUrl: string): Promise<Teardown
 
 export interface NavigationObservation {
   readonly document: DocumentFlow;
+  readonly fallback: FallbackFlow;
   readonly router: RouterFlow;
   readonly teardown: TeardownFlow;
 }
@@ -366,6 +432,7 @@ export async function observeNavigation(baseUrl: string): Promise<NavigationObse
   try {
     return {
       document: await documentFlow(browser, baseUrl),
+      fallback: await fallbackFlow(browser, baseUrl),
       router: await routerFlow(browser, baseUrl),
       teardown: await teardownFlow(browser, baseUrl),
     };
