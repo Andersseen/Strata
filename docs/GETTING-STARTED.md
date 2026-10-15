@@ -10,14 +10,15 @@ page only orients you; it never overrides those two documents.
 
 ## What is published
 
-| Package                                                                   | Registry status                                              | Role                                                     |
-| ------------------------------------------------------------------------- | ------------------------------------------------------------ | -------------------------------------------------------- |
-| [`@strata-sc/core`](../packages/core/README.md)                           | npm, `next` dist-tag                                         | `@Controller` and HTTP method decorators (metadata only) |
-| [`@strata-sc/analog`](../packages/analog/README.md)                       | npm, `next` dist-tag                                         | Registers controllers on Analog/Nitro's router           |
-| [`@strata-sc/server-components`](../packages/server-components/README.md) | npm, `next` dist-tag; experimental, document navigation only | Server Components with explicit `[strataClient]` islands |
-| [`@strata-sc/h3`](../packages/h3/package.json)                            | **private, not published**                                   | Registers controllers on an H3 v2 app                    |
+| Package                                                                   | Registry status                                    | Role                                                     |
+| ------------------------------------------------------------------------- | -------------------------------------------------- | -------------------------------------------------------- |
+| [`@strata-sc/core`](../packages/core/README.md)                           | npm, `0.x`                                         | `@Controller` and HTTP method decorators (metadata only) |
+| [`@strata-sc/analog`](../packages/analog/README.md)                       | npm, `0.x`                                         | Registers controllers on Analog/Nitro's router           |
+| [`@strata-sc/server-components`](../packages/server-components/README.md) | npm, `0.x`; experimental, document navigation only | Server Components with explicit `[strataClient]` islands |
+| [`@strata-sc/h3`](../packages/h3/package.json)                            | **private, not published**                         | Registers controllers on an H3 v2 app                    |
 
-The `next` dist-tag is the supported channel. `0.x` releases may break in any version. Check the
+Stable releases are on the `latest` dist-tag; release candidates, when there are any, on `next`
+([ADR-005](adr/005-npm-dist-tag-channels.md)). `0.x` releases may break in any minor. Check the
 [release gates](RELEASE-1.0.md): nothing here is a 1.0 promise.
 
 ## Prerequisites
@@ -31,8 +32,8 @@ The `next` dist-tag is the supported channel. `0.x` releases may break in any ve
 ## Install in an application
 
 ```bash
-pnpm add @strata-sc/core@next @strata-sc/analog@next
-pnpm add @strata-sc/server-components@next   # only for Server Components
+pnpm add @strata-sc/core @strata-sc/analog
+pnpm add @strata-sc/server-components   # only for Server Components
 ```
 
 External projects should install from the registry rather than link to a checkout.

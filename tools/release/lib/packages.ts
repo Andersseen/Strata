@@ -35,9 +35,6 @@ export const CONTROLLER_PACKAGE_CONSUMER_PACKAGES: readonly PublishablePackage[]
 /** Never published: still private. */
 export const EXCLUDED_PACKAGES: readonly string[] = ["@strata-sc/h3"];
 
-/** Experimental releases never move `latest`. */
-export const DIST_TAG: string = "next";
-
 export interface PackageManifest {
   name: string;
   version: string;
@@ -70,10 +67,6 @@ export function assertPublishSelection(packages: readonly PublishablePackage[]):
     throw new Error(
       `Publish selection includes excluded package(s): ${leaked.map(({ name }) => name).join(", ")}.`,
     );
-  }
-
-  if (DIST_TAG === "latest") {
-    throw new Error("Experimental releases must not publish to the `latest` dist-tag.");
   }
 }
 

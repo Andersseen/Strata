@@ -5,10 +5,10 @@ import { fileURLToPath } from "node:url";
 
 import { run } from "../consumer/lib/exec.ts";
 
+import { distTagFor } from "./lib/dist-tags.ts";
 import {
   assertPublishSelection,
   describeTarball,
-  DIST_TAG,
   inspectTarball,
   packPackage,
   REGISTRY_PACKAGES,
@@ -16,10 +16,12 @@ import {
 
 /**
  * Local pack → inspect → `npm publish` of the registry packages
- * (@strata-sc/core, @strata-sc/analog, @strata-sc/server-components) under the
- * `next` dist-tag. Never publishes @strata-sc/h3 (excluded, private) or moves
- * `latest`. The automated release is `changesets/action` in
- * .github/workflows/release.yml (`changeset publish --tag next`); this script is
+ * (@strata-sc/core, @strata-sc/analog, @strata-sc/server-components) on the
+ * dist-tag their version belongs to (`latest` for stable, `next` for
+ * prereleases; ADR-005). Never publishes @strata-sc/h3 (excluded, private).
+ * The automated release is `changesets/action` in
+ * .github/workflows/release.yml (`changeset publish`, then
+ * `release:sync-dist-tags`); this script is
  * its dry-run rehearsal (`pnpm release:packages:dry-run`) and manual fallback.
  * A package still at 0.0.0 (version owned by Changesets) fails inspection.
  *
@@ -99,9 +101,7 @@ let failed = false;
 
 try {
   assertPublishSelection(REGISTRY_PACKAGES);
-  console.log(
-    `${label} packages: ${REGISTRY_PACKAGES.map(({ name }) => name).join(", ")} → dist-tag "${DIST_TAG}"`,
-  );
+  console.log(`${label} packages: ${REGISTRY_PACKAGES.map(({ name }) => name).join(", ")}`);
 
   const blocker = scopePreflight();
   if (blocker) {
@@ -123,7 +123,10 @@ try {
       continue;
     }
 
-    const publishArgs = ["publish", inspection.path, "--tag", DIST_TAG, "--access", "public"];
+    const distTag = distTagFor(version);
+    console.log(`${label} ${name}@${version} → dist-tag "${distTag}"`);
+
+    const publishArgs = ["publish", inspection.path, "--tag", distTag, "--access", "public"];
     if (provenance) publishArgs.push("--provenance");
     if (dryRun) publishArgs.push("--dry-run");
 
@@ -138,8 +141,8 @@ try {
         string
       >;
       console.log(`${label} ${name} dist-tags: ${JSON.stringify(tags)}`);
-      if (tags[DIST_TAG] !== version) {
-        throw new Error(`${name} dist-tag "${DIST_TAG}" does not point at ${version}.`);
+      if (tags[distTag] !== version) {
+        throw new Error(`${name} dist-tag "${distTag}" does not point at ${version}.`);
       }
     }
   }

@@ -31,10 +31,10 @@ class UsersController {
 An adapter registers controllers on a router you create and keep control of. Strata does not own
 the HTTP runtime. The two adapters target **different H3 majors**:
 
-| Adapter                                 | Runtime it registers on                            | H3 major |
-| --------------------------------------- | -------------------------------------------------- | -------- |
-| `@strata-sc/h3` (private, unpublished)  | An `H3` app you create                             | **v2**   |
-| `@strata-sc/analog` (published, `next`) | `nitroApp.router`, owned by Nitro 2 under Analog 2 | **v1**   |
+| Adapter                                | Runtime it registers on                            | H3 major |
+| -------------------------------------- | -------------------------------------------------- | -------- |
+| `@strata-sc/h3` (private, unpublished) | An `H3` app you create                             | **v2**   |
+| `@strata-sc/analog` (published, `0.x`) | `nitroApp.router`, owned by Nitro 2 under Analog 2 | **v1**   |
 
 Do not mix them up: Analog 2 runs on Nitro 2, which runs on H3 v1, so the H3 v2 adapter does not
 apply to Analog. `@strata-sc/analog` depends only on `@strata-sc/core` and exposes no H3
@@ -84,7 +84,7 @@ For the source-level examples, including the factory and cleanup, see the
 
 ## Server Components
 
-`@strata-sc/server-components` (experimental, `next`) renders a `@ServerComponent()` on the server
+`@strata-sc/server-components` (experimental, `0.x`) renders a `@ServerComponent()` on the server
 and keeps its implementation out of the browser graph. Interactivity comes only from explicit
 `[strataClient]` islands that Angular hydrates over the server-rendered DOM. Setup is a Vite plugin
 (`strataServerComponents` from `@strata-sc/server-components/vite`) placed **before** `analog()`;

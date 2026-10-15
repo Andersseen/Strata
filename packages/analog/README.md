@@ -73,8 +73,9 @@ run after the invocation settles.
   committing routes: that error propagates, and routes the router already
   accepted cannot be rolled back.
 
-**Pre-1.0 and experimental.** `0.x` releases are published under the `next`
-dist-tag and may contain breaking changes. ESM only, Node.js >= 22.
+**Pre-1.0 and experimental.** `0.x` releases may contain breaking changes in any
+minor. Release candidates are published on the `next` dist-tag. ESM only,
+Node.js >= 22.
 
 See the [repository README](https://github.com/Andersseen/Strata#readme) for
 documentation. License: MIT.

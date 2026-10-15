@@ -16,7 +16,7 @@ Strata makes server-side Angular a coherent application model, on two pillars:
   their implementation or server dependencies to the browser. Only children
   marked as explicit client boundaries (`[strataClient]`) hydrate, as
   interactive islands. **Experimental:** `@strata-sc/server-components` is
-  prepared for its first release on the npm `next` channel (0.x, API may change before 1.0); it is dogfooded on the official website and
+  published on npm as `0.x` (API may change before 1.0); it is dogfooded on the official website and
   qualified in this repository on Node/Nitro and Cloudflare workerd, for
   initial/document navigation only (Angular Router SPA navigation into a new
   Server Component subtree is not supported yet). See
@@ -24,7 +24,7 @@ Strata makes server-side Angular a coherent application model, on two pillars:
 - **Controllers** — declare HTTP APIs with standard-decorator controllers
   (`@Get`, `@Post`, `@Put`, `@Patch`, `@Delete`) and register them on the
   Nitro/H3 router you already own. `@strata-sc/core` and `@strata-sc/analog`
-  are published as `0.x` under `next`.
+  are published on npm as `0.x`.
 
 Both leave Angular, Analog and Nitro in control of their runtime. Strata is
 experimental, intentionally narrow, and designed in public.
@@ -165,17 +165,18 @@ the first merged deployment.
 
 ## Installation
 
-**Registry (experimental).** `@strata-sc/core` and `@strata-sc/analog` are published
-to npm only under the `next` dist-tag (the first publish is pending). `0.x`
-versions are pre-1.0 and may break:
+**Registry (experimental).** `@strata-sc/core`, `@strata-sc/analog` and
+`@strata-sc/server-components` are published to npm. `0.x` versions are pre-1.0
+and may break in any minor:
 
 ```bash
-pnpm add @strata-sc/core@next @strata-sc/analog@next
+pnpm add @strata-sc/core @strata-sc/analog
 ```
 
-`@strata-sc/h3` is not published to npm yet (see
-[SPEC-002](./docs/specs/002-h3-consumer-type-closure.md) and
-[ADR-004](./docs/adr/004-experimental-npm-distribution.md)).
+Stable releases are on the `latest` dist-tag; release candidates go to `next`
+([ADR-005](./docs/adr/005-npm-dist-tag-channels.md)). `@strata-sc/h3` is not
+published to npm yet (see [SPEC-002](./docs/specs/002-h3-consumer-type-closure.md)
+and [ADR-004](./docs/adr/004-experimental-npm-distribution.md)).
 
 **Source (`main`).** To work on Strata itself, clone the repository and use the
 pnpm workspace (`pnpm install && pnpm build`). Workspace packages are linked
@@ -191,10 +192,13 @@ Releases are automated with [Changesets](./.changeset) and the
    `patch`, `minor` or `major` for each package it touches.
 2. On merge to `main`, the workflow opens or updates a **Version Packages** PR
    with the bumped versions and CHANGELOGs.
-3. Merging that PR publishes `@strata-sc/core` and `@strata-sc/analog` to npm under the
-   `next` dist-tag and creates the matching git tags and GitHub Releases.
+3. Merging that PR publishes the changed packages to npm on the `latest`
+   dist-tag, aligns the dist-tags, and creates the matching git tags and GitHub
+   Releases.
 
-While packages are `0.x`, breaking changes are released as `minor`.
+While packages are `0.x`, breaking changes are released as `minor`. Release
+candidates use Changesets pre mode (`pnpm changeset pre enter next`) and are
+published on `next` without touching `latest`.
 `@strata-sc/h3` is private and is not published.
 
 See [GitHub releases](https://github.com/Andersseen/Strata/releases) and
@@ -207,8 +211,7 @@ This repository is still in early development. `@strata-sc/core` has a first
 ECMAScript decorators, and `@strata-sc/h3` now wires that metadata into a real
 [H3](https://h3.dev) app. `@strata-sc/analog` registers the same controllers inside an
 [Analog](https://analogjs.org) 2 app. Everything here is **experimental and pre-1.0**. `@strata-sc/core` and
-`@strata-sc/analog` are published to npm only under the experimental `next` dist-tag (first
-publish pending).
+`@strata-sc/analog` are published to npm as `0.x`.
 
 ```ts
 import { H3 } from "h3";
@@ -374,7 +377,7 @@ integration:** `@strata-sc/analog` has request input, per-request controllers, r
 conditional go for Angular DI ([SPEC-003](./docs/specs/003-analog-request-lifecycle-angular-di.md)).
 Strict Server Component PoCs reached a conditional go on Node and on local Cloudflare workerd, for
 document navigation only; Angular Router navigation is a recorded no-go. Their mechanism lives in the
-experimental `@strata-sc/server-components` package (first `next` release in preparation). Analog integration is still limited to
+experimental `@strata-sc/server-components` package (published as `0.x`). Analog integration is still limited to
 GET controllers on the Nitro router, and Strata will not use legacy parameter decorators.
 
 Strata 1.0 requires production-ready **Server Components** in a real
@@ -386,12 +389,12 @@ See the [1.0 release gates](./docs/RELEASE-1.0.md).
 
 ## Packages
 
-| Package                                                        | Description                                                                                                          |
-| -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| [`@strata-sc/core`](./packages/core)                           | Experimental `@Controller` / `@Get` metadata primitive.                                                              |
-| [`@strata-sc/h3`](./packages/h3)                               | Experimental H3 adapter: registers Strata controllers on an H3 app.                                                  |
-| [`@strata-sc/analog`](./packages/analog)                       | Experimental Analog adapter: registers Strata controllers on the Nitro router.                                       |
-| [`@strata-sc/server-components`](./packages/server-components) | **Experimental (`next`).** Server Component graph split: marker, client boundary, island runtime and Vite transform. |
+| Package                                                        | Description                                                                                                         |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| [`@strata-sc/core`](./packages/core)                           | Experimental `@Controller` / `@Get` metadata primitive.                                                             |
+| [`@strata-sc/h3`](./packages/h3)                               | Experimental H3 adapter: registers Strata controllers on an H3 app.                                                 |
+| [`@strata-sc/analog`](./packages/analog)                       | Experimental Analog adapter: registers Strata controllers on the Nitro router.                                      |
+| [`@strata-sc/server-components`](./packages/server-components) | **Experimental (`0.x`).** Server Component graph split: marker, client boundary, island runtime and Vite transform. |
 
 ## Stack
 

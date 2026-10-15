@@ -55,10 +55,9 @@ Reconciled 2026-09-24 at `c671ba4` + SPEC-003 branch. See [STATE](STATE.md#recon
   Router navigation NO-GO. The mechanism is the private, unpublished
   `@strata-sc/server-components` package ([README](../packages/server-components/README.md)); no
   production implementation or public API exists.
-- Packages are experimental `0.1.0`; only
-  `@strata-sc/core` and `@strata-sc/analog` are published to npm, under the `next` dist-tag (first
-  publish pending)
-  ([ADR-004](adr/004-experimental-npm-distribution.md)).
+- Packages are experimental `0.x`; `@strata-sc/core`, `@strata-sc/analog` and
+  `@strata-sc/server-components` are published to npm, stable releases on `latest`
+  ([ADR-004](adr/004-experimental-npm-distribution.md), [ADR-005](adr/005-npm-dist-tag-channels.md)).
 - 1.0 requires production Server Components, automated boundary evidence and a real consumer.
 
 ## Accepted decisions
@@ -66,7 +65,9 @@ Reconciled 2026-09-24 at `c671ba4` + SPEC-003 branch. See [STATE](STATE.md#recon
 - [ADR-001: standard decorators and explicit metadata](adr/001-standard-decorators.md).
 - [ADR-002: independent core and an initially H3 v2 adapter](adr/002-core-and-h3-target.md).
 - [ADR-003: Server Components are a production release gate](adr/003-server-components-release-gate.md).
-- [ADR-004: experimental npm distribution of core and analog under `next`](adr/004-experimental-npm-distribution.md).
+- [ADR-004: experimental npm distribution of core and analog under `next`](adr/004-experimental-npm-distribution.md)
+  (dist-tag rule superseded by ADR-005).
+- [ADR-005: stable releases on `latest`, prereleases on `next`](adr/005-npm-dist-tag-channels.md).
 
 DI, consumer compiler strategy, component protocol and navigation protocol have **no accepted ADR**
 yet. Their experiments are planned in the roadmap; their APIs are not frozen.

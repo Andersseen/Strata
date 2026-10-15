@@ -4,7 +4,8 @@ type: decision
 
 # ADR-004: Experimental npm distribution of core and analog under `next`
 
-- Status: Accepted — distribution boundary only; no API or stability change
+- Status: Accepted — distribution boundary only; no API or stability change. The dist-tag rule
+  ("`next`, never `latest`") is superseded by [ADR-005](005-npm-dist-tag-channels.md).
 - Date: 2026-09-25
 - Evidence: `pnpm test:package-consumer`, `pnpm release:packages:dry-run`,
   `publish-packages.yml` workflow (later replaced by [release workflow](../../.github/workflows/release.yml))

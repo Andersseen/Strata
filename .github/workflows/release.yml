@@ -6,10 +6,13 @@ name: Release
 #   that bumps versions (patch/minor/major, as declared in each changeset) and
 #   writes the CHANGELOGs.
 # - If there are none (e.g. that version PR was just merged), it publishes every
-#   non-private package whose version is not on npm yet, under the `next`
-#   dist-tag (never `latest`) with npm provenance, and creates the git tags and
-#   GitHub Releases. When @strata-sc/server-components was among the published
-#   packages, the registry consumer then verifies that exact version.
+#   non-private package whose version is not on npm yet, with npm provenance,
+#   and creates the git tags and GitHub Releases. Stable versions go to the
+#   `latest` dist-tag; prereleases (Changesets pre mode, `changeset pre enter
+#   next`) go to `next` (ADR-005). It then aligns the dist-tags of the current
+#   versions (idempotent; repairs anything published off-policy). When
+#   @strata-sc/server-components was among the published packages, the registry
+#   consumer then verifies that exact version.
 #
 # Requires the repository secret NPM_TOKEN (npm granular token with publish
 # access to @strata-sc/*), and "Allow GitHub Actions to create and approve pull
@@ -74,10 +77,17 @@ jobs:
         with:
           commit-message: "chore(release): version packages"
           pr-title: "chore(release): version packages"
-          publish-script: pnpm changeset publish --tag next
+          # No --tag: Changesets publishes to `latest`, or to the pre-mode tag for prereleases.
+          publish-script: pnpm changeset publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: "true"
+
+      - name: Align npm dist-tags
+        if: steps.changesets.outputs.hasChangesets == 'false'
+        run: pnpm release:sync-dist-tags
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       # Post-publish gate: only when this run actually published
       # @strata-sc/server-components. Installs that exact version from

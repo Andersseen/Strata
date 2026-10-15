@@ -35,8 +35,9 @@ function importsOf(dir: string): string[] {
 describe("package boundary", () => {
   it("is public with Changesets owning the version and the release workflow owning the dist-tag", () => {
     expect(manifest.private).toBeUndefined();
-    expect(manifest.version).toMatch(/^\d+\.\d+\.\d+$/);
-    // No `tag`: `changeset publish --tag next` (release.yml) is the single source of truth.
+    // Prerelease versions come from Changesets pre mode (`changeset pre enter next`).
+    expect(manifest.version).toMatch(/^\d+\.\d+\.\d+(-next\.\d+)?$/);
+    // No `tag`: release.yml picks the dist-tag from the version (ADR-005).
     expect(manifest.publishConfig).toEqual({ access: "public" });
   });
 
