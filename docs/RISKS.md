@@ -11,6 +11,14 @@ Router navigation NO-GO) in the private `@strata-sc/server-components` package a
 [navigation](research/server-component-navigation-poc.md) and
 [Cloudflare](research/server-component-cloudflare-poc.md) reports.
 
+Evidence note (2026-10-15), no disposition changed: R16 and R17 gain one more fixture datum.
+`pnpm test:full-stack-package-consumer` installs the three packed packages (`core` 0.2.1, `analog` 0.2.1,
+`server-components` 0.2.0) into one external Analog app and runs a controller API, a server-only Server
+Component and a hydrated island that calls the API, on Nitro and local workerd
+([report](research/full-stack-external-consumer.md)). Controller and Angular SSR DI remain independent
+(R03 unchanged); it is still a fixture, not a real application (R17 open), local workerd is not a
+deployment, and unmatched `/api/*` paths fall through to Analog's HTML catch-all.
+
 Evidence note (2026-10-05), R05 only: R05 is **partially resolved / substantially qualified** for
 module-graph ownership, not closed. The private package's server-only assertion
 (`import "@strata-sc/server-components/server-only"`) makes the build reject, with a diagnostic

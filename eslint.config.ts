@@ -28,6 +28,9 @@ export default config(
       // External Analog consumer of the packed @strata-sc/server-components,
       // installed with npm outside the workspace (test:server-component-package-consumer).
       "tests/server-component-package-consumer/fixture/**",
+      // External full-stack consumer of the three packed packages, installed with
+      // npm outside the workspace (test:full-stack-package-consumer).
+      "tests/full-stack-package-consumer/fixture/**",
       // Analog integration fixture (apps/analog-fixture): compiled by Analog's
       // own Angular/Nitro pipelines with the stock `experimentalDecorators`
       // tsconfig, never by this repo's tsconfigs. Its authored TypeScript is

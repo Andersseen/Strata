@@ -81,6 +81,15 @@ hydration:
   firewall (direct, dynamic, `?raw`) from the installed plugin, `vite` dev with one server-owned edit and
   a Cloudflare build on local workerd. Nothing is published; the package stays private.
 
+- `pnpm test:full-stack-package-consumer`: packs `@strata-sc/core`, `@strata-sc/analog` and
+  `@strata-sc/server-components`, installs the three tarballs with `npm` into one Analog app outside the
+  workspace (`tests/full-stack-package-consumer/fixture`) and proves tarball/lock/single-core identity,
+  declarations (TypeScript 6.0.3 and 5.9.2, `skipLibCheck: false`), a Strata controller API
+  (routing, 404, request-scoped lifecycle, native route), a server-only `@ServerComponent()`, a hydrated
+  island calling the API (one click, one request, one update), document navigation with
+  `strataDocumentNavigationGuard`, graph/canary scans and the server-only firewall on Node and local
+  workerd. It does not share Angular DI with the controller and is not production adoption.
+
 These cover one code shape. Items 5 and 6 of the strict bundle proof below (forbidden-import
 fixtures with import-chain diagnostics, renamed/barrel/dynamic imports) are still open.
 

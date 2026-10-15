@@ -117,6 +117,13 @@ jobs:
       - name: Server Component packed-package consumer (outside the workspace)
         run: pnpm test:server-component-package-consumer
 
+      # All three PACKED packages (core, analog, server-components), installed with npm into ONE
+      # Analog app outside the workspace: a Strata controller behind a public HTTP API called by a
+      # hydrated [strataClient] island next to a server-only @ServerComponent(). Declarations
+      # (TypeScript 6 and 5.9), Node build/SSR/navigation, firewall, Cloudflare build on local workerd.
+      - name: Full-stack packed-package consumer (core + analog + server-components)
+        run: pnpm test:full-stack-package-consumer
+
       # Local workerd via the Wrangler pinned in @strata-sc/www: no account, no secrets.
       - name: Server-component PoC on Cloudflare Pages (local Wrangler runtime)
         run: pnpm test:server-components:cloudflare
