@@ -1,5 +1,13 @@
 # @strata-sc/analog
 
+## 0.2.2
+
+### Patch Changes
+
+- 4e8ce9c: Docs: install from npm without a dist-tag. Stable releases are now published on `latest`; release candidates go to `next`.
+- Updated dependencies [4e8ce9c]
+  - @strata-sc/core@0.2.2
+
 ## 0.2.1
 
 ### Patch Changes
