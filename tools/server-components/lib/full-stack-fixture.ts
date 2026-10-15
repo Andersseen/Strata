@@ -37,6 +37,7 @@ export const FULL_STACK_SERVER_SOURCES = [
   "server-helper.ts",
   "product-details.server-component.ts",
   "products.controller.ts",
+  "qualification.controller.ts",
   "product-catalog.ts",
   "lifecycle-stats.ts",
 ] as const;

@@ -14,6 +14,8 @@ import { dirname, join } from "node:path";
 import { listFiles } from "../analog/lib/scan.ts";
 import { run } from "../consumer/lib/exec.ts";
 
+import { runConcurrencyMatrix } from "./lib/concurrency-matrix.ts";
+import type { MatrixResult } from "./lib/concurrency-matrix.ts";
 import {
   FULL_STACK_SERVER_SOURCES,
   PRIVATE_CANARIES,
@@ -156,6 +158,8 @@ interface Verification {
   readonly verdicts: Record<string, string>;
   readonly surface?: Awaited<ReturnType<typeof surfaceSuite>>;
   readonly concurrency?: readonly FullStackRound[];
+  /** The controlled controller matrix (correlation ids, classified anomalies); bounded, functional only. */
+  readonly concurrencyMatrix?: MatrixResult;
   readonly limitations?: readonly Observation[];
 }
 
@@ -257,6 +261,11 @@ async function verify(
   const confidentiality = failureCount() === before;
   const mark = failureCount();
   const concurrency = await concurrencySuite(base);
+  const matrix = await runConcurrencyMatrix(base, {
+    target: label,
+    // Only a public URL needs the stabilization interval; a loopback server has nothing to settle.
+    stabilizeMs: label === "workerd" ? 0 : 10_000,
+  });
   const concurrent = failureCount() === mark;
   const limitations = await observeLimitations(base);
 
@@ -274,6 +283,7 @@ async function verify(
     readiness,
     surface,
     concurrency,
+    concurrencyMatrix: matrix,
     limitations,
     verdicts: {
       "controller integration": verdict(all(http.controller)),
