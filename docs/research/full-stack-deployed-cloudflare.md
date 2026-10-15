@@ -6,6 +6,12 @@ Branch: `test/full-stack-deployed-cloudflare`
 
 ## Verdict first
 
+> **Update 2026-10-15 (remote evidence):** the workflow has now been dispatched twice and **both runs ended
+> NO-GO** (see [Deployment record](#deployment-record)). The second run deployed and passed every
+> functional verifier on the public URL; it failed only the bounded concurrency smoke (one anomalous answer in
+> 25 concurrent controller requests). The text and table below are the original, local-only statement and are
+> kept as history; the authoritative deployed verdicts are in the Deployment record.
+
 This increment adds the **machinery** to qualify the complete full-stack path on a real Cloudflare Pages
 deployment, and runs everything that can run without deploying. **The real public deployment has not been
 executed. REAL DEPLOYMENT: NOT RUN.** No deployed verdict is claimed.
@@ -175,12 +181,92 @@ Nothing here runs automatically. After this PR is merged (or from the PR branch,
 
 ## Deployment record
 
-| Field                | Value       |
-| -------------------- | ----------- |
-| Real deployment      | **NOT RUN** |
-| Public URL           | (none)      |
-| Actions run          | (none)      |
-| Deployment hash / ID | (none)      |
+Two manual dispatches of `full-stack-deployed-cloudflare.yml` against the isolated
+`strata-fullstack-qualification` project. Both are **SOURCE-PACKED CANDIDATE** runs (`pnpm pack` of the
+dispatched checkout, not npm registry packages). Neither run qualifies the deployment: the overall
+**Real public Cloudflare deployment verdict is NO-GO**.
+
+| Field                                       | Run 1 (initial)                                                              | Run 2 (one corrective rerun)                                                 |
+| ------------------------------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Date                                        | 2026-10-15                                                                   | 2026-10-15                                                                   |
+| Actions run                                 | [38722004014](https://github.com/Andersseen/Strata/actions/runs/38722004014) | [38727456938](https://github.com/Andersseen/Strata/actions/runs/38727456938) |
+| Tested commit                               | `137143dac9a92d3e1e4f31a281893fa6d176c878` (main)                            | `16da4115df75f05c3569369cb9dd7f66bec23668` (this branch)                     |
+| Pages project                               | `strata-fullstack-qualification` (created by this run)                       | `strata-fullstack-qualification` (existing)                                  |
+| Deployment hash / ID                        | `d1217a16` / `d1217a16-4829-4cf6-941f-1de71e0ab786`                          | `b1fb974c` / `b1fb974c-6c4e-4784-b101-4be381b7bd0b`                          |
+| Public URL                                  | `https://d1217a16.strata-fullstack-qualification.pages.dev`                  | `https://b1fb974c.strata-fullstack-qualification.pages.dev`                  |
+| Build digest (sha256)                       | `70ce5950…ab37c` (recorded in artifact)                                      | `10cf3cd4f0bd710254f29fab1d94932f70485d592ed3b2d5d091c07c5eeab70f`           |
+| Real public deployment                      | **NO-GO**                                                                    | **NO-GO**                                                                    |
+| Controller / SSR / island / confidentiality | NO-GO (never reached: URL unreachable from the runner)                       | GO / GO / GO / GO                                                            |
+| Bounded concurrency smoke                   | not reached                                                                  | **NO-GO** (1 anomaly in 25 concurrent controller requests)                   |
+
+### Run 1: NO-GO, readiness (network)
+
+The deployment succeeded (`wrangler pages deploy` reported the URL) but all 40 readiness attempts (about 80 s)
+from the GitHub runner failed with `TypeError: fetch failed` (no HTTP response at all), so no functional
+verifier ran. The project had been created by this very run. Within minutes, the same URL answered correctly
+from a developer machine (`/products/42` 200; `/api/products/42` 200 with the expected JSON), so the
+deployment itself was valid. The runner did not record the network cause (`ENOTFOUND` vs connection reset);
+the most likely explanation is name-resolution propagation for the brand-new project subdomain, but that is
+**unconfirmed**. Corrective change: the readiness diagnostics now include the network `cause.code`
+(`describeError`), which changes no assertion.
+
+### Run 2: NO-GO, one failed concurrency check
+
+Dispatched on the corrective branch. Readiness passed after 11 attempts (22.2 s; three early attempts
+returned an edge HTML 404 from `server: cloudflare` before the deployment settled). Every functional verifier
+passed on the public URL:
+
+- Controller: `GET /api/products/42` 200 JSON with the controller fingerprint header and `no-store`;
+  `/api/products/7` unavailable; `/api/products/999` controller-returned 404 JSON; native Nitro route works.
+- Server Components: `/products/42` 200 HTML, server-rendered title and computed tier, server-only
+  repository evidence, protocol v1 boundary with props exactly `{"productId":"42"}`; unknown product renders
+  the not-found branch (HTTP 200, the documented soft 404); `/` and `/about` are ordinary Angular documents.
+- Browser: SSR visible before scripts, hydration reuses SSR nodes, exactly one island, one click sends exactly
+  one controller request and updates state once, no console error or failed request. Document navigation
+  checks passed in the same run.
+- Confidentiality: private markers absent from HTML, hydrated DOM, every browser-loaded asset, source maps and
+  API responses; positive controls present; `/_worker.js*` not served.
+
+Bounded concurrency smoke on the public URL (`p50 / p90 / p95` in ms; these are smoke figures, not budgets):
+
+| Round                          | Statuses          | p50   | p90   | p95   | Anomalies |
+| ------------------------------ | ----------------- | ----- | ----- | ----- | --------- |
+| Server Component, 5 sequential | 200×5             | 30.1  | 43.9  | 43.9  | 0         |
+| Server Component, 10 parallel  | 200×10            | 110.5 | 131.8 | 232.7 | 0         |
+| Server Component, 25 parallel  | 200×25            | 161.4 | 354.3 | 363.7 | 0         |
+| Controller, 5 sequential       | 200×4, 404×1      | 20.5  | 25.1  | 25.1  | 0         |
+| Controller, 10 parallel        | 200×7, 404×3      | 24.3  | 46.8  | 61.2  | 0         |
+| Controller, 25 parallel        | 200×16, **404×9** | 45.2  | 62.7  | 84.5  | **1**     |
+
+Expected for the 25-request round is 200×17 / 404×8: one request that should have been 200 was answered
+with a different status or body (max latency 242 ms). The runner did not keep the anomalous response, so its
+nature is **unknown**: an edge propagation 404 (like the early readiness 404s) is plausible, but a
+cross-request defect has **not** been excluded by this run. Follow-up probe (not part of the gate): 1500
+requests in 60 bursts of 25 against the same, by then warm, deployment produced 0 anomalies. This does not
+turn the failed check into a pass.
+
+No assertion was weakened. The runner now records up to three anomalous responses (path, status, content type,
+a body prefix with private values withheld, edge headers) as `anomalySamples` so a repeat can be classified.
+
+### Package and dependency tuple (run 2, from the artifact)
+
+| Package                        | Version | Tarball sha256                                                     |
+| ------------------------------ | ------- | ------------------------------------------------------------------ |
+| `@strata-sc/core`              | 0.2.2   | `a0238aa624a8bc81c688f4be93ab9ef30690446070971792c5cde6bb028e0ad0` |
+| `@strata-sc/analog`            | 0.2.2   | `d532688d0cc454487ddeb4437593450840069668e65a0a37d0497fa9e37a054b` |
+| `@strata-sc/server-components` | 0.2.1   | `10e04d8d6184a03c3df68a1d76aa33fbed8b3c647c2105f1b87c3b78da54f533` |
+
+Runner Node v22.23.3; Angular 22.1.7; Analog platform/router 2.7.2 (vite-plugin-nitro 2.8.1); nitropack
+2.13.4 (preset `cloudflare-pages`); h3 1.15.11; Vite 8.3.0; TypeScript 6.0.3; wrangler 4.135.0. Compatibility
+date `2026-09-21`, no compatibility flags (no `nodejs_compat`). The packages were packed from the checkout,
+not taken from the registry.
+
+### Status
+
+Real public Cloudflare deployment **NO-GO**. A third dispatch is deliberately not made inside this increment
+(the bound was one initial run and one corrective rerun); it needs an explicit decision. A GO may be recorded
+only from a run in which every check, including the concurrency smoke, passes. Even then it would cover this
+fixture, not a real application, authentication, tenant caching, shared DI, bindings or a published release.
 
 ## What this does not change
 

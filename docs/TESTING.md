@@ -97,7 +97,8 @@ hydration:
   PR-safe rehearsal is NOT a deployment and prints `REAL DEPLOYMENT: NOT RUN`. The same command with
   `STRATA_FULLSTACK_DEPLOY=1` and the Cloudflare secrets is run only by the manually dispatched workflow
   `full-stack-deployed-cloudflare.yml` against the isolated `strata-fullstack-qualification` project
-  (`STRATA_FULLSTACK_REQUIRE_DEPLOYED=1` fails anything but a GO deployment). See
+  (`STRATA_FULLSTACK_REQUIRE_DEPLOYED=1` fails anything but a GO deployment). Two dispatches so far, both
+  NO-GO (see the deployment record). See
   [the report](research/full-stack-deployed-cloudflare.md).
 
 These cover one code shape. Items 5 and 6 of the strict bundle proof below (forbidden-import

@@ -372,6 +372,14 @@ export interface FullStackRound {
   readonly wallMs: number;
   /** Responses that differ from their own baseline, or that echo any request id. */
   readonly crossRequestAnomalies: number;
+  /** The first anomalous or unexpected answers (at most 3), so a flake can be classified. */
+  readonly anomalySamples: {
+    path: string;
+    status: number;
+    contentType: string | null;
+    bodyPrefix: string;
+    headers: Record<string, string>;
+  }[];
 }
 
 interface Expectation {
@@ -408,6 +416,7 @@ async function round(
   let succeeded = 0;
   let failed = 0;
   let anomalies = 0;
+  const anomalySamples: FullStackRound["anomalySamples"] = [];
   let next = 0;
   const wallStart = performance.now();
 
@@ -426,18 +435,29 @@ async function round(
 
         samples.push(performance.now() - start);
         statuses[String(reply.status)] = (statuses[String(reply.status)] ?? 0) + 1;
-        if (
+        const statusOk =
           reply.status === expected.status &&
-          !!reply.headers.get("content-type")?.includes(expected.type)
-        )
-          succeeded++;
+          !!reply.headers.get("content-type")?.includes(expected.type);
+        const bodyOk =
+          reply.body === expected.body &&
+          !ids.some((id) => reply.body.includes(id)) &&
+          privateLeaks(reply.body).length === 0;
+
+        if (statusOk) succeeded++;
         else failed++;
-        if (
-          reply.body !== expected.body ||
-          ids.some((id) => reply.body.includes(id)) ||
-          privateLeaks(reply.body).length > 0
-        )
-          anomalies++;
+        if (!bodyOk) anomalies++;
+        if ((!statusOk || !bodyOk) && anomalySamples.length < 3)
+          anomalySamples.push({
+            path: expected.path,
+            status: reply.status,
+            contentType: reply.headers.get("content-type"),
+            // Only a prefix, and never a body that carries a private value.
+            bodyPrefix:
+              privateLeaks(reply.body).length > 0
+                ? "[withheld: private value]"
+                : reply.body.slice(0, 200),
+            headers: edgeHeaders([...reply.headers.entries()]),
+          });
       } catch {
         failed++;
         statuses["network-error"] = (statuses["network-error"] ?? 0) + 1;
@@ -458,6 +478,7 @@ async function round(
     distribution: distribution(samples),
     wallMs: Math.round((performance.now() - wallStart) * 10) / 10,
     crossRequestAnomalies: anomalies,
+    anomalySamples,
   };
 }
 

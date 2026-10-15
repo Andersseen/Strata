@@ -142,7 +142,8 @@ compatibility matrix; do not check it based on intent or a demonstration.
       `pnpm test:full-stack-deployed-cloudflare` and the manual `full-stack-deployed-cloudflare.yml` add the
       machinery to deploy that same app (source-packed candidate) to the isolated
       `strata-fullstack-qualification` project; locally it passes the Cloudflare build and a workerd
-      rehearsal, but **the real deployment has not run (NOT RUN)**, so the complete-path deployment gates
+      rehearsal. The real deployment was dispatched twice on 2026-10-15 and **both runs are NO-GO** (second run: all
+      functional checks passed publicly, the concurrency smoke had one anomaly), so the complete-path deployment gates
       above stay unticked ([report](research/full-stack-deployed-cloudflare.md)).
 - [ ] SemVer, prerelease handling, deprecation and migration policy documented; upgrades exercised.
 - [ ] Public documentation, examples, error diagnostics and native H3 escape-hatch guidance complete.
