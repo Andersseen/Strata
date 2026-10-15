@@ -23,6 +23,14 @@ import type { CapturedResponse, Canary } from "./leak-scan.ts";
 export const ROUTE = "/product";
 export const NAVIGATION_TARGET = "/about";
 
+/** What a ready deployment must serve: a route and the server-rendered text in its document. */
+export interface ReadyProbe {
+  readonly route: string;
+  readonly needle: string;
+}
+
+const DEFAULT_PROBE: ReadyProbe = { route: ROUTE, needle: "<h1>Product 42</h1>" };
+
 // ---------------------------------------------------------------------------
 // Statistics
 
@@ -185,6 +193,7 @@ export async function awaitReady(
   attempts = 30,
   intervalMs = 2_000,
   consecutive = 1,
+  probe: ReadyProbe = DEFAULT_PROBE,
 ): Promise<DeployedVerification["firstRequest"] & { readonly ready: boolean }> {
   const begin = performance.now();
   const notReady: NotReadyObservation[] = [];
@@ -209,12 +218,12 @@ export async function awaitReady(
     let ok: boolean;
 
     try {
-      const response = await captureResponse(`${baseUrl}${ROUTE}`, 15_000);
+      const response = await captureResponse(`${baseUrl}${probe.route}`, 15_000);
 
       status = response.status;
       // An unrouted URL on this app is HTTP 200 with an empty SSR shell, so status alone
       // cannot tell a ready route from a placeholder: the Server Component output must be there.
-      ok = html(response) && response.body.includes("<h1>Product 42</h1>");
+      ok = html(response) && response.body.includes(probe.needle);
       if (!ok) notReady.push({ attempt, status, headers: edgeHeaders(response.headers) });
     } catch (error) {
       status = null;
@@ -251,6 +260,7 @@ export async function awaitBrowserReady(
   attempts = 30,
   intervalMs = 2_000,
   consecutive = 3,
+  probe: ReadyProbe = DEFAULT_PROBE,
 ): Promise<{
   readonly ready: boolean;
   readonly attempts: number;
@@ -271,7 +281,7 @@ export async function awaitBrowserReady(
 
       try {
         const page = await context.newPage();
-        const response = await page.goto(`${baseUrl}${ROUTE}`, {
+        const response = await page.goto(`${baseUrl}${probe.route}`, {
           waitUntil: "domcontentloaded",
           timeout: 15_000,
         });
@@ -281,7 +291,7 @@ export async function awaitBrowserReady(
         const ok =
           status === 200 &&
           !!headers["content-type"]?.includes("text/html") &&
-          body.includes("<h1>Product 42</h1>");
+          body.includes(probe.needle);
 
         if (!ok) notReady.push({ attempt, status, headers });
         streak = ok ? streak + 1 : 0;

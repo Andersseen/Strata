@@ -11,6 +11,14 @@ Router navigation NO-GO) in the private `@strata-sc/server-components` package a
 [navigation](research/server-component-navigation-poc.md) and
 [Cloudflare](research/server-component-cloudflare-poc.md) reports.
 
+Evidence note (2026-10-15, later), no disposition changed: `pnpm test:full-stack-deployed-cloudflare` builds
+the same external full-stack consumer from source-packed tarballs for Cloudflare Pages and passes the
+black-box verifier on local workerd; the manual workflow for the real deployment exists but **has not run
+(REAL DEPLOYMENT: NOT RUN)**, so the "no deployed environment" part of R16/R17 stays open. A future GO
+would cover a fixture on one isolated Pages project: no authentication or tenant-aware caching, no shared
+controller/SSR DI, no bindings, and soft 404s, `/api/*` fallthrough and 200-on-render-error stay as
+recorded ([report](research/full-stack-deployed-cloudflare.md)).
+
 Evidence note (2026-10-15), no disposition changed: R16 and R17 gain one more fixture datum.
 `pnpm test:full-stack-package-consumer` installs the three packed packages (`core` 0.2.1, `analog` 0.2.1,
 `server-components` 0.2.0) into one external Analog app and runs a controller API, a server-only Server

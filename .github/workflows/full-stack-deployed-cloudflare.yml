@@ -1,0 +1,87 @@
+name: Qualify Full-Stack Strata on Cloudflare
+
+# Manually triggered, REAL deployment qualification of the complete Strata full-stack path
+# (@strata-sc/core + @strata-sc/analog + @strata-sc/server-components) on an isolated
+# Cloudflare Pages project. See docs/research/full-stack-deployed-cloudflare.md.
+#
+# - workflow_dispatch ONLY: never on a pull request, push, schedule or release.
+# - SOURCE-PACKED CANDIDATE: the three packages are `pnpm pack`ed from the dispatched ref and
+#   installed as tarballs into tests/full-stack-package-consumer/fixture outside the workspace.
+#   This is NOT a published-registry qualification; nothing is published to npm.
+# - Deploys only to the `strata-fullstack-qualification` Pages project (an exact allowlist in the
+#   runner and below refuses any other name, `strata-www` and `strata-sc-qualification` included),
+#   creating it only if it does not exist. No DNS, route, binding or other-project change.
+# - STRATA_FULLSTACK_REQUIRE_DEPLOYED=1: missing Cloudflare secrets or a failed deployment FAIL the
+#   job. A skipped deployment is never reported as success.
+#
+# Uses the repository's existing CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID secrets (the ones
+# deploy-www in ci.yml uses). They are exposed to the one step that runs the qualification; the
+# runner removes them from every local build/test command and redacts them from anything printed.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: full-stack-deployed-cloudflare
+  cancel-in-progress: false
+
+env:
+  PAGES_PROJECT: strata-fullstack-qualification
+
+jobs:
+  deployed:
+    name: Deploy and qualify the full-stack app on Cloudflare Pages
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Setup Playwright browser
+        run: pnpm --filter @strata-sc/www exec playwright install --with-deps chromium
+
+      - name: Deploy to the isolated Pages project and qualify the public URL
+        run: |
+          test "$PAGES_PROJECT" = "strata-fullstack-qualification"
+          pnpm test:full-stack-deployed-cloudflare
+        env:
+          STRATA_FULLSTACK_DEPLOY: "1"
+          STRATA_FULLSTACK_REQUIRE_DEPLOYED: "1"
+          STRATA_FULLSTACK_PAGES_PROJECT: ${{ env.PAGES_PROJECT }}
+          STRATA_FULLSTACK_EVIDENCE_FILE: ${{ runner.temp }}/full-stack-deployed-evidence.json
+          STRATA_FULLSTACK_DIAGNOSTICS_DIR: ${{ runner.temp }}/full-stack-deployed-diagnostics
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-stack-deployed-cloudflare-evidence
+          path: ${{ runner.temp }}/full-stack-deployed-evidence.json
+          if-no-files-found: ignore
+          retention-days: 30
+
+      # Only a failed run has a screenshot and a Playwright trace of the public site.
+      - name: Upload browser diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-stack-deployed-cloudflare-browser-diagnostics
+          path: ${{ runner.temp }}/full-stack-deployed-diagnostics
+          if-no-files-found: ignore
+          retention-days: 14

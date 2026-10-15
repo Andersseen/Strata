@@ -90,6 +90,16 @@ hydration:
   `strataDocumentNavigationGuard`, graph/canary scans and the server-only firewall on Node and local
   workerd. It does not share Angular DI with the controller and is not production adoption.
 
+- `pnpm test:full-stack-deployed-cloudflare`: the same external consumer built from the source-packed
+  tarballs for Cloudflare Pages (preset, Worker/browser graph, canary scans, build-time firewall), then the
+  URL-agnostic black-box verifier (controller API, SSR, hydrated island, document navigation and the
+  navigation guard, public-surface confidentiality, 5/10/25 request smoke) against local workerd. This
+  PR-safe rehearsal is NOT a deployment and prints `REAL DEPLOYMENT: NOT RUN`. The same command with
+  `STRATA_FULLSTACK_DEPLOY=1` and the Cloudflare secrets is run only by the manually dispatched workflow
+  `full-stack-deployed-cloudflare.yml` against the isolated `strata-fullstack-qualification` project
+  (`STRATA_FULLSTACK_REQUIRE_DEPLOYED=1` fails anything but a GO deployment). See
+  [the report](research/full-stack-deployed-cloudflare.md).
+
 These cover one code shape. Items 5 and 6 of the strict bundle proof below (forbidden-import
 fixtures with import-chain diagnostics, renamed/barrel/dynamic imports) are still open.
 

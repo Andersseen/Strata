@@ -139,6 +139,11 @@ compatibility matrix; do not check it based on intent or a demonstration.
       (controller API + hydrated island + Server Component, Node and local workerd;
       [report](research/full-stack-external-consumer.md)). It is a fixture: it does not close real-application
       adoption, deployment, shared controller/SSR DI or this gate.
+      `pnpm test:full-stack-deployed-cloudflare` and the manual `full-stack-deployed-cloudflare.yml` add the
+      machinery to deploy that same app (source-packed candidate) to the isolated
+      `strata-fullstack-qualification` project; locally it passes the Cloudflare build and a workerd
+      rehearsal, but **the real deployment has not run (NOT RUN)**, so the complete-path deployment gates
+      above stay unticked ([report](research/full-stack-deployed-cloudflare.md)).
 - [ ] SemVer, prerelease handling, deprecation and migration policy documented; upgrades exercised.
 - [ ] Public documentation, examples, error diagnostics and native H3 escape-hatch guidance complete.
 - [ ] Architectural/security blockers in RISKS have evidence-backed dispositions; no unresolved
