@@ -433,6 +433,7 @@ export async function startDevServer(
 export async function startWrangler(
   consumerDir: string,
   env: NodeJS.ProcessEnv,
+  readyPath = "/product",
 ): Promise<RunningServer> {
   const port = await findFreePort();
   const inspectorPort = await findFreePort();
@@ -468,7 +469,7 @@ export async function startWrangler(
         WRANGLER_LOG_PATH: join(consumerDir, "dist", ".wrangler-logs"),
       },
       port,
-      readyPath: "/product",
+      readyPath,
       timeoutMs: 120_000,
     },
   );

@@ -1,5 +1,18 @@
 # Current implementation audit
 
+## Full-stack external consumer: core + analog + server-components (2026-10-15)
+
+At `2f4f37d37c26690b2b7790835a38ecaf2f5ee056`, `pnpm test:full-stack-package-consumer` packs
+`@strata-sc/core@0.2.1`, `@strata-sc/analog@0.2.1` and `@strata-sc/server-components@0.2.0`, installs the
+three tarballs with `npm` into one Analog app outside the workspace and proves, on Nitro node-server and
+local workerd (no `nodejs_compat`), a Strata controller API called by a hydrated island next to a
+server-only `@ServerComponent()`: tarball/lock/single-core identity, declarations under TypeScript 6.0.3
+and 5.9.2 (`skipLibCheck: false`), controller routing, request-scoped lifecycle, SSR, SSR DOM reuse, one
+click = one request = one state update, document navigation with the opt-in guard, graph/canary scans
+and the server-only firewall. Controller and Angular SSR DI stay independent and shared DI is NOT
+QUALIFIED. A fixture is not production adoption. See the
+[report](research/full-stack-external-consumer.md).
+
 ## Server Component request-bound authorization isolation (2026-10-14)
 
 At `4ffee83d874c86d425d5c6ea21191bbb290e5e2c`, the fixture adds a narrow,

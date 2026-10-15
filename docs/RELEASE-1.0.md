@@ -135,6 +135,10 @@ compatibility matrix; do not check it based on intent or a demonstration.
       The packed-tarball consumer stays GO, with declarations qualified under TypeScript 6.0.3 and
       5.9.2 and consumer setup documented in the package README
       ([report](research/server-component-package-consumer.md)).
+      `pnpm test:full-stack-package-consumer` adds one app using all three packed packages together
+      (controller API + hydrated island + Server Component, Node and local workerd;
+      [report](research/full-stack-external-consumer.md)). It is a fixture: it does not close real-application
+      adoption, deployment, shared controller/SSR DI or this gate.
 - [ ] SemVer, prerelease handling, deprecation and migration policy documented; upgrades exercised.
 - [ ] Public documentation, examples, error diagnostics and native H3 escape-hatch guidance complete.
 - [ ] Architectural/security blockers in RISKS have evidence-backed dispositions; no unresolved
