@@ -4,7 +4,6 @@ import { describe, it } from "vitest";
 
 import {
   CONTROLLER_PACKAGE_CONSUMER_PACKAGES,
-  DIST_TAG,
   EXCLUDED_PACKAGES,
   REGISTRY_PACKAGES,
   assertPublishSelection,
@@ -182,10 +181,5 @@ describe("registry selection", () => {
       "@strata-sc/core",
       "@strata-sc/analog",
     ]);
-  });
-
-  it("never publishes to latest", () => {
-    assert.notEqual(DIST_TAG, "latest");
-    assert.equal(DIST_TAG, "next");
   });
 });

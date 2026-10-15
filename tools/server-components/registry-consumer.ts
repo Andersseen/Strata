@@ -15,8 +15,9 @@ import { stripVTControlCharacters } from "node:util";
 import { httpGet } from "../analog/lib/process.ts";
 import { listFiles } from "../analog/lib/scan.ts";
 import { run } from "../consumer/lib/exec.ts";
+import { distTagFor } from "../release/lib/dist-tags.ts";
 import { publishedVersion } from "../release/lib/published.ts";
-import { isExactVersion, latestTagVerdict } from "../release/lib/registry-version.ts";
+import { isExactVersion } from "../release/lib/registry-version.ts";
 
 import { observeBrowser } from "./lib/browser.ts";
 import {
@@ -157,16 +158,10 @@ try {
     string
   >;
 
+  // Informational: this gate qualifies the artifact, pinned by exact version. Dist-tag policy is
+  // enforced (and repaired) by tools/release/sync-dist-tags.ts in the release workflow.
   console.log(`dist-tags: ${JSON.stringify(tags)}`);
-  check(`next → ${version}`, tags["next"] === version, JSON.stringify(tags));
-  // Read-only: this gate never edits tags; it only confirms the release did not move latest.
-  // npm itself assigns `latest` to a package's first-ever version, so that single case is accepted.
-  const allVersions = JSON.parse(npm(["view", PACKAGE, "versions", "--json"]).stdout || "[]") as
-    string | string[];
-  const latest = latestTagVerdict(tags, [allVersions].flat(), version);
-
-  console.log(`latest: ${latest.reason}`);
-  check("latest was not moved by this release", latest.ok, JSON.stringify(tags));
+  console.log(`release channel for ${version}: ${distTagFor(version)}`);
 
   // ------------------------------------------------------------------------
   section("External install from the registry (fresh temp app, plain `npm install`)");

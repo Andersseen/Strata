@@ -27,7 +27,7 @@ pnpm test:server-components:cloudflare # the same on local Cloudflare workerd (W
 
 The Server Component runners build the Analog fixture, which consumes the
 `@strata-sc/server-components` package from `dist`: run `pnpm build` first. That package is
-experimental and released on the `next` channel through Changesets like the others; a user-facing
+experimental and released through Changesets like the others; a user-facing
 change needs a changeset.
 
 Other useful scripts:
@@ -63,7 +63,11 @@ need a changeset unless they are tests, documentation, or internal tooling.
 Choose the bump by impact: `patch` for fixes, `minor` for features (and, while
 a package is `0.x`, for breaking changes), `major` only after 1.0. Merging to
 `main` makes the Release workflow open a Version Packages PR; merging that PR
-publishes to npm under `next` ([ADR-004](docs/adr/004-experimental-npm-distribution.md)).
+publishes to npm on `latest` ([ADR-005](docs/adr/005-npm-dist-tag-channels.md)).
+
+For a release candidate, run `pnpm changeset pre enter next` in a PR: the
+following Version Packages PRs produce `-next.N` versions published on `next`,
+and `latest` is untouched. `pnpm changeset pre exit` returns to stable releases.
 
 ## Code style
 

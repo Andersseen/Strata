@@ -74,7 +74,9 @@
     "clean": "turbo run clean && rm -rf .turbo",
     "changeset": "changeset",
     "release:packages": "node --experimental-strip-types tools/release/publish-packages.ts",
-    "release:packages:dry-run": "node --experimental-strip-types tools/release/publish-packages.ts --dry-run"
+    "release:packages:dry-run": "node --experimental-strip-types tools/release/publish-packages.ts --dry-run",
+    "release:sync-dist-tags": "node --experimental-strip-types tools/release/sync-dist-tags.ts",
+    "release:sync-dist-tags:dry-run": "node --experimental-strip-types tools/release/sync-dist-tags.ts --dry-run"
   },
   "devDependencies": {
     "@agentyx/cli": "^0.7.0",

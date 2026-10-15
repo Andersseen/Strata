@@ -1,6 +1,6 @@
 # @strata-sc/server-components
 
-> **Experimental.** Version `0.x`, published on npm for the `next` channel. The API and the semantics
+> **Experimental.** Version `0.x`, published on npm. The API and the semantics
 > described here may change, in any `0.x` release, before 1.0. There is no stability guarantee.
 > Public does not mean stable.
 
@@ -12,12 +12,11 @@ Angular hydrates over the SSR DOM.
 ## Install
 
 ```bash
-pnpm add @strata-sc/server-components@next
+pnpm add @strata-sc/server-components
 ```
 
-(`npm install @strata-sc/server-components@next` works the same.) Install the `next` tag. npm
-also pointed `latest` at `0.1.0` (it does that for a package's first release), but `next` is the
-channel this package is published on and the one releases are qualified for.
+(`npm install @strata-sc/server-components` works the same.) Stable releases are on the `latest`
+dist-tag; release candidates, when there are any, on `next`.
 
 ## Quick start
 
