@@ -20,6 +20,8 @@ import { captureResponse, headerBlock, variantsOf } from "./leak-scan.ts";
 import type { CapturedResponse } from "./leak-scan.ts";
 import { openTracked } from "./package-consumer.ts";
 import type { Tracked } from "./package-consumer.ts";
+import { classifyReply, classifyTransportError } from "./response-classification.ts";
+import type { AnomalySample } from "./response-classification.ts";
 
 /**
  * Remote-only helpers of the full-stack deployed qualification: readiness of a
@@ -372,14 +374,8 @@ export interface FullStackRound {
   readonly wallMs: number;
   /** Responses that differ from their own baseline, or that echo any request id. */
   readonly crossRequestAnomalies: number;
-  /** The first anomalous or unexpected answers (at most 3), so a flake can be classified. */
-  readonly anomalySamples: {
-    path: string;
-    status: number;
-    contentType: string | null;
-    bodyPrefix: string;
-    headers: Record<string, string>;
-  }[];
+  /** The first anomalous or unexpected answers (at most 3), classified, so a flake can be attributed. */
+  readonly anomalySamples: AnomalySample[];
 }
 
 interface Expectation {
@@ -446,21 +442,41 @@ async function round(
         if (statusOk) succeeded++;
         else failed++;
         if (!bodyOk) anomalies++;
-        if ((!statusOk || !bodyOk) && anomalySamples.length < 3)
-          anomalySamples.push({
-            path: expected.path,
-            status: reply.status,
-            contentType: reply.headers.get("content-type"),
-            // Only a prefix, and never a body that carries a private value.
-            bodyPrefix:
-              privateLeaks(reply.body).length > 0
-                ? "[withheld: private value]"
-                : reply.body.slice(0, 200),
-            headers: edgeHeaders([...reply.headers.entries()]),
-          });
-      } catch {
+        if (!statusOk || !bodyOk) {
+          const verdict = classifyReply(
+            {
+              target: `${expected.path}?request=${ids[index]}`,
+              status: expected.status,
+              contentType: expected.type,
+              subject: null,
+              correlation: null,
+              body: expected.body,
+            },
+            reply,
+            performance.now() - start,
+            privateLeaks,
+          );
+
+          if (verdict.sample && anomalySamples.length < 3) anomalySamples.push(verdict.sample);
+        }
+      } catch (error) {
         failed++;
         statuses["network-error"] = (statuses["network-error"] ?? 0) + 1;
+        if (anomalySamples.length < 3)
+          anomalySamples.push(
+            classifyTransportError(
+              {
+                target: `${expected.path}?request=${ids[index]}`,
+                status: expected.status,
+                contentType: expected.type,
+                subject: null,
+                correlation: null,
+                body: expected.body,
+              },
+              error,
+              performance.now() - start,
+            ),
+          );
       }
     }
   };
