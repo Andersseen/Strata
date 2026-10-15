@@ -52,6 +52,12 @@ function percentile(sorted: readonly number[], p: number): number {
   ]!;
 }
 
+/** `String(error)` plus the network cause (`fetch failed` alone hides ENOTFOUND vs ECONNRESET). */
+export function describeError(error: unknown): string {
+  const cause = error instanceof Error ? (error.cause as { code?: string } | undefined) : undefined;
+  return `${String(error)}${cause?.code ? ` [${cause.code}]` : ""}`.slice(0, 200);
+}
+
 export function distribution(samples: readonly number[]): Distribution {
   const sorted = [...samples].sort((a, b) => a - b);
 
@@ -228,7 +234,7 @@ export async function awaitReady(
     } catch (error) {
       status = null;
       ok = false;
-      notReady.push({ attempt, status, headers: {}, error: String(error).slice(0, 160) });
+      notReady.push({ attempt, status, headers: {}, error: describeError(error) });
     }
     if (attempt === 1) {
       firstStatus = status;
@@ -297,7 +303,7 @@ export async function awaitBrowserReady(
         streak = ok ? streak + 1 : 0;
       } catch (error) {
         streak = 0;
-        notReady.push({ attempt, status: null, headers: {}, error: String(error).slice(0, 160) });
+        notReady.push({ attempt, status: null, headers: {}, error: describeError(error) });
       } finally {
         await context.close().catch(() => {});
       }

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { chromium } from "playwright";
 
 import { edgeHeaders } from "./browser.ts";
-import { awaitBrowserReady, awaitReady, distribution } from "./deployed.ts";
+import { awaitBrowserReady, awaitReady, describeError, distribution } from "./deployed.ts";
 import type { Distribution, NotReadyObservation, ReadyProbe } from "./deployed.ts";
 import {
   CONTROLLER_FINGERPRINT,
@@ -68,7 +68,7 @@ async function awaitApiReady(
       streak = ok ? streak + 1 : 0;
     } catch (error) {
       streak = 0;
-      notReady.push({ attempt, status: null, headers: {}, error: String(error).slice(0, 160) });
+      notReady.push({ attempt, status: null, headers: {}, error: describeError(error) });
     }
     if (streak < consecutive) await sleep(intervalMs);
   }
