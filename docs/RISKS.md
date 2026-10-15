@@ -11,7 +11,13 @@ Router navigation NO-GO) in the private `@strata-sc/server-components` package a
 [navigation](research/server-component-navigation-poc.md) and
 [Cloudflare](research/server-component-cloudflare-poc.md) reports.
 
-Evidence note (2026-10-15, later), no disposition changed: `pnpm test:full-stack-deployed-cloudflare` builds
+Evidence note (2026-10-15, after two real dispatches), no disposition changed: the full-stack workflow ran
+twice against `strata-fullstack-qualification` and both runs are **NO-GO** (run 1 unreachable URL from the
+runner; run 2 passed all functional and confidentiality checks on the public URL but had 1 anomalous
+response in 25 concurrent controller requests, cause unknown). The "no deployed environment" part of R16/R17
+stays open ([report](research/full-stack-deployed-cloudflare.md#deployment-record)).
+
+Evidence note (2026-10-15, earlier), no disposition changed: `pnpm test:full-stack-deployed-cloudflare` builds
 the same external full-stack consumer from source-packed tarballs for Cloudflare Pages and passes the
 black-box verifier on local workerd; the manual workflow for the real deployment exists but **has not run
 (REAL DEPLOYMENT: NOT RUN)**, so the "no deployed environment" part of R16/R17 stays open. A future GO

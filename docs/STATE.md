@@ -1,6 +1,17 @@
 # Current implementation audit
 
-## Full-stack deployed Cloudflare qualification: machinery added, deployment NOT RUN (2026-10-15)
+## Full-stack deployed Cloudflare qualification: two real runs, both NO-GO (2026-10-15)
+
+The workflow was dispatched twice (runs [38722004014](https://github.com/Andersseen/Strata/actions/runs/38722004014)
+and [38727456938](https://github.com/Andersseen/Strata/actions/runs/38727456938)). Run 1 deployed but the
+runner could not reach the new project's URL (`fetch failed` ×40). Run 2 passed every functional verifier on
+the public URL (controller, Server Component SSR, island, confidentiality: GO) but failed the bounded
+concurrency smoke (1 anomalous answer in 25 concurrent controller requests), so the **real deployment is
+NO-GO**, not GO. Cause of the anomaly is unknown; a third run is pending a decision. Details:
+[report](research/full-stack-deployed-cloudflare.md#deployment-record). The paragraph below is the earlier,
+pre-dispatch state.
+
+### Earlier state: machinery added, deployment NOT RUN
 
 At `32a174707b356c300ce91dae51eedf92cf45f043`, `pnpm test:full-stack-deployed-cloudflare` takes the SAME
 external consumer as below, built from the three **source-packed** tarballs (SOURCE-PACKED CANDIDATE, not a
