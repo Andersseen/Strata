@@ -124,6 +124,12 @@ jobs:
       - name: Full-stack packed-package consumer (core + analog + server-components)
         run: pnpm test:full-stack-package-consumer
 
+      # The same three packed packages built for Cloudflare Pages (SOURCE-PACKED CANDIDATE) and
+      # verified black-box on local workerd. PR-safe: no account, no secrets, no deployment; the
+      # real-deployment verdict stays NOT RUN (the manual full-stack-deployed-cloudflare.yml deploys).
+      - name: Full-stack Cloudflare build + local workerd rehearsal (no deployment)
+        run: pnpm test:full-stack-deployed-cloudflare
+
       # Local workerd via the Wrangler pinned in @strata-sc/www: no account, no secrets.
       - name: Server-component PoC on Cloudflare Pages (local Wrangler runtime)
         run: pnpm test:server-components:cloudflare

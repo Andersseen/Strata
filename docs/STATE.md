@@ -1,5 +1,17 @@
 # Current implementation audit
 
+## Full-stack deployed Cloudflare qualification: machinery added, deployment NOT RUN (2026-10-15)
+
+At `32a174707b356c300ce91dae51eedf92cf45f043`, `pnpm test:full-stack-deployed-cloudflare` takes the SAME
+external consumer as below, built from the three **source-packed** tarballs (SOURCE-PACKED CANDIDATE, not a
+registry release), builds it with Nitro's `cloudflare-pages` preset (no `nodejs_compat`), and runs the
+black-box verifier on local workerd (142 checks, passing; a rehearsal, not a deployment). The manual workflow
+`full-stack-deployed-cloudflare.yml` deploys to the isolated `strata-fullstack-qualification` project and
+verifies the public URL. **The real deployment has not run: REAL DEPLOYMENT: NOT RUN**, and the deployed
+controller, SSR, island and confidentiality verdicts are NOT RUN. A GO would still describe a fixture, not
+authentication, tenant caching, shared DI or a real application. See the
+[report](research/full-stack-deployed-cloudflare.md).
+
 ## Full-stack external consumer: core + analog + server-components (2026-10-15)
 
 At `2f4f37d37c26690b2b7790835a38ecaf2f5ee056`, `pnpm test:full-stack-package-consumer` packs

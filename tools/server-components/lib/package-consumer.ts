@@ -488,6 +488,8 @@ export interface Tracked {
   readonly page: Page;
   readonly errors: string[];
   readonly requests: RequestRecord[];
+  /** `requestfailed` events as `type url: error` (aborted navigations included). */
+  readonly failedRequests: string[];
   close(): Promise<void>;
 }
 
@@ -496,7 +498,13 @@ export async function openTracked(): Promise<Tracked> {
   const page = await (await browser.newContext()).newPage();
   const errors: string[] = [];
   const requests: RequestRecord[] = [];
+  const failedRequests: string[] = [];
 
+  page.on("requestfailed", (request) =>
+    failedRequests.push(
+      `${request.resourceType()} ${request.url()}: ${request.failure()?.errorText ?? "failed"}`,
+    ),
+  );
   page.on("console", (message) => {
     if (message.type() === "error" || message.type() === "warning") {
       errors.push(`console.${message.type()}: ${message.text()}`);
@@ -511,7 +519,7 @@ export async function openTracked(): Promise<Tracked> {
     });
   });
 
-  return { page, errors, requests, close: () => browser.close() };
+  return { page, errors, requests, failedRequests, close: () => browser.close() };
 }
 
 /** `evaluate` of a source string: the tools' tsconfig has no DOM lib. */
