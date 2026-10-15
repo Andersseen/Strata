@@ -273,3 +273,12 @@ fixture, not a real application, authentication, tenant caching, shared DI, bind
 `strata-sc-qualification` and its workflow are untouched and its historical GO stays narrowly valid.
 `strata-www`, DNS, routes, bindings and databases are never touched. No package was published, no dist-tag
 moved, no package version or Changeset changed, no production framework API was added.
+
+## Addendum: third dispatch (2026-10-15)
+
+The two records above are unchanged. After the concurrency diagnostic increment, one further dispatch,
+[run 38741663534](https://github.com/Andersseen/Strata/actions/runs/38741663534) on commit
+`f29cc35db000ea8436b34bd36a67ac25f914925f` (deployment `0a77889b`, build digest
+`39c2ba375ccfa1d7bb4dd260102388832f9399f651066f3ac202cc9fbbf4e020`), passed every check including the
+concurrency smoke and the new matrix. It qualifies that candidate and environment only; the cause of run 2's
+anomaly remains unconfirmed. See [the report](full-stack-cloudflare-concurrency.md).

@@ -144,7 +144,10 @@ compatibility matrix; do not check it based on intent or a demonstration.
       `strata-fullstack-qualification` project; locally it passes the Cloudflare build and a workerd
       rehearsal. The real deployment was dispatched twice on 2026-10-15 and **both runs are NO-GO** (second run: all
       functional checks passed publicly, the concurrency smoke had one anomaly), so the complete-path deployment gates
-      above stay unticked ([report](research/full-stack-deployed-cloudflare.md)).
+      above stay unticked ([report](research/full-stack-deployed-cloudflare.md)). A later manual run on a
+      diagnostic branch ([38741663534](https://github.com/Andersseen/Strata/actions/runs/38741663534)) passed
+      every check for that source-packed fixture; the anomaly's cause remains unconfirmed and a fixture
+      pass does not close the criterion ([report](research/full-stack-cloudflare-concurrency.md)).
 - [ ] SemVer, prerelease handling, deprecation and migration policy documented; upgrades exercised.
 - [ ] Public documentation, examples, error diagnostics and native H3 escape-hatch guidance complete.
 - [ ] Architectural/security blockers in RISKS have evidence-backed dispositions; no unresolved

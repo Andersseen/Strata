@@ -98,8 +98,13 @@ hydration:
   `STRATA_FULLSTACK_DEPLOY=1` and the Cloudflare secrets is run only by the manually dispatched workflow
   `full-stack-deployed-cloudflare.yml` against the isolated `strata-fullstack-qualification` project
   (`STRATA_FULLSTACK_REQUIRE_DEPLOYED=1` fails anything but a GO deployment). Two dispatches so far, both
-  NO-GO (see the deployment record). See
+  NO-GO (see the deployment record). A third dispatch of the corrective branch passed
+  ([run 38741663534](https://github.com/Andersseen/Strata/actions/runs/38741663534)). See
   [the report](research/full-stack-deployed-cloudflare.md).
+- `pnpm test:full-stack-cloudflare-concurrency` is a read-only, bounded (at most 1500 requests per URL)
+  controller concurrency diagnostic with correlation ids, response classification and fault-injection
+  negative controls; set `STRATA_FULLSTACK_DEPLOYED_URL` to include an existing isolated-project deployment.
+  It is not a release verdict. See [the report](research/full-stack-cloudflare-concurrency.md).
 
 These cover one code shape. Items 5 and 6 of the strict bundle proof below (forbidden-import
 fixtures with import-chain diagnostics, renamed/barrel/dynamic imports) are still open.

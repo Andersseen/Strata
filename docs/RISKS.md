@@ -11,6 +11,11 @@ Router navigation NO-GO) in the private `@strata-sc/server-components` package a
 [navigation](research/server-component-navigation-poc.md) and
 [Cloudflare](research/server-component-cloudflare-poc.md) reports.
 
+Evidence note (2026-10-15, later), no disposition changed: the concurrency anomaly of run 2 was not reproduced
+(local Node/workerd 829 requests each, existing deployment 478, new deployment run 38741663534 green); the
+cause is **unconfirmed** and stays a residual risk, with classified anomaly capture now in the gate
+([report](research/full-stack-cloudflare-concurrency.md)).
+
 Evidence note (2026-10-15, after two real dispatches), no disposition changed: the full-stack workflow ran
 twice against `strata-fullstack-qualification` and both runs are **NO-GO** (run 1 unreachable URL from the
 runner; run 2 passed all functional and confidentiality checks on the public URL but had 1 anomalous

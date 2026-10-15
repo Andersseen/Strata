@@ -1,5 +1,14 @@
 # Current implementation audit
 
+## Cloudflare controller concurrency anomaly: not reproduced, cause unconfirmed (2026-10-15)
+
+A diagnostic increment classified and attempted to reproduce run 38727456938's single anomalous controller
+answer. Local Node, local workerd and the existing public deployment each ran a bounded matrix (829, 829
+and 478 requests) with **0 anomalies**; the adapter audit found no cross-request state. One new dispatch
+([38741663534](https://github.com/Andersseen/Strata/actions/runs/38741663534), deployment `0a77889b`) passed
+every check, so that **candidate** is GO on Cloudflare Pages; the two earlier runs stay NO-GO and the root cause
+is **UNCONFIRMED**. Details: [report](research/full-stack-cloudflare-concurrency.md).
+
 ## Full-stack deployed Cloudflare qualification: two real runs, both NO-GO (2026-10-15)
 
 The workflow was dispatched twice (runs [38722004014](https://github.com/Andersseen/Strata/actions/runs/38722004014)
