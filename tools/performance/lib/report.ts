@@ -1,4 +1,5 @@
-import type { ArmId } from "./arms.ts";
+import { ISLAND_COUNTS } from "./arms.ts";
+import type { ArmId, IslandCount } from "./arms.ts";
 import type { TargetResult } from "./bench.ts";
 import type { BuildMeasurement, Preset } from "./graph.ts";
 import {
@@ -18,7 +19,8 @@ import type { Spread } from "./metrics.ts";
  * MEASURED, ESTIMATED, NOT MEASURED or NOT COMPARABLE.
  */
 
-export const SCHEMA_VERSION = 1;
+/** 2: adds `islandCount` (the interactive-island profile the four arms were built with). */
+export const SCHEMA_VERSION = 2;
 
 export type Runtime = "node" | "workerd";
 export const RUNTIMES: readonly Runtime[] = ["node", "workerd"];
@@ -57,6 +59,8 @@ export interface ArmReport {
   readonly strataPackages: readonly string[];
   readonly builds: Readonly<Record<Preset, PresetReport>>;
   readonly http: Readonly<Record<Runtime, readonly HttpRepetition[]>>;
+  /** Bytes of the SSR document (`/products/42`) per runtime: a measured application effect. */
+  readonly ssrDocumentBytes: Readonly<Record<Runtime, number | null>>;
   readonly browserSmoke: Readonly<
     Record<Runtime, { readonly ok: boolean; readonly problems: readonly string[] }>
   >;
@@ -74,6 +78,8 @@ export interface NegativeControl {
 export interface PerfReport {
   readonly schemaVersion: number;
   readonly generatedAt: string;
+  /** Interactive client islands in every arm of this report: 1 (PR #86 baseline) or 3. */
+  readonly islandCount: IslandCount;
   readonly baseline: {
     readonly startingMainSha: string;
     readonly headSha: string;
@@ -122,6 +128,7 @@ export function validateReport(report: PerfReport): string[] {
   const problems: string[] = [];
 
   if (report.schemaVersion !== SCHEMA_VERSION) problems.push("schemaVersion");
+  if (!ISLAND_COUNTS.includes(report.islandCount)) problems.push("islandCount (1 or 3)");
   if (!/^[0-9a-f]{40}$/.test(report.baseline?.startingMainSha ?? ""))
     problems.push("baseline.startingMainSha");
   for (const key of ["os", "arch", "cpu", "node", "npm", "wrangler", "compatibilityDate"] as const)
@@ -205,14 +212,14 @@ export function aggregate(
   return { p50: spreadOf(values("p50")), p95: spreadOf(values("p95")) };
 }
 
-const ARM_IDS: readonly ArmId[] = ["A", "B", "C", "D"];
+export const ARM_IDS: readonly ArmId[] = ["A", "B", "C", "D"];
 
 function armOf(report: PerfReport, id: ArmId): ArmReport | undefined {
   return report.arms.find((arm) => arm.id === id);
 }
 
 /** A metric per arm, `null` for an arm that failed correctness (never a fast "success"). */
-function perArm(report: PerfReport, read: (arm: ArmReport) => number | null | undefined) {
+export function perArm(report: PerfReport, read: (arm: ArmReport) => number | null | undefined) {
   return Object.fromEntries(
     ARM_IDS.map((id) => {
       const arm = armOf(report, id);
@@ -262,7 +269,10 @@ export function renderMarkdown(report: PerfReport): string {
   const out: string[] = [];
   const build = (arm: ArmReport, preset: Preset): PresetReport => arm.builds[preset];
 
-  out.push(`## Comparison (starting main ${report.baseline.startingMainSha.slice(0, 7)})`, "");
+  out.push(
+    `## Comparison, ${report.islandCount} interactive island${report.islandCount === 1 ? "" : "s"} (starting main ${report.baseline.startingMainSha.slice(0, 7)})`,
+    "",
+  );
   out.push(
     table(
       [
