@@ -1,0 +1,114 @@
+name: Extended checks
+
+# The slow, noisy or externally-dependent suites that must not gate or slow every pull request:
+#   performance  four-arm full-stack bundle/latency baseline (docs/research/full-stack-performance-baseline.md)
+#   registry     the PUBLISHED @strata-sc/server-components from npm, built for Cloudflare Pages, local workerd
+#   types        the H3 consumer type-closure experiment (SPEC-002; its expected verdict is "upstream-blocked")
+#
+# - Weekly (Monday 04:00 UTC) runs all three; `workflow_dispatch` runs one or all with custom workload.
+# - No deployment, no npm publication, no Cloudflare secrets, no write to any external service
+#   (`permissions: contents: read`; no `secrets.*` is referenced).
+# - The performance job asserts correctness only. There is deliberately NO latency or size gate:
+#   hosted runners are noisy and the JSON report is evidence, not a regression check.
+on:
+  schedule:
+    - cron: "0 4 * * 1"
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: Which suite to run
+        type: choice
+        default: all
+        options: [all, performance, registry, types]
+      reps:
+        description: "Performance: repetitions per arm and runtime (default 3)"
+        type: string
+        default: "3"
+      build_reps:
+        description: "Performance: fresh builds per arm and preset (default 3)"
+        type: string
+        default: "3"
+      requests:
+        description: "Performance: measured requests per target and mode (default 200)"
+        type: string
+        default: "200"
+      warmup:
+        description: "Performance: warm-up requests per target (default 50)"
+        type: string
+        default: "50"
+      concurrency:
+        description: "Performance: in-flight requests in the concurrent mode (default 8)"
+        type: string
+        default: "8"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: extended-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  performance:
+    name: Full-stack performance baseline (Node + local workerd)
+    if: github.event_name == 'schedule' || inputs.suite == 'all' || inputs.suite == 'performance'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup
+        with:
+          build: "false"
+          playwright: "true"
+
+      - name: Measure
+        run: pnpm test:full-stack-performance
+        env:
+          STRATA_PERF_OUT: ${{ runner.temp }}/full-stack-performance-evidence
+          STRATA_PERF_REPS: ${{ inputs.reps || '3' }}
+          STRATA_PERF_BUILD_REPS: ${{ inputs.build_reps || '3' }}
+          STRATA_PERF_REQUESTS: ${{ inputs.requests || '200' }}
+          STRATA_PERF_WARMUP: ${{ inputs.warmup || '50' }}
+          STRATA_PERF_CONCURRENCY: ${{ inputs.concurrency || '8' }}
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-stack-performance-evidence
+          path: ${{ runner.temp }}/full-stack-performance-evidence
+          if-no-files-found: ignore
+          retention-days: 30
+
+  registry:
+    name: Published package on Cloudflare Pages (build + local workerd rehearsal)
+    if: github.event_name == 'schedule' || inputs.suite == 'all' || inputs.suite == 'registry'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup
+        with:
+          build: "false"
+          playwright: "true"
+
+      - name: Published package (no account, no secrets, no deployment)
+        run: pnpm test:server-components:deployed-cloudflare
+
+  types:
+    name: Consumer type-closure experiment (SPEC-002)
+    if: github.event_name == 'schedule' || inputs.suite == 'all' || inputs.suite == 'types'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup
+
+      - name: Type closure
+        run: pnpm test:consumer:types

@@ -1,0 +1,38 @@
+name: Setup Strata workspace
+description: Install pnpm, Node and the locked dependencies, build the packages, and optionally install Chromium.
+
+inputs:
+  build:
+    description: Build every package first (needed by type-aware lint and every external consumer).
+    default: "true"
+  playwright:
+    description: Install Chromium for the browser suites.
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v6
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v7
+      with:
+        node-version: 22
+        cache: pnpm
+
+    - name: Install dependencies
+      shell: bash
+      run: pnpm install --frozen-lockfile
+
+    # Lint uses typescript-eslint's projectService, which resolves `@strata-sc/*` through their
+    # package.json `exports` (pointing at `dist`): build before lint/typecheck (docs/STATE.md).
+    - name: Build
+      if: inputs.build == 'true'
+      shell: bash
+      run: pnpm build
+
+    - name: Install Chromium
+      if: inputs.playwright == 'true'
+      shell: bash
+      run: pnpm --filter @strata-sc/www exec playwright install --with-deps chromium

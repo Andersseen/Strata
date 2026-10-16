@@ -1,5 +1,8 @@
 name: CI
 
+# One pipeline, five parallel jobs plus an aggregate `Verify` gate. Every job builds the packages itself
+# (jobs share nothing), so wall time is the slowest group instead of the sum of all steps. The slow,
+# external-dependent or informational suites live in extended.yml (weekly cron + manual).
 on:
   push:
     branches: [main]
@@ -13,32 +16,16 @@ permissions:
   contents: read
 
 jobs:
-  ci:
-    name: Verify
+  # Fast gate: build, type-aware lint, typecheck, unit tests (includes the performance-tool self-tests).
+  static:
+    name: Lint, typecheck and unit tests
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      # Build before type-aware lint/typecheck: lint uses typescript-eslint's
-      # projectService, which resolves `@strata-sc/core`/`@strata-sc/h3` through
-      # their package.json `exports` (pointing at `dist`). On a clean
-      # checkout those declarations don't exist until packages are built, so
-      # lint must run after build, not before (see docs/STATE.md).
-      - name: Build
-        run: pnpm build
+      - uses: ./.github/actions/setup
 
       - name: Lint
         run: pnpm lint
@@ -49,84 +36,99 @@ jobs:
       - name: Test
         run: pnpm test
 
-      - name: Install Chromium for website e2e
-        run: pnpm --filter @strata-sc/www exec playwright install --with-deps chromium
+  # Production build, SSR, hydration and graph firewall PoCs of the Server Component fixture.
+  graph:
+    name: Server Component graph (build, SSR, hydration, firewall)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
 
-      - name: Test official website end-to-end
-        run: pnpm --filter @strata-sc/www test:e2e
+      - uses: ./.github/actions/setup
+        with:
+          playwright: "true"
 
-      # Reuses the Chromium installed above (same Playwright 1.62.1).
       - name: Server-component graph PoC (production build, SSR, hydration)
         run: pnpm test:server-components
 
       - name: Server-component navigation PoC (document vs router navigation)
         run: pnpm test:server-component-navigation
 
-      # Angular-owned @defer inside client islands; @defer in a server-owned
-      # template fails the build.
+      # Angular-owned @defer inside client islands; @defer in a server-owned template fails the build.
       - name: Server Components + Angular @defer (incremental hydration, lazy chunks)
         run: pnpm test:server-component-defer
 
-      # `import "@strata-sc/server-components/server-only"`: illegal browser
-      # imports (direct, dynamic, barrel, ?raw, @defer-lazy) fail real builds.
+      # `import "@strata-sc/server-components/server-only"`: illegal browser imports fail real builds.
       - name: Server-only modules (build-graph firewall)
         run: pnpm test:server-component-server-only
 
-      # Server-owned DATA stays off every public surface (HTML, boundary props,
-      # hydrated DOM, network, browser output, source maps, errors, build
-      # diagnostics) on Node and local workerd, scanned with synthetic canaries
-      # and a PUBLIC positive control. No external secrets.
-      - name: Server Component data confidentiality (synthetic canaries, Node + workerd)
-        run: pnpm test:server-component-security
-
-      # Angular's public REQUEST_CONTEXT token, per-render Analog providers,
-      # deterministic 24-request overlap, and missing-context behavior on Node
-      # and local workerd.
-      - name: Server Component request context (Node + workerd)
-        run: pnpm test:server-component-request-context
-
-      # Failure contract for buffered SSR + document navigation: render and
-      # serialization failures, preflight/commit failures, sibling-host
-      # isolation, navigation/Back/re-entry, on Node and local workerd.
-      - name: Server Component failure and recovery (Node + workerd)
-        run: pnpm test:server-component-failures
-
-      # Consumer-owned expected-service recovery can set a response status through
-      # Analog's public per-request response token. Unexpected render failures stay
-      # a separate HTTP-200 limitation control.
-      - name: Server Component SSR response and recovery (Node + workerd)
-        run: pnpm test:server-component-ssr-response
-
-      # Fixture-only synthetic principal resolution and resource authorization: the
-      # credential comes from an HttpOnly cookie, route/query/header identity inputs
-      # stay untrusted, and repository reads are observable only per request.
-      - name: Server Component authorization isolation (Node + workerd)
-        run: pnpm test:server-component-authorization
-
-      # The REAL Analog/Vite dev server in Chromium: server-owned edits regenerate
-      # the graph and reload the document once, client-owned edits do not, a module
-      # that starts asserting server-only is refused live, and an invalid edit
-      # fails the client graph closed until fixed. Restores every edited file.
+      # The REAL Analog/Vite dev server in Chromium: server-owned edits regenerate the graph and reload
+      # the document once, client-owned edits do not, a module that starts asserting server-only is
+      # refused live. Restores every edited file.
       - name: Server Component dev server (graph regeneration, reload semantics, live firewall)
         run: pnpm test:server-component-dev
 
-      # The PACKED (still private) package, installed with npm into a real Analog app in
-      # an OS temp directory outside the workspace: tarball and declarations (TypeScript
-      # 6 and 5.9), Node build/SSR/hydration, server-only firewall, `vite` dev with one
-      # server-owned edit, Cloudflare build on local workerd. Never publishes anything.
+  # Runtime contracts on Node and local workerd: confidentiality, request context, failures, authorization.
+  runtime:
+    name: Server Component runtime contracts (Node + workerd)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup
+        with:
+          playwright: "true"
+
+      # Server-owned DATA stays off every public surface, scanned with synthetic canaries and a PUBLIC
+      # positive control. No external secrets.
+      - name: Server Component data confidentiality (synthetic canaries, Node + workerd)
+        run: pnpm test:server-component-security
+
+      # Angular's public REQUEST_CONTEXT token, per-render Analog providers, deterministic 24-request overlap.
+      - name: Server Component request context (Node + workerd)
+        run: pnpm test:server-component-request-context
+
+      # Failure contract for buffered SSR + document navigation, sibling-host isolation, Back/re-entry.
+      - name: Server Component failure and recovery (Node + workerd)
+        run: pnpm test:server-component-failures
+
+      # Consumer-owned expected-service recovery can set a response status through Analog's public
+      # per-request response token. Unexpected render failures stay a separate HTTP-200 limitation control.
+      - name: Server Component SSR response and recovery (Node + workerd)
+        run: pnpm test:server-component-ssr-response
+
+      # Fixture-only synthetic principal resolution and resource authorization (HttpOnly cookie).
+      - name: Server Component authorization isolation (Node + workerd)
+        run: pnpm test:server-component-authorization
+
+  # The PACKED packages installed with npm into real apps outside the workspace. Never publishes.
+  consumers:
+    name: Packed-package consumers (outside the workspace)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup
+        with:
+          playwright: "true"
+
+      # Tarball and declarations (TypeScript 6 and 5.9), Node build/SSR/hydration, server-only firewall,
+      # `vite` dev with one server-owned edit, Cloudflare build on local workerd.
       - name: Server Component packed-package consumer (outside the workspace)
         run: pnpm test:server-component-package-consumer
 
-      # All three PACKED packages (core, analog, server-components), installed with npm into ONE
-      # Analog app outside the workspace: a Strata controller behind a public HTTP API called by a
-      # hydrated [strataClient] island next to a server-only @ServerComponent(). Declarations
-      # (TypeScript 6 and 5.9), Node build/SSR/navigation, firewall, Cloudflare build on local workerd.
+      # All three packed packages in ONE Analog app: a Strata controller behind a public HTTP API called by a
+      # hydrated [strataClient] island next to a server-only @ServerComponent().
       - name: Full-stack packed-package consumer (core + analog + server-components)
         run: pnpm test:full-stack-package-consumer
 
-      # The same three packed packages built for Cloudflare Pages (SOURCE-PACKED CANDIDATE) and
-      # verified black-box on local workerd. PR-safe: no account, no secrets, no deployment; the
-      # real-deployment verdict stays NOT RUN (the manual full-stack-deployed-cloudflare.yml deploys).
+      # The same packed packages built for Cloudflare Pages and verified black-box on local workerd. PR-safe:
+      # no account, no secrets, no deployment (the manual full-stack-deployed-cloudflare.yml deploys).
       - name: Full-stack Cloudflare build + local workerd rehearsal (no deployment)
         run: pnpm test:full-stack-deployed-cloudflare
 
@@ -134,28 +136,50 @@ jobs:
       - name: Server-component PoC on Cloudflare Pages (local Wrangler runtime)
         run: pnpm test:server-components:cloudflare
 
-      # The PUBLISHED package from registry.npmjs.org, built for Cloudflare Pages in a fresh
-      # app outside the workspace, graph-scanned, and verified end to end on local workerd.
-      # No account, no secrets, no deployment: the real-deployment verdict stays NOT RUN here
-      # (the manual workflow server-component-deployed-cloudflare.yml deploys and qualifies).
-      - name: Published package on Cloudflare Pages (build + local workerd rehearsal)
-        run: pnpm test:server-components:deployed-cloudflare
+      - name: Packed-package consumer (TypeScript 5.9.2)
+        run: pnpm test:package-consumer
 
-      # The official site dogfoods the private package on its homepage: graph
-      # split, SSR and its Playwright suite on Nitro and on local workerd.
+  # The official site and Relay dogfood the private package: graph split, SSR and their Playwright suites.
+  apps:
+    name: Website and Relay (dogfood, Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup
+        with:
+          playwright: "true"
+
+      - name: Test official website end-to-end
+        run: pnpm --filter @strata-sc/www test:e2e
+
       - name: Website Server Component dogfood (Node + Cloudflare builds)
         run: pnpm test:www:server-components
 
-      # Relay uses the package like a real app: several islands, islands inside
-      # @for, and a Server Component reading the controllers' own store.
       - name: Relay Server Component dogfood (graph, SSR, shared state, Playwright)
         run: pnpm test:relay:server-components
 
-      - name: Consumer type-closure experiment (SPEC-002)
-        run: pnpm test:consumer:types
-
-      - name: Packed-package consumer (TypeScript 5.9.2)
-        run: pnpm test:package-consumer
+  # Single required check. Branch protection and `deploy-www` depend on this one name, whatever the
+  # number of parallel jobs behind it.
+  ci:
+    name: Verify
+    if: always()
+    needs: [static, graph, runtime, consumers, apps]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every parallel job succeeded
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "job results: $RESULTS"
+          for result in $RESULTS; do
+            if [ "$result" != "success" ]; then
+              echo "::error::at least one parallel job did not succeed"
+              exit 1
+            fi
+          done
 
   deploy-www:
     name: Deploy official website to Cloudflare Pages
