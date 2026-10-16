@@ -29,6 +29,28 @@ export const ARMS: readonly ArmSpec[] = [
   { id: "D", label: "full Strata", page: "server-component", api: "controller" },
 ];
 
+/**
+ * The only supported island profiles. One interactive island is the PR #86 baseline and the
+ * default; three is the bounded scaling profile. Counts are never open-ended.
+ */
+export const ISLAND_COUNTS = [1, 3] as const;
+export type IslandCount = (typeof ISLAND_COUNTS)[number];
+export const DEFAULT_ISLAND_COUNT: IslandCount = 1;
+
+/** Parses `STRATA_PERF_ISLANDS`: unset or empty is the one-island default, anything else must be listed. */
+export function parseIslandCount(value: string | undefined): IslandCount {
+  if (value === undefined || value === "") return DEFAULT_ISLAND_COUNT;
+
+  const found = ISLAND_COUNTS.find((count) => String(count) === value.trim());
+
+  if (found === undefined)
+    throw new Error(
+      `STRATA_PERF_ISLANDS must be one of ${ISLAND_COUNTS.join(", ")} (got "${value}")`,
+    );
+
+  return found;
+}
+
 export const CORE = "@strata-sc/core";
 export const ANALOG = "@strata-sc/analog";
 export const SERVER_COMPONENTS = "@strata-sc/server-components";
@@ -68,6 +90,8 @@ export interface AssembleOptions {
    * (the like-for-like default), `object` returns a plain object through h3's own serializer.
    */
   readonly nativeStyle?: "response" | "object";
+  /** Interactive islands in the app; default one. Profile files live in `islands-<n>/`. */
+  readonly islands?: IslandCount;
 }
 
 export interface Assembled {
@@ -86,7 +110,11 @@ export function assembleArm({
   arm,
   tarballs,
   nativeStyle = "response",
+  islands = DEFAULT_ISLAND_COUNT,
 }: AssembleOptions): Assembled {
+  if (islands !== 1 && nativeStyle === "object")
+    throw new Error("the object-return native diagnostic only exists for the one-island profile");
+
   const common = join(template, "common");
   const overlays = [
     join(template, "variants", `page-${arm.page}`),
@@ -96,14 +124,27 @@ export function assembleArm({
       arm.api === "native" && nativeStyle === "object" ? "api-native-object" : `api-${arm.api}`,
     ),
   ];
+  // A profile adds files. Its page/api overlays may replace the variants' own page and controller
+  // files (the profile's version of the same component); nothing may ever replace a common file.
+  const profile =
+    islands === 1
+      ? []
+      : ["common", `page-${arm.page}`, `api-${arm.api}`].map((name) =>
+          join(template, `islands-${islands}`, name),
+        );
   const placed = new Set<string>();
+  const protectedFiles = new Set<string>();
 
-  for (const root of [common, ...overlays]) {
+  for (const root of [common, ...overlays, ...profile]) {
     if (!existsSync(root)) throw new Error(`Missing fixture directory: ${root}`);
 
+    const mayReplaceVariant = profile.slice(1).includes(root);
+
     for (const file of listAll(root)) {
-      if (placed.has(file)) throw new Error(`Variant file overrides another file: ${file}`);
+      if (placed.has(file) && !(mayReplaceVariant && !protectedFiles.has(file)))
+        throw new Error(`Variant file overrides another file: ${file}`);
       placed.add(file);
+      if (root === common || root === profile[0]) protectedFiles.add(file);
     }
 
     cpSync(root, destination, { recursive: true });

@@ -34,17 +34,21 @@ import {
 } from "../server-components/lib/package-consumer.ts";
 import { COMPATIBILITY_DATE } from "../server-components/lib/wrangler.ts";
 
-import { ARMS, assembleArm, strataPackagesOf } from "./lib/arms.ts";
+import { ARMS, assembleArm, parseIslandCount, strataPackagesOf } from "./lib/arms.ts";
 import type { ArmId, ArmSpec } from "./lib/arms.ts";
-import { measureTarget, startNodeServer, timedGet } from "./lib/bench.ts";
+import { measureTarget, startNodeServer, startWithPortRetry, timedGet } from "./lib/bench.ts";
 import type { Target } from "./lib/bench.ts";
 import {
   MARKERS,
   apiProblems,
   baselineIsolationProblems,
+  boundaryProblems,
   browserStrataProblems,
+  canaryProblems,
   confidentialityProblems,
+  exactJsonProblems,
   hasStrataBoundary,
+  islandsFor,
   lockTuple,
   ssrProblems,
   tupleMismatches,
@@ -68,7 +72,8 @@ import type {
   PresetReport,
   Runtime,
 } from "./lib/report.ts";
-import { browserSmoke } from "./lib/smoke.ts";
+import { browserSmoke, islandsSmoke } from "./lib/smoke.ts";
+import type { IslandFault } from "./lib/smoke.ts";
 
 /**
  * `pnpm test:full-stack-performance`: the controlled full-stack performance and bundle-cost
@@ -84,6 +89,9 @@ import { browserSmoke } from "./lib/smoke.ts";
  *   STRATA_PERF_REPS (3)  STRATA_PERF_BUILD_REPS (3)  STRATA_PERF_REQUESTS (200)
  *   STRATA_PERF_WARMUP (50)  STRATA_PERF_CONCURRENCY (8)  STRATA_PERF_OUT  STRATA_PERF_KEEP=1
  *   STRATA_PERF_NATIVE_HANDLER=object (diagnostic: idiomatic h3 object-return native route)
+ *   STRATA_PERF_ISLANDS=1|3 (1): interactive client islands in all four arms; any other value fails.
+ *     3 = three distinct island components (availability, stock, delivery), measured on the same
+ *     arms and method. (docs/research/full-stack-performance-scaling.md)
  */
 
 const integer = (name: string, fallback: number): number => {
@@ -98,6 +106,8 @@ const integer = (name: string, fallback: number): number => {
 
   return parsed;
 };
+
+const islands = parseIslandCount(process.env["STRATA_PERF_ISLANDS"]);
 
 const policy = {
   repetitions: integer("STRATA_PERF_REPS", 3),
@@ -119,7 +129,7 @@ const armById = (id: ArmId): ArmSpec => ARMS.find((arm) => arm.id === id)!;
 
 const TARGETS: Record<"api" | "ssr", Target> = {
   api: { name: "api", path: "/api/products/42", validate: apiProblems },
-  ssr: { name: "ssr", path: "/products/42", validate: ssrProblems },
+  ssr: { name: "ssr", path: "/products/42", validate: (outcome) => ssrProblems(outcome, islands) },
 };
 
 const tmpRoot = mkdtempSync(join(tmpdir(), "strata-full-stack-performance-"));
@@ -155,6 +165,7 @@ mkdirSync(evidenceDir, { recursive: true });
 console.log(`evidence directory: ${evidenceDir}`);
 console.log(`working directory (removed afterwards unless STRATA_PERF_KEEP=1): ${tmpRoot}`);
 console.log(`policy: ${JSON.stringify(policy)}`);
+console.log(`islands: ${islands}`);
 
 // ---------------------------------------------------------------------------
 // 1. Pack the three real packages
@@ -246,6 +257,7 @@ function installArm(spec: ArmSpec, tarballs: readonly Tarball[]): ArmState {
     arm: spec,
     tarballs: Object.fromEntries(tarballs.map((t) => [t.name, t.path])),
     nativeStyle: process.env["STRATA_PERF_NATIVE_HANDLER"] === "object" ? "object" : "response",
+    islands,
   });
 
   // npm 10's peer-dependency resolver crashes (`Cannot read properties of null (reading
@@ -484,7 +496,7 @@ function staticProblems(
     server: scanMarkers(targets.server, ALL_MARKERS),
     browser: scanMarkers(targets.browser, ALL_MARKERS),
   };
-  const problems = confidentialityProblems(state.spec, scan);
+  const problems = confidentialityProblems(state.spec, scan, islands);
 
   if (measurement)
     problems.push(
@@ -533,7 +545,12 @@ async function start(runtime: Runtime, runDir: string): Promise<Running> {
     return server;
   }
 
-  const server = await startWrangler(runDir, env, "/api/products/42");
+  // `findFreePort` is a pick-then-bind race; a collision is retried, anything else is not.
+  const server = await startWithPortRetry(
+    () => startWrangler(runDir, env, "/api/products/42"),
+    3,
+    (attempt) => console.log(`  workerd start ${attempt} hit a port collision; starting again`),
+  );
 
   return {
     baseUrl: server.baseUrl,
@@ -557,12 +574,35 @@ async function httpProblems(spec: ArmSpec, base: string): Promise<string[]> {
   }));
 
   problems.push(...apiProblems(api).map((p) => `API: ${p}`));
-  problems.push(...ssrProblems(ssr).map((p) => `SSR: ${p}`));
+  problems.push(...ssrProblems(ssr, islands).map((p) => `SSR: ${p}`));
+  problems.push(...canaryProblems("SSR document", ssr.body));
+  problems.push(...canaryProblems("API response", api.body));
 
-  if (hasStrataBoundary(ssr.body) !== (spec.page === "server-component"))
+  if (islands === 1) {
+    if (hasStrataBoundary(ssr.body) !== (spec.page === "server-component"))
+      problems.push(
+        `SSR: Strata boundary markup ${hasStrataBoundary(ssr.body) ? "present" : "absent"} unexpectedly`,
+      );
+  } else {
     problems.push(
-      `SSR: Strata boundary markup ${hasStrataBoundary(ssr.body) ? "present" : "absent"} unexpectedly`,
+      ...boundaryProblems(ssr.body, spec.page === "server-component", islands).map(
+        (p) => `SSR: ${p}`,
+      ),
     );
+  }
+
+  // The extra islands' public endpoints: same contract in all four arms, unknown product is a 404.
+  for (const island of islandsFor(islands).slice(1)) {
+    const answer = await timedGet(`${base}${island.apiPath}`);
+    const unknown = await timedGet(`${base}${island.apiPath.replace("/42", "/999")}`);
+
+    problems.push(
+      ...exactJsonProblems(answer, island.apiBody).map((p) => `${island.id} API: ${p}`),
+    );
+    problems.push(...canaryProblems(`${island.id} API response`, answer.body));
+    if (unknown.status !== 404 || !unknown.body.includes("not_found"))
+      problems.push(`${island.id} API: unknown product answered ${unknown.status}`);
+  }
   if (missing.status !== 404 || !missing.body.includes("not_found"))
     problems.push(`unknown product answered ${missing.status}`);
   if (home.status !== 200) problems.push(`home answered ${home.status}`);
@@ -582,7 +622,7 @@ function prepareArm(
   spec: ArmSpec,
   states: ReadonlyMap<ArmId, ArmState>,
 ): {
-  report: Omit<ArmReport, "http" | "browserSmoke" | "correctness">;
+  report: Omit<ArmReport, "http" | "browserSmoke" | "correctness" | "ssrDocumentBytes">;
   problems: string[];
 } {
   const state = states.get(spec.id)!;
@@ -655,6 +695,7 @@ async function measureRuntime(
   http: Map<ArmId, HttpRepetition[]>,
   smoke: Map<string, { ok: boolean; problems: string[] }>,
   failed: Map<ArmId, string[]>,
+  documentBytes: Map<string, number>,
 ): Promise<void> {
   section(
     `HTTP measurement on ${runtime}: ${policy.repetitions} repetition(s), ${policy.requests} requests per target and mode, warm-up ${policy.warmup}`,
@@ -674,7 +715,10 @@ async function measureRuntime(
         const problems = await httpProblems(spec, server.baseUrl);
 
         if (rep === 0) {
-          const smokeProblems = await browserSmoke({ base: server.baseUrl });
+          const smokeProblems =
+            islands === 1
+              ? await browserSmoke({ base: server.baseUrl })
+              : await islandsSmoke({ base: server.baseUrl, islands });
 
           smoke.set(`${id}:${runtime}`, {
             ok: smokeProblems.length === 0,
@@ -697,6 +741,12 @@ async function measureRuntime(
           );
           continue;
         }
+
+        if (rep === 0)
+          documentBytes.set(
+            `${id}:${runtime}`,
+            Buffer.byteLength((await timedGet(`${server.baseUrl}${TARGETS.ssr.path}`)).body),
+          );
 
         const rssStart = server.rssKiB();
         const results = {} as Record<"api" | "ssr", Awaited<ReturnType<typeof measureTarget>>>;
@@ -776,6 +826,82 @@ function replaceIn(files: readonly string[], from: string, to: string): number {
   return changed;
 }
 
+type RecordControl = (name: string, description: string, problems: readonly string[]) => void;
+
+/** Controls that exist only where there are several islands: each breaks exactly ONE of them. */
+async function islandNegativeControls(armD: ArmState, record: RecordControl): Promise<void> {
+  const faults: readonly [string, string, IslandFault][] = [
+    [
+      "island-click-issues-no-request",
+      "the delivery button's click never reaches its handler: no API request (arm D, Node)",
+      { island: "delivery", kind: "swallow-click" },
+    ],
+    [
+      "island-state-not-updated",
+      "the stock island's API request is aborted: its state never updates (arm D, Node)",
+      { island: "stock", kind: "block-api" },
+    ],
+  ];
+
+  // One of three islands missing from the server render.
+  const noStock = copyRun("D", "island-missing-from-ssr");
+  const noStockRoot = join(noStock, "dist", "analog");
+
+  replaceIn(scanTargets(noStockRoot, "node-server").server, "product-stock", "product-stocx");
+
+  const noStockServer = await start("node", noStock);
+
+  try {
+    record(
+      "island-missing-from-ssr",
+      "one of three islands is not rendered by the server (arm D, Node)",
+      await httpProblems(armD.spec, noStockServer.baseUrl),
+    );
+  } finally {
+    await noStockServer.stop();
+  }
+
+  const intact = copyRun("D", "island-faults");
+  const server = await start("node", intact);
+
+  try {
+    const html = (await timedGet(`${server.baseUrl}/products/42`)).body;
+    const collided = html.replace(
+      'data-strata-client="product-stock"',
+      'data-strata-client="product-delivery"',
+    );
+
+    record(
+      "island-boundary-identity-collision",
+      "two islands share one boundary identity in the SSR document (arm D)",
+      collided === html ? [] : boundaryProblems(collided, true, islands),
+    );
+
+    for (const [name, description, fault] of faults)
+      record(
+        name,
+        description,
+        await islandsSmoke({ base: server.baseUrl, islands, timeoutMs: 6_000, fault }),
+      );
+  } finally {
+    await server.stop();
+  }
+
+  // Server-only canary of the added server module leaking into a browser chunk.
+  const leak = copyRun("D", "browser-leak-warehouse");
+  const leakRoot = join(leak, "dist", "analog");
+  const [chunk] = scanTargets(leakRoot, "node-server").browser.filter((file) =>
+    file.endsWith(".js"),
+  );
+
+  writeFileSync(chunk!, `${readFileSync(chunk!, "utf8")}\n/* ${MARKERS.privateWarehouse} */\n`);
+  record(
+    "browser-leak-warehouse",
+    "the fulfilment canary appended to a browser chunk (arm D)",
+    staticProblems(armD, "node-server", leakRoot, undefined),
+  );
+}
+
 async function negativeControls(states: ReadonlyMap<ArmId, ArmState>): Promise<NegativeControl[]> {
   section("Negative controls: intentionally broken variants must be REJECTED, never measured");
 
@@ -836,7 +962,11 @@ async function negativeControls(states: ReadonlyMap<ArmId, ArmState>): Promise<N
     record(
       "missing-browser-functionality",
       `island request target broken in ${changed} browser file(s) (arm D, Node)`,
-      changed === 0 ? [] : await browserSmoke({ base: noClientServer.baseUrl, timeoutMs: 6_000 }),
+      changed === 0
+        ? []
+        : islands === 1
+          ? await browserSmoke({ base: noClientServer.baseUrl, timeoutMs: 6_000 })
+          : await islandsSmoke({ base: noClientServer.baseUrl, islands, timeoutMs: 6_000 }),
     );
   } finally {
     await noClientServer.stop();
@@ -873,6 +1003,8 @@ async function negativeControls(states: ReadonlyMap<ArmId, ArmState>): Promise<N
     "a private canary appended to a browser chunk (arm D)",
     staticProblems(armD, "node-server", leakRoot, undefined),
   );
+
+  if (islands > 1) await islandNegativeControls(armD, record);
 
   // 5. A no-Strata baseline that accidentally imports a Strata package.
   const armA = states.get("A")!;
@@ -969,11 +1101,13 @@ async function main(): Promise<boolean> {
   };
   const smoke = new Map<string, { ok: boolean; problems: string[] }>();
   const failed = new Map<ArmId, string[]>();
+  const documentBytes = new Map<string, number>();
   const prepared = new Map(ARMS.map((spec) => [spec.id, prepareArm(spec, states)]));
 
   for (const [id, { problems }] of prepared) if (problems.length > 0) failed.set(id, problems);
 
-  for (const runtime of RUNTIMES) await measureRuntime(runtime, http[runtime], smoke, failed);
+  for (const runtime of RUNTIMES)
+    await measureRuntime(runtime, http[runtime], smoke, failed, documentBytes);
 
   const controls = await negativeControls(states);
   const arms: ArmReport[] = ARMS.map((spec) => {
@@ -986,6 +1120,9 @@ async function main(): Promise<boolean> {
     return {
       ...report,
       http: { node: reps("node"), workerd: reps("workerd") },
+      ssrDocumentBytes: Object.fromEntries(
+        RUNTIMES.map((runtime) => [runtime, documentBytes.get(`${spec.id}:${runtime}`) ?? null]),
+      ) as ArmReport["ssrDocumentBytes"],
       browserSmoke: Object.fromEntries(
         RUNTIMES.map((runtime) => [
           runtime,
@@ -1004,6 +1141,7 @@ async function main(): Promise<boolean> {
   const report: PerfReport = {
     schemaVersion: SCHEMA_VERSION,
     generatedAt: new Date().toISOString(),
+    islandCount: islands,
     baseline: {
       startingMainSha: git("merge-base", "HEAD", "origin/main"),
       headSha: git("rev-parse", "HEAD"),

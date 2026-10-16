@@ -58,6 +58,14 @@ tuple mismatch, contaminated baseline, broken variants) run in normal CI as `pnp
 requests, warm-up and concurrency) on a GitHub-hosted runner: no deployment, publication or secrets, JSON uploaded. See the
 [report](research/full-stack-performance-baseline.md).
 
+`STRATA_PERF_ISLANDS=1|3` (default 1) selects the island profile; the same four arms are built with one or with three distinct interactive
+islands and the three-island profile adds a multi-island hydration/interaction smoke (original nodes reused, one request and one state update per
+click, no cross-island effect), boundary-identity and canary checks, and five more negative controls. `pnpm test:full-stack-performance:compare
+<one report> <three report>` renders the scaling tables and refuses an incomparable pair (package versions, dependency tuple, Node/wrangler,
+compression, presets, arm definitions, an incomplete report or a failed arm); it applies no threshold. The manual workflow takes `islands:
+one | three | both`; `both` runs the two profiles in one job on one runner and uploads both reports, the comparison and a redacted environment file.
+Self-tests grew from 94 to 163 (`pnpm test:performance-tools`). See the [scaling report](research/full-stack-performance-scaling.md).
+
 ## Current Server Component evidence
 
 The experimental `@strata-sc/server-components` package has unit tests for its isolable logic

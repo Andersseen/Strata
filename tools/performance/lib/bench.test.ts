@@ -3,7 +3,15 @@ import type { Server } from "node:http";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { concurrent, measureTarget, sequential, timedGet, warmUp } from "./bench.ts";
+import {
+  concurrent,
+  isPortCollision,
+  measureTarget,
+  sequential,
+  startWithPortRetry,
+  timedGet,
+  warmUp,
+} from "./bench.ts";
 import type { Target } from "./bench.ts";
 
 let server: Server;
@@ -94,5 +102,62 @@ describe("sampling", () => {
     expect(bad.sequential.p50).toBeNull();
     expect(bad.sequential.statuses).toEqual({ "404": 10 });
     expect(bad.warmup.problems).toEqual(["status 404"]);
+  });
+});
+
+describe("startWithPortRetry", () => {
+  const collision = new Error(
+    "*** Fatal uncaught kj::Exception: bind(): Address already in use (os error 98)",
+  );
+
+  it("recognizes only port collisions", () => {
+    expect(isPortCollision(collision)).toBe(true);
+    expect(isPortCollision(new Error("listen EADDRINUSE: address already in use"))).toBe(true);
+    expect(isPortCollision(new Error("Server exited before answering"))).toBe(false);
+    expect(isPortCollision("boom")).toBe(false);
+  });
+
+  it("starts again after a collision and returns the successful start", async () => {
+    let calls = 0;
+    const seen: number[] = [];
+    const result = await startWithPortRetry(
+      () => {
+        if (++calls < 3) return Promise.reject(collision);
+
+        return Promise.resolve("up");
+      },
+      3,
+      (attempt) => seen.push(attempt),
+    );
+
+    expect(result).toBe("up");
+    expect(calls).toBe(3);
+    expect(seen).toEqual([1, 2]);
+  });
+
+  it("gives up after the allowed attempts and surfaces the collision", async () => {
+    let calls = 0;
+
+    await expect(
+      startWithPortRetry(() => {
+        calls++;
+
+        return Promise.reject(collision);
+      }, 3),
+    ).rejects.toBe(collision);
+    expect(calls).toBe(3);
+  });
+
+  it("never retries a different failure", async () => {
+    let calls = 0;
+
+    await expect(
+      startWithPortRetry(() => {
+        calls++;
+
+        return Promise.reject(new Error("the worker threw while rendering"));
+      }),
+    ).rejects.toThrow("the worker threw");
+    expect(calls).toBe(1);
   });
 });

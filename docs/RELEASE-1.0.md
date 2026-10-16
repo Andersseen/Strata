@@ -117,6 +117,7 @@ compatibility matrix; do not check it based on intent or a demonstration.
 - [ ] Resource use, cold start, concurrent requests, cancellation and cleanup measured; agreed
       service and bundle budgets pass on each claimed runtime.
   - Partial evidence only (2026-10-16): [bundle-size and warm HTTP/SSR baseline](research/full-stack-performance-baseline.md) on Node and local workerd. Cold start, Worker memory, cancellation/cleanup and deployed latency are NOT MEASURED; budgets are unenforced proposals. **Not closed.**
+  - Scaling evidence (2026-10-16): [one versus three distinct islands](research/full-stack-performance-scaling.md) on local and GitHub-hosted runners; the Server Components browser overhead did not grow, the PR #86 candidate budgets are still unenforced proposals and the server budget lacks a controller/provider-count dimension. **Still not closed.**
 - [ ] Release/rollback procedure tested, including client assets from an older deployment.
 
 ## Quality and distribution
