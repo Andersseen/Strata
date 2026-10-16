@@ -35,6 +35,19 @@ The merge CI stopped at lint before building core's exported declarations; consu
 was skipped. Build prerequisites before type-aware lint on a fresh checkout, retain all gates, and
 link the remote result. Local lint with preexisting `dist` does not prove that bootstrap path.
 
+## Full-stack performance baseline
+
+`pnpm test:full-stack-performance` (`tools/performance/full-stack.ts`) is an explicit measurement command, not
+a CI gate: it builds four arms of one application from the packed tarballs outside the workspace, asserts
+correctness strictly (tuple identity, packed-package identity, build/confidentiality marker matrix, API/SSR
+contract, hydration smoke, six live negative controls) and records sizes and latencies **without any
+performance threshold**. Its deterministic self-tests (compression, file classification, reachable-graph
+totals, deltas, formatting, missing metrics and zero baselines, report completeness, invalid-response exclusion,
+tuple mismatch, contaminated baseline, broken variants) run in normal CI as `pnpm test:performance-tools`
+(part of `pnpm test`). `.github/workflows/full-stack-performance.yml` is a manual `workflow_dispatch` for a
+GitHub-hosted measurement: no deployment, publication or secrets, JSON uploaded. See the
+[report](research/full-stack-performance-baseline.md).
+
 ## Current Server Component evidence
 
 The experimental `@strata-sc/server-components` package has unit tests for its isolable logic
