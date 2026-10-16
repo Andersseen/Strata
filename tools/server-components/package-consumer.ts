@@ -596,9 +596,12 @@ try {
       `${copiesOf("@angular/core").join(",")} | ${copiesOf("@angular/compiler").join(",")}`,
     ),
     check(
-      "one installed copy of vite (plus @angular/build's own nested one) and of typescript",
-      copiesOf("vite").filter((copy) => !copy.startsWith("node_modules/@angular/build/")).length ===
-        1 && copiesOf("typescript").length === 1,
+      "one installed copy of vite (plus the nested ones of @angular/build and the pinned vitest) and of typescript",
+      copiesOf("vite").filter(
+        (copy) =>
+          !copy.startsWith("node_modules/@angular/build/") &&
+          !copy.startsWith("node_modules/vitest/"),
+      ).length === 1 && copiesOf("typescript").length === 1,
       `${copiesOf("vite").join(",")} | ${copiesOf("typescript").join(",")}`,
     ),
   );

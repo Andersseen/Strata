@@ -262,12 +262,16 @@ baselines and missing metrics), JSON completeness and arm assembly.
 None is enforced. The next increment should check whether these hold on a controlled GitHub-hosted runner and,
 later, on real Cloudflare Workers.
 
-## Baseline failure observed on main
+## Baseline failure observed on main (fixed in this PR)
 
-CI run [38766356854](https://github.com/Andersseen/Strata/actions/runs/38766356854) on `1297271` fails at "Server
-Component packed-package consumer" with the npm `edgesOut` crash described above, i.e. registry drift (vitest 5)
-broke every `npm install`-based external consumer on main, independent of this branch. It is **not** fixed here;
-it reproduces locally for the existing consumers and is noted in the PR.
+CI run [38766356854](https://github.com/Andersseen/Strata/actions/runs/38766356854) on `1297271` failed at "Server
+Component packed-package consumer" with `npm error Cannot read properties of null (reading 'edgesOut')`: registry
+drift (vitest 5, and the 4.1.x series) broke npm 10's peer resolution of `@angular/build`'s optional vitest peer for
+every Angular external consumer. The existing consumers now pin `vitest` 4.0.18 as a dev dependency (4.1.x
+reproduces the crash, 4.0.18 installs), and the Server Component consumer's single-vite check also accepts the
+pinned vitest's own nested vite. `--legacy-peer-deps` was tried and rejected for them because it changes the tree
+(extraneous packages, a TypeScript 5.9 declaration diagnostic). The four performance arms do not use the pin: they
+install with `--legacy-peer-deps` (and no vitest), which is safe for them because every required peer is declared.
 
 ## Conclusions
 
