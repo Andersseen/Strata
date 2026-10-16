@@ -1,7 +1,9 @@
 name: Extended checks
 
 # The slow, noisy or externally-dependent suites that must not gate or slow every pull request:
-#   performance  four-arm full-stack bundle/latency baseline (docs/research/full-stack-performance-baseline.md)
+#   performance  four-arm full-stack bundle/latency baseline (docs/research/full-stack-performance-baseline.md),
+#                optionally also the three-island scaling profile on the SAME runner
+#                (docs/research/full-stack-performance-scaling.md)
 #   registry     the PUBLISHED @strata-sc/server-components from npm, built for Cloudflare Pages, local workerd
 #   types        the H3 consumer type-closure experiment (SPEC-002; its expected verdict is "upstream-blocked")
 #
@@ -20,6 +22,11 @@ on:
         type: choice
         default: all
         options: [all, performance, registry, types]
+      islands:
+        description: "Performance: island profile. one (default, the PR #86 baseline), three, or both (same job and runner, then a comparison)"
+        type: choice
+        default: one
+        options: [one, three, both]
       reps:
         description: "Performance: repetitions per arm and runtime (default 3)"
         type: string
@@ -53,7 +60,15 @@ jobs:
     name: Full-stack performance baseline (Node + local workerd)
     if: github.event_name == 'schedule' || inputs.suite == 'all' || inputs.suite == 'performance'
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # One profile fits comfortably; `both` runs the benchmark twice in this single job.
+    timeout-minutes: 100
+    env:
+      STRATA_PERF_REPS: ${{ inputs.reps || '3' }}
+      STRATA_PERF_BUILD_REPS: ${{ inputs.build_reps || '3' }}
+      STRATA_PERF_REQUESTS: ${{ inputs.requests || '200' }}
+      STRATA_PERF_WARMUP: ${{ inputs.warmup || '50' }}
+      STRATA_PERF_CONCURRENCY: ${{ inputs.concurrency || '8' }}
+      PROFILE: ${{ inputs.islands || 'one' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -63,22 +78,63 @@ jobs:
           build: "false"
           playwright: "true"
 
-      - name: Measure
+      # `runner.*` is not available in job-level env, so the evidence directory is set here.
+      - name: Evidence directory
+        run: echo "EVIDENCE=$RUNNER_TEMP/full-stack-performance-evidence" >> "$GITHUB_ENV"
+
+      - name: Measure one island (PR #86 baseline)
+        if: env.PROFILE == 'one' || env.PROFILE == 'both'
         run: pnpm test:full-stack-performance
         env:
-          STRATA_PERF_OUT: ${{ runner.temp }}/full-stack-performance-evidence
-          STRATA_PERF_REPS: ${{ inputs.reps || '3' }}
-          STRATA_PERF_BUILD_REPS: ${{ inputs.build_reps || '3' }}
-          STRATA_PERF_REQUESTS: ${{ inputs.requests || '200' }}
-          STRATA_PERF_WARMUP: ${{ inputs.warmup || '50' }}
-          STRATA_PERF_CONCURRENCY: ${{ inputs.concurrency || '8' }}
+          STRATA_PERF_ISLANDS: "1"
+          STRATA_PERF_OUT: ${{ env.EVIDENCE }}/one-island
+
+      - name: Measure three islands
+        if: ${{ !cancelled() && (env.PROFILE == 'three' || env.PROFILE == 'both') }}
+        run: pnpm test:full-stack-performance
+        env:
+          STRATA_PERF_ISLANDS: "3"
+          STRATA_PERF_OUT: ${{ env.EVIDENCE }}/three-island
+
+      # Refuses an incomparable pair (tuple, packages, compression, presets, arms, correctness).
+      # It reports the candidate budgets; it never fails on a size or latency value.
+      - name: Compare one and three islands
+        if: ${{ !cancelled() && env.PROFILE == 'both' }}
+        run: >
+          pnpm test:full-stack-performance:compare
+          "$EVIDENCE/one-island/report.json" "$EVIDENCE/three-island/report.json" "$EVIDENCE"
+
+      - name: Summary and redacted environment
+        if: ${{ !cancelled() }}
+        run: |
+          mkdir -p "$EVIDENCE"
+          {
+            echo "run_id=$GITHUB_RUN_ID"
+            echo "run_url=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            echo "sha=$GITHUB_SHA"
+            echo "ref=$GITHUB_REF_NAME"
+            echo "event=$GITHUB_EVENT_NAME"
+            echo "profile=$PROFILE"
+            echo "runner_os=$RUNNER_OS"
+            echo "runner_arch=$RUNNER_ARCH"
+            echo "runner_image=${ImageOS:-unknown} ${ImageVersion:-unknown}"
+            echo "cpus=$(nproc)"
+            echo "cpu_model=$(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2- | xargs)"
+            echo "memory_kib=$(awk '/MemTotal/ {print $2}' /proc/meminfo)"
+            echo "node=$(node --version)"
+            echo "pnpm=$(pnpm --version)"
+          } > "$EVIDENCE/environment.txt"
+          for summary in "$EVIDENCE"/*/summary.md "$EVIDENCE"/comparison.md; do
+            [ -f "$summary" ] && { echo "### $(basename "$(dirname "$summary")")/$(basename "$summary")"; cat "$summary"; } >> "$GITHUB_STEP_SUMMARY"
+          done
+          exit 0
 
       - name: Upload evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: full-stack-performance-evidence
-          path: ${{ runner.temp }}/full-stack-performance-evidence
+          path: ${{ env.EVIDENCE }}
           if-no-files-found: ignore
           retention-days: 30
 

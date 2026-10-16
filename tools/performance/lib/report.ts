@@ -198,6 +198,7 @@ export function validateReport(report: PerfReport): string[] {
 
 export interface Aggregate {
   readonly p50: Spread | null;
+  readonly p90: Spread | null;
   readonly p95: Spread | null;
 }
 
@@ -206,10 +207,14 @@ export function aggregate(
   target: "api" | "ssr",
   mode: "sequential" | "concurrent",
 ): Aggregate {
-  const values = (key: "p50" | "p95"): number[] =>
+  const values = (key: "p50" | "p90" | "p95"): number[] =>
     reps.map((rep) => rep[target][mode][key]).filter((v): v is number => v !== null);
 
-  return { p50: spreadOf(values("p50")), p95: spreadOf(values("p95")) };
+  return {
+    p50: spreadOf(values("p50")),
+    p90: spreadOf(values("p90")),
+    p95: spreadOf(values("p95")),
+  };
 }
 
 export const ARM_IDS: readonly ArmId[] = ["A", "B", "C", "D"];
@@ -369,14 +374,22 @@ export function renderMarkdown(report: PerfReport): string {
         `**HTTP latency, ${runtime}, ${mode}** — median of ${report.policy.repetitions} repetitions (min–max across repetitions)`,
         "",
         table(
-          ["arm", "API p50", "API p95", "SSR p50", "SSR p95"],
+          ["arm", "API p50", "API p90", "API p95", "SSR p50", "SSR p90", "SSR p95"],
           report.arms.map((arm) => {
-            if (!arm.correctness.ok) return [arm.id, "n/a", "n/a", "n/a", "n/a"];
+            if (!arm.correctness.ok) return [arm.id, "n/a", "n/a", "n/a", "n/a", "n/a", "n/a"];
 
             const api = aggregate(arm.http[runtime], "api", mode);
             const ssr = aggregate(arm.http[runtime], "ssr", mode);
 
-            return [arm.id, sp(api.p50), sp(api.p95), sp(ssr.p50), sp(ssr.p95)];
+            return [
+              arm.id,
+              sp(api.p50),
+              sp(api.p90),
+              sp(api.p95),
+              sp(ssr.p50),
+              sp(ssr.p90),
+              sp(ssr.p95),
+            ];
           }),
         ),
         "",

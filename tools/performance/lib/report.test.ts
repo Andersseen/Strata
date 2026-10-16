@@ -113,7 +113,7 @@ describe("aggregate", () => {
   });
 
   it("reports nothing for no repetitions", () => {
-    expect(aggregate([], "ssr", "concurrent")).toEqual({ p50: null, p95: null });
+    expect(aggregate([], "ssr", "concurrent")).toEqual({ p50: null, p90: null, p95: null });
   });
 });
 
