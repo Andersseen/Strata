@@ -35,6 +35,16 @@ The merge CI stopped at lint before building core's exported declarations; consu
 was skipped. Build prerequisites before type-aware lint on a fresh checkout, retain all gates, and
 link the remote result. Local lint with preexisting `dist` does not prove that bootstrap path.
 
+## CI layout
+
+`ci.yml` runs five parallel jobs behind one aggregate `Verify` check (branch protection and `deploy-www` depend
+on that name): `static` (lint, typecheck, unit tests), `graph` (graph, navigation, defer, server-only, dev server),
+`runtime` (confidentiality, request context, failures, SSR response, authorization on Node + workerd),
+`consumers` (packed-package consumers, Cloudflare rehearsal, TypeScript 5.9) and `apps` (website and Relay).
+Each job builds the packages itself through `.github/actions/setup`, so wall time is the slowest group, not the sum.
+`extended.yml` holds what must not slow or gate pull requests, weekly (Monday 04:00 UTC) and on demand: the
+performance baseline, the published-package Cloudflare rehearsal and the H3 type-closure experiment.
+
 ## Full-stack performance baseline
 
 `pnpm test:full-stack-performance` (`tools/performance/full-stack.ts`) is an explicit measurement command, not
@@ -44,8 +54,8 @@ contract, hydration smoke, six live negative controls) and records sizes and lat
 performance threshold**. Its deterministic self-tests (compression, file classification, reachable-graph
 totals, deltas, formatting, missing metrics and zero baselines, report completeness, invalid-response exclusion,
 tuple mismatch, contaminated baseline, broken variants) run in normal CI as `pnpm test:performance-tools`
-(part of `pnpm test`). `.github/workflows/full-stack-performance.yml` is a manual `workflow_dispatch` for a
-GitHub-hosted measurement: no deployment, publication or secrets, JSON uploaded. See the
+(part of `pnpm test`). `.github/workflows/extended.yml` runs it weekly and on demand (`workflow_dispatch`, with custom repetitions,
+requests, warm-up and concurrency) on a GitHub-hosted runner: no deployment, publication or secrets, JSON uploaded. See the
 [report](research/full-stack-performance-baseline.md).
 
 ## Current Server Component evidence

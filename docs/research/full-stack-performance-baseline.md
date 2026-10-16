@@ -39,7 +39,7 @@ written into the repository, raw artifacts are not committed). Overrides, all re
 `STRATA_PERF_REPS` (3), `STRATA_PERF_BUILD_REPS` (3), `STRATA_PERF_REQUESTS` (200), `STRATA_PERF_WARMUP`
 (50), `STRATA_PERF_CONCURRENCY` (8), `STRATA_PERF_KEEP=1`, and `STRATA_PERF_NATIVE_HANDLER=object` (diagnostic,
 below). Deterministic runner self-tests run in normal CI (`pnpm test:performance-tools`, 94 tests); the full
-measurement is explicit, plus a manual `workflow_dispatch` (`full-stack-performance.yml`: no deployment, no
+measurement is explicit: `extended.yml` runs it weekly and on demand with workload inputs (no deployment, no
 publication, no secrets, 45 min timeout, uploads the JSON).
 
 ## Measurement environment (the run reported below)
