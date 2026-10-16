@@ -70,8 +70,12 @@ jobs:
       STRATA_PERF_CONCURRENCY: ${{ inputs.concurrency || '8' }}
       PROFILE: ${{ inputs.islands || 'one' }}
     steps:
+      # Full history: the report records `git merge-base HEAD origin/main` as its starting SHA, which a
+      # shallow clone cannot resolve.
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - uses: ./.github/actions/setup
         with:

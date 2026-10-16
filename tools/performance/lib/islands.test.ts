@@ -296,9 +296,9 @@ describe("island expectations", () => {
       Object.fromEntries(
         present
           .filter((e) => e.where === where && e.present)
-          .map((e) => [e.marker, ["file.js"]] as const),
+          .map((e): [string, string[]] => [e.marker, ["file.js"]]),
       );
-    const browser = make("browser");
+    const browser: Record<string, string[]> = make("browser");
 
     for (const marker of browserHas) browser[marker] = ["leak.js"];
 

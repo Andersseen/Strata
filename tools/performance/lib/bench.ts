@@ -216,3 +216,27 @@ export async function startNodeServer(options: {
     },
   };
 }
+
+/**
+ * A local server that died because the port it was told to listen on (or one of its internal
+ * ports) was taken between "pick a free port" and "bind it". That is an infrastructure race on
+ * the machine, not a property of the arm under test, so starting it again is legitimate.
+ */
+export const isPortCollision = (error: unknown): boolean =>
+  /address already in use|EADDRINUSE/i.test(error instanceof Error ? error.message : String(error));
+
+/** Runs `start`, retrying ONLY on a port collision, at most `attempts` times in all. */
+export async function startWithPortRetry<T>(
+  start: () => Promise<T>,
+  attempts = 3,
+  onRetry: (attempt: number, error: unknown) => void = () => undefined,
+): Promise<T> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await start();
+    } catch (error) {
+      if (attempt >= attempts || !isPortCollision(error)) throw error;
+      onRetry(attempt, error);
+    }
+  }
+}

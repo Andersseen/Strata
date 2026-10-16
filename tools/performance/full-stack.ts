@@ -36,7 +36,7 @@ import { COMPATIBILITY_DATE } from "../server-components/lib/wrangler.ts";
 
 import { ARMS, assembleArm, parseIslandCount, strataPackagesOf } from "./lib/arms.ts";
 import type { ArmId, ArmSpec } from "./lib/arms.ts";
-import { measureTarget, startNodeServer, timedGet } from "./lib/bench.ts";
+import { measureTarget, startNodeServer, startWithPortRetry, timedGet } from "./lib/bench.ts";
 import type { Target } from "./lib/bench.ts";
 import {
   MARKERS,
@@ -545,7 +545,12 @@ async function start(runtime: Runtime, runDir: string): Promise<Running> {
     return server;
   }
 
-  const server = await startWrangler(runDir, env, "/api/products/42");
+  // `findFreePort` is a pick-then-bind race; a collision is retried, anything else is not.
+  const server = await startWithPortRetry(
+    () => startWrangler(runDir, env, "/api/products/42"),
+    3,
+    (attempt) => console.log(`  workerd start ${attempt} hit a port collision; starting again`),
+  );
 
   return {
     baseUrl: server.baseUrl,
