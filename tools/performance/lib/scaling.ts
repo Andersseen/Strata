@@ -1,7 +1,7 @@
-import { ARM_IDS, PRESETS, RUNTIMES, aggregate, perArm, validateReport } from "./report.ts";
-import type { ArmReport, PerfReport } from "./report.ts";
 import { attribute, formatBytes, formatMs } from "./metrics.ts";
 import type { Attribution } from "./metrics.ts";
+import { ARM_IDS, PRESETS, RUNTIMES, aggregate, perArm, validateReport } from "./report.ts";
+import type { ArmReport, PerfReport } from "./report.ts";
 
 /**
  * Pure helpers that compare a one-island report with a three-island report: whether the two

@@ -121,10 +121,10 @@ describe("startWithPortRetry", () => {
     let calls = 0;
     const seen: number[] = [];
     const result = await startWithPortRetry(
-      async () => {
-        if (++calls < 3) throw collision;
+      () => {
+        if (++calls < 3) return Promise.reject(collision);
 
-        return "up";
+        return Promise.resolve("up");
       },
       3,
       (attempt) => seen.push(attempt),
@@ -139,9 +139,10 @@ describe("startWithPortRetry", () => {
     let calls = 0;
 
     await expect(
-      startWithPortRetry(async () => {
+      startWithPortRetry(() => {
         calls++;
-        throw collision;
+
+        return Promise.reject(collision);
       }, 3),
     ).rejects.toBe(collision);
     expect(calls).toBe(3);
@@ -151,9 +152,10 @@ describe("startWithPortRetry", () => {
     let calls = 0;
 
     await expect(
-      startWithPortRetry(async () => {
+      startWithPortRetry(() => {
         calls++;
-        throw new Error("the worker threw while rendering");
+
+        return Promise.reject(new Error("the worker threw while rendering"));
       }),
     ).rejects.toThrow("the worker threw");
     expect(calls).toBe(1);

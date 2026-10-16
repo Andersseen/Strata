@@ -1,5 +1,18 @@
 # Current implementation audit
 
+## Full-stack performance scaling: one island versus three distinct islands (2026-10-16)
+
+At `546b35ccb708d784ef46bea2eb35a90736a3da79`, `STRATA_PERF_ISLANDS=1|3 pnpm test:full-stack-performance` runs the
+same four arms with one or with three distinct interactive islands (default 1; no other count is accepted).
+One island reproduces the PR #86 numbers; with three, the Server Components browser overhead did not grow
+(+4.3 → +3.6 KiB raw, +1.7 → +1.5 KiB gzip; the net is confounded with server-only code exclusion), controllers still add 0 browser bytes, and
+the full-stack server/Worker overhead stayed at about 10 to 11.5 KiB raw / 3.4 to 4.4 KiB gzip. A hosted run of the existing `extended.yml`
+(`islands=both`, same runner, [run 38904588640](https://github.com/Andersseen/Strata/actions/runs/38904588640)) agrees with local to a few bytes. Hydration,
+one-request-per-click interaction and confidentiality hold in every arm; 11 negative controls are rejected. The PR #86 candidate budgets stay
+**PROPOSED and unenforced** (browser: supported on this fixture; server: insufficient evidence). **R13 stays open; cold start, Worker memory,
+cancellation/cleanup, production budgets and real-application performance remain NOT MEASURED/NOT QUALIFIED.** Details:
+[report](research/full-stack-performance-scaling.md).
+
 ## Full-stack performance and bundle-cost baseline: first controlled measurement (2026-10-16)
 
 At `1297271669ed9c419caf6f9997a3e58bffb06bf2`, `pnpm test:full-stack-performance` builds one small Analog
