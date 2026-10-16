@@ -1,0 +1,61 @@
+name: Measure Full-Stack Performance Baseline
+
+# Manually triggered, CONTROLLED MEASUREMENT of the four-arm full-stack baseline
+# (native Analog / controllers / Server Components / both). See
+# docs/research/full-stack-performance-baseline.md.
+#
+# - workflow_dispatch ONLY: never on a pull request, push, schedule or release, so normal PR CI
+#   never depends on host timing. The deterministic runner self-tests run in ci.yml (`pnpm test`).
+# - No deployment, no npm publication, no Cloudflare secrets, no write to any external service:
+#   `permissions: contents: read`, no `secrets.*` is referenced, and the Cloudflare runtime is
+#   the LOCAL workerd of the pinned Wrangler.
+# - It asserts correctness only. There is deliberately NO latency or size gate: GitHub-hosted
+#   runners are noisy and the result is evidence, not a regression check.
+# - The JSON report (environment, tuple, digests, order, raw percentiles) is uploaded as an artifact.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: full-stack-performance
+  cancel-in-progress: false
+
+jobs:
+  measure:
+    name: Measure the four arms (Node and local workerd)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Setup Playwright browser
+        run: pnpm --filter @strata-sc/www exec playwright install --with-deps chromium
+
+      - name: Measure
+        run: pnpm test:full-stack-performance
+        env:
+          STRATA_PERF_OUT: ${{ runner.temp }}/full-stack-performance-evidence
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-stack-performance-evidence
+          path: ${{ runner.temp }}/full-stack-performance-evidence
+          if-no-files-found: ignore
+          retention-days: 30

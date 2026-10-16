@@ -1,5 +1,19 @@
 # Current implementation audit
 
+## Full-stack performance and bundle-cost baseline: first controlled measurement (2026-10-16)
+
+At `1297271669ed9c419caf6f9997a3e58bffb06bf2`, `pnpm test:full-stack-performance` builds one small Analog
+application in four arms (native, controllers, Server Components, both) from the packed tarballs outside
+the workspace and measures Nitro `node-server` and local workerd. On this tuple the incremental cost is
+small and deterministic: controllers add 0 browser bytes and +4.2 KiB (Node) / +7.5 KiB (Worker) server
+graph; Server Components add +1.7 KiB gzip browser and about +4 to +7 KiB server graph; both together
++11.1 KiB (Node) / +11.5 KiB raw, +4.4 KiB gzip (Worker), with no interaction. No latency or RSS difference is
+detectable above run-to-run noise. Confidentiality holds in every arm and six negative controls are rejected.
+Candidate budgets are proposals only: **nothing is enforced, R13 stays open, and cold start, Worker memory,
+cancellation/cleanup and real-application performance are NOT MEASURED/NOT QUALIFIED.** Main's own CI was
+already red at this SHA (npm 10 peer-resolution crash with vitest 5), unrelated to this work. Details:
+[report](research/full-stack-performance-baseline.md).
+
 ## Cloudflare controller concurrency anomaly: not reproduced, cause unconfirmed (2026-10-15)
 
 A diagnostic increment classified and attempted to reproduce run 38727456938's single anomalous controller

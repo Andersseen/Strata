@@ -116,6 +116,7 @@ compatibility matrix; do not check it based on intent or a demonstration.
       does not cover, so it **stays unticked**.
 - [ ] Resource use, cold start, concurrent requests, cancellation and cleanup measured; agreed
       service and bundle budgets pass on each claimed runtime.
+  - Partial evidence only (2026-10-16): [bundle-size and warm HTTP/SSR baseline](research/full-stack-performance-baseline.md) on Node and local workerd. Cold start, Worker memory, cancellation/cleanup and deployed latency are NOT MEASURED; budgets are unenforced proposals. **Not closed.**
 - [ ] Release/rollback procedure tested, including client assets from an older deployment.
 
 ## Quality and distribution

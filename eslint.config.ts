@@ -31,6 +31,9 @@ export default config(
       // External full-stack consumer of the three packed packages, installed with
       // npm outside the workspace (test:full-stack-package-consumer).
       "tests/full-stack-package-consumer/fixture/**",
+      // Four-arm external consumer of the full-stack performance baseline,
+      // assembled outside the workspace by tools/performance/full-stack.ts.
+      "tests/full-stack-performance/fixture/**",
       // Analog integration fixture (apps/analog-fixture): compiled by Analog's
       // own Angular/Nitro pipelines with the stock `experimentalDecorators`
       // tsconfig, never by this repo's tsconfigs. Its authored TypeScript is
