@@ -1,5 +1,11 @@
 # @strata-sc/analog
 
+## 0.3.0
+
+### Minor Changes
+
+- 5ed8b54: Add opt-in Standard Schema validation for route params, query input and bounded JSON request bodies, with safe client-input HTTP responses.
+
 ## 0.2.2
 
 ### Patch Changes
