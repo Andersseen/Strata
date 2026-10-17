@@ -3,12 +3,30 @@
 import { Controller, Get, STRATA_VERSION, getControllerDefinition } from "@strata-sc/core";
 import { registerControllers } from "@strata-sc/analog";
 import type { NitroRouter, StrataAnalogRequest } from "@strata-sc/analog";
+import type { StandardSchemaV1 } from "@standard-schema/spec";
+
+const paramsSchema: StandardSchemaV1<{ id: string }, { id: number }> = {
+  "~standard": {
+    version: 1,
+    vendor: "declaration-consumer",
+    types: undefined as unknown as StandardSchemaV1.Types<{ id: string }, { id: number }>,
+    validate(value) {
+      return value !== null &&
+        typeof value === "object" &&
+        "id" in value &&
+        typeof value.id === "string"
+        ? { value: { id: Number(value.id) } }
+        : { issues: [{ message: "invalid" }] };
+    },
+  },
+};
 
 @Controller("/api/check")
 export class CheckController {
   @Get("/:id")
-  find(request: StrataAnalogRequest) {
-    return { id: request.params["id"] };
+  async find(request: StrataAnalogRequest) {
+    const output: Promise<{ id: number }> = request.validateParams(paramsSchema);
+    return { id: (await output).id };
   }
 }
 

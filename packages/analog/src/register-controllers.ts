@@ -1,9 +1,11 @@
+import type { StandardSchemaV1 } from "@standard-schema/spec";
 import { getControllerDefinition } from "@strata-sc/core";
 import type { HttpMethod, RouteDefinition } from "@strata-sc/core";
 
 import { CleanupScope } from "./cleanup-scope.js";
 import type { StrataAnalogCleanup } from "./cleanup-scope.js";
 import { StrataAnalogConfigurationError } from "./errors.js";
+import { StrataAnalogInputError } from "./input-error.js";
 import { buildRoutePath } from "./utils/build-route-path.js";
 
 export type StrataAnalogQueryValue = string | readonly string[];
@@ -25,6 +27,15 @@ export interface StrataAnalogRequest {
   readBody: () => Promise<unknown>;
   readText: () => Promise<string>;
   readJson: <T = unknown>() => Promise<T>;
+  validateParams: <Schema extends StandardSchemaV1>(
+    schema: Schema,
+  ) => Promise<StandardSchemaV1.InferOutput<Schema>>;
+  validateQuery: <Schema extends StandardSchemaV1>(
+    schema: Schema,
+  ) => Promise<StandardSchemaV1.InferOutput<Schema>>;
+  readValidatedJson: <Schema extends StandardSchemaV1>(
+    schema: Schema,
+  ) => Promise<StandardSchemaV1.InferOutput<Schema>>;
 }
 
 /**
@@ -338,7 +349,17 @@ function createRouteHandler(
 
       result = await handler.call(controller, request);
     } catch (error) {
-      return scope.close({ failed: true, error });
+      try {
+        await scope.close({ failed: true, error });
+      } catch (settledError) {
+        if (settledError instanceof StrataAnalogInputError) {
+          return inputErrorResponse(settledError);
+        }
+
+        throw settledError;
+      }
+
+      throw error;
     }
 
     return scope.close({ failed: false }, result);
@@ -444,8 +465,11 @@ function createStrataAnalogRequest(event: NitroEvent): StrataAnalogRequest {
   const url = getEventUrl(event);
   const headers = getEventHeaders(event);
   let textBody: Promise<string> | undefined;
+  let rawReadStarted = false;
+  let validatedText: Promise<string> | undefined;
 
   const readText = async (): Promise<string> => {
+    rawReadStarted = true;
     textBody ??= readEventText(event);
 
     return textBody;
@@ -476,6 +500,32 @@ function createStrataAnalogRequest(event: NitroEvent): StrataAnalogRequest {
     return text;
   };
 
+  const validateParams = <Schema extends StandardSchemaV1>(schema: Schema) =>
+    validateSchema(schema, Object.freeze({ ...getEventParams(event) }), "params");
+  const validateQuery = <Schema extends StandardSchemaV1>(schema: Schema) =>
+    validateSchema(schema, Object.freeze(parseQuery(url.searchParams)), "query");
+  const readValidatedJson = async <Schema extends StandardSchemaV1>(schema: Schema) => {
+    if (rawReadStarted) {
+      throw new StrataAnalogConfigurationError(
+        "readValidatedJson() must be the first body reader on a request so its byte limit can be enforced.",
+      );
+    }
+
+    const contentType = headers.get("content-type") ?? "";
+    if (!isJsonMediaType(contentType)) throw new StrataAnalogInputError("body", 415);
+    if (hasUnsupportedCharset(contentType)) throw new StrataAnalogInputError("body", 415);
+    validatedText ??= readEventTextBounded(event, MAX_VALIDATED_JSON_BYTES);
+    const text = await validatedText;
+    let value: unknown;
+    try {
+      value = text.length === 0 ? undefined : JSON.parse(text);
+    } catch {
+      throw new StrataAnalogInputError("body", 400);
+    }
+    textBody ??= Promise.resolve(text);
+    return validateSchema(schema, value, "body");
+  };
+
   return Object.freeze({
     method: event.method ?? event.node?.req?.method ?? "GET",
     path: url.pathname,
@@ -487,6 +537,9 @@ function createStrataAnalogRequest(event: NitroEvent): StrataAnalogRequest {
     readBody,
     readText,
     readJson,
+    validateParams,
+    validateQuery,
+    readValidatedJson,
   });
 }
 
@@ -530,7 +583,7 @@ function getEventParams(event: NitroEvent): Record<string, string> {
 
   for (const [key, value] of Object.entries(event.context?.params ?? {})) {
     if (typeof value === "string") {
-      params[key] = value;
+      setOwn(params, key, value);
     }
   }
 
@@ -541,18 +594,27 @@ function parseQuery(searchParams: URLSearchParams): Record<string, StrataAnalogQ
   const query: Record<string, StrataAnalogQueryValue> = {};
 
   for (const [key, value] of searchParams) {
-    const previous = query[key];
+    const previous = Object.hasOwn(query, key) ? query[key] : undefined;
 
     if (previous === undefined) {
-      query[key] = value;
+      setOwn(query, key, value);
     } else if (isStringArray(previous)) {
-      query[key] = [...previous, value];
+      setOwn(query, key, [...previous, value]);
     } else {
-      query[key] = [previous, value];
+      setOwn(query, key, [previous, value]);
     }
   }
 
   return query;
+}
+
+function setOwn<T>(record: Record<string, T>, key: string, value: T): void {
+  Object.defineProperty(record, key, {
+    value,
+    enumerable: true,
+    writable: true,
+    configurable: true,
+  });
 }
 
 function isStringArray(value: unknown): value is readonly string[] {
@@ -585,6 +647,184 @@ async function readEventText(event: NitroEvent): Promise<string> {
   }
 
   return chunks.join("");
+}
+
+const MAX_VALIDATED_JSON_BYTES = 1024 * 1024;
+
+async function validateSchema<Schema extends StandardSchemaV1>(
+  schema: Schema,
+  value: unknown,
+  source: "params" | "query" | "body",
+): Promise<StandardSchemaV1.InferOutput<Schema>> {
+  const schemaValue: unknown = schema;
+  let standard: object;
+  let validate: (...args: unknown[]) => unknown;
+  try {
+    const metadata =
+      schemaValue !== null && typeof schemaValue === "object"
+        ? (Reflect.get(schemaValue, "~standard") as unknown)
+        : undefined;
+    if (
+      metadata === null ||
+      typeof metadata !== "object" ||
+      Reflect.get(metadata, "version") !== 1 ||
+      typeof Reflect.get(metadata, "vendor") !== "string" ||
+      typeof Reflect.get(metadata, "validate") !== "function"
+    ) {
+      throw new StrataAnalogConfigurationError(
+        "A validation schema must implement Standard Schema v1.",
+      );
+    }
+    standard = metadata;
+    validate = Reflect.get(metadata, "validate") as (...args: unknown[]) => unknown;
+  } catch (error) {
+    if (error instanceof StrataAnalogConfigurationError) throw error;
+    throw new StrataAnalogConfigurationError(
+      "Reading Standard Schema metadata threw; schemas must expose readable v1 metadata.",
+    );
+  }
+  const result: unknown = await Reflect.apply(validate, standard, [value]);
+  if (result === null || typeof result !== "object") {
+    throw new StrataAnalogConfigurationError(
+      "A Standard Schema validator returned a malformed result.",
+    );
+  }
+  let issues: unknown;
+  let hasValue: boolean;
+  let output: unknown;
+  try {
+    issues = Reflect.get(result, "issues") as unknown;
+    hasValue = Reflect.has(result, "value");
+    output = Reflect.get(result, "value");
+    if (
+      issues &&
+      (!Array.isArray(issues) ||
+        issues.some(
+          (issue: unknown) =>
+            issue === null ||
+            typeof issue !== "object" ||
+            typeof Reflect.get(issue, "message") !== "string",
+        ))
+    ) {
+      throw new StrataAnalogConfigurationError(
+        "A Standard Schema validator returned malformed issues.",
+      );
+    }
+  } catch (error) {
+    if (error instanceof StrataAnalogConfigurationError) throw error;
+    throw new StrataAnalogConfigurationError(
+      "Reading a Standard Schema result threw; validation results must be readable.",
+    );
+  }
+  if (issues) throw new StrataAnalogInputError(source, 400);
+  if (!hasValue) {
+    throw new StrataAnalogConfigurationError(
+      "A Standard Schema validator returned a malformed result.",
+    );
+  }
+  return output;
+}
+
+function isJsonMediaType(contentType: string): boolean {
+  const [mediaType] = contentType.split(";", 1);
+  const normalized = mediaType?.trim().toLowerCase() ?? "";
+  return (
+    normalized === "application/json" ||
+    /^application\/[!#$%&'*+.^_`|~0-9a-z-]+\+json$/.test(normalized)
+  );
+}
+
+function hasUnsupportedCharset(contentType: string): boolean {
+  const charset = /(?:^|;)\s*charset\s*=\s*(?:"([^"]+)"|([^;\s]+))/i.exec(contentType);
+  const value = (charset?.[1] ?? charset?.[2])?.toLowerCase();
+  return value !== undefined && value !== "utf-8" && value !== "utf8";
+}
+
+async function readEventTextBounded(event: NitroEvent, limit: number): Promise<string> {
+  const request = event.web?.request;
+  if (request) return decodeBytes(await readStreamBounded(request.clone().body, limit));
+  const nodeRequest = event.node?.req;
+  if (!nodeRequest) return "";
+  const attached = nodeRequest.rawBody ?? nodeRequest.body;
+  if (attached !== undefined && attached !== null) {
+    if (typeof attached === "string") {
+      if (attached.length > limit) throw new StrataAnalogInputError("body", 413);
+      return decodeBytes(new TextEncoder().encode(attached), limit);
+    }
+    if (attached instanceof Uint8Array) return decodeBytes(attached, limit);
+    if (attached instanceof ReadableStream)
+      return decodeBytes(await readStreamBounded(attached, limit));
+    throw new TypeError("Unsupported request body representation.");
+  }
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for await (const chunk of nodeRequest) {
+    const bytes = typeof chunk === "string" ? new TextEncoder().encode(chunk) : chunk;
+    size += bytes.byteLength;
+    if (size > limit) throw new StrataAnalogInputError("body", 413);
+    chunks.push(bytes);
+  }
+  const combined = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    combined.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return decodeBytes(combined);
+}
+
+async function readStreamBounded(
+  stream: ReadableStream<Uint8Array> | null,
+  limit: number,
+): Promise<Uint8Array> {
+  if (!stream) return new Uint8Array();
+  const reader = stream.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > limit) {
+        void reader.cancel();
+        throw new StrataAnalogInputError("body", 413);
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes;
+}
+
+function decodeBytes(bytes: Uint8Array, limit?: number): string {
+  if (limit !== undefined && bytes.byteLength > limit)
+    throw new StrataAnalogInputError("body", 413);
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    throw new StrataAnalogInputError("body", 400);
+  }
+}
+
+function inputErrorResponse(error: StrataAnalogInputError): Response {
+  const code =
+    error.status === 413
+      ? "payload_too_large"
+      : error.status === 415
+        ? "unsupported_media_type"
+        : "invalid_request";
+  return new Response(JSON.stringify({ error: code, source: error.source }), {
+    status: error.status,
+    headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" },
+  });
 }
 
 async function readAttachedBody(body: unknown): Promise<string> {

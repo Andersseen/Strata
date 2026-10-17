@@ -5,12 +5,18 @@ import { GreetingController, GreetingService } from "../strata/greeting.controll
 import { LifecycleController } from "../strata/lifecycle.controller";
 import { MethodsController } from "../strata/methods.controller";
 import { UsersController } from "../strata/users.controller";
+import { ValidationController } from "../strata/validation.controller";
 
 // Strata only registers structure on top of the router Nitro already owns:
 // the native file-system routes under `src/server/routes/**` are untouched.
 export default defineNitroPlugin((nitroApp) => {
   // Default lifecycle: a new controller instance per request.
-  registerControllers(nitroApp.router, [UsersController, LifecycleController, MethodsController]);
+  registerControllers(nitroApp.router, [
+    UsersController,
+    LifecycleController,
+    MethodsController,
+    ValidationController,
+  ]);
 
   // Custom factory: still one instance per request, built with a dependency
   // the plugin owns. Plain TypeScript — no DI container, no Angular injector.

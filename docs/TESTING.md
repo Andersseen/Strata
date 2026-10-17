@@ -6,6 +6,14 @@ requirements below remain future evidence.
 
 ## Progressive gates
 
+Analog HTTP input validation adds coverage to `pnpm test:analog` (real Analog
+Node production and dev HTTP), `pnpm test:server-components:cloudflare` (local
+Wrangler/workerd using the Pages preset), and the packed package consumer
+qualification. The Analog package tests cover Standard Schema transformations,
+safe error responses, byte limits, cleanup precedence and request isolation.
+See [the validation evidence](research/analog-input-validation.md); these new
+checks do not replace the broader M3 and 1.0 gates below.
+
 | Gate | Required tests                                                                                                                                   | Evidence retained                                                                                                  |
 | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
 | M1   | Existing units/in-process H3 tests plus packed consumer types, compilation and execution                                                         | Exact tuple, tarball manifests/digests, commands, outputs and raw Vite characterization                            |

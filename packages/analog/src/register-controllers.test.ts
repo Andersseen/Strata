@@ -1,6 +1,8 @@
-import { Controller, Get } from "@strata-sc/core";
+import { Controller, Get, Post } from "@strata-sc/core";
 import { createApp, createRouter, defineEventHandler, toWebHandler } from "h3";
-import { describe, expect, it } from "vitest";
+import * as v from "valibot";
+import { describe, expect, expectTypeOf, it } from "vitest";
+import { z } from "zod";
 
 import { StrataAnalogConfigurationError } from "./errors.js";
 import { registerControllers } from "./register-controllers.js";
@@ -49,6 +51,331 @@ class OrdersController {
 }
 
 describe("registerControllers", () => {
+  it("validates params, query and JSON with Standard Schema implementations and preserves outputs", async () => {
+    const { router, handle, request } = createNitroLikeApp();
+    let cleaned = 0;
+    const paramsSchema = z.object({ id: z.string().transform(Number) });
+    const querySchema = v.object({ page: v.pipe(v.string(), v.transform(Number)) });
+    expectTypeOf<z.output<typeof paramsSchema>>().toEqualTypeOf<{ id: number }>();
+
+    @Controller("/validated")
+    class ValidatedController {
+      @Get("/:id")
+      async read(request: StrataAnalogRequest) {
+        const params: Promise<{ id: number }> = request.validateParams(paramsSchema);
+        const query: Promise<{ page: number }> = request.validateQuery(querySchema);
+        return {
+          params: await params,
+          query: await query,
+        };
+      }
+
+      @Post()
+      async create(request: StrataAnalogRequest) {
+        const bodyPromise: Promise<{ count: number }> = request.readValidatedJson(
+          z.object({ count: z.string().transform(Number) }),
+        );
+        const body = await bodyPromise;
+        return body;
+      }
+    }
+
+    registerControllers(router, [ValidatedController], {
+      controllerFactory(controller, { onCleanup }) {
+        onCleanup(() => {
+          cleaned += 1;
+        });
+        return new controller();
+      },
+    });
+
+    const result = await request("/validated/42?page=3");
+    await expect(result.json()).resolves.toEqual({ params: { id: 42 }, query: { page: 3 } });
+    const bodyResponse = await handle(
+      new Request("http://localhost/validated", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ count: "7" }),
+      }),
+    );
+    await expect(bodyResponse.json()).resolves.toEqual({ count: 7 });
+    expect(cleaned).toBe(2);
+  });
+
+  it("returns safe validation responses only after successful cleanup", async () => {
+    const { router, handle } = createNitroLikeApp();
+    const secret = "PRIVATE_SCHEMA_CANARY";
+    let cleanups = 0;
+
+    @Controller("/invalid")
+    class InvalidController {
+      @Get()
+      async get(request: StrataAnalogRequest) {
+        await request.validateQuery(z.object({ required: z.string().refine(() => false, secret) }));
+        return { mustNotRun: true };
+      }
+    }
+
+    registerControllers(router, [InvalidController], {
+      controllerFactory(controller, { onCleanup }) {
+        onCleanup(() => {
+          cleanups += 1;
+        });
+        return new controller();
+      },
+    });
+    const response = await handle(new Request("http://localhost/invalid?required=x"));
+    expect(response.status).toBe(400);
+    expect(response.headers.get("content-type")).toContain("application/json");
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    const text = await response.text();
+    expect(text).toBe('{"error":"invalid_request","source":"query"}');
+    expect(text).not.toContain(secret);
+    expect(cleanups).toBe(1);
+  });
+
+  it("does not classify validator throws or cleanup failures as client errors", async () => {
+    const { router, handle } = createNitroLikeApp();
+    const throwing = {
+      "~standard": {
+        version: 1,
+        vendor: "test",
+        validate: () => {
+          throw new Error("private");
+        },
+      },
+    } as const;
+    @Controller("/throws")
+    class ThrowsController {
+      @Get()
+      run(request: StrataAnalogRequest) {
+        return request.validateQuery(throwing);
+      }
+    }
+    registerControllers(router, [ThrowsController]);
+    const unexpected = await handle(new Request("http://localhost/throws"));
+    expect(unexpected.status).toBe(500);
+    expect(unexpected.headers.get("cache-control")).not.toBe("no-store");
+
+    @Controller("/cleanup")
+    class CleanupController {
+      @Get()
+      async run(request: StrataAnalogRequest) {
+        return request.validateQuery(z.object({ ok: z.string() }));
+      }
+    }
+    registerControllers(router, [CleanupController], {
+      controllerFactory(controller, { onCleanup }) {
+        onCleanup(() => {
+          throw new Error("cleanup");
+        });
+        return new controller();
+      },
+    });
+    const cleanupFailure = await handle(new Request("http://localhost/cleanup"));
+    expect(cleanupFailure.status).toBe(500);
+    expect(cleanupFailure.headers.get("cache-control")).not.toBe("no-store");
+  });
+
+  it("bounds validated JSON and applies the media type and JSON failure contract", async () => {
+    const { router, handle } = createNitroLikeApp();
+    @Controller("/json")
+    class JsonController {
+      @Post()
+      async read(request: StrataAnalogRequest) {
+        return request.readValidatedJson(z.unknown());
+      }
+    }
+    registerControllers(router, [JsonController]);
+    const send = (body: string, contentType = "application/json") =>
+      handle(
+        new Request("http://localhost/json", {
+          method: "POST",
+          headers: { "content-type": contentType },
+          body,
+        }),
+      );
+    for (const [body, contentType, status, code] of [
+      ["{", "application/json; charset=utf-8", 400, "invalid_request"],
+      ["{}", "text/plain", 415, "unsupported_media_type"],
+      ["{}", "application/json; charset=utf-16", 415, "unsupported_media_type"],
+      [
+        JSON.stringify({ data: "x".repeat(1024 * 1024) }),
+        "application/json",
+        413,
+        "payload_too_large",
+      ],
+    ] as const) {
+      const response = await send(body, contentType);
+      expect(response.status).toBe(status);
+      await expect(response.json()).resolves.toMatchObject({ error: code, source: "body" });
+      expect(response.headers.get("cache-control")).toBe("no-store");
+    }
+  });
+
+  it("keeps validation data and cleanup isolated across 24 overlapping requests", async () => {
+    const { router, handle } = createNitroLikeApp();
+    let cleanupCount = 0;
+    const paramsSchema = z.object({ id: z.string().regex(/^r\d+$/) });
+    const querySchema = z.object({ trace: z.string() });
+    const bodySchema = z.object({ id: z.string(), privateValue: z.string() });
+
+    @Controller("/isolation")
+    class IsolationController {
+      @Post("/:id")
+      async run(request: StrataAnalogRequest) {
+        const params = await request.validateParams(paramsSchema);
+        const query = await request.validateQuery(querySchema);
+        const body = await request.readValidatedJson(bodySchema);
+        await new Promise((resolve) => setTimeout(resolve, Number(params.id.slice(1)) % 4));
+        return {
+          id: params.id,
+          trace: query.trace,
+          bodyId: body.id,
+          privateValue: body.privateValue,
+        };
+      }
+    }
+    registerControllers(router, [IsolationController], {
+      controllerFactory(controller, { onCleanup }) {
+        onCleanup(() => {
+          cleanupCount += 1;
+        });
+        return new controller();
+      },
+    });
+
+    const responses = await Promise.all(
+      Array.from({ length: 24 }, async (_, index) => {
+        const id = `r${index}`;
+        const valid = index % 2 === 0;
+        const response = await handle(
+          new Request(`http://localhost/isolation/${valid ? id : "bad"}?trace=trace-${index}`, {
+            method: "POST",
+            headers: { "content-type": "application/json", "x-correlation-id": `corr-${index}` },
+            body: JSON.stringify({ id, privateValue: `canary-${index}` }),
+          }),
+        );
+        const text = await response.text();
+        if (!valid) {
+          expect(response.status).toBe(400);
+          expect(text).not.toContain(`canary-${index}`);
+          return null;
+        }
+        expect(response.status).toBe(200);
+        expect(JSON.parse(text)).toEqual({
+          id,
+          trace: `trace-${index}`,
+          bodyId: id,
+          privateValue: `canary-${index}`,
+        });
+        return text;
+      }),
+    );
+
+    expect(responses.filter(Boolean)).toHaveLength(12);
+    expect(cleanupCount).toBe(24);
+  });
+
+  it("preserves dangerous record keys, decodes split UTF-8 and ignores false Content-Length", async () => {
+    const handlers: Array<(event: object) => unknown> = [];
+    const router = {
+      add(_path: string, handler: (event: object) => unknown) {
+        handlers.push(handler);
+      },
+    } satisfies NitroRouter;
+    @Controller("/boundary")
+    class BoundaryController {
+      @Get()
+      inspect(request: StrataAnalogRequest) {
+        return {
+          query: request.query,
+          proto: Object.getPrototypeOf(request.query) === Object.prototype,
+          ownsProto: Object.hasOwn(request.query, "__proto__"),
+        };
+      }
+    }
+    registerControllers(router, [BoundaryController]);
+    const handler = handlers[0];
+    if (!handler) throw new Error("Expected route handler.");
+    const { router: h3Router, handle } = createNitroLikeApp();
+    @Controller("/utf8")
+    class Utf8Controller {
+      @Post()
+      async read(request: StrataAnalogRequest) {
+        return request.readValidatedJson(z.object({ text: z.string() }));
+      }
+    }
+    registerControllers(h3Router, [Utf8Controller]);
+    const text = '{"text":"😀"}';
+    const bytes = new TextEncoder().encode(text);
+    const emojiStart = bytes.indexOf(0xf0);
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(bytes.slice(0, emojiStart + 2));
+        controller.enqueue(bytes.slice(emojiStart + 2));
+        controller.close();
+      },
+    });
+    const utf8Response = await handle(
+      new Request("http://localhost/utf8", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: stream,
+        duplex: "half",
+      }),
+    );
+    await expect(utf8Response.json()).resolves.toEqual({ text: "😀" });
+
+    const queryResponse = await handler({
+      method: "GET",
+      path: "/boundary?__proto__=own&constructor=ctor&prototype=proto",
+      web: {
+        request: new Request(
+          "http://localhost/boundary?__proto__=own&constructor=ctor&prototype=proto",
+        ),
+      },
+      context: {},
+    });
+    expect(queryResponse).toMatchObject({ proto: true, ownsProto: true });
+    const query = (queryResponse as { query: Record<string, unknown> }).query;
+    expect(Object.getPrototypeOf(query)).toBe(Object.prototype);
+    expect(Object.hasOwn(query, "__proto__")).toBe(true);
+    expect(query["__proto__"]).toBe("own");
+    expect(query.constructor).toBe("ctor");
+    expect(query["prototype"]).toBe("proto");
+
+    const oversizedHandlerList: Array<(event: object) => unknown> = [];
+    const oversizedRouter = {
+      add(_path: string, routeHandler: (event: object) => unknown) {
+        oversizedHandlerList.push(routeHandler);
+      },
+    } satisfies NitroRouter;
+    @Controller("/oversized")
+    class OversizedController {
+      @Post()
+      async read(request: StrataAnalogRequest) {
+        return request.readValidatedJson(z.unknown());
+      }
+    }
+    registerControllers(oversizedRouter, [OversizedController]);
+    const oversizedHandler = oversizedHandlerList[0];
+    if (!oversizedHandler) throw new Error("Expected oversized route handler.");
+    const oversizedResponse = await oversizedHandler({
+      method: "POST",
+      path: "/oversized",
+      headers: new Headers({ "content-type": "application/json", "content-length": "1" }),
+      node: {
+        req: {
+          headers: { "content-type": "application/json", "content-length": "1" },
+          rawBody: new Uint8Array(1024 * 1024 + 1),
+        },
+      },
+    });
+    expect(oversizedResponse).toBeInstanceOf(Response);
+    expect((oversizedResponse as Response).status).toBe(413);
+  });
+
   it("registers a GET route on the router that returns the controller's result as JSON", async () => {
     const { router, request } = createNitroLikeApp();
 
@@ -65,6 +392,26 @@ describe("registerControllers", () => {
     const { router } = createNitroLikeApp();
 
     expect(registerControllers(router, [UsersController])).toBe(router);
+  });
+
+  it("preserves a successful Response status, headers and body through pinned H3 v1", async () => {
+    @Controller("/response")
+    class ResponseController {
+      @Get()
+      handle() {
+        return new Response("created", {
+          status: 201,
+          headers: { "content-type": "text/plain", "x-fixture": "preserved" },
+        });
+      }
+    }
+    const { router, handle } = createNitroLikeApp();
+    registerControllers(router, [ResponseController]);
+    const response = await handle(new Request("http://localhost/response"));
+    expect(response.status).toBe(201);
+    expect(response.headers.get("content-type")).toBe("text/plain");
+    expect(response.headers.get("x-fixture")).toBe("preserved");
+    await expect(response.text()).resolves.toBe("created");
   });
 
   it("registers routes of a controller mounted at the root path", async () => {
