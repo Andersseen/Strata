@@ -19,6 +19,7 @@ import { BaseController, DecoratedChild, UndecoratedChild } from "./inheritance.
 import { DuplicateCreateController, ItemsController } from "./items.controller.js";
 import { PostsController, registerPosts } from "./posts.controller.js";
 import { UnregisteredController } from "./registration.controller.js";
+import { ValidatedController } from "./validated.controller.js";
 
 // --- Registration ----------------------------------------------------------
 assert.deepEqual(getControllerDefinition(PostsController), {
@@ -85,6 +86,7 @@ const controllerFactory: StrataAnalogControllerFactory = async (Controller, cont
 registerControllers(router, [LifecycleController, FailingController], { controllerFactory });
 registerControllers(router, [BaseController, DecoratedChild]);
 registerControllers(router, [ItemsController]);
+registerControllers(router, [ValidatedController]);
 
 // Same path, different method is fine (above); same method and path is not.
 assert.throws(
@@ -158,6 +160,19 @@ try {
   for (const [response, body] of methodTable) {
     assert.deepEqual(await response, { status: 200, body });
   }
+
+  assert.deepEqual(await send("POST", "/api/validated", { count: "12" }), {
+    status: 200,
+    body: { count: 12 },
+  });
+  const invalidValidated = await fetch(`http://127.0.0.1:${port}/api/validated`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ count: "private fixture message" }),
+  });
+  assert.equal(invalidValidated.status, 400);
+  assert.equal(invalidValidated.headers.get("cache-control"), "no-store");
+  assert.deepEqual(await invalidValidated.json(), { error: "invalid_request", source: "body" });
 
   // --- Controller creation + request isolation under concurrency -----------
   const before = constructedControllers();

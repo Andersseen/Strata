@@ -378,6 +378,112 @@ try {
 
   verdict.methods = all(methodChecks);
 
+  section("Standard Schema validation on local workerd");
+  const validatedParams = await getJson("/api/strata/validated/42?tag=a&tag=b");
+  const validatedBody = await httpRequest(`${baseUrl}/api/strata/validated`, {
+    method: "POST",
+    json: { count: "7" },
+  });
+  const invalidParams = await getJson("/api/strata/validated/nope?tag=x");
+  let validatedBodyJson = validatedBody.body;
+  try {
+    validatedBodyJson = JSON.stringify(JSON.parse(validatedBodyJson));
+  } catch {
+    /* keep response text */
+  }
+  check(
+    "Validated params and repeated query values transform on workerd",
+    validatedParams.status === 200 &&
+      JSON.stringify(validatedParams.json) === '{"params":{"id":42},"query":{"tag":["a","b"]}}',
+    `${validatedParams.status} ${validatedParams.body}`,
+  );
+  check(
+    "Async validated JSON transforms on workerd",
+    validatedBody.status === 200 && validatedBodyJson === '{"count":7}',
+    `${validatedBody.status} ${validatedBody.body}`,
+  );
+  check(
+    "Invalid params use safe 400 JSON on workerd",
+    invalidParams.status === 400 &&
+      JSON.stringify(invalidParams.json) === '{"error":"invalid_request","source":"params"}',
+    `${invalidParams.status} ${invalidParams.body}`,
+  );
+  const validationIsolation = await Promise.all(
+    Array.from({ length: 24 }, async (_, index) => {
+      const valid = index % 2 === 0;
+      const requestId = `workerd-validation-${index}`;
+      const privateValue = `PRIVATE_WORKER_VALIDATION_CANARY_${index}`;
+      const response = await fetch(
+        `${baseUrl}/api/strata/validated/${valid ? index + 1 : "invalid"}?tag=${requestId}`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-correlation-id": requestId },
+          body: JSON.stringify({ count: String(index), requestId, privateValue }),
+        },
+      );
+      const body = await response.text();
+      if (!valid) {
+        return (
+          response.status === 400 &&
+          response.headers.get("cache-control") === "no-store" &&
+          response.headers.get("content-type")?.includes("application/json") === true &&
+          body === '{"error":"invalid_request","source":"params"}' &&
+          !body.includes(privateValue)
+        );
+      }
+      try {
+        return (
+          response.status === 200 &&
+          JSON.stringify(JSON.parse(body)) ===
+            JSON.stringify({ id: index + 1, tag: requestId, count: index, requestId })
+        );
+      } catch {
+        return false;
+      }
+    }),
+  );
+  check(
+    "24 overlapping mixed validation requests remain isolated on workerd",
+    validationIsolation.every(Boolean),
+    "per-request params/query/body, transformed output, no-store failures and private canaries",
+  );
+  const jsonBodyCases = await Promise.all([
+    fetch(`${baseUrl}/api/strata/validated`, {
+      method: "POST",
+      headers: { "content-type": "application/json; charset=utf-8" },
+      body: "{ malformed PRIVATE_WORKER_BODY_CANARY",
+    }),
+    fetch(`${baseUrl}/api/strata/validated`, {
+      method: "POST",
+      headers: { "content-type": "text/plain" },
+      body: "{}",
+    }),
+    fetch(`${baseUrl}/api/strata/validated`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ count: `1${"x".repeat(1024 * 1024)}` }),
+    }),
+  ]);
+  const jsonBodyExpected = [
+    '{"error":"invalid_request","source":"body"}',
+    '{"error":"unsupported_media_type","source":"body"}',
+    '{"error":"payload_too_large","source":"body"}',
+  ];
+  await Promise.all(
+    jsonBodyCases.map(async (response, index) => {
+      const body = await response.text();
+      return check(
+        `workerd JSON body error case ${index + 1} returns safe status/content/cache headers`,
+        response.status === [400, 415, 413][index] &&
+          response.headers.get("content-type")?.includes("application/json") === true &&
+          response.headers.get("cache-control") === "no-store" &&
+          body === jsonBodyExpected[index] &&
+          !body.includes("PRIVATE_WORKER_BODY_CANARY"),
+        `${response.status} ${body}`,
+      );
+    }),
+  );
+
   section("Angular DI experiment (SPEC-003) under workerd (characterization)");
 
   const statsBefore = await getJson("/api/strata-angular-di-stats");

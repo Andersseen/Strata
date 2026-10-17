@@ -51,9 +51,12 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@standard-schema/spec": "1.1.0",
     "@strata-sc/core": "workspace:*"
   },
   "devDependencies": {
-    "h3": "^1.15.11"
+    "h3": "^1.15.11",
+    "valibot": "^1.5.0",
+    "zod": "^4.6.5"
   }
 }

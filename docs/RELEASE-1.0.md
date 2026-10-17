@@ -1,5 +1,11 @@
 # Strata 1.0 exit criteria
 
+Analog's opt-in Standard Schema v1 input methods are additive experimental
+APIs. The bounded JSON and safe client-input response contract has local Node,
+workerd and packed-consumer fixture evidence; this does not certify M3 or
+Strata 1.0. See
+[the validation evidence](research/analog-input-validation.md).
+
 **Current status: none of these production gates is certified.** This checklist is authoritative
 for release readiness. Fill each item with evidence for one release candidate and its qualified
 compatibility matrix; do not check it based on intent or a demonstration.

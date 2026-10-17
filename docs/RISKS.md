@@ -1,5 +1,13 @@
 # Technical risk register
 
+Evidence note (2026-10-17): the feature branch
+`feat/analog-standard-schema-validation` adds opt-in Standard Schema v1 input
+validation for Analog, bounded JSON and safe 400/413/415 responses after
+cleanup. Local Node production/dev, workerd and packed-consumer checks pass.
+This does not close authentication, authorization, tenant isolation, general
+error redaction or real-application adoption risks; see
+[the evidence report](research/analog-input-validation.md).
+
 Open as of 2026-09-17; R03, R04 and R13 updated 2026-09-24 with SPEC-003 evidence; R13 updated 2026-10-16 with the full-stack performance baseline and the one-versus-three-island scaling evidence. Astra owns architectural disposition; the agent executing the relevant spec
 produces evidence. A risk closes only with a linked test/report on a pinned tuple. “Deadline” means
 the gate that cannot pass unresolved, not a calendar estimate. No risk below is closed by this audit.

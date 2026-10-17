@@ -1,3 +1,4 @@
+import type { StandardSchemaV1 } from "@standard-schema/spec";
 import { Controller, Get } from "@strata-sc/core";
 import { createApp, createRouter, toWebHandler } from "h3";
 import { describe, expect, it, vi } from "vitest";
@@ -75,6 +76,51 @@ class OkController {
 }
 
 describe("registerControllers — request cleanup", () => {
+  it("runs cleanup after an async schema validator rejects and preserves the rejection", async () => {
+    const rejection = new Error("validator failed privately");
+    const cleaned = vi.fn();
+    const schema = {
+      "~standard": {
+        version: 1,
+        vendor: "async-rejection-test",
+        validate: async () => Promise.reject(rejection),
+      },
+    } as const;
+
+    @Controller("/cleanup")
+    class AsyncValidationController {
+      @Get()
+      async handle(request: StrataAnalogRequest) {
+        return request.validateParams(schema);
+      }
+    }
+
+    await expect(
+      routeHandler(AsyncValidationController, { controllerFactory: factoryWith(cleaned) })(),
+    ).rejects.toBe(rejection);
+    expect(cleaned).toHaveBeenCalledOnce();
+  });
+
+  it("treats invalid Standard Schema metadata as a configuration failure after cleanup", async () => {
+    const cleaned = vi.fn();
+    const invalidSchema = {
+      "~standard": { version: 2, vendor: "bad-schema", validate: () => ({ value: "never" }) },
+    } as unknown as StandardSchemaV1;
+
+    @Controller("/cleanup")
+    class InvalidSchemaController {
+      @Get()
+      async handle(request: StrataAnalogRequest) {
+        return request.validateParams(invalidSchema);
+      }
+    }
+
+    await expect(
+      routeHandler(InvalidSchemaController, { controllerFactory: factoryWith(cleaned) })(),
+    ).rejects.toBeInstanceOf(StrataAnalogConfigurationError);
+    expect(cleaned).toHaveBeenCalledOnce();
+  });
+
   it("runs cleanup after a successful handler, once the handler's last await has settled", async () => {
     const log: string[] = [];
 

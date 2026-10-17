@@ -1,5 +1,21 @@
 # Current implementation audit
 
+## Opt-in Analog request validation (2026-10-17)
+
+At baseline `41079a32e84f5c8d652fee04d212801571cb97f4`, the feature branch
+`feat/analog-standard-schema-validation` adds `validateParams`, `validateQuery`
+and `readValidatedJson` using Standard Schema v1 and `@standard-schema/spec`.
+The API is opt-in and preserves raw readers. Validated JSON is bounded to 1 MiB;
+safe 400/413/415 JSON responses are created only after successful cleanup.
+Package-level tests, Zod/Valibot interoperability, transformed output inference,
+and 24 overlapping mixed requests pass. Real Analog Node production/dev,
+Cloudflare Pages/workerd, packed TypeScript 5.9.2 and full-stack TypeScript 6.0.3
+and 5.9.2 consumers pass. External full-stack workerd rehearsal also passes;
+no public deployment was run. Evidence and explicit remaining gaps:
+[research report](research/analog-input-validation.md). This does not qualify
+authentication, authorization, guards/interceptors, production adoption, M3 or
+Strata 1.0.
+
 ## Full-stack performance scaling: one island versus three distinct islands (2026-10-16)
 
 At `546b35ccb708d784ef46bea2eb35a90736a3da79`, `STRATA_PERF_ISLANDS=1|3 pnpm test:full-stack-performance` runs the

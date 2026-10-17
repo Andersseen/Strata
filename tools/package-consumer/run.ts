@@ -184,12 +184,14 @@ try {
     .filter((file) => file.includes("/node_modules/") && !file.includes("/typescript/lib/"));
   check(
     strataGraph.every((file) =>
-      /\/node_modules\/(@strata-sc|@types\/node|undici-types)\//.test(file),
+      /\/node_modules\/(?:@strata-sc|@standard-schema\/spec|@types\/node|undici-types)\//.test(
+        file,
+      ),
     ),
     `unexpected declarations in the Strata graph:\n${strataGraph.join("\n")}`,
   );
   console.log(
-    `0 diagnostics; graph = @strata-sc/* + @types/node only (${strataGraph.filter((file) => file.includes("/@strata-sc/")).length} @strata-sc declaration files)`,
+    `0 diagnostics; graph = @strata-sc/* + @standard-schema/spec + @types/node (${strataGraph.filter((file) => file.includes("/@strata-sc/")).length} Strata declaration files)`,
   );
 
   // The whole app also pulls in the H3 v1 harness. With skipLibCheck: false,

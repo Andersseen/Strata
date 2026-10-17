@@ -247,6 +247,9 @@ interface RouteObservation {
   greeting: [Observed, Observed];
   /** `METHOD_REQUESTS` against `/api/strata/methods`: one route per HTTP method. */
   methods: Array<{ label: string; observed: Observed }>;
+  validation: Observed[];
+  validationConcurrency: boolean;
+  validationBodyPolicy: boolean;
   /** SPEC-003 Angular DI scenarios under `/api/strata/angular-di`, with lifecycle counter deltas. */
   angularDi: AngularDiObservation;
   seam: SeamSnapshot | null;
@@ -475,10 +478,108 @@ async function observeRoutes(baseUrl: string): Promise<RouteObservation> {
   }
 
   const angularDi = await observeAngularDi(baseUrl);
+  const validatedParams = await getJson<unknown>(`${baseUrl}/api/strata/validated/42?tag=a&tag=b`);
+  const validatedBodyResult = await httpRequest(`${baseUrl}/api/strata/validated`, {
+    method: "POST",
+    json: { count: "7" },
+  });
+  let validatedBodyText = validatedBodyResult.body;
+  try {
+    validatedBodyText = JSON.stringify(JSON.parse(validatedBodyText));
+  } catch {
+    /* retain raw body */
+  }
+  const validatedBody = { ...validatedBodyResult, body: validatedBodyText };
+  const invalidParams = await getJson<unknown>(`${baseUrl}/api/strata/validated/nope?tag=x`);
+  const validated = [validatedParams, validatedBody, invalidParams].map((result, index) => {
+    const expected = [
+      '{"params":{"id":42},"query":{"tag":["a","b"]}}',
+      '{"count":7}',
+      '{"error":"invalid_request","source":"params"}',
+    ][index];
+    return {
+      status: result.status,
+      contentType: result.contentType,
+      body: result.body,
+      ok:
+        result.status === (index === 2 ? 400 : 200) &&
+        isJson(result.contentType) &&
+        result.body === expected,
+    };
+  });
+  const validationConcurrency = await Promise.all(
+    Array.from({ length: 24 }, async (_, index) => {
+      const valid = index % 2 === 0;
+      const id = valid ? String(index + 1) : "invalid";
+      const requestId = `validation-${index}`;
+      const privateValue = `PRIVATE_VALIDATION_CANARY_${index}`;
+      const response = await fetch(`${baseUrl}/api/strata/validated/${id}?tag=${requestId}`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-correlation-id": requestId },
+        body: JSON.stringify({ count: String(index), requestId, privateValue }),
+      });
+      const body = await response.text();
+      if (!valid) {
+        return (
+          response.status === 400 &&
+          response.headers.get("cache-control") === "no-store" &&
+          response.headers.get("content-type")?.includes("application/json") === true &&
+          body === '{"error":"invalid_request","source":"params"}' &&
+          !body.includes(privateValue)
+        );
+      }
+      try {
+        return (
+          response.status === 200 &&
+          JSON.stringify(JSON.parse(body)) ===
+            JSON.stringify({ id: index + 1, tag: requestId, count: index, requestId })
+        );
+      } catch {
+        return false;
+      }
+    }),
+  ).then((results) => results.every(Boolean));
+  const jsonBodyCases = await Promise.all([
+    fetch(`${baseUrl}/api/strata/validated`, {
+      method: "POST",
+      headers: { "content-type": "application/json; charset=utf-8" },
+      body: "{ malformed PRIVATE_BODY_CANARY",
+    }),
+    fetch(`${baseUrl}/api/strata/validated`, {
+      method: "POST",
+      headers: { "content-type": "text/plain" },
+      body: "{}",
+    }),
+    fetch(`${baseUrl}/api/strata/validated`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ count: `1${"x".repeat(1024 * 1024)}` }),
+    }),
+  ]);
+  const jsonBodyExpected = [
+    '{"error":"invalid_request","source":"body"}',
+    '{"error":"unsupported_media_type","source":"body"}',
+    '{"error":"payload_too_large","source":"body"}',
+  ];
+  const validationBodyPolicy = await Promise.all(
+    jsonBodyCases.map(async (response, index) => {
+      const body = await response.text();
+      return (
+        response.status === [400, 415, 413][index] &&
+        response.headers.get("content-type")?.includes("application/json") === true &&
+        response.headers.get("cache-control") === "no-store" &&
+        body === jsonBodyExpected[index] &&
+        !body.includes("PRIVATE_BODY_CANARY")
+      );
+    }),
+  ).then((results) => results.every(Boolean));
 
   return {
     lifecycle,
     methods,
+    validation: validated,
+    validationConcurrency,
+    validationBodyPolicy,
     greeting,
     angularDi,
     native: {
@@ -801,8 +902,8 @@ async function main(): Promise<void> {
       .join(", "),
   );
   check(
-    "@strata-sc/analog depends only on @strata-sc/core at runtime and declares no peers",
-    analogDependencyNames.join() === "@strata-sc/core" &&
+    "@strata-sc/analog declares only @strata-sc/core and Standard Schema, with no peers",
+    analogDependencyNames.join() === "@standard-schema/spec,@strata-sc/core" &&
       Object.keys(analogManifest.peerDependencies ?? {}).length === 0,
     JSON.stringify({
       dependencies: analogManifest.dependencies,
@@ -815,8 +916,8 @@ async function main(): Promise<void> {
     analogEveryDependencyName.join(", "),
   );
   check(
-    "The built @strata-sc/analog (JS and .d.ts) imports only @strata-sc/core — no h3, nitropack or Analog",
-    builtSpecifiers.join() === "@strata-sc/core",
+    "The built @strata-sc/analog imports only core and Standard Schema — no h3, nitropack or Analog",
+    builtSpecifiers.join() === "@standard-schema/spec,@strata-sc/core",
     builtSpecifiers.join(", ") || "none",
   );
   check(
@@ -1135,6 +1236,23 @@ async function main(): Promise<void> {
       `${observed.status} ${observed.contentType} ${observed.body}`,
     );
   }
+  for (const [index, observed] of prod.validation.entries()) {
+    check(
+      `Standard Schema validation case ${index + 1} works in production`,
+      observed.ok,
+      `${observed.status} ${observed.contentType} ${observed.body}`,
+    );
+  }
+  check(
+    "24 overlapping mixed valid and invalid validation requests remain isolated in production",
+    prod.validationConcurrency,
+    "per-request params, query, transformed body, safe error and private canary checks",
+  );
+  check(
+    "JSON body failures return real 400/413/415 no-store responses in production",
+    prod.validationBodyPolicy,
+    "malformed JSON, text/plain and >1 MiB JSON",
+  );
   checkAngularDi("production", prod.angularDi);
 
   // ---- Marker scan (before the dev server, which does not touch dist) ----
@@ -1262,6 +1380,23 @@ async function main(): Promise<void> {
       `${observed.status} ${observed.contentType} ${observed.body}`,
     );
   }
+  for (const [index, observed] of dev.validation.entries()) {
+    check(
+      `Standard Schema validation case ${index + 1} works in the dev server`,
+      observed.ok,
+      `${observed.status} ${observed.contentType} ${observed.body}`,
+    );
+  }
+  check(
+    "24 overlapping mixed valid and invalid validation requests remain isolated in the dev server",
+    dev.validationConcurrency,
+    "per-request params, query, transformed body, safe error and private canary checks",
+  );
+  check(
+    "JSON body failures return real 400/413/415 no-store responses in the dev server",
+    dev.validationBodyPolicy,
+    "malformed JSON, text/plain and >1 MiB JSON",
+  );
   checkAngularDi("the dev server", dev.angularDi);
 
   const nitroArm = (mode: string, ok: boolean, evidence: string): Arm => ({
