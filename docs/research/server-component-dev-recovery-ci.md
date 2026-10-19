@@ -81,13 +81,18 @@ TypeScript 6.0.3, Playwright 1.62.1. GitHub's failed runner used Node 22.23.3 an
   `apps/analog-fixture/dist` outputs to overlap; those results are invalid and excluded. Every affected
   gate was rerun individually/sequentially and passed. The original workflow was preserved.
 - Entwine CLI 0.5.1 `check` and `build` passed (51 documents); generated site output is ignored.
-- Historical Actions result remains preserved and unchanged. No hosted run of this correction exists
-  yet; PR CI is pending.
+- Historical Actions result remains preserved and unchanged. PR #96 hosted verification passed:
+  [CI run 39217222119](https://github.com/Andersseen/Strata/actions/runs/39217222119) passed all five
+  parallel groups, including the Server Component graph (dev recovery) job and aggregate `Verify`;
+  [Entwine run 39217222144](https://github.com/Andersseen/Strata/actions/runs/39217222144) passed
+  documentation validation; and
+  [registry verification 39217222235](https://github.com/Andersseen/Strata/actions/runs/39217222235)
+  passed.
 
 ## Verdict and limits
 
 Root cause is confirmed as harness-side asynchronous log delivery crossing a mark taken before
 restoration. The production graph transaction and fail-closed firewall did not change. The new
 negative control demonstrates fail-closed behavior after recovery as well as before it. This evidence
-qualifies only this pinned Analog/Vite development fixture and host environment; hosted PR CI is still
-required before calling the gate reproducibly green.
+qualifies this pinned Analog/Vite development fixture on macOS and the hosted Ubuntu runner. The local
+five-run matrix and the hosted Linux run are green for PR #96; they do not guarantee every environment.
