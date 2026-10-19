@@ -109,7 +109,7 @@ const isBaseline = (html: string): boolean =>
   !html.includes("data-dev-extra");
 
 /** Resolves once the dev server has printed nothing for `windowMs`. */
-async function quiet(server: DevServer, windowMs = 800, timeoutMs = 15_000): Promise<void> {
+async function quiet(server: DevServer, windowMs = 800, timeoutMs = 15_000): Promise<boolean> {
   const deadline = Date.now() + timeoutMs;
   let length = server.mark();
   let since = Date.now();
@@ -122,6 +122,8 @@ async function quiet(server: DevServer, windowMs = 800, timeoutMs = 15_000): Pro
       since = Date.now();
     }
   }
+
+  return Date.now() - since >= windowMs;
 }
 
 /** Restores every edited file and waits until SSR and the generated surrogates are the baseline again. */
@@ -877,6 +879,7 @@ export async function checkInvalidEdit(
   label: string,
   apply: () => void,
   diagnostic: RegExp,
+  rebreakAfterRecovery = false,
 ): Promise<boolean> {
   section(label);
 
@@ -917,9 +920,11 @@ export async function checkInvalidEdit(
       check("the dev server is still running", !ctx.server.process.hasExited()),
     );
 
-    // The fix: put the file back.
-    const fixed = ctx.server.mark();
-
+    // The fix: put the file back. Recovery is observable only after the
+    // committed graph accepts browser modules and the page has reloaded and
+    // hydrated. Drain process output before opening the post-recovery window:
+    // child-process stdout can deliver a diagnostic emitted for the invalid
+    // edit after the caller has already taken a byte-offset mark.
     await dev.markRealm();
     ctx.edits.restore();
 
@@ -936,12 +941,79 @@ export async function checkInvalidEdit(
         "the client graph is open again",
         (await fetchIn(dev, moduleUrl(ctx, "dev-island.component.ts"))).status === 200,
       ),
+    );
+
+    const drained = await quiet(ctx.server);
+    const recoveredAt = ctx.server.mark();
+    const stayedRecovered = await quiet(ctx.server);
+    const postRecovery = ctx.server.since(recoveredAt);
+
+    results.push(
+      check("recovery reached a bounded quiet log boundary", drained && stayedRecovered),
       check(
-        "no failure line after the fix",
-        !ctx.server.since(fixed).includes(FAIL_LINE),
-        ctx.server.since(fixed),
+        "no failure line after the recovered graph was observable",
+        !postRecovery.includes(FAIL_LINE),
+        postRecovery,
       ),
     );
+
+    if (rebreakAfterRecovery) {
+      const failuresBefore = strataLogLines(ctx.server.output()).filter((line) =>
+        line.includes(FAIL_LINE),
+      ).length;
+      const rebrokenAt = ctx.server.mark();
+
+      apply();
+
+      const failedAgain = await until(() => {
+        const current = ctx.server.output();
+
+        return (
+          strataLogLines(current).filter((line) => line.includes(FAIL_LINE)).length >
+            failuresBefore && current.slice(rebrokenAt).includes(FAIL_LINE)
+        );
+      }, 20_000);
+      const refusedAgain = await fetchIn(dev, moduleUrl(ctx, "dev-island.component.ts"));
+
+      results.push(
+        check(
+          "negative control: a new invalid edit after recovery fails closed",
+          failedAgain === true,
+        ),
+        check(
+          "negative control: the recovered client graph closes again",
+          refusedAgain.status >= 400 && refusedAgain.body.includes("could not be refreshed"),
+          String(refusedAgain.status),
+        ),
+      );
+
+      await dev.markRealm();
+      ctx.edits.restore();
+      const finalReload = await until(async () => !(await dev.realmSurvives()), 20_000);
+
+      await returnToRoute(dev, ctx.server);
+      const finalHydration = await hydratedCheck(
+        "negative control: correction recovers and hydrates",
+        dev,
+      );
+      const finalOpen =
+        (await fetchIn(dev, moduleUrl(ctx, "dev-island.component.ts"))).status === 200;
+      const finalQuiet = await quiet(ctx.server);
+      const finalBoundary = ctx.server.mark();
+      const finalStayedQuiet = await quiet(ctx.server);
+      const finalLogs = ctx.server.since(finalBoundary);
+
+      results.push(
+        check("negative control: the second correction reloads the document", finalReload === true),
+        finalHydration,
+        check("negative control: the browser graph opens after the second correction", finalOpen),
+        check(
+          "negative control: no fresh failure remains after second recovery",
+          finalQuiet && finalStayedQuiet && !finalLogs.includes(FAIL_LINE),
+          finalLogs,
+        ),
+      );
+    }
   } finally {
     await dev.close();
     await restoreAndSettle(ctx);

@@ -103,6 +103,7 @@ try {
         );
       },
       /Interactive binding "\(click\)" on <button>/,
+      true,
     );
     verdict["K2 unresolved [strataClient]: diagnostic, then recovery"] = await checkInvalidEdit(
       context,

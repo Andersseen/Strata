@@ -338,6 +338,10 @@ true` Angular's component HMR updates the island (same realm, no document reques
   - Invalid edits: `@defer`, an event binding, an unresolved `[strataClient]` each give the
     analyzer's own diagnostic in the server log and Vite's overlay, the client graph refuses every
     app module (including ones Vite had cached) and the fix recovers with a reload, no restart.
+    A later CI failure was traced to the harness taking its log mark before restoring files while
+    child-process output arrived asynchronously. The assertion now starts after observable browser
+    recovery and a bounded quiet-log boundary; scenario K re-invalidates after recovery to prove a
+    new failure still closes the graph ([evidence](research/server-component-dev-recovery-ci.md)).
   - Create/delete: a new `@ServerComponent()` module gets a surrogate while Vite runs and renders
     once wired into the page; deleting it removes the stale surrogate.
   - Dogfood smoke: Relay (`/release`: SSR, rollout island hydrates, interaction, one server-owned

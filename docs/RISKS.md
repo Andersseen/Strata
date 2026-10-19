@@ -1,5 +1,11 @@
 # Technical risk register
 
+Evidence note (2026-10-19): the Server Component dev recovery CI failure was traced to an
+asynchronous harness log-window race; the test now gates the post-recovery assertion on observable
+browser recovery and bounded log quiet, and scenario K proves a fresh invalid edit fails closed
+after recovery. Hosted PR CI is pending; this does not change R05's production-security disposition
+([evidence](research/server-component-dev-recovery-ci.md)).
+
 Evidence note (2026-10-17): the feature branch
 `feat/analog-standard-schema-validation` adds opt-in Standard Schema v1 input
 validation for Analog, bounded JSON and safe 400/413/415 responses after
