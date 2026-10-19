@@ -4,6 +4,10 @@ Date: 2026-10-07. Baseline: `main` at `b6b32154f65a5b68a04e1498d3a1c36b56fd1da8`
 Scope: `vite` (the Analog dev server) with `strataServerComponents()`. Not in scope: controllers, Angular
 Router navigation into a Server Component subtree (NO-GO, unchanged), streaming, publication.
 
+The later CI recovery assertion race and its evidence are recorded separately in
+[server-component-dev-recovery-ci.md](server-component-dev-recovery-ci.md); the original 2026-10-07
+qualification record and run results below are retained as historical evidence.
+
 Command: `pnpm test:server-component-dev` (CI step "Server Component dev server"). Fixture route:
 `/server-component-dev` (`apps/analog-fixture/src/app/server-component-dev/*`). Harness:
 `tools/server-components/lib/dev-harness.ts` (server, edit/restore, request recorder) and

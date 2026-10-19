@@ -110,7 +110,10 @@ hydration:
   server-owned edit regenerates the graph and replaces the JS realm with one document reload; a
   client island edit is not reloaded by Strata; a module that starts asserting server-only is
   refused live (import, `import()`, `?raw`, `?url`) with no canary in any response; invalid edits
-  fail the client graph closed with the analyzer's diagnostic and recover when fixed.
+  fail the client graph closed with the analyzer's diagnostic and recover when fixed. Its recovery
+  checks use a bounded quiet-log boundary after browser recovery is observable and include a second
+  invalid event-binding edit after recovery as a negative control. See the
+  [CI recovery regression evidence](research/server-component-dev-recovery-ci.md).
 
 - `pnpm test:server-component-package-consumer`: builds and `pnpm pack`s the private package, installs
   the tarball with `npm` into a real Analog app copied to an OS temp directory outside the workspace
