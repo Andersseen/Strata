@@ -6,6 +6,12 @@ workerd and packed-consumer fixture evidence; this does not certify M3 or
 Strata 1.0. See
 [the validation evidence](research/analog-input-validation.md).
 
+Analog's opt-in request guards are also experimental. They delegate identity
+verification and authorization to the application and do not qualify
+production authentication, tenant isolation, CSRF handling or real application
+adoption. Interceptors are not implemented. See
+[the guard report](research/analog-request-guards.md).
+
 **Current status: none of these production gates is certified.** This checklist is authoritative
 for release readiness. Fill each item with evidence for one release candidate and its qualified
 compatibility matrix; do not check it based on intent or a demonstration.

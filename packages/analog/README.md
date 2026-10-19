@@ -46,10 +46,34 @@ import { defineNitroPlugin } from "nitropack/runtime";
 
 import { PostsController } from "../strata/posts.controller";
 
+const requireAuth = ({ request, route, onCleanup }) => {
+  // Verify credentials with application-owned code. Never trust an identity
+  // copied from a query parameter or arbitrary header.
+  const token = request.headers.get("authorization");
+  onCleanup(() => releaseRequestResources());
+  if (!verifyToken(token)) return { allow: false, status: 401 };
+  if (route.method === "DELETE" && !canDelete(token, request.params["id"])) {
+    return { allow: false, status: 403 };
+  }
+  return { allow: true };
+};
+
 export default defineNitroPlugin((nitroApp) => {
-  registerControllers(nitroApp.router, [PostsController]);
+  registerControllers(nitroApp.router, [PostsController], { guards: [requireAuth] });
 });
 ```
+
+Guards are opt-in and run sequentially before a controller is constructed.
+Each receives the current request, immutable route metadata (`method`, final
+registered `path`, controller name and handler name), and the same request-local
+`onCleanup` used by the controller factory. Return exactly `{ allow: true }` or
+`{ allow: false, status: 401 | 403 }`. Denials use generic JSON and
+`Cache-Control: no-store`; malformed decisions and thrown/rejected guards are
+application failures. Authentication and authorization remain consumer-owned:
+Strata does not verify credentials, manage sessions or provide RBAC/ABAC.
+Guards do not supply CSRF policy or production tenant-isolation certification.
+Interceptors are not implemented, and real application adoption and Strata 1.0
+remain unqualified.
 
 Every `@strata-sc/core` HTTP decorator (`Get`, `Post`, `Put`, `Patch`,
 `Delete`) is registered for its own method on the Nitro router, and all of them

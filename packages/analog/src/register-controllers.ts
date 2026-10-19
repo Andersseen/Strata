@@ -38,6 +38,28 @@ export interface StrataAnalogRequest {
   ) => Promise<StandardSchemaV1.InferOutput<Schema>>;
 }
 
+/** Stable description of the registered route being evaluated by a guard. */
+export interface StrataAnalogRouteInfo {
+  readonly method: HttpMethod;
+  readonly path: string;
+  readonly controller: string;
+  readonly handler: string;
+}
+
+export type StrataAnalogGuardDecision =
+  { readonly allow: true } | { readonly allow: false; readonly status: 401 | 403 };
+
+export interface StrataAnalogGuardContext {
+  readonly request: StrataAnalogRequest;
+  readonly route: StrataAnalogRouteInfo;
+  readonly onCleanup: (cleanup: StrataAnalogCleanup) => void;
+}
+
+/** Consumer-owned request authorization check, run sequentially before construction. */
+export type StrataAnalogGuard = (
+  context: StrataAnalogGuardContext,
+) => StrataAnalogGuardDecision | Promise<StrataAnalogGuardDecision>;
+
 /**
  * A Strata controller class, as passed to {@link registerControllers}.
  *
@@ -103,6 +125,8 @@ export interface RegisterControllersOptions {
    * `new controller()`.
    */
   readonly controllerFactory?: StrataAnalogControllerFactory;
+  /** Opt-in request guards, evaluated in order before controller creation. */
+  readonly guards?: readonly StrataAnalogGuard[];
 }
 
 type ControllerHandler = (this: object, request: StrataAnalogRequest) => unknown;
@@ -212,6 +236,9 @@ export function registerControllers<Router extends NitroRouter>(
   controllers: readonly ControllerClass[],
   options: RegisterControllersOptions = {},
 ): Router {
+  if (options === null || typeof options !== "object" || Array.isArray(options)) {
+    throw new StrataAnalogConfigurationError("registerControllers() options must be an object.");
+  }
   const controllerFactory = options.controllerFactory ?? defaultControllerFactory;
 
   if (typeof controllerFactory !== "function") {
@@ -220,11 +247,23 @@ export function registerControllers<Router extends NitroRouter>(
     );
   }
 
-  const plan = planRegistration(router, controllers, controllerFactory);
+  const guardValue: unknown = options.guards === undefined ? [] : options.guards;
+  if (!Array.isArray(guardValue) || !guardValue.every(isStrataAnalogGuard)) {
+    throw new StrataAnalogConfigurationError(
+      "registerControllers() option `guards` must be an array of functions.",
+    );
+  }
+  const guardSnapshot = Object.freeze(guardValue.filter(isStrataAnalogGuard));
+
+  const plan = planRegistration(router, controllers, controllerFactory, guardSnapshot);
 
   commitRegistration(router, plan);
 
   return router;
+}
+
+function isStrataAnalogGuard(value: unknown): value is StrataAnalogGuard {
+  return typeof value === "function";
 }
 
 /** Route identity on one router: HTTP method + final path, e.g. `GET /api/users`. */
@@ -260,6 +299,7 @@ function planRegistration(
   router: NitroRouter,
   controllers: readonly ControllerClass[],
   controllerFactory: StrataAnalogControllerFactory,
+  guards: readonly StrataAnalogGuard[],
 ): PlannedRoute[] {
   const registered = registeredRoutes.get(router);
   const planned = new Map<RouteKey, PlannedRoute>();
@@ -299,7 +339,18 @@ function planRegistration(
         owner,
         path,
         method: ROUTER_METHOD[route.method],
-        handler: createRouteHandler(controllerClass, handler, controllerFactory),
+        handler: createRouteHandler(
+          controllerClass,
+          handler,
+          controllerFactory,
+          guards,
+          Object.freeze({
+            method: route.method,
+            path,
+            controller: controllerClass.name,
+            handler: route.handler,
+          }),
+        ),
       });
     }
   }
@@ -333,6 +384,8 @@ function createRouteHandler(
   controllerClass: ControllerClass,
   handler: ControllerHandler,
   controllerFactory: StrataAnalogControllerFactory,
+  guards: readonly StrataAnalogGuard[],
+  route: StrataAnalogRouteInfo,
 ): (event: NitroEvent) => Promise<unknown> {
   return async (event) => {
     const request = createStrataAnalogRequest(event);
@@ -340,6 +393,20 @@ function createRouteHandler(
     let result: unknown;
 
     try {
+      for (const guard of guards) {
+        const decision: unknown = await guard(
+          Object.freeze({ request, route, onCleanup: scope.register }),
+        );
+        if (!isGuardDecision(decision)) {
+          throw new StrataAnalogConfigurationError(
+            "A Strata Analog guard returned an invalid decision.",
+          );
+        }
+        if (!decision.allow) {
+          result = guardDeniedResponse(decision.status);
+          return await scope.close({ failed: false }, result);
+        }
+      }
       const controller = await controllerFactory(
         controllerClass,
         Object.freeze({ request, onCleanup: scope.register }),
@@ -364,6 +431,37 @@ function createRouteHandler(
 
     return scope.close({ failed: false }, result);
   };
+}
+
+function isGuardDecision(value: unknown): value is StrataAnalogGuardDecision {
+  if (value === null || typeof value !== "object") return false;
+  const prototype: unknown = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) return false;
+  const keys = Reflect.ownKeys(value);
+  const allow = Object.getOwnPropertyDescriptor(value, "allow");
+  if (keys.length === 1 && keys[0] === "allow") {
+    return allow !== undefined && "value" in allow && allow.value === true;
+  }
+  if (keys.length !== 2 || !keys.includes("allow") || !keys.includes("status")) return false;
+  const status = Object.getOwnPropertyDescriptor(value, "status");
+  return (
+    allow !== undefined &&
+    "value" in allow &&
+    allow.value === false &&
+    status !== undefined &&
+    "value" in status &&
+    (status.value === 401 || status.value === 403)
+  );
+}
+
+function guardDeniedResponse(status: 401 | 403): Response {
+  return new Response(JSON.stringify({ error: status === 401 ? "unauthorized" : "forbidden" }), {
+    status,
+    headers: {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store",
+    },
+  });
 }
 
 function describeController(value: unknown): string {

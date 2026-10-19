@@ -4,6 +4,10 @@ import { defineNitroPlugin } from "nitropack/runtime";
 import { lifecycleStats } from "../strata/lifecycle-stats";
 import { ProductsController } from "../strata/products.controller";
 import { QualificationController } from "../strata/qualification.controller";
+import {
+  GuardedProductsController,
+  syntheticAuthorizationGuard,
+} from "../strata/guarded-products.controller";
 
 // The documented Nitro integration: Strata only adds routes to the router Nitro
 // already owns. The controller factory is plain TypeScript; there is no Angular
@@ -18,5 +22,8 @@ export default defineNitroPlugin((nitroApp) => {
 
       return new Controller();
     },
+  });
+  registerControllers(nitroApp.router, [GuardedProductsController], {
+    guards: [syntheticAuthorizationGuard],
   });
 });

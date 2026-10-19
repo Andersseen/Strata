@@ -2,11 +2,19 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 
-import { getControllerDefinition, STRATA_VERSION } from "@strata-sc/core";
+import {
+  Controller,
+  Delete,
+  Get,
+  Post,
+  getControllerDefinition,
+  STRATA_VERSION,
+} from "@strata-sc/core";
 import {
   registerControllers,
   StrataAnalogConfigurationError,
   type StrataAnalogControllerFactory,
+  type StrataAnalogGuard,
 } from "@strata-sc/analog";
 import { createApp, createRouter, toNodeListener } from "h3";
 
@@ -70,6 +78,37 @@ assert.throws(
 );
 
 const cleanupLog: string[] = [];
+const guardCleanup: string[] = [];
+let guardedConstructors = 0;
+@Controller("/api/guarded")
+class GuardedController {
+  constructor() {
+    guardedConstructors += 1;
+  }
+  @Get("/:id") get() {
+    return { public: true };
+  }
+  @Post() create() {
+    return { created: true };
+  }
+  @Delete("/:id") remove() {
+    return { removed: true };
+  }
+}
+const guard: StrataAnalogGuard = async ({ request, route, onCleanup }) => {
+  onCleanup(() => {
+    guardCleanup.push(request.path);
+  });
+  await Promise.resolve();
+  if (route.method === "GET") return { allow: true };
+  const token = request.headers.get("authorization");
+  if (token !== "Bearer ada" && token !== "Bearer grace") return { allow: false, status: 401 };
+  if (route.method === "DELETE" && token !== `Bearer ${request.params["id"]}`) {
+    return { allow: false, status: 403 };
+  }
+  return { allow: true };
+};
+registerControllers(router, [GuardedController], { guards: [guard] });
 const controllerFactory: StrataAnalogControllerFactory = async (Controller, context) => {
   const { request, onCleanup } = context;
   onCleanup(() => {
@@ -173,6 +212,51 @@ try {
   assert.equal(invalidValidated.status, 400);
   assert.equal(invalidValidated.headers.get("cache-control"), "no-store");
   assert.deepEqual(await invalidValidated.json(), { error: "invalid_request", source: "body" });
+
+  const guardedBefore = guardedConstructors;
+  const denied = await fetch(`http://127.0.0.1:${port}/api/guarded`, { method: "POST" });
+  assert.equal(denied.status, 401);
+  assert.equal(denied.headers.get("content-type"), "application/json; charset=utf-8");
+  assert.equal(denied.headers.get("cache-control"), "no-store");
+  assert.deepEqual(await denied.json(), { error: "unauthorized" });
+  assert.equal(guardedConstructors, guardedBefore);
+  const forbidden = await fetch(`http://127.0.0.1:${port}/api/guarded/grace`, {
+    method: "DELETE",
+    headers: { authorization: "Bearer ada" },
+  });
+  assert.equal(forbidden.status, 403);
+  assert.deepEqual(await forbidden.json(), { error: "forbidden" });
+  assert.equal(guardedConstructors, guardedBefore);
+  const publicRoute = await fetch(`http://127.0.0.1:${port}/api/guarded/any`);
+  assert.equal(publicRoute.status, 200);
+  assert.deepEqual(await publicRoute.json(), { public: true });
+  const authorized = await fetch(`http://127.0.0.1:${port}/api/guarded`, {
+    method: "POST",
+    headers: { authorization: "Bearer ada" },
+  });
+  assert.equal(authorized.status, 200);
+  assert.deepEqual(await authorized.json(), { created: true });
+  const guardedConcurrent = await Promise.all(
+    Array.from({ length: 24 }, async (_, index) => {
+      const kind = index % 4;
+      const response = await fetch(
+        `http://127.0.0.1:${port}/api/guarded${kind === 0 ? "" : `/${kind === 3 ? "grace" : "ada"}`}`,
+        {
+          method: kind === 0 ? "POST" : kind === 1 || kind === 3 ? "DELETE" : "GET",
+          ...(kind === 0
+            ? {}
+            : { headers: { authorization: kind === 2 ? "Bearer invalid" : "Bearer ada" } }),
+        },
+      );
+      const expectedStatus = kind === 0 ? 401 : kind === 1 ? 200 : kind === 2 ? 200 : 403;
+      return { status: response.status, expectedStatus, kind };
+    }),
+  );
+  assert.deepEqual(
+    guardedConcurrent.filter(({ status, expectedStatus }) => status !== expectedStatus),
+    [],
+  );
+  assert.equal(guardCleanup.length, 28);
 
   // --- Controller creation + request isolation under concurrency -----------
   const before = constructedControllers();

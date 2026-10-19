@@ -51,6 +51,178 @@ class OrdersController {
 }
 
 describe("registerControllers", () => {
+  it("runs guards sequentially before construction and settles safe denials after LIFO cleanup", async () => {
+    const { router, request } = createNitroLikeApp();
+    const events: string[] = [];
+    let constructed = 0;
+    @Controller("/guarded")
+    class GuardedController {
+      @Get("/:id")
+      get() {
+        events.push("handler");
+        return { ok: true };
+      }
+    }
+    const guards = [
+      ({
+        route,
+        onCleanup,
+      }: {
+        route: { path: string };
+        onCleanup: (cleanup: () => void) => void;
+      }) => {
+        events.push(`first:${route.path}`);
+        onCleanup(() => {
+          events.push("cleanup-first");
+        });
+        return { allow: true as const };
+      },
+      async ({ onCleanup }: { onCleanup: (cleanup: () => void | Promise<void>) => void }) => {
+        await Promise.resolve();
+        events.push("second");
+        onCleanup(async () => {
+          await Promise.resolve();
+          events.push("cleanup-second");
+        });
+        return { allow: false as const, status: 401 as const };
+      },
+      () => {
+        events.push("must-not-run");
+        return { allow: true as const };
+      },
+    ];
+    registerControllers(router, [GuardedController], {
+      guards,
+      controllerFactory(controller) {
+        constructed += 1;
+        return new controller();
+      },
+    });
+    guards.pop();
+
+    const response = await request("/guarded/42");
+    expect(response.status).toBe(401);
+    expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    await expect(response.json()).resolves.toEqual({ error: "unauthorized" });
+    expect(events).toEqual(["first:/guarded/:id", "second", "cleanup-second", "cleanup-first"]);
+    expect(constructed).toBe(0);
+  });
+
+  it("rejects malformed guard decisions and validates guard configuration atomically", async () => {
+    const { router, request } = createNitroLikeApp();
+    @Controller("/malformed")
+    class MalformedController {
+      @Get() get() {
+        return { private: true };
+      }
+
+      @Get("/inherited") inherited() {
+        return { private: true };
+      }
+    }
+    expect(() =>
+      registerControllers(router, [MalformedController], { guards: [null as never] }),
+    ).toThrow(StrataAnalogConfigurationError);
+    registerControllers(router, [MalformedController], {
+      guards: [
+        ({ route }) =>
+          route.handler === "inherited"
+            ? (Object.create({ allow: true }) as { readonly allow: true })
+            : (undefined as never),
+      ],
+    });
+    const response = await request("/malformed");
+    expect(response.status).toBe(500);
+    expect(await response.text()).not.toContain("private");
+    const inheritedDecision = await request("/malformed/inherited");
+    expect(inheritedDecision.status).toBe(500);
+  });
+
+  it("allows guards to validate params before construction and preserves cleanup failures on denial", async () => {
+    const { router, request } = createNitroLikeApp();
+    let factories = 0;
+    let cleanups = 0;
+    @Controller("/guard-params")
+    class GuardParamsController {
+      @Get("/:id") get() {
+        return { ok: true };
+      }
+    }
+    registerControllers(router, [GuardParamsController], {
+      guards: [
+        async ({ request: current, onCleanup }) => {
+          onCleanup(async () => {
+            await Promise.resolve();
+            cleanups += 1;
+            if (current.params["id"] === "p1") throw new Error("private cleanup failure");
+          });
+          const { id } = await current.validateParams(
+            z.object({ id: z.string().regex(/^p\\d+$/) }),
+          );
+          return id === "p1"
+            ? { allow: false as const, status: 403 as const }
+            : { allow: true as const };
+        },
+      ],
+      controllerFactory(controller) {
+        factories += 1;
+        return new controller();
+      },
+    });
+    const invalid = await request("/guard-params/nope");
+    expect(invalid.status).toBe(400);
+    expect(cleanups).toBe(1);
+    expect(factories).toBe(0);
+
+    const denial = await request("/guard-params/p1");
+    expect(denial.status).toBe(500);
+    expect(await denial.text()).not.toContain("private cleanup failure");
+    expect(cleanups).toBe(2);
+    expect(factories).toBe(0);
+  });
+
+  it("runs cleanup and preserves unexpected guard failures without treating them as denials", async () => {
+    const { router, request } = createNitroLikeApp();
+    const order: string[] = [];
+    let factories = 0;
+    @Controller("/guard-failure")
+    class GuardFailureController {
+      @Get() get() {
+        order.push("handler");
+        return { ok: true };
+      }
+    }
+    registerControllers(router, [GuardFailureController], {
+      guards: [
+        ({ onCleanup }) => {
+          onCleanup(() => {
+            order.push("cleanup-one");
+          });
+          return { allow: true };
+        },
+        async ({ onCleanup }) => {
+          onCleanup(async () => {
+            await Promise.resolve();
+            order.push("cleanup-two");
+          });
+          await Promise.resolve();
+          throw new Error("private guard exception");
+        },
+      ],
+      controllerFactory(controller) {
+        factories += 1;
+        return new controller();
+      },
+    });
+    const response = await request("/guard-failure");
+    expect(response.status).toBe(500);
+    expect(response.headers.get("cache-control")).not.toBe("no-store");
+    expect(await response.text()).not.toContain("private guard exception");
+    expect(order).toEqual(["cleanup-two", "cleanup-one"]);
+    expect(factories).toBe(0);
+  });
+
   it("validates params, query and JSON with Standard Schema implementations and preserves outputs", async () => {
     const { router, handle, request } = createNitroLikeApp();
     let cleaned = 0;

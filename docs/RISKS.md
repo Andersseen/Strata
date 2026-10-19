@@ -14,6 +14,13 @@ This does not close authentication, authorization, tenant isolation, general
 error redaction or real-application adoption risks; see
 [the evidence report](research/analog-input-validation.md).
 
+Evidence note (2026-10-19): `feat/analog-request-guards` introduces the
+registration-level Analog guard seam with explicit decisions and request-local
+cleanup. Consumer identity verification is required; there is no framework
+auth, session, RBAC/ABAC or CSRF policy. Local runtime and packed-consumer
+evidence passes; hosted checks and production adoption remain unqualified. See
+[the guard report](research/analog-request-guards.md).
+
 Open as of 2026-09-17; R03, R04 and R13 updated 2026-09-24 with SPEC-003 evidence; R13 updated 2026-10-16 with the full-stack performance baseline and the one-versus-three-island scaling evidence. Astra owns architectural disposition; the agent executing the relevant spec
 produces evidence. A risk closes only with a linked test/report on a pinned tuple. “Deadline” means
 the gate that cannot pass unresolved, not a calendar estimate. No risk below is closed by this audit.
