@@ -1,5 +1,12 @@
 # @strata-sc/analog
 
+## 0.4.0
+
+### Minor Changes
+
+- b5b3157: Add opt-in request-scoped guards that run before controller construction.
+- 5b9fabc: Add opt-in request-scoped HTTP interceptors for controller execution.
+
 ## 0.3.0
 
 ### Minor Changes
