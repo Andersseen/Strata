@@ -91,7 +91,10 @@ Experiments, in dependency order:
    Analog seam exposes the SSR or server-function injector. Consumer-owned `createApplication()` +
    per-request `createEnvironmentInjector()` via `controllerFactory`/`onCleanup` passes isolation,
    identity and cleanup tests on Node. It is a separate DI universe from SSR and server functions,
-   needs the JIT compiler in the Nitro bundle, and Workers/abort remain open.
+   needs the JIT compiler in the Nitro bundle. Local workerd refuses Angular JIT factory compilation
+   (`Code generation from strings disallowed`), so Angular DI on that Worker tuple is NO-GO; provider
+   overrides, guard/interceptor composition and abort cleanup remain open. See the
+   [cross-runtime lifecycle report](research/analog-di-cross-runtime-lifecycle.md).
 3. **Component compiler/graph PoC** (next bounded step). Build on SPEC-003's lifecycle: one
    server-only component/service plus one interactive Angular child, with production bundle
    assertions. Server data service plus `ProductDetails` absent from every

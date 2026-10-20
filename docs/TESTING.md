@@ -140,7 +140,10 @@ hydration:
   (routing, 404, request-scoped lifecycle, native route), a server-only `@ServerComponent()`, a hydrated
   island calling the API (one click, one request, one update), document navigation with
   `strataDocumentNavigationGuard`, graph/canary scans and the server-only firewall on Node and local
-  workerd. It does not share Angular DI with the controller and is not production adoption.
+  workerd. It does not share Angular DI with the controller and is not production adoption. The
+  separate SPEC-003 consumer-owned Angular DI experiment remains NO-GO on workerd because JIT
+  code generation is blocked; its evidence and unqualified composition cases are recorded in
+  [the lifecycle report](research/analog-di-cross-runtime-lifecycle.md).
 
 - `pnpm test:full-stack-deployed-cloudflare`: the same external consumer built from the source-packed
   tarballs for Cloudflare Pages (preset, Worker/browser graph, canary scans, build-time firewall), then the
