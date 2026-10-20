@@ -2,7 +2,16 @@ import { createEnvironmentInjector, runInInjectionContext } from "@angular/core"
 import type { EnvironmentInjector } from "@angular/core";
 import type { StrataAnalogControllerFactory } from "@strata-sc/analog";
 
-import { RequestAudit, RequestIdentity, STRATA_REQUEST, angularDiStats } from "./providers";
+import {
+  REQUEST_CONFIGURATION,
+  RequestAudit,
+  RequestIdentity,
+  STRATA_REQUEST,
+  VERIFIED_PRINCIPAL,
+  angularDiStats,
+  getCompositionTrace,
+  getVerifiedPrincipal,
+} from "./providers";
 
 /**
  * Consumer-owned glue, not part of `@strata-sc/analog`: builds each controller
@@ -18,9 +27,31 @@ export function createAngularControllerFactory(
   appInjector: Promise<EnvironmentInjector>,
 ): StrataAnalogControllerFactory {
   return async (Controller, { request, onCleanup }) => {
+    if (request.query["factoryFailure"] === "true") {
+      throw new Error("Request failed.");
+    }
     const parent = await appInjector;
+    const override = request.query["override"];
+    const requestConfigurationProvider =
+      request.query["providerFailure"] === "true"
+        ? {
+            provide: REQUEST_CONFIGURATION,
+            useFactory: () => {
+              throw new Error("Request failed.");
+            },
+          }
+        : typeof override === "string"
+          ? { provide: REQUEST_CONFIGURATION, useValue: override }
+          : undefined;
+    const principal = getVerifiedPrincipal(request);
     const requestInjector = createEnvironmentInjector(
-      [{ provide: STRATA_REQUEST, useValue: request }, RequestIdentity, RequestAudit],
+      [
+        { provide: STRATA_REQUEST, useValue: request },
+        ...(requestConfigurationProvider ? [requestConfigurationProvider] : []),
+        ...(principal ? [{ provide: VERIFIED_PRINCIPAL, useValue: principal }] : []),
+        RequestIdentity,
+        RequestAudit,
+      ],
       parent,
       `strata-request ${request.path}`,
     );
@@ -31,8 +62,12 @@ export function createAngularControllerFactory(
       angularDiStats.maxInjectorsAlive,
       angularDiStats.injectorsAlive,
     );
+    getCompositionTrace(request)?.push("injector:created");
 
     onCleanup(() => {
+      // This runs only after every awaited interceptor has fully unwound.
+      // The fixture's shared trace lets the runner assert LIFO cleanup order.
+      getCompositionTrace(request)?.push("cleanup:injector");
       requestInjector.destroy();
       angularDiStats.injectorsAlive--;
       angularDiStats.injectorsDestroyed++;

@@ -1,5 +1,19 @@
 # Current implementation audit
 
+## Angular DI with Analog HTTP composition (2026-10-20)
+
+On feature branch `test/analog-di-http-composition`, starting from synchronized
+`main` `eb1d17a81283d57569e9dc1b4712dea2623f6fd6`, the existing SPEC-003
+`CatalogController` is composed with the existing guard, interceptor,
+Standard Schema and cleanup APIs. The separate public SPEC-003 routes retain
+their prior behavior. Node dev and Nitro production evidence, provider
+overrides, failure precedence, a 24-request matrix and remaining limitations
+are recorded in the [composition report](research/analog-di-http-composition.md)
+and regenerated [integration baseline](research/analog-integration-baseline.md).
+The known local workerd Angular JIT NO-GO is preserved. Packed Angular DI,
+shared SSR/controller DI, real application adoption and Strata 1.0 remain
+unqualified.
+
 ## Analog request-scoped HTTP interceptors (2026-10-20)
 
 Starting from `8417d60e040190a6a68c91a96f8380db934908bf`, the feature branch

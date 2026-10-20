@@ -268,6 +268,9 @@ interface AngularDiBody {
   injectInHandler?: string;
   injectAfterAwait?: string;
   destroyedBeforeResponse?: boolean;
+  principal?: string;
+  configuration?: string;
+  interceptorOrder?: string[];
 }
 
 interface AngularDiStats {
@@ -278,6 +281,16 @@ interface AngularDiStats {
   identitiesDestroyed: number;
   controllersReleased: number;
   catalogInstances: number;
+  guardEntered: number;
+  guardCleanups: number;
+  interceptorEvents: number;
+  interceptorCleanups: number;
+  controllerConstructions: number;
+  handlerCalls: number;
+  cleanupOrderChecks: number;
+  cleanupOrderFailures: number;
+  interceptorLiveChecks: number;
+  interceptorLiveFailures: number;
 }
 
 interface AngularDiScenario {
@@ -346,9 +359,10 @@ async function angularDiScenario(
 function describeAngularDiResponse(response: JsonResponse<AngularDiBody>): string {
   if (response.status < 400) return `${String(response.status)} ${response.body}`;
 
-  const message = (response.json as { message?: unknown } | null)?.message;
+  const error = response.json as { message?: unknown; error?: unknown; source?: unknown } | null;
+  const message = error?.message;
 
-  return `${String(response.status)} ${JSON.stringify({ message })}`;
+  return `${String(response.status)} ${JSON.stringify({ error: error?.error, source: error?.source, message })}`;
 }
 
 /** Every request injector the scenario created was destroyed, with its request-scoped service and controller. */
@@ -420,7 +434,377 @@ async function observeAngularDi(baseUrl: string): Promise<AngularDiObservation> 
     ([response], delta) => failed(response) && releasedAll(delta, 1),
   );
 
-  return { scenarios: [overlap, alone, thrown, rejected] };
+  const protectedRoute = `${route}/protected/products`;
+  const requestProtected = async (
+    path: string,
+    token?: string,
+    method = "GET",
+    body?: unknown,
+    contentType = "application/json",
+  ): Promise<JsonResponse<AngularDiBody>> => {
+    const response = await fetch(`${protectedRoute}/${path}`, {
+      method,
+      headers: {
+        connection: "close",
+        ...(token ? { authorization: `Bearer ${token}` } : {}),
+        ...(body === undefined ? {} : { "content-type": contentType }),
+      },
+      ...(body === undefined
+        ? {}
+        : { body: typeof body === "string" ? body : JSON.stringify(body) }),
+    });
+    const text = await response.text();
+    let json: AngularDiBody | null = null;
+    try {
+      json = JSON.parse(text) as AngularDiBody;
+    } catch {
+      /* native or safe error response */
+    }
+    return {
+      status: response.status,
+      contentType: response.headers.get("content-type"),
+      body: json === null ? text : JSON.stringify(json),
+      json,
+    };
+  };
+  const tokenFor = (principal: "alpha" | "beta") => `fixture-${principal}`;
+  const composedOrder = [
+    "timing:before",
+    "outcome:before",
+    "injector:created",
+    "outcome:after",
+    "timing:after",
+  ];
+
+  const composedSuccess = await angularDiScenario(
+    baseUrl,
+    "authorized DI routes compose verified principals, interceptors and Standard Schema",
+    () =>
+      Promise.all([
+        requestProtected("101?tag=transformed", tokenFor("alpha")),
+        requestProtected("102?tag=post", tokenFor("beta"), "POST", { count: "7" }),
+      ]),
+    ([get, post], delta) =>
+      get?.status === 200 &&
+      get.json?.principal === "alpha" &&
+      get.json?.product?.id === "101" &&
+      get.json?.tag === "TRANSFORMED" &&
+      get.json?.auditSharesIdentity === true &&
+      get.json?.injectedRequestIsArgument === true &&
+      get.json?.destroyedBeforeResponse === false &&
+      JSON.stringify(get.json?.interceptorOrder) === JSON.stringify(composedOrder) &&
+      post?.status === 200 &&
+      post.json?.principal === "beta" &&
+      post.json?.count === 7 &&
+      JSON.stringify(post.json?.interceptorOrder) === JSON.stringify(composedOrder) &&
+      delta.injectorsCreated === 2 &&
+      delta.injectorsDestroyed === 2 &&
+      delta.guardEntered === 2 &&
+      delta.guardCleanups === 2 &&
+      delta.interceptorEvents === 4 &&
+      delta.interceptorCleanups === 4 &&
+      delta.controllerConstructions === 2 &&
+      delta.handlerCalls === 2 &&
+      delta.injectorsAlive === 0 &&
+      delta.cleanupOrderFailures === 0 &&
+      delta.cleanupOrderChecks === 2 &&
+      delta.interceptorLiveChecks === 4 &&
+      delta.interceptorLiveFailures === 0,
+  );
+
+  const denied = await angularDiScenario(
+    baseUrl,
+    "401 and 403 denials run guard cleanup before any interceptor or Angular construction",
+    () =>
+      Promise.all([
+        requestProtected("alpha-product?tag=x"),
+        requestProtected("alpha-product?tag=x", "invalid-canary"),
+        requestProtected("alpha-product?tag=x", tokenFor("beta")),
+        requestProtected("beta-product?tag=x", tokenFor("alpha")),
+      ]),
+    (responses, delta) =>
+      responses.map((response) => response.status).join(",") === "401,401,403,403" &&
+      responses.every(
+        (response) =>
+          !response.body.includes("alpha") &&
+          !response.body.includes("beta") &&
+          !response.body.includes("canary"),
+      ) &&
+      delta.injectorsCreated === 0 &&
+      delta.controllerConstructions === 0 &&
+      delta.handlerCalls === 0 &&
+      delta.guardEntered === 4 &&
+      delta.guardCleanups === 4 &&
+      delta.interceptorEvents === 0 &&
+      delta.interceptorCleanups === 0 &&
+      delta.injectorsAlive === 0,
+  );
+
+  const validationFailure = await angularDiScenario(
+    baseUrl,
+    "invalid Standard Schema input is safe and destroys the authorized request injector",
+    async () => [
+      await requestProtected("not-a-number?tag=PRIVATE_SCHEMA_CANARY", tokenFor("alpha")),
+    ],
+    ([response], delta) =>
+      response?.status === 400 &&
+      response.body === '{"error":"invalid_request","source":"params"}' &&
+      !response.body.includes("PRIVATE") &&
+      delta.injectorsCreated === 1 &&
+      delta.injectorsDestroyed === 1 &&
+      delta.guardCleanups === 1 &&
+      delta.interceptorCleanups === 2 &&
+      delta.handlerCalls === 1 &&
+      delta.injectorsAlive === 0,
+  );
+
+  const bodyFailures = await angularDiScenario(
+    baseUrl,
+    "malformed, unsupported and oversized JSON failures clean up request injectors",
+    () =>
+      Promise.all([
+        requestProtected(
+          "101?tag=x",
+          tokenFor("alpha"),
+          "POST",
+          "{ PRIVATE_BODY_CANARY",
+          "application/json",
+        ),
+        requestProtected("101?tag=x", tokenFor("alpha"), "POST", "{}", "text/plain"),
+        requestProtected("101?tag=x", tokenFor("alpha"), "POST", {
+          count: `1${"x".repeat(1024 * 1024)}`,
+        }),
+      ]),
+    (responses, delta) =>
+      responses.map((response) => response.status).join(",") === "400,415,413" &&
+      responses.every(
+        (response) =>
+          !response.body.includes("PRIVATE") && response.body.includes('"source":"body"'),
+      ) &&
+      delta.injectorsCreated === 3 &&
+      delta.injectorsDestroyed === 3 &&
+      delta.injectorsAlive === 0 &&
+      delta.guardCleanups === 3 &&
+      delta.interceptorCleanups === 6,
+  );
+
+  const override = await angularDiScenario(
+    baseUrl,
+    "request provider override remains local to one child injector",
+    () =>
+      Promise.all([
+        requestProtected("101?tag=x&override=only-this-request", tokenFor("alpha")),
+        requestProtected("102?tag=x", tokenFor("beta")),
+      ]),
+    ([overridden, sibling], delta) =>
+      overridden?.json?.configuration === "only-this-request" &&
+      sibling?.json?.configuration === "application" &&
+      overridden.json?.principal === "alpha" &&
+      sibling.json?.principal === "beta" &&
+      overridden.json?.identity !== sibling.json?.identity &&
+      delta.catalogInstances === 1 &&
+      delta.injectorsCreated === 2 &&
+      delta.injectorsDestroyed === 2 &&
+      delta.injectorsAlive === 0,
+  );
+
+  const factoryFailure = await angularDiScenario(
+    baseUrl,
+    "controller factory failure runs guard and interceptor cleanup without an injector",
+    async () => [await requestProtected("101?tag=x&factoryFailure=true", tokenFor("alpha"))],
+    ([response], delta) =>
+      response?.status === 500 &&
+      !response.body.includes("fixture-private") &&
+      delta.injectorsCreated === 0 &&
+      delta.injectorsDestroyed === 0 &&
+      delta.guardCleanups === 1 &&
+      delta.interceptorCleanups === 2 &&
+      delta.controllerConstructions === 0 &&
+      delta.handlerCalls === 0 &&
+      delta.injectorsAlive === 0,
+  );
+
+  const providerFailure = await angularDiScenario(
+    baseUrl,
+    "provider factory failure destroys the created request injector",
+    async () => [await requestProtected("101?tag=x&providerFailure=true", tokenFor("alpha"))],
+    ([response], delta) =>
+      response?.status === 500 &&
+      !response.body.includes("fixture-private") &&
+      delta.injectorsCreated === 1 &&
+      delta.injectorsDestroyed === 1 &&
+      delta.guardCleanups === 1 &&
+      delta.interceptorCleanups === 2 &&
+      delta.controllerConstructions === 0 &&
+      delta.handlerCalls === 0 &&
+      delta.injectorsAlive === 0,
+  );
+
+  const constructionFailure = await angularDiScenario(
+    baseUrl,
+    "controller constructor failure destroys its request injector",
+    async () => [await requestProtected("101?tag=x&constructFailure=true", tokenFor("alpha"))],
+    ([response], delta) =>
+      response?.status === 500 &&
+      !response.body.includes("fixture-private") &&
+      delta.injectorsCreated === 1 &&
+      delta.injectorsDestroyed === 1 &&
+      delta.identitiesDestroyed === 1 &&
+      delta.controllersReleased === 0 &&
+      delta.guardCleanups === 1 &&
+      delta.interceptorCleanups === 2 &&
+      delta.controllerConstructions === 1 &&
+      delta.handlerCalls === 0 &&
+      delta.injectorsAlive === 0,
+  );
+
+  const downstreamFailures = await angularDiScenario(
+    baseUrl,
+    "handler, interceptor and multiple cleanup failures settle without leaking private errors",
+    async () => {
+      const responses: JsonResponse<AngularDiBody>[] = [];
+      for (const path of [
+        "101?tag=x&handlerFailure=sync",
+        "101?tag=x&handlerFailure=async",
+        "101?tag=x&interceptorFailure=after",
+        "101?tag=x&handlerFailure=async&rethrowFailure=true",
+        "101?tag=x&cleanupFailure=all",
+      ]) {
+        responses.push(await requestProtected(path, tokenFor("alpha")));
+      }
+      return responses;
+    },
+    (responses, delta) =>
+      responses.every(
+        (response) => response.status === 500 && !response.body.includes("fixture-private"),
+      ) &&
+      delta.injectorsCreated === 5 &&
+      delta.injectorsDestroyed === 5 &&
+      delta.injectorsAlive === 0 &&
+      delta.guardCleanups === 5 &&
+      delta.interceptorCleanups === 10 &&
+      delta.handlerCalls === 5,
+  );
+
+  const interceptorFailure = await angularDiScenario(
+    baseUrl,
+    "interceptor failure before next cleans up without constructing a controller",
+    async () => [await requestProtected("101?tag=x&interceptorFailure=before", tokenFor("alpha"))],
+    ([response], delta) =>
+      response?.status === 500 &&
+      !response.body.includes("fixture-private") &&
+      delta.injectorsCreated === 0 &&
+      delta.injectorsDestroyed === 0 &&
+      delta.guardCleanups === 1 &&
+      delta.interceptorEvents === 2 &&
+      delta.interceptorCleanups === 2 &&
+      delta.controllerConstructions === 0 &&
+      delta.handlerCalls === 0 &&
+      delta.injectorsAlive === 0,
+  );
+
+  const nativeResponse = await angularDiScenario(
+    baseUrl,
+    "native Web Response is preserved through interceptors",
+    async () => [await requestProtected("101?tag=x&nativeResponse=true", tokenFor("alpha"))],
+    ([response], delta) =>
+      response?.status === 200 &&
+      response.body === "native-response-preserved" &&
+      response.contentType?.includes("text/plain") === true &&
+      delta.injectorsCreated === 1 &&
+      delta.injectorsDestroyed === 1 &&
+      delta.injectorsAlive === 0,
+  );
+
+  const matrix = await angularDiScenario(
+    baseUrl,
+    "24 mixed requests in three overlapping eight-request batches isolate state",
+    async () => {
+      const meeting = randomUUID();
+      const requests = Array.from({ length: 24 }, (_, index) => () => {
+        if (index < 8) {
+          const principal = index % 2 === 0 ? "alpha" : "beta";
+          return requestProtected(
+            `${101 + index}?tag=m${index}&meet=${meeting}`,
+            tokenFor(principal),
+          );
+        }
+        if (index < 12) {
+          return index % 2 === 0
+            ? requestProtected("alpha-product?tag=x")
+            : requestProtected("alpha-product?tag=x", "invalid-canary");
+        }
+        if (index < 16) return requestProtected("not-a-number?tag=x", tokenFor("alpha"));
+        if (index < 20) {
+          const principal = index % 2 === 0 ? "alpha" : "beta";
+          return requestProtected(`${101 + index}?tag=x&handlerFailure=async`, tokenFor(principal));
+        }
+        const principal = index % 2 === 0 ? "alpha" : "beta";
+        return requestProtected(
+          `${101 + index}?tag=x&interceptorFailure=after`,
+          tokenFor(principal),
+        );
+      });
+      const firstBatch = await Promise.all(requests.slice(0, 8).map((send) => send()));
+      const secondBatch = await Promise.all(requests.slice(8, 16).map((send) => send()));
+      const thirdBatch = await Promise.all(requests.slice(16, 24).map((send) => send()));
+      return [...firstBatch, ...secondBatch, ...thirdBatch];
+    },
+    (responses, delta) => {
+      const rendezvousResponses = responses.slice(0, 8);
+      const identities = rendezvousResponses.map((response) => response.json?.identity);
+      const isolatedResponses = responses.every((response, index) =>
+        index < 8
+          ? response.status === 200 &&
+            response.json?.met === true &&
+            response.json?.identityProductId === String(101 + index)
+          : index < 12
+            ? response.status === 401
+            : index < 16
+              ? response.status === 400 &&
+                response.body === '{"error":"invalid_request","source":"params"}'
+              : response.status === 500 && !response.body.includes("fixture-private"),
+      );
+      return (
+        isolatedResponses &&
+        new Set(identities).size === 8 &&
+        delta.injectorsCreated === 20 &&
+        delta.injectorsDestroyed === 20 &&
+        delta.injectorsAlive === 0 &&
+        delta.maxInjectorsAlive >= 8 &&
+        delta.catalogInstances === 1 &&
+        delta.guardCleanups === 24 &&
+        delta.interceptorCleanups === 40 &&
+        delta.handlerCalls === 20 &&
+        delta.cleanupOrderFailures === 0 &&
+        delta.cleanupOrderChecks === 20 &&
+        delta.interceptorLiveChecks >= 40 &&
+        delta.interceptorLiveFailures === 0 &&
+        !responses.some((response) => response.body.includes("PRIVATE"))
+      );
+    },
+  );
+
+  return {
+    scenarios: [
+      overlap,
+      alone,
+      thrown,
+      rejected,
+      composedSuccess,
+      denied,
+      validationFailure,
+      bodyFailures,
+      override,
+      factoryFailure,
+      providerFailure,
+      constructionFailure,
+      downstreamFailures,
+      interceptorFailure,
+      nativeResponse,
+      matrix,
+    ],
+  };
 }
 
 const isJson = (contentType: string | null): boolean =>

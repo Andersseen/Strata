@@ -90,10 +90,12 @@ Experiments, in dependency order:
    fork must be identified, not disguised as stable integration. _Result (SPEC-003):_ no supported
    Analog seam exposes the SSR or server-function injector. Consumer-owned `createApplication()` +
    per-request `createEnvironmentInjector()` via `controllerFactory`/`onCleanup` passes isolation,
-   identity and cleanup tests on Node. It is a separate DI universe from SSR and server functions,
-   needs the JIT compiler in the Nitro bundle. Local workerd refuses Angular JIT factory compilation
-   (`Code generation from strings disallowed`), so Angular DI on that Worker tuple is NO-GO; provider
-   overrides, guard/interceptor composition and abort cleanup remain open. See the
+   identity and cleanup tests on Node. The [HTTP composition qualification](research/analog-di-http-composition.md)
+   adds consumer-owned guards, interceptors, Standard Schema input, provider overrides and a 24-request
+   mixed matrix on Node. It remains a separate DI universe from SSR and server functions and needs the
+   JIT compiler in the Nitro bundle. Local workerd refuses Angular JIT factory compilation
+   (`Code generation from strings disallowed`), so Angular DI on that Worker tuple remains NO-GO;
+   abort cleanup and packed Angular DI remain open. See the
    [cross-runtime lifecycle report](research/analog-di-cross-runtime-lifecycle.md).
 3. **Component compiler/graph PoC** (next bounded step). Build on SPEC-003's lifecycle: one
    server-only component/service plus one interactive Angular child, with production bundle
