@@ -14,6 +14,14 @@ Node/workerd and packed-consumer qualification passed; the evidence and the
 separate website E2E failure are recorded in the
 [HTTP interceptors](research/analog-http-interceptors.md) report.
 
+The 0.5.0 HTTP contract candidate adds the redacted application error and native
+response-helper checks to `pnpm test:analog`, local workerd, and the packed
+full-stack consumer. `pnpm test:server-components:cloudflare` qualifies local
+Pages/workerd only and does not deploy. Pinned Nitro/H3 does not pass a
+trustworthy client-abort signal into Strata, so transport cancellation is not
+part of the public API; cleanup remains scoped to handler/interceptor settlement.
+See the [HTTP contract report](research/analog-http-contract-v05.md).
+
 ## Progressive gates
 
 Analog HTTP input validation adds coverage to `pnpm test:analog` (real Analog

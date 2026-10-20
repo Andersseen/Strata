@@ -1,7 +1,12 @@
 // Consumer-authored use of the public declarations of @strata-sc/core and
 // @strata-sc/analog, compiled with standard (TC39) decorators.
 import { Controller, Get, STRATA_VERSION, getControllerDefinition } from "@strata-sc/core";
-import { registerControllers } from "@strata-sc/analog";
+import {
+  jsonResponse,
+  noContent,
+  registerControllers,
+  StrataAnalogHttpError,
+} from "@strata-sc/analog";
 import type { NitroRouter, StrataAnalogGuard, StrataAnalogRequest } from "@strata-sc/analog";
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
@@ -32,6 +37,13 @@ export class CheckController {
 
 export const definition = getControllerDefinition(CheckController);
 export const version: string = STRATA_VERSION;
+
+// Public HTTP contract signatures are consumed from the installed declarations.
+export const missingProduct = (): Response => {
+  throw new StrataAnalogHttpError(404, "not_found");
+};
+export const createdProduct = (): Response => jsonResponse({ id: "external" }, { status: 201 });
+export const deletedProduct = (): Response => noContent();
 
 const guard: StrataAnalogGuard = async ({ request, route, onCleanup }) => {
   const method: string = route.method;

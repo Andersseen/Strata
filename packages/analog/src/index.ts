@@ -20,3 +20,6 @@ export type {
 } from "./register-controllers.js";
 export type { StrataAnalogCleanup } from "./cleanup-scope.js";
 export { StrataAnalogConfigurationError } from "./errors.js";
+export { StrataAnalogHttpError } from "./http-error.js";
+export type { StrataAnalogHttpErrorStatus } from "./http-error.js";
+export { jsonResponse, noContent } from "./responses.js";

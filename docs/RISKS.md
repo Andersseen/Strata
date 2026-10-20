@@ -1,5 +1,15 @@
 # Technical risk register
 
+Evidence note (2026-10-20): the Analog 0.5.0 HTTP contract candidate adds safe
+application errors and portable `Response` helpers. Local Node and workerd
+fixtures exercise them. Cancellation is **NO-GO** for the pinned adapter path:
+Node H3 creates a synthetic Web Request without the socket abort signal, while
+the Cloudflare Pages Nitro path does not forward the native incoming
+`Request.signal` into `event.web.request`. `StrataAnalogRequest` therefore
+exposes no signal. Cleanup still covers the awaited handler/interceptor
+invocation, not the streamed response lifetime. See
+[the contract evidence](research/analog-http-contract-v05.md#cancellation-investigation).
+
 Evidence note (2026-10-20): request-scoped Analog interceptors are added on
 `feat/analog-http-interceptors`. This provides an opt-in execution seam; it does
 not qualify cancellation, streamed-response lifetime, production tracing or

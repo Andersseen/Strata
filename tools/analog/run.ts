@@ -251,6 +251,8 @@ interface RouteObservation {
   validationConcurrency: boolean;
   validationBodyPolicy: boolean;
   guardContract: boolean;
+  inventoryContract: boolean;
+  inventoryDetail: string;
   guardDetail: string;
   /** SPEC-003 Angular DI scenarios under `/api/strata/angular-di`, with lifecycle counter deltas. */
   angularDi: AngularDiObservation;
@@ -994,6 +996,8 @@ async function observeRoutes(baseUrl: string): Promise<RouteObservation> {
   );
   const guardContract = guardResults.every(({ ok }) => ok);
 
+  const inventory = await observeInventory(baseUrl);
+
   return {
     lifecycle,
     methods,
@@ -1001,6 +1005,8 @@ async function observeRoutes(baseUrl: string): Promise<RouteObservation> {
     validationConcurrency,
     validationBodyPolicy,
     guardContract,
+    inventoryContract: inventory.ok,
+    inventoryDetail: inventory.detail,
     guardDetail: guardResults
       .filter(({ ok }) => !ok)
       .map(({ observed }) => observed)
@@ -1043,6 +1049,84 @@ async function observeRoutes(baseUrl: string): Promise<RouteObservation> {
         strata.json.invoked.marker === SERVER_MARKER,
     },
     seam: seam.json?.snapshot ?? null,
+  };
+}
+
+async function observeInventory(baseUrl: string): Promise<{ ok: boolean; detail: string }> {
+  const base = `${baseUrl}/api/products`;
+  const auth = { authorization: "Bearer fixture-token-ada" };
+  const existing = await fetch(`${base}/ada-product`, { headers: auth });
+  const existingBody = await existing.text();
+  const missing = await fetch(`${base}/missing-product`, { method: "DELETE", headers: auth });
+  const missingBody = await missing.text();
+  const unauthenticated = await fetch(`${base}`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ sku: "V05-UNAUTH", name: "Unauthorized" }),
+  });
+  const forbidden = await fetch(`${base}/grace-product`, { method: "DELETE", headers: auth });
+  const invalid = await fetch(`${base}`, {
+    method: "POST",
+    headers: { ...auth, "content-type": "application/json" },
+    body: "{ malformed PRIVATE_INVENTORY_CANARY",
+  });
+  const duplicate = await fetch(`${base}`, {
+    method: "POST",
+    headers: { ...auth, "content-type": "application/json" },
+    body: JSON.stringify({ sku: "ADA-1", name: "Duplicate" }),
+  });
+  const duplicateBody = await duplicate.text();
+  const created = await fetch(`${base}`, {
+    method: "POST",
+    headers: { ...auth, "content-type": "application/json" },
+    body: JSON.stringify({ sku: "V05-PRODUCT", name: "Release sample" }),
+  });
+  const createdBody = await created.text();
+  const updated = await fetch(`${base}/fixture-v05-product`, {
+    method: "PATCH",
+    headers: { ...auth, "content-type": "application/json" },
+    body: JSON.stringify({ status: "active", name: "Release sample updated" }),
+  });
+  const invalidState = await fetch(`${base}/fixture-v05-product`, {
+    method: "PATCH",
+    headers: { ...auth, "content-type": "application/json" },
+    body: JSON.stringify({ status: "archived" }),
+  });
+  const deleted = await fetch(`${base}/fixture-v05-product`, {
+    method: "DELETE",
+    headers: auth,
+  });
+  const checks = [
+    existing.status === 200 && existingBody.includes('"sku":"ADA-1"'),
+    missing.status === 404 &&
+      missingBody === '{"error":"not_found"}' &&
+      missing.headers.get("cache-control") === "no-store",
+    unauthenticated.status === 401,
+    forbidden.status === 403,
+    invalid.status === 400 &&
+      (await invalid.text()) === '{"error":"invalid_request","source":"body"}',
+    duplicate.status === 409 &&
+      duplicateBody === '{"error":"conflict"}' &&
+      duplicate.headers.get("cache-control") === "no-store",
+    created.status === 201 &&
+      created.headers.get("x-fixture-contract") === "inventory" &&
+      createdBody ===
+        '{"id":"fixture-v05-product","sku":"V05-PRODUCT","name":"Release sample","status":"active"}',
+    updated.status === 200 &&
+      (await updated.text()) ===
+        '{"id":"fixture-v05-product","sku":"V05-PRODUCT","name":"Release sample updated","status":"active"}',
+    invalidState.status === 422 &&
+      (await invalidState.text()) === '{"error":"invalid_product_state"}',
+    deleted.status === 204 &&
+      (await deleted.text()) === "" &&
+      deleted.headers.get("content-type") === null,
+  ];
+  return {
+    ok: checks.every(Boolean),
+    detail: checks
+      .map((check, index) => (check ? "" : `check ${index + 1} failed`))
+      .filter(Boolean)
+      .join(", "),
   };
 }
 
@@ -1683,6 +1767,11 @@ async function main(): Promise<void> {
     prod.guardContract,
     prod.guardDetail || "opaque fixture tokens and denial non-disclosure",
   );
+  check(
+    "Inventory HTTP contract and protected mutation behavior work in production",
+    prod.inventoryContract,
+    prod.inventoryDetail || "safe errors, validated bodies, 201, patch and bodyless 204",
+  );
   checkAngularDi("production", prod.angularDi);
 
   // ---- Marker scan (before the dev server, which does not touch dist) ----
@@ -1831,6 +1920,11 @@ async function main(): Promise<void> {
     "24 overlapping synthetic guard requests preserve public, 401, 403 and owner access in the dev server",
     dev.guardContract,
     dev.guardDetail || "opaque fixture tokens and denial non-disclosure",
+  );
+  check(
+    "Inventory HTTP contract and protected mutation behavior work in the dev server",
+    dev.inventoryContract,
+    dev.inventoryDetail || "safe errors, validated bodies, 201, patch and bodyless 204",
   );
   checkAngularDi("the dev server", dev.angularDi);
 

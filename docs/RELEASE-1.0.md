@@ -15,6 +15,13 @@ authentication, cancellation qualification or production tracing. See the
 [guard report](research/analog-request-guards.md) and
 [interceptor report](research/analog-http-interceptors.md).
 
+The 0.5.0 candidate adds safe typed application HTTP errors and native JSON / 204
+helpers with local Node, workerd and external packed-consumer evidence. It does
+not qualify a production authentication policy, a deployed runtime, cancellation
+through the current Nitro adapters, streamed-response cleanup or real-application
+adoption. These checks do not complete M3 or Strata 1.0; see the
+[HTTP contract report](research/analog-http-contract-v05.md).
+
 **Current status: none of these production gates is certified.** This checklist is authoritative
 for release readiness. Fill each item with evidence for one release candidate and its qualified
 compatibility matrix; do not check it based on intent or a demonstration.

@@ -5,12 +5,14 @@ import { describe, expect, expectTypeOf, it } from "vitest";
 import { z } from "zod";
 
 import { StrataAnalogConfigurationError } from "./errors.js";
-import { registerControllers } from "./register-controllers.js";
+import { StrataAnalogHttpError } from "./http-error.js";
 import type {
   NitroRouter,
   StrataAnalogInterceptor,
   StrataAnalogRequest,
 } from "./register-controllers.js";
+import { registerControllers } from "./register-controllers.js";
+import { jsonResponse } from "./responses.js";
 
 /**
  * Builds the same H3 v1 shape Nitro 2 builds in `createNitroApp()` — an H3 app
@@ -55,6 +57,281 @@ class OrdersController {
 }
 
 describe("registerControllers", () => {
+  it("maps expected application errors to safe no-store responses after successful cleanup", async () => {
+    const { router, request } = createNitroLikeApp();
+    let cleanupCalls = 0;
+    @Controller("/application-error")
+    class ApplicationErrorController {
+      @Get()
+      get() {
+        throw new StrataAnalogHttpError(404, "not_found", "private canary in message", {
+          cause: new Error("private canary in cause"),
+        });
+      }
+    }
+    registerControllers(router, [ApplicationErrorController], {
+      controllerFactory(controller, context) {
+        context.onCleanup(() => {
+          cleanupCalls += 1;
+        });
+        return new controller();
+      },
+    });
+
+    const response = await request("/application-error");
+
+    expect(response.status).toBe(404);
+    expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(await response.text()).toBe('{"error":"not_found"}');
+    expect(cleanupCalls).toBe(1);
+  });
+
+  it("composes application errors and response helpers with timing and outcome interceptors", async () => {
+    const { router, request } = createNitroLikeApp();
+    const events: string[] = [];
+    @Controller("/interceptor-http-contract")
+    class InterceptorHttpContractController {
+      @Get("/error")
+      fail() {
+        throw new StrataAnalogHttpError(409, "conflict", "private message");
+      }
+
+      @Get("/mapped")
+      success() {
+        return { value: 2 };
+      }
+    }
+    registerControllers(router, [InterceptorHttpContractController], {
+      interceptors: [
+        async (_context, next) => {
+          events.push("timing:start");
+          try {
+            return await next();
+          } finally {
+            events.push("timing:end");
+          }
+        },
+        async (_context, next) => {
+          try {
+            const result = await next();
+            events.push("outcome:success");
+            return result;
+          } catch (error) {
+            events.push(
+              `outcome:error:${error instanceof StrataAnalogHttpError ? error.code : "unknown"}`,
+            );
+            throw error;
+          }
+        },
+        async (_context, next) => {
+          const result = await next();
+          return jsonResponse({ mapped: result }, { status: 202, headers: { "x-mapped": "yes" } });
+        },
+      ],
+    });
+
+    const error = await request("/interceptor-http-contract/error");
+    expect(error.status).toBe(409);
+    expect(error.headers.get("cache-control")).toBe("no-store");
+    expect(await error.text()).toBe('{"error":"conflict"}');
+    expect(events).toEqual(["timing:start", "outcome:error:conflict", "timing:end"]);
+
+    events.length = 0;
+    const mapped = await request("/interceptor-http-contract/mapped");
+    expect(mapped.status).toBe(202);
+    expect(mapped.headers.get("x-mapped")).toBe("yes");
+    await expect(mapped.json()).resolves.toEqual({ mapped: { value: 2 } });
+    expect(events).toEqual(["timing:start", "outcome:success", "timing:end"]);
+  });
+
+  it("isolates a rendezvous-synchronized 24-request mixed HTTP matrix", async () => {
+    const { router, handle } = createNitroLikeApp();
+    let releaseRendezvous!: () => void;
+    const rendezvous = new Promise<void>((resolve) => {
+      releaseRendezvous = resolve;
+    });
+    let guardsEntered = 0;
+    let guardCleanups = 0;
+    let factoryCalls = 0;
+    let factoryCleanups = 0;
+    let handlerCalls = 0;
+    let interceptorEntries = 0;
+    let interceptorUnwinds = 0;
+    const privateCanary = "PRIVATE_MIXED_HTTP_CANARY";
+
+    @Controller("/mixed-http")
+    class MixedHttpController {
+      @Get("/:kind")
+      async run(request: StrataAnalogRequest) {
+        handlerCalls += 1;
+        const kind = request.params["kind"] ?? "";
+        const requestId = request.headers.get("x-request-id") ?? "missing";
+        if (kind === "not-found") throw new StrataAnalogHttpError(404, "not_found", privateCanary);
+        if (kind === "conflict") throw new StrataAnalogHttpError(409, "conflict");
+        if (kind === "validation") {
+          await request.validateQuery(z.object({ required: z.string() }));
+        }
+        if (kind === "handler-error") throw new Error(privateCanary);
+        if (kind === "cleanup-failure") throw new StrataAnalogHttpError(404, "not_found");
+        if (kind === "unavailable") throw new StrataAnalogHttpError(503, "service_unavailable");
+        if (kind === "mapped") return jsonResponse({ kind, requestId }, { status: 201 });
+        return { kind, requestId };
+      }
+    }
+
+    registerControllers(router, [MixedHttpController], {
+      guards: [
+        async ({ request, onCleanup }) => {
+          onCleanup(() => {
+            guardCleanups += 1;
+          });
+          guardsEntered += 1;
+          if (guardsEntered === 24) releaseRendezvous();
+          await rendezvous;
+          const kind = request.params["kind"];
+          if (kind === "unauthorized") return { allow: false as const, status: 401 as const };
+          if (kind === "forbidden") return { allow: false as const, status: 403 as const };
+          return { allow: true as const };
+        },
+      ],
+      controllerFactory(controller, { request, onCleanup }) {
+        factoryCalls += 1;
+        onCleanup(() => {
+          factoryCleanups += 1;
+          if (request.params["kind"] === "cleanup-failure") throw new Error(privateCanary);
+        });
+        return new controller();
+      },
+      interceptors: [
+        async (_context, next) => {
+          interceptorEntries += 1;
+          try {
+            const result = await next();
+            if (result instanceof Response) return result;
+            return jsonResponse(result, { headers: { "x-mixed-mapped": "yes" } });
+          } finally {
+            interceptorUnwinds += 1;
+          }
+        },
+      ],
+    });
+
+    const kinds = [
+      "success",
+      "unauthorized",
+      "forbidden",
+      "not-found",
+      "conflict",
+      "validation",
+      "handler-error",
+      "cleanup-failure",
+      "mapped",
+      "unavailable",
+    ];
+    const counts = [3, 3, 3, 3, 3, 3, 2, 2, 1, 1];
+    const requests = kinds.flatMap((kind, kindIndex) =>
+      Array.from({ length: counts[kindIndex] ?? 0 }, (_, index) => {
+        const requestId = `${kind}-${index}`;
+        return handle(
+          new Request(`http://localhost/mixed-http/${kind}`, {
+            headers: { "x-request-id": requestId },
+          }),
+        ).then(async (response) => ({
+          kind,
+          requestId,
+          status: response.status,
+          body: await response.text(),
+          mapped: response.headers.get("x-mixed-mapped"),
+          cache: response.headers.get("cache-control"),
+        }));
+      }),
+    );
+    const results = await Promise.all(requests);
+
+    expect(results).toHaveLength(24);
+    expect(guardsEntered).toBe(24);
+    expect(guardCleanups).toBe(24);
+    expect(factoryCalls).toBe(18);
+    expect(factoryCleanups).toBe(18);
+    expect(handlerCalls).toBe(18);
+    expect(interceptorEntries).toBe(18);
+    expect(interceptorUnwinds).toBe(18);
+    expect(
+      new Set(results.filter(({ status }) => status === 200).map(({ requestId }) => requestId))
+        .size,
+    ).toBe(3);
+    for (const result of results) {
+      const expectedStatus: Record<string, number> = {
+        success: 200,
+        unauthorized: 401,
+        forbidden: 403,
+        "not-found": 404,
+        conflict: 409,
+        validation: 400,
+        "handler-error": 500,
+        "cleanup-failure": 500,
+        mapped: 201,
+        unavailable: 503,
+      };
+      expect(result.status).toBe(expectedStatus[result.kind]);
+      expect(result.body).not.toContain(privateCanary);
+      if (result.kind === "not-found") expect(result.body).toBe('{"error":"not_found"}');
+      if (result.kind === "conflict") expect(result.body).toBe('{"error":"conflict"}');
+      if (result.kind === "validation") {
+        expect(result.body).toBe('{"error":"invalid_request","source":"query"}');
+      }
+      if (result.kind === "unauthorized") expect(result.body).toBe('{"error":"unauthorized"}');
+      if (result.kind === "forbidden") expect(result.body).toBe('{"error":"forbidden"}');
+      if (result.kind === "cleanup-failure") expect(result.body).not.toContain("not_found");
+      if (result.kind === "success") {
+        expect(result.body).toBe(JSON.stringify({ kind: "success", requestId: result.requestId }));
+        expect(result.mapped).toBe("yes");
+      }
+      if (result.kind === "mapped") {
+        expect(result.body).toBe(JSON.stringify({ kind: "mapped", requestId: result.requestId }));
+        expect(result.mapped).toBeNull();
+      }
+    }
+  });
+
+  it("does not hide cleanup failures behind expected application errors", async () => {
+    const { router, request } = createNitroLikeApp();
+    const cleanupCanary = new Error("private cleanup canary");
+    @Controller("/application-error-cleanup-failure")
+    class ApplicationErrorCleanupFailureController {
+      @Get()
+      get() {
+        throw new StrataAnalogHttpError(404, "not_found");
+      }
+    }
+    registerControllers(router, [ApplicationErrorCleanupFailureController], {
+      controllerFactory(controller, context) {
+        context.onCleanup(() => {
+          throw cleanupCanary;
+        });
+        return new controller();
+      },
+    });
+
+    const response = await request("/application-error-cleanup-failure");
+    const body = await response.text();
+
+    expect(response.status).toBe(500);
+    expect(body).not.toContain("not_found");
+    expect(body).not.toContain("private cleanup canary");
+  });
+
+  it("rejects unsupported application error status and malformed codes", () => {
+    expect(
+      [400, 404, 409, 422, 429, 503].map(
+        (status) => new StrataAnalogHttpError(status as 400, "stable_code").status,
+      ),
+    ).toEqual([400, 404, 409, 422, 429, 503]);
+    expect(() => new StrataAnalogHttpError(401 as 400, "unauthorized")).toThrow(TypeError);
+    expect(() => new StrataAnalogHttpError(404, "Not Found")).toThrow(TypeError);
+  });
+
   it("wraps controller execution in ordered interceptors and transforms results", async () => {
     const { router, request } = createNitroLikeApp();
     const events: string[] = [];

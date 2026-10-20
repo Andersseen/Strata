@@ -10,5 +10,5 @@
     "experimentalDecorators": false,
     "types": ["node"]
   },
-  "files": ["src/check/controller-declarations.ts"]
+  "files": ["src/check/controller-declarations.ts", "src/check/http-contract-example.ts"]
 }

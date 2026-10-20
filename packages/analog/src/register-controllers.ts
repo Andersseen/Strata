@@ -5,6 +5,7 @@ import type { HttpMethod, RouteDefinition } from "@strata-sc/core";
 import { CleanupScope } from "./cleanup-scope.js";
 import type { StrataAnalogCleanup } from "./cleanup-scope.js";
 import { StrataAnalogConfigurationError } from "./errors.js";
+import { StrataAnalogHttpError } from "./http-error.js";
 import { StrataAnalogInputError } from "./input-error.js";
 import { buildRoutePath } from "./utils/build-route-path.js";
 
@@ -526,8 +527,15 @@ function createRouteHandler(
       try {
         await scope.close({ failed: true, error });
       } catch (settledError) {
+        // CleanupScope rethrows the invocation error unchanged only when every
+        // cleanup succeeded. A cleanup failure (including an HTTP error thrown
+        // by cleanup code) must remain visible as the route failure.
+        if (settledError !== error) throw settledError;
         if (settledError instanceof StrataAnalogInputError) {
           return inputErrorResponse(settledError);
+        }
+        if (settledError instanceof StrataAnalogHttpError) {
+          return applicationErrorResponse(settledError);
         }
 
         throw settledError;
@@ -538,6 +546,13 @@ function createRouteHandler(
 
     return scope.close({ failed: false }, result);
   };
+}
+
+function applicationErrorResponse(error: StrataAnalogHttpError): Response {
+  return new Response(JSON.stringify({ error: error.code }), {
+    status: error.status,
+    headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" },
+  });
 }
 
 function isGuardDecision(value: unknown): value is StrataAnalogGuardDecision {

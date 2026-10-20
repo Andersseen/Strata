@@ -380,6 +380,69 @@ try {
 
   verdict.methods = all(methodChecks);
 
+  section("HTTP application errors and response helpers on local workerd");
+  const inventory = `${baseUrl}/api/products`;
+  const inventoryAuth = { authorization: "Bearer fixture-token-ada" };
+  const missingProduct = await fetch(`${inventory}/missing-product`, {
+    method: "DELETE",
+    headers: inventoryAuth,
+  });
+  check(
+    "Authorized missing product uses the redacted 404 contract on workerd",
+    missingProduct.status === 404 &&
+      (await missingProduct.text()) === '{"error":"not_found"}' &&
+      missingProduct.headers.get("cache-control") === "no-store",
+    `${missingProduct.status}`,
+  );
+  const duplicateProduct = await fetch(inventory, {
+    method: "POST",
+    headers: { ...inventoryAuth, "content-type": "application/json" },
+    body: JSON.stringify({ sku: "ADA-1", name: "Duplicate" }),
+  });
+  check(
+    "Duplicate product uses the redacted 409 contract on workerd",
+    duplicateProduct.status === 409 &&
+      (await duplicateProduct.text()) === '{"error":"conflict"}' &&
+      duplicateProduct.headers.get("cache-control") === "no-store",
+    `${duplicateProduct.status}`,
+  );
+  const createdProduct = await fetch(inventory, {
+    method: "POST",
+    headers: { ...inventoryAuth, "content-type": "application/json" },
+    body: JSON.stringify({ sku: "V05-PRODUCT", name: "Release sample" }),
+  });
+  check(
+    "JSON helper preserves 201 and consumer headers on workerd",
+    createdProduct.status === 201 &&
+      createdProduct.headers.get("x-fixture-contract") === "inventory" &&
+      (await createdProduct.text()) ===
+        '{"id":"fixture-v05-product","sku":"V05-PRODUCT","name":"Release sample","status":"active"}',
+    `${createdProduct.status}`,
+  );
+  const patchedProduct = await fetch(`${inventory}/fixture-v05-product`, {
+    method: "PATCH",
+    headers: { ...inventoryAuth, "content-type": "application/json" },
+    body: JSON.stringify({ status: "active", name: "Release sample updated" }),
+  });
+  check(
+    "PATCH returns the validated updated product on workerd",
+    patchedProduct.status === 200 &&
+      (await patchedProduct.text()) ===
+        '{"id":"fixture-v05-product","sku":"V05-PRODUCT","name":"Release sample updated","status":"active"}',
+    `${patchedProduct.status}`,
+  );
+  const deletedProduct = await fetch(`${inventory}/fixture-v05-product`, {
+    method: "DELETE",
+    headers: inventoryAuth,
+  });
+  check(
+    "noContent returns an empty 204 on workerd",
+    deletedProduct.status === 204 &&
+      (await deletedProduct.text()) === "" &&
+      deletedProduct.headers.get("content-type") === null,
+    `${deletedProduct.status}`,
+  );
+
   section("Standard Schema validation on local workerd");
   const validatedParams = await getJson("/api/strata/validated/42?tag=a&tag=b");
   const validatedBody = await httpRequest(`${baseUrl}/api/strata/validated`, {

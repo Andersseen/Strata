@@ -5,6 +5,7 @@ import { defineNitroPlugin } from "nitropack/runtime";
 import { GreetingController, GreetingService } from "../strata/greeting.controller";
 import { LifecycleController } from "../strata/lifecycle.controller";
 import { MethodsController } from "../strata/methods.controller";
+import { InventoryController, inventoryGuard } from "../strata/inventory.controller";
 import { UsersController } from "../strata/users.controller";
 import { ValidationController } from "../strata/validation.controller";
 import {
@@ -26,6 +27,11 @@ export default defineNitroPlugin((nitroApp) => {
 
   registerControllers(nitroApp.router, [ProtectedProductsController], {
     guards: [protectedProductsGuard],
+    interceptors: [passThroughInterceptor],
+  });
+
+  registerControllers(nitroApp.router, [InventoryController], {
+    guards: [inventoryGuard],
     interceptors: [passThroughInterceptor],
   });
 

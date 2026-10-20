@@ -5,6 +5,7 @@ import { defineNitroPlugin } from "nitropack/runtime";
 import { lifecycleStats } from "../strata/lifecycle-stats";
 import { ProductsController } from "../strata/products.controller";
 import { QualificationController } from "../strata/qualification.controller";
+import { HttpContractController } from "../strata/http-contract.controller";
 import {
   GuardedProductsController,
   syntheticAuthorizationGuard,
@@ -29,6 +30,9 @@ export default defineNitroPlugin((nitroApp) => {
   });
   registerControllers(nitroApp.router, [GuardedProductsController], {
     guards: [syntheticAuthorizationGuard],
+    interceptors: [interceptController],
+  });
+  registerControllers(nitroApp.router, [HttpContractController], {
     interceptors: [interceptController],
   });
 });
