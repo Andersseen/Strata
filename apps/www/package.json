@@ -24,7 +24,7 @@
     "@analogjs/content": "^2.7.2",
     "@analogjs/router": "^2.7.2",
     "@angular/cdk": "22.2.2",
-    "@angular/common": "^22.0.0",
+    "@angular/common": "^22.2.3",
     "@angular/compiler": "^22.0.0",
     "@angular/core": "^22.0.0",
     "@angular/forms": "^22.0.0",
