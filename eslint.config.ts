@@ -31,6 +31,8 @@ export default config(
       // External full-stack consumer of the three packed packages, installed with
       // npm outside the workspace (test:full-stack-package-consumer).
       "tests/full-stack-package-consumer/fixture/**",
+      // Temporary external packed Angular DI consumer sources; copied into a temp Analog app.
+      "tests/analog-packed-di-consumer/src/**",
       // Four-arm external consumer of the full-stack performance baseline,
       // assembled outside the workspace by tools/performance/full-stack.ts.
       "tests/full-stack-performance/fixture/**",

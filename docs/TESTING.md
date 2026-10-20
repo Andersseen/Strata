@@ -28,8 +28,15 @@ The [Angular DI HTTP composition report](research/analog-di-http-composition.md)
 extends the real Node dev/production runner with the existing guard,
 interceptor, Standard Schema and cleanup contracts. Its 24-request matrix is
 run as three concurrent eight-request batches with an eight-party rendezvous.
-Packed Angular DI remains outside the packed-consumer gates, and the existing
+The full packed Angular DI composition remains outside the packed-consumer gate; the existing
 workerd Angular JIT negative qualification remains required.
+
+`pnpm test:analog-packed-di-consumer` now adds a separate Node-only packed profile. It builds and
+installs the branch tarballs outside the workspace and verifies strict TypeScript 6 declarations,
+production Nitro HTTP composition, consumer-owned root/request injector lifetimes, authorization,
+24-request isolation, cleanup and close-hook destruction. It does not change the Cloudflare fixture.
+This is a partial profile: see [its report](research/analog-packed-di-consumer.md) for the uncovered
+validation, failure and bundle gates.
 
 | Gate | Required tests                                                                                                                                   | Evidence retained                                                                                                  |
 | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |

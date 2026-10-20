@@ -82,6 +82,52 @@ Verified behaviour (Analog 2.7.2, Nitro 2.13.4; see the
 For the source-level examples, including the factory and cleanup, see the
 [repository README](../README.md#analog).
 
+#### Consumer-owned Angular DI (experimental, Node only)
+
+Strata does not create an Angular injector or automatically connect to Analog's SSR or
+server-function injectors. If an application needs Angular services in a Strata controller, it can
+own a separate application injector and create a child injector in `controllerFactory`:
+
+```ts
+import "@angular/compiler";
+import { createEnvironmentInjector, runInInjectionContext } from "@angular/core";
+import { createApplication } from "@angular/platform-browser";
+import { platformServer, provideServerRendering } from "@angular/platform-server";
+import { registerControllers } from "@strata-sc/analog";
+import { defineNitroPlugin } from "nitropack/runtime";
+
+export default defineNitroPlugin(async (nitroApp) => {
+  const platform = platformServer();
+  const app = await createApplication(
+    { providers: [provideServerRendering()] },
+    { platformRef: platform },
+  );
+  nitroApp.hooks.hook("close", () => {
+    app.destroy();
+    platform.destroy();
+  });
+
+  registerControllers(nitroApp.router, [InventoryController], {
+    controllerFactory: (Controller, { request, onCleanup }) => {
+      const child = createEnvironmentInjector(
+        [{ provide: STRATA_REQUEST, useValue: request }, RequestIdentity],
+        app.injector,
+      );
+      onCleanup(() => child.destroy());
+      return runInInjectionContext(child, () => new Controller());
+    },
+  });
+});
+```
+
+The fixture evidence is limited to Nitro `node-server` with Angular JIT and a consumer-owned
+injector. In the consumer's Vite config, retain the compiler in Nitro with
+`analog({ nitro: { moduleSideEffects: ["@angular/compiler"] } })`. Keep this configuration out of Worker builds: **Angular DI on workerd is not supported on
+the tested JIT path**, which fails because workerd disallows code generation from strings. The
+internal and external injector is separate from Analog SSR and server-function injectors. See the
+[packed consumer evidence](research/analog-packed-di-consumer.md) and the existing
+[workerd limitation](research/analog-di-cross-runtime-lifecycle.md).
+
 ## Server Components
 
 `@strata-sc/server-components` (experimental, `0.x`) renders a `@ServerComponent()` on the server
