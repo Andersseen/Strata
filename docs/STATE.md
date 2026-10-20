@@ -1,5 +1,29 @@
 # Current implementation audit
 
+## Analog HTTP application contract for 0.5.0 (feature branch)
+
+On branch `feat/analog-http-contract-v05`, work began from synchronized `main`
+`0031b654058dc0658cab65eb2fd360b7dcad4b15`. After main advanced with the
+Angular CDK patch update in PR #92, the branch was rebased onto
+`ff1034def709abe2d92e13e2fcbb4b39e7fd1b77`. `@strata-sc/analog` adds
+`StrataAnalogHttpError`, `jsonResponse()` and `noContent()`. The route boundary
+translates expected errors only after successful request cleanup; cleanup
+failures and unexpected exceptions retain Nitro's failure behavior. The
+fixture's protected inventory API exercises Standard Schema body validation,
+401/403 guards, 404/409/422 application errors, 201 JSON and empty 204.
+
+Focused package tests, real Analog Node production/dev HTTP qualification,
+local Pages/workerd and packed-consumer behavior pass. Repository build,
+lint/typecheck, unit/release/performance tests, integration matrix and Entwine
+check/build pass. Website E2E passes against a fresh server on a dedicated
+port; the initial default-port run reused an unrelated process on port 3000.
+Cancellation remains unavailable: pinned Nitro/H3 does not expose Cloudflare's
+native incoming Request signal to the Strata event; the public
+`StrataAnalogRequest` has no `signal`. See the
+[qualification report](research/analog-http-contract-v05.md). This is
+experimental fixture evidence, not production deployment or Strata 1.0
+certification.
+
 ## Packed Angular DI consumer (2026-10-20)
 
 Starting from synchronized main `8272ce98e3908c40d788ce00363c675917c85a34`,

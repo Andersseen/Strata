@@ -162,6 +162,170 @@ Controllers are request-scoped. An optional `controllerFactory` (sync or async)
 creates each request's controller and can register `onCleanup` callbacks that
 run after the invocation settles.
 
+## Application HTTP contract
+
+Controllers and interceptors can throw an expected application error with a
+conservative status and stable machine-readable code:
+
+```ts
+import { StrataAnalogHttpError } from "@strata-sc/analog";
+
+throw new StrataAnalogHttpError(404, "not_found", "Product 42 is absent");
+```
+
+Recognized statuses are `400`, `404`, `409`, `422`, `429` and `503`. Codes
+must match `^[a-z][a-z0-9_]{0,63}$`. The constructor rejects unsupported
+statuses and malformed codes. The optional message and `ErrorOptions` (including
+`cause`) stay available to server-side diagnostics. The public response uses
+only `{ "error": "not_found" }`, `application/json; charset=utf-8` and
+`Cache-Control: no-store`; it never serializes a message, cause, stack, custom
+details or schema issues. Unexpected exceptions keep Nitro's existing error
+behavior. Guard-owned 401/403 and validated-input 400/413/415 responses keep
+their existing contracts.
+
+Errors are translated only after the request's one `CleanupScope` completes
+successfully. A cleanup failure, including an `AggregateError`, remains a
+server failure and is not hidden behind an application status or guard denial.
+Interceptors may observe and rethrow application errors; their order,
+`next()` rules and reverse unwind behavior are unchanged.
+
+Use the native Web `Response` API for explicit response statuses and headers:
+
+```ts
+import { jsonResponse, noContent } from "@strata-sc/analog";
+
+return jsonResponse({ id: product.id }, { status: 201 });
+return noContent({ headers: { "x-deleted-product": product.id } });
+```
+
+`jsonResponse(value, init?)` defaults to 200, serializes once, keeps supplied
+headers (including multiple `Set-Cookie` values), and supplies
+`application/json; charset=utf-8` only when no content type was supplied. It
+uses native `Response` validation for body/status combinations, so JSON with
+204/205/304 and unsupported serialization throw. `noContent(init?)` always
+returns an empty 204 and does not add a content type. Both preserve caller
+headers such as `Cache-Control`. Plain return values and native `Response`
+objects remain supported; Nitro routes do not pass through this adapter.
+
+### Complete consumer example
+
+This example is also typechecked from the packed consumer fixture at
+[`http-contract-example.ts`](../../tests/full-stack-package-consumer/fixture/src/check/http-contract-example.ts).
+The token table and in-memory map are fixture-sized examples; real applications
+own credential verification and storage.
+
+```ts
+import { Controller, Delete, Get, Patch, Post } from "@strata-sc/core";
+import {
+  StrataAnalogHttpError,
+  jsonResponse,
+  noContent,
+  registerControllers,
+} from "@strata-sc/analog";
+import type {
+  StrataAnalogGuard,
+  StrataAnalogInterceptor,
+  StrataAnalogRequest,
+} from "@strata-sc/analog";
+import { defineNitroPlugin } from "nitropack/runtime";
+import { z } from "zod";
+
+const products = new Map<number, { id: number; name: string; status: "active" | "archived" }>([
+  [1, { id: 1, name: "Keyboard", status: "active" }],
+]);
+const owners = new Map<number, string>([[1, "ada"]]);
+const tokens = new Map<string, string>([["fixture-token", "ada"]]);
+const durations: number[] = [];
+const paramsSchema = z.object({ id: z.coerce.number().int().positive() });
+const querySchema = z.object({
+  includeArchived: z
+    .enum(["true", "false"])
+    .transform((value) => value === "true")
+    .optional(),
+});
+const createSchema = z.object({ name: z.string().trim().min(1) });
+const patchSchema = z.object({ name: z.string().trim().min(1) });
+let nextId = 2;
+
+@Controller("/api/products")
+class ProductsController {
+  @Get("/:id")
+  async get(request: StrataAnalogRequest) {
+    const { id } = await request.validateParams(paramsSchema);
+    const { includeArchived } = await request.validateQuery(querySchema);
+    const product = products.get(id);
+    if (!product || (product.status === "archived" && !includeArchived)) {
+      throw new StrataAnalogHttpError(404, "not_found");
+    }
+    return jsonResponse(product);
+  }
+
+  @Post()
+  async post(request: StrataAnalogRequest) {
+    const input = await request.readValidatedJson(createSchema);
+    const duplicate = [...products.values()].some((product) => product.name === input.name);
+    if (duplicate) throw new StrataAnalogHttpError(409, "conflict");
+    const product = { id: nextId++, name: input.name, status: "active" as const };
+    products.set(product.id, product);
+    owners.set(product.id, "ada");
+    return jsonResponse(product, { status: 201, headers: { "cache-control": "no-store" } });
+  }
+
+  @Patch("/:id")
+  async patch(request: StrataAnalogRequest) {
+    const { id } = await request.validateParams(paramsSchema);
+    const input = await request.readValidatedJson(patchSchema);
+    const product = products.get(id);
+    if (!product) throw new StrataAnalogHttpError(404, "not_found");
+    if (product.status !== "active") {
+      throw new StrataAnalogHttpError(422, "invalid_product_state");
+    }
+    const updated = { ...product, name: input.name };
+    products.set(id, updated);
+    return jsonResponse(updated);
+  }
+
+  @Delete("/:id")
+  async delete(request: StrataAnalogRequest) {
+    const { id } = await request.validateParams(paramsSchema);
+    if (!products.delete(id)) throw new StrataAnalogHttpError(404, "not_found");
+    owners.delete(id);
+    return noContent();
+  }
+}
+
+const requireOwner: StrataAnalogGuard = ({ request, route }) => {
+  const token = request.headers.get("authorization")?.replace(/^Bearer /, "") ?? "";
+  const principal = tokens.get(token);
+  if (!principal) return { allow: false, status: 401 };
+  const rawId = request.params["id"];
+  const owner = rawId === undefined ? undefined : owners.get(Number(rawId));
+  if (owner !== undefined && owner !== principal) return { allow: false, status: 403 };
+  return { allow: true };
+};
+
+const timing: StrataAnalogInterceptor = async (_context, next) => {
+  const started = performance.now();
+  try {
+    return await next();
+  } finally {
+    durations.push(performance.now() - started);
+  }
+};
+
+export default defineNitroPlugin((nitroApp) => {
+  registerControllers(nitroApp.router, [ProductsController], {
+    guards: [requireOwner],
+    interceptors: [timing],
+  });
+});
+```
+
+The complete consumer fixture checks the public declarations and exercises
+these APIs from package tarballs installed outside the pnpm workspace. See the
+[HTTP contract qualification](../../docs/research/analog-http-contract-v05.md)
+for runtime and release evidence.
+
 ## Registration
 
 - `registerControllers()` validates the whole batch (controllers, handlers,

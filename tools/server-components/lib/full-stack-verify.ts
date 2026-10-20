@@ -89,6 +89,61 @@ export async function httpSuite(
     ),
   );
 
+  const contractError = await get(`${base}/api/application-contract/missing`);
+  ok.push(
+    check(
+      `${label}: packed application errors produce redacted 404/no-store JSON`,
+      contractError.status === 404 &&
+        contractError.body === '{"error":"not_found"}' &&
+        contractError.headers.get("cache-control") === "no-store" &&
+        !contractError.body.includes("canary"),
+      `${contractError.status} ${contractError.body}`,
+    ),
+  );
+
+  const contractCreated = await fetch(`${base}/api/application-contract/created`, {
+    method: "POST",
+  });
+  const contractCookies = contractCreated.headers.getSetCookie();
+  const contractCreatedBody = await contractCreated.text();
+  ok.push(
+    check(
+      `${label}: packed JSON helper keeps 201, consumer cache policy and separate cookies`,
+      contractCreated.status === 201 &&
+        contractCreatedBody === '{"id":"packed-product"}' &&
+        contractCreated.headers.get("content-type") === "application/json; charset=utf-8" &&
+        contractCreated.headers.get("cache-control") === "private, max-age=15" &&
+        contractCookies.length === 2,
+      `${contractCreated.status} ${contractCreated.headers.get("cache-control")} cookies=${contractCookies.length}`,
+    ),
+  );
+
+  const contractInvalid = await fetch(`${base}/api/application-contract/invalid-state`, {
+    method: "PATCH",
+  });
+  ok.push(
+    check(
+      `${label}: packed application errors support 422 without message exposure`,
+      contractInvalid.status === 422 &&
+        (await contractInvalid.text()) === '{"error":"invalid_product_state"}',
+      `${contractInvalid.status}`,
+    ),
+  );
+
+  const contractDeleted = await fetch(`${base}/api/application-contract/deleted`, {
+    method: "DELETE",
+  });
+  ok.push(
+    check(
+      `${label}: packed noContent helper is an empty 204 with caller headers`,
+      contractDeleted.status === 204 &&
+        (await contractDeleted.text()) === "" &&
+        contractDeleted.headers.get("content-type") === null &&
+        contractDeleted.headers.get("x-deleted") === "packed-product",
+      `${contractDeleted.status}`,
+    ),
+  );
+
   const seven = await get(`${base}/api/products/7`);
 
   ok.push(

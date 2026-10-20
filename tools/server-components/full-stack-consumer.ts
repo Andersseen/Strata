@@ -244,6 +244,7 @@ try {
     "tsconfig.check.server.json",
     "src/check/declarations.ts",
     "src/check/controller-declarations.ts",
+    "src/check/http-contract-example.ts",
   ]) {
     cpSync(join(consumerDir, file), join(ts59Dir, file));
   }
@@ -268,6 +269,7 @@ try {
             ].map((name) => [name, consumerManifest.dependencies[name]]),
           ),
           vite: consumerManifest.devDependencies["vite"],
+          zod: consumerManifest.dependencies["zod"],
           "@types/node": consumerManifest.devDependencies["@types/node"],
           typescript: TS59_VERSION,
         },

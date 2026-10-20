@@ -38,6 +38,10 @@ pnpm add @strata-sc/server-components   # only for Server Components
 
 External projects should install from the registry rather than link to a checkout.
 
+For safe application error responses and explicit JSON/204 responses in
+Analog controllers, see the [HTTP application contract example](../packages/analog/README.md#complete-consumer-example).
+The API is experimental and its `0.x` behavior may change in a minor release.
+
 ## Pick a path
 
 1. **HTTP controllers in an Analog app** — follow [Controllers and server integrations](INTEGRATIONS.md).

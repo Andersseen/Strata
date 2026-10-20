@@ -82,6 +82,31 @@ Verified behaviour (Analog 2.7.2, Nitro 2.13.4; see the
 For the source-level examples, including the factory and cleanup, see the
 [repository README](../README.md#analog).
 
+#### HTTP application contract
+
+`@strata-sc/analog` exports `StrataAnalogHttpError` for expected application
+failures and `jsonResponse` / `noContent` for explicit native Web responses.
+Recognized error statuses are 400, 404, 409, 422, 429 and 503; each produces
+only `{ error: code }`, JSON UTF-8 content type and `Cache-Control: no-store`.
+Messages, causes, stacks, schema issues and custom detail objects are not sent
+to clients. Existing validation errors and guard 401/403 responses keep their
+own contracts. Errors translate only after cleanup succeeds; cleanup failures
+remain server failures. See the complete, packed-consumer-typechecked example
+in [`@strata-sc/analog`](../packages/analog/README.md#complete-consumer-example)
+and the [0.5.0 qualification](research/analog-http-contract-v05.md).
+
+`jsonResponse(value, init?)` defaults to 200, preserves supplied headers,
+including multiple cookies, and uses the native `Response` constructor for
+status/body validation. `noContent(init?)` returns a bodyless 204 without a
+content type. Plain controller values and native `Response` results remain
+valid. These helpers only affect Strata controller results, not native Nitro
+routes.
+
+`StrataAnalogRequest` does not expose `signal` in this release. The pinned
+Nitro/H3 Node and Cloudflare Pages adapters do not carry a trustworthy transport
+signal into the controller boundary; see the cancellation verdict in the
+[qualification report](research/analog-http-contract-v05.md#cancellation-investigation).
+
 #### Consumer-owned Angular DI (experimental, Node only)
 
 Strata does not create an Angular injector or automatically connect to Analog's SSR or

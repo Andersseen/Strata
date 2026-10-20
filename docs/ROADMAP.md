@@ -120,12 +120,19 @@ Analog and navigation strategy. Write relevant ADRs only after the evidence exis
 
 ## M3 — Usable HTTP domains inside Analog
 
-**Status:** planned; depends on M2's viable seams.
+**Status:** in progress; the 0.5.0 candidate adds the typed HTTP error and
+response contracts, and extends real Node/workerd and packed-consumer checks.
+Broader M3 adoption and lifecycle gates remain open; see the
+[HTTP contract report](research/analog-http-contract-v05.md).
 
 - Capability: controllers and services handle real HTTP domains inside an Analog app with defined
   request lifetimes and native H3 escape hatches.
 - Hypothesis: a small explicit architecture covers those needs without replicating a backend platform.
-- Work in separate slices: close metadata/member/registration contracts; add Post/Put/Patch/Delete;
+- Capability delivered in the 0.5.0 candidate: close the initial application error/response gap;
+  existing Post/Put/Patch/Delete, Standard Schema, guards and interceptors compose through one
+  request cleanup scope. The remaining work is qualification and adoption, not another duplicate
+  HTTP error layer.
+- Remaining M3 work: close metadata/member/registration contracts and verify Analog SSR/serverFn coexistence;
   compare request-input APIs before selecting one; define params/query/body/headers and Standard
   Schema validation; safe errors; Angular providers/lifetimes; guards and interceptors with explicit
   order, cancellation and logging; stabilize consumer compilation and Analog integration.
