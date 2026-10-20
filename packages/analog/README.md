@@ -42,11 +42,12 @@ export class PostsController {
 ```ts
 // src/server/plugins/strata.ts
 import { registerControllers } from "@strata-sc/analog";
+import type { StrataAnalogGuard, StrataAnalogInterceptor } from "@strata-sc/analog";
 import { defineNitroPlugin } from "nitropack/runtime";
 
 import { PostsController } from "../strata/posts.controller";
 
-const requireAuth = ({ request, route, onCleanup }) => {
+const requireAuth: StrataAnalogGuard = ({ request, route, onCleanup }) => {
   // Verify credentials with application-owned code. Never trust an identity
   // copied from a query parameter or arbitrary header.
   const token = request.headers.get("authorization");
@@ -58,8 +59,30 @@ const requireAuth = ({ request, route, onCleanup }) => {
   return { allow: true };
 };
 
+const timingInterceptor: StrataAnalogInterceptor = async (context, next) => {
+  const started = performance.now();
+  try {
+    return await next();
+  } finally {
+    recordDuration(context.route, performance.now() - started);
+  }
+};
+
+const loggingInterceptor: StrataAnalogInterceptor = async ({ route }, next) => {
+  try {
+    return await next();
+  } catch (error) {
+    // Record only stable route metadata. Do not log credentials or request data.
+    recordSanitizedFailure(route.method, route.path);
+    throw error;
+  }
+};
+
 export default defineNitroPlugin((nitroApp) => {
-  registerControllers(nitroApp.router, [PostsController], { guards: [requireAuth] });
+  registerControllers(nitroApp.router, [PostsController], {
+    guards: [requireAuth],
+    interceptors: [timingInterceptor, loggingInterceptor],
+  });
 });
 ```
 
@@ -72,8 +95,24 @@ registered `path`, controller name and handler name), and the same request-local
 application failures. Authentication and authorization remain consumer-owned:
 Strata does not verify credentials, manage sessions or provide RBAC/ABAC.
 Guards do not supply CSRF policy or production tenant-isolation certification.
-Interceptors are not implemented, and real application adoption and Strata 1.0
-remain unqualified.
+Interceptors may optionally wrap controller execution. Guards always run first;
+interceptors then enter in registration order and unwind in reverse order. Each
+normally completing interceptor must call and await `next()` exactly once.
+An interceptor can inspect, transform or rethrow downstream results and errors.
+It cannot short-circuit execution. Interceptors are consumer policy, not an
+authentication or general middleware system; real application adoption and
+Strata 1.0 remain unqualified.
+
+The interceptor context contains the immutable route information, request and
+the existing request cleanup hook. Results flow directly to Nitro. Plain data
+can be transformed; a native `Response` passed through unchanged retains its
+headers, status, body and streaming behavior. Interceptors should not read a
+response body just to log it. Errors propagate to Nitro unless consumer code
+deliberately catches and replaces one. Such replacement is consumer policy.
+Cleanup runs after interceptor unwinding and preserves the existing LIFO and
+`AggregateError` rules. Do not log credentials, request bodies or private
+validation issues. Production tracing, cancellation and full response-stream
+lifecycle are not qualified.
 
 Every `@strata-sc/core` HTTP decorator (`Get`, `Post`, `Put`, `Patch`,
 `Delete`) is registered for its own method on the Nitro router, and all of them

@@ -6,7 +6,11 @@ import { z } from "zod";
 
 import { StrataAnalogConfigurationError } from "./errors.js";
 import { registerControllers } from "./register-controllers.js";
-import type { NitroRouter, StrataAnalogRequest } from "./register-controllers.js";
+import type {
+  NitroRouter,
+  StrataAnalogInterceptor,
+  StrataAnalogRequest,
+} from "./register-controllers.js";
 
 /**
  * Builds the same H3 v1 shape Nitro 2 builds in `createNitroApp()` — an H3 app
@@ -51,6 +55,199 @@ class OrdersController {
 }
 
 describe("registerControllers", () => {
+  it("wraps controller execution in ordered interceptors and transforms results", async () => {
+    const { router, request } = createNitroLikeApp();
+    const events: string[] = [];
+    @Controller("/intercepted")
+    class InterceptedController {
+      @Get() get() {
+        events.push("handler");
+        return { value: 2 };
+      }
+    }
+    registerControllers(router, [InterceptedController], {
+      guards: [
+        ({ onCleanup }) => {
+          events.push("guard");
+          onCleanup(() => {
+            events.push("cleanup guard");
+          });
+          return { allow: true as const };
+        },
+      ],
+      interceptors: [
+        async ({ onCleanup }, next) => {
+          events.push("A before");
+          onCleanup(() => {
+            events.push("cleanup A");
+          });
+          const value = (await next()) as { value: number };
+          events.push("A after");
+          return { value: value.value + 1 };
+        },
+        async ({ onCleanup }, next) => {
+          events.push("B before");
+          onCleanup(() => {
+            events.push("cleanup B");
+          });
+          const value = (await next()) as { value: number };
+          events.push("B after");
+          return value;
+        },
+      ],
+      controllerFactory(controller, context) {
+        context.onCleanup(() => {
+          events.push("cleanup factory");
+        });
+        return new controller();
+      },
+    });
+    const response = await request("/intercepted");
+    expect(await response.json()).toEqual({ value: 3 });
+    expect(events).toEqual([
+      "guard",
+      "A before",
+      "B before",
+      "handler",
+      "B after",
+      "A after",
+      "cleanup factory",
+      "cleanup B",
+      "cleanup A",
+      "cleanup guard",
+    ]);
+  });
+
+  it("rejects interceptors that skip or call next more than once and still cleans up", async () => {
+    let index = 0;
+    let missingNextCleanup = 0;
+    for (const interceptor of [
+      (context: { onCleanup: (cleanup: () => void) => void }) => {
+        context.onCleanup(() => {
+          missingNextCleanup += 1;
+        });
+        return { okay: true };
+      },
+      async (_context: unknown, next: () => Promise<unknown>) => {
+        await next();
+        await next();
+      },
+      async (_context: unknown, next: () => Promise<unknown>) => {
+        await Promise.all([next(), next()]);
+      },
+    ]) {
+      const { router, request } = createNitroLikeApp();
+      let cleanup = 0;
+      let handlerCompleted = false;
+      let cleanupBeforeHandler = false;
+      missingNextCleanup = 0;
+      const route = `/bad-interceptor-${index++}`;
+      @Controller(route)
+      class BadController {
+        @Get() get() {
+          handlerCompleted = true;
+          return { private: true };
+        }
+      }
+      registerControllers(router, [BadController], {
+        interceptors: [interceptor as never],
+        controllerFactory(controller, context) {
+          context.onCleanup(() => {
+            cleanup += 1;
+            if (index === 3 && !handlerCompleted) cleanupBeforeHandler = true;
+          });
+          return new controller();
+        },
+      });
+      const response = await request(route);
+      expect(response.status).toBe(500);
+      expect(await response.text()).not.toContain("private");
+      expect(index === 1 ? missingNextCleanup : cleanup).toBe(1);
+      expect(cleanupBeforeHandler).toBe(false);
+    }
+  });
+
+  it("passes a native Response through interceptors without changing its HTTP semantics", async () => {
+    const { router, request } = createNitroLikeApp();
+    @Controller("/native-response")
+    class NativeResponseController {
+      @Get()
+      get() {
+        return new Response("stream body", {
+          status: 206,
+          headers: { "content-type": "text/plain", "x-native": "preserved" },
+        });
+      }
+    }
+    registerControllers(router, [NativeResponseController], {
+      interceptors: [async (_context, next) => next()],
+    });
+    const response = await request("/native-response");
+    expect(response.status).toBe(206);
+    expect(response.headers.get("content-type")).toBe("text/plain");
+    expect(response.headers.get("x-native")).toBe("preserved");
+    expect(await response.text()).toBe("stream body");
+  });
+
+  it("snapshots interceptor configuration before route registration", async () => {
+    const { router, request } = createNitroLikeApp();
+    const events: string[] = [];
+    @Controller("/interceptor-snapshot")
+    class SnapshotController {
+      @Get()
+      get() {
+        return { ok: true };
+      }
+    }
+    const first: StrataAnalogInterceptor = async (_context, next) => {
+      events.push("first");
+      return next();
+    };
+    const interceptors: StrataAnalogInterceptor[] = [first];
+    expect(() =>
+      registerControllers(router, [SnapshotController], { interceptors: [null as never] }),
+    ).toThrow(StrataAnalogConfigurationError);
+    registerControllers(router, [SnapshotController], { interceptors });
+    interceptors[0] = () => {
+      events.push("mutated");
+      return undefined;
+    };
+    await request("/interceptor-snapshot");
+    expect(events).toEqual(["first"]);
+  });
+
+  it("rejects a late next() call without starting downstream work again", async () => {
+    const { router, request } = createNitroLikeApp();
+    let handlerCalls = 0;
+    let lateError: unknown;
+    @Controller("/late-next")
+    class LateNextController {
+      @Get()
+      get() {
+        handlerCalls += 1;
+        return { ok: true };
+      }
+    }
+    registerControllers(router, [LateNextController], {
+      interceptors: [
+        async (_context, next) => {
+          const result = await next();
+          setTimeout(() => {
+            void next().catch((error: unknown) => {
+              lateError = error;
+            });
+          }, 0);
+          return result;
+        },
+      ],
+    });
+    const response = await request("/late-next");
+    expect(response.status).toBe(200);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    expect(lateError).toBeInstanceOf(StrataAnalogConfigurationError);
+    expect(handlerCalls).toBe(1);
+  });
+
   it("runs guards sequentially before construction and settles safe denials after LIFO cleanup", async () => {
     const { router, request } = createNitroLikeApp();
     const events: string[] = [];

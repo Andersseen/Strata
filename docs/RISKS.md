@@ -1,5 +1,11 @@
 # Technical risk register
 
+Evidence note (2026-10-20): request-scoped Analog interceptors are added on
+`feat/analog-http-interceptors`. This provides an opt-in execution seam; it does
+not qualify cancellation, streamed-response lifetime, production tracing or
+application adoption. See
+[the interceptor evidence](research/analog-http-interceptors.md).
+
 Evidence note (2026-10-19): the Server Component dev recovery CI failure was traced to an
 asynchronous harness log-window race; the test now gates the post-recovery assertion on observable
 browser recovery and bounded log quiet, and scenario K proves a fresh invalid edit fails closed

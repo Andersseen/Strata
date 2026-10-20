@@ -1,5 +1,19 @@
 # Current implementation audit
 
+## Analog request-scoped HTTP interceptors (2026-10-20)
+
+Starting from `8417d60e040190a6a68c91a96f8380db934908bf`, the feature branch
+`feat/analog-http-interceptors` adds opt-in onion-style wrappers to
+`@strata-sc/analog`. Guards precede interceptors; interceptors wrap the one
+factory/handler execution and share its cleanup scope. Focused package tests
+pass (109 tests), as do the package typecheck, Node dev/production integration,
+packed TypeScript/Node consumers, and local workerd qualification. The full
+local CI-equivalent matrix and Entwine validation pass except for the standalone
+www E2E `data-app-ready` assertion (no `apps/www` changes; www Server Component
+dogfood passes). Hosted Actions are pending after push. This does not qualify
+M3, production cancellation or Strata 1.0. See
+[the interceptor report](research/analog-http-interceptors.md).
+
 ## Analog request-scoped guards (2026-10-19)
 
 The feature branch `feat/analog-request-guards` adds opt-in registration-level

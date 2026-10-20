@@ -1,4 +1,5 @@
 import { registerControllers } from "@strata-sc/analog";
+import type { StrataAnalogInterceptor } from "@strata-sc/analog";
 import { defineNitroPlugin } from "nitropack/runtime";
 
 import { lifecycleStats } from "../strata/lifecycle-stats";
@@ -8,6 +9,8 @@ import {
   GuardedProductsController,
   syntheticAuthorizationGuard,
 } from "../strata/guarded-products.controller";
+
+const interceptController: StrataAnalogInterceptor = async (_context, next) => next();
 
 // The documented Nitro integration: Strata only adds routes to the router Nitro
 // already owns. The controller factory is plain TypeScript; there is no Angular
@@ -22,8 +25,10 @@ export default defineNitroPlugin((nitroApp) => {
 
       return new Controller();
     },
+    interceptors: [interceptController],
   });
   registerControllers(nitroApp.router, [GuardedProductsController], {
     guards: [syntheticAuthorizationGuard],
+    interceptors: [interceptController],
   });
 });

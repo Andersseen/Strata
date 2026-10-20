@@ -351,7 +351,9 @@ try {
     check(
       "GET /api/strata/greeting twice: controllerFactory builds a new instance per request",
       greetings.every(
-        (g) => g.status === 200 && JSON.stringify(g.json) === '{"greeting":"hello","calls":1}',
+        (g) =>
+          g.status === 200 &&
+          JSON.stringify(g.json) === '{"greeting":"hello","calls":1,"intercepted":true}',
       ),
       greetings.map((g) => `${g.status} ${g.body}`).join(" | "),
     ),

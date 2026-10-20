@@ -55,6 +55,22 @@ export interface StrataAnalogGuardContext {
   readonly onCleanup: (cleanup: StrataAnalogCleanup) => void;
 }
 
+/** Downstream interceptor and controller execution for this request. */
+export type StrataAnalogNext = () => Promise<unknown>;
+
+/** Request-local view available to an interceptor; framework internals stay private. */
+export interface StrataAnalogInterceptorContext {
+  readonly request: StrataAnalogRequest;
+  readonly route: StrataAnalogRouteInfo;
+  readonly onCleanup: (cleanup: StrataAnalogCleanup) => void;
+}
+
+/** Wraps controller execution. Every normally settling interceptor must await exactly one next(). */
+export type StrataAnalogInterceptor = (
+  context: StrataAnalogInterceptorContext,
+  next: StrataAnalogNext,
+) => unknown;
+
 /** Consumer-owned request authorization check, run sequentially before construction. */
 export type StrataAnalogGuard = (
   context: StrataAnalogGuardContext,
@@ -127,6 +143,8 @@ export interface RegisterControllersOptions {
   readonly controllerFactory?: StrataAnalogControllerFactory;
   /** Opt-in request guards, evaluated in order before controller creation. */
   readonly guards?: readonly StrataAnalogGuard[];
+  /** Opt-in onion-style wrappers, entered in order after guards. */
+  readonly interceptors?: readonly StrataAnalogInterceptor[];
 }
 
 type ControllerHandler = (this: object, request: StrataAnalogRequest) => unknown;
@@ -255,7 +273,21 @@ export function registerControllers<Router extends NitroRouter>(
   }
   const guardSnapshot = Object.freeze(guardValue.filter(isStrataAnalogGuard));
 
-  const plan = planRegistration(router, controllers, controllerFactory, guardSnapshot);
+  const interceptorValue: unknown = options.interceptors === undefined ? [] : options.interceptors;
+  if (!Array.isArray(interceptorValue) || !interceptorValue.every(isStrataAnalogInterceptor)) {
+    throw new StrataAnalogConfigurationError(
+      "registerControllers() option `interceptors` must be an array of functions.",
+    );
+  }
+  const interceptorSnapshot = Object.freeze(interceptorValue.slice());
+
+  const plan = planRegistration(
+    router,
+    controllers,
+    controllerFactory,
+    guardSnapshot,
+    interceptorSnapshot,
+  );
 
   commitRegistration(router, plan);
 
@@ -263,6 +295,10 @@ export function registerControllers<Router extends NitroRouter>(
 }
 
 function isStrataAnalogGuard(value: unknown): value is StrataAnalogGuard {
+  return typeof value === "function";
+}
+
+function isStrataAnalogInterceptor(value: unknown): value is StrataAnalogInterceptor {
   return typeof value === "function";
 }
 
@@ -300,6 +336,7 @@ function planRegistration(
   controllers: readonly ControllerClass[],
   controllerFactory: StrataAnalogControllerFactory,
   guards: readonly StrataAnalogGuard[],
+  interceptors: readonly StrataAnalogInterceptor[],
 ): PlannedRoute[] {
   const registered = registeredRoutes.get(router);
   const planned = new Map<RouteKey, PlannedRoute>();
@@ -344,6 +381,7 @@ function planRegistration(
           handler,
           controllerFactory,
           guards,
+          interceptors,
           Object.freeze({
             method: route.method,
             path,
@@ -385,13 +423,14 @@ function createRouteHandler(
   handler: ControllerHandler,
   controllerFactory: StrataAnalogControllerFactory,
   guards: readonly StrataAnalogGuard[],
+  interceptors: readonly StrataAnalogInterceptor[],
   route: StrataAnalogRouteInfo,
 ): (event: NitroEvent) => Promise<unknown> {
   return async (event) => {
     const request = createStrataAnalogRequest(event);
     const scope = new CleanupScope();
     let result: unknown;
-
+    let denied = false;
     try {
       for (const guard of guards) {
         const decision: unknown = await guard(
@@ -404,17 +443,85 @@ function createRouteHandler(
         }
         if (!decision.allow) {
           result = guardDeniedResponse(decision.status);
-          return await scope.close({ failed: false }, result);
+          denied = true;
+          break;
         }
       }
-      const controller = await controllerFactory(
-        controllerClass,
-        Object.freeze({ request, onCleanup: scope.register }),
-      );
-
-      assertControllerInstance(controllerClass, controller);
-
-      result = await handler.call(controller, request);
+      if (!denied) {
+        const context: StrataAnalogInterceptorContext = Object.freeze({
+          request,
+          route,
+          onCleanup: scope.register,
+        });
+        const executeController = async (): Promise<unknown> => {
+          const controller = await controllerFactory(
+            controllerClass,
+            Object.freeze({ request, onCleanup: scope.register }),
+          );
+          assertControllerInstance(controllerClass, controller);
+          return handler.call(controller, request);
+        };
+        const executeInterceptor = (index: number): Promise<unknown> => {
+          const interceptor = interceptors[index];
+          if (!interceptor) return executeController();
+          let state: "ready" | "running" | "settled" = "ready";
+          let downstream: Promise<unknown> | undefined;
+          let downstreamSettled = false;
+          const next: StrataAnalogNext = () => {
+            if (state === "settled") {
+              return Promise.reject(
+                new StrataAnalogConfigurationError(
+                  "An interceptor called next() after it settled.",
+                ),
+              );
+            }
+            if (state === "running") {
+              return Promise.reject(
+                new StrataAnalogConfigurationError(
+                  "An interceptor called next() more than once or concurrently.",
+                ),
+              );
+            }
+            state = "running";
+            downstream = executeInterceptor(index + 1);
+            void downstream.then(
+              () => (downstreamSettled = true),
+              () => (downstreamSettled = true),
+            );
+            return downstream;
+          };
+          return (async () => {
+            try {
+              const value = await interceptor(context, next);
+              if (state === "ready") {
+                throw new StrataAnalogConfigurationError(
+                  "An interceptor completed without calling next().",
+                );
+              }
+              if (!downstreamSettled && downstream) {
+                await downstream.catch(() => undefined);
+                throw new StrataAnalogConfigurationError(
+                  "An interceptor must await downstream execution before settling.",
+                );
+              }
+              return value;
+            } finally {
+              // A rejected interceptor (for example, Promise.all([next(), next()]))
+              // must not let downstream work outlive this request's cleanup scope.
+              if (downstream && !downstreamSettled) {
+                try {
+                  await downstream;
+                } catch {
+                  // Preserve the interceptor's own failure; downstream is drained
+                  // only to keep request-scoped resources alive until it settles.
+                }
+              }
+              state = "settled";
+            }
+          })();
+        };
+        result = await executeInterceptor(0);
+      }
     } catch (error) {
       try {
         await scope.close({ failed: true, error });

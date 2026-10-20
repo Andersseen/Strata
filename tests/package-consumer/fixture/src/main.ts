@@ -15,6 +15,7 @@ import {
   StrataAnalogConfigurationError,
   type StrataAnalogControllerFactory,
   type StrataAnalogGuard,
+  type StrataAnalogInterceptor,
 } from "@strata-sc/analog";
 import { createApp, createRouter, toNodeListener } from "h3";
 
@@ -79,6 +80,7 @@ assert.throws(
 
 const cleanupLog: string[] = [];
 const guardCleanup: string[] = [];
+const interceptorEvents: string[] = [];
 let guardedConstructors = 0;
 @Controller("/api/guarded")
 class GuardedController {
@@ -108,7 +110,15 @@ const guard: StrataAnalogGuard = async ({ request, route, onCleanup }) => {
   }
   return { allow: true };
 };
-registerControllers(router, [GuardedController], { guards: [guard] });
+const interceptor: StrataAnalogInterceptor = async ({ route }, next) => {
+  interceptorEvents.push(`before:${route.method}`);
+  try {
+    return await next();
+  } finally {
+    interceptorEvents.push(`after:${route.method}`);
+  }
+};
+registerControllers(router, [GuardedController], { guards: [guard], interceptors: [interceptor] });
 const controllerFactory: StrataAnalogControllerFactory = async (Controller, context) => {
   const { request, onCleanup } = context;
   onCleanup(() => {
@@ -220,6 +230,7 @@ try {
   assert.equal(denied.headers.get("cache-control"), "no-store");
   assert.deepEqual(await denied.json(), { error: "unauthorized" });
   assert.equal(guardedConstructors, guardedBefore);
+  assert.deepEqual(interceptorEvents, []);
   const forbidden = await fetch(`http://127.0.0.1:${port}/api/guarded/grace`, {
     method: "DELETE",
     headers: { authorization: "Bearer ada" },
@@ -227,15 +238,18 @@ try {
   assert.equal(forbidden.status, 403);
   assert.deepEqual(await forbidden.json(), { error: "forbidden" });
   assert.equal(guardedConstructors, guardedBefore);
+  assert.deepEqual(interceptorEvents, []);
   const publicRoute = await fetch(`http://127.0.0.1:${port}/api/guarded/any`);
   assert.equal(publicRoute.status, 200);
   assert.deepEqual(await publicRoute.json(), { public: true });
+  assert.deepEqual(interceptorEvents, ["before:GET", "after:GET"]);
   const authorized = await fetch(`http://127.0.0.1:${port}/api/guarded`, {
     method: "POST",
     headers: { authorization: "Bearer ada" },
   });
   assert.equal(authorized.status, 200);
   assert.deepEqual(await authorized.json(), { created: true });
+  assert.deepEqual(interceptorEvents.slice(-2), ["before:POST", "after:POST"]);
   const guardedConcurrent = await Promise.all(
     Array.from({ length: 24 }, async (_, index) => {
       const kind = index % 4;
