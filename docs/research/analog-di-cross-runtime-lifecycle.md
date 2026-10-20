@@ -60,20 +60,18 @@ for this tuple and configuration.
 
 ## Composition coverage and gaps
 
-The fixture has separate existing checks for request guards, interceptors,
-and Standard Schema input validation. The DI controller is not currently
-registered behind those guards/interceptors and does not use the validation
-methods. Therefore their combined ordering and cleanup behavior with Angular
-request injectors is **not qualified**. In particular, this run does not
-establish that denied DI routes avoid controller construction, that
-interceptor cleanups unwind before injector destruction, or that validation
-failures destroy the DI injector.
+The original run kept guards, interceptors, Standard Schema validation and the
+DI controller separate, so it did not qualify their composition. That specific
+Node gap is superseded by the [Angular DI HTTP composition report](analog-di-http-composition.md):
+the existing controller now runs behind the existing consumer-owned guard and
+interceptor contracts, uses Standard Schema inputs, and passes a 24-request
+mixed isolation matrix in real Analog dev and Nitro Node production.
 
-Provider overrides, constructor/provider-factory failures, cleanup-error
-precedence, 24-request DI overlap, mixed-principal confidentiality, active
-request behavior during Nitro shutdown, and abort/cancellation are also not
-covered by this run. Strata's cleanup scope remains invocation-scoped and
-awaited; no abort propagation contract is claimed. A startup failure while
+The new report also covers request provider overrides, factory/provider/
+constructor failures and cleanup-error precedence. Active request behavior
+during Nitro shutdown and abort/cancellation are still not covered. Strata's
+cleanup scope remains invocation-scoped and awaited; no abort propagation
+contract is claimed. A startup failure while
 creating the consumer application injector prevents the plugin from
 registering its routes. Shutdown with active requests has not been tested;
 the fixture's Nitro close hook destroys the root application when invoked,
@@ -119,11 +117,11 @@ this report.
 
 - Consumer-owned Angular DI on Node: **GO**, for the SPEC-003 scenarios only.
 - Consumer-owned Angular DI on local workerd: **NO-GO**.
-- Request provider isolation: **GO**, for the tested two-request Node rendezvous; larger DI overlap was not run.
-- Application provider lifetime: **PARTIAL**; root provider reuse across requests is proven, but root injector destruction on Nitro shutdown is not directly asserted.
-- Provider override: **NOT QUALIFIED**.
-- Cleanup on success and tested handler failures: **GO** on Node; factory and cleanup callback failures are not qualified.
-- Guard and interceptor composition with Angular DI: **NOT QUALIFIED**.
+- Request provider isolation: **GO** for the SPEC-003 rendezvous and the 24-request mixed Node matrix.
+- Application provider lifetime: **GO** for reuse across tested requests; root injector destruction on Nitro shutdown is not directly asserted.
+- Provider override: **GO** for the tested request-local synthetic override; broader consumer patterns remain unqualified.
+- Cleanup and error precedence: **GO** for tested success, denial, input, factory/provider/controller, handler, interceptor and cleanup failures on Node.
+- Guard, interceptor and validation composition with Angular DI: **GO** on the tested Node fixture paths.
 - Server-only bundle confidentiality: **PARTIAL**; marker scans pass, private canary/source-map/API/SSR tests are missing.
 - External packed consumer: **NOT QUALIFIED**.
 - Shared Angular SSR/controller injector: **NOT QUALIFIED**.
@@ -135,7 +133,6 @@ this report.
 
 ## Next increment
 
-Add one Node-only integration matrix that registers the existing DI-backed
-controller behind the existing guard and interceptor contracts, and exercises
-validated input plus success/failure cleanup. Keep the Worker result NO-GO;
-do not implement this next increment here.
+Qualify the Angular component compiler and strict server/client graph boundary
+in the minimal Analog fixture. Keep the Worker result NO-GO; do not implement
+this next increment here.

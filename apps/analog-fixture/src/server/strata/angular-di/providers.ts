@@ -31,6 +31,38 @@ export const angularDiStats = {
 /** The Strata request the current request injector was created for. */
 export const STRATA_REQUEST = new InjectionToken<StrataAnalogRequest>("STRATA_REQUEST");
 
+/** Verified only by the fixture guard, then carried through this request's injector. */
+export const VERIFIED_PRINCIPAL = new InjectionToken<"alpha" | "beta">("VERIFIED_PRINCIPAL");
+
+/** A synthetic request provider used to prove overrides stay child-injector local. */
+export const REQUEST_CONFIGURATION = new InjectionToken<string>("REQUEST_CONFIGURATION");
+
+export const compositionStats = {
+  guardEntered: 0,
+  guardCleanups: 0,
+  interceptorEvents: 0,
+  interceptorCleanups: 0,
+  controllerConstructions: 0,
+  handlerCalls: 0,
+  cleanupOrderChecks: 0,
+  cleanupOrderFailures: 0,
+  interceptorLiveChecks: 0,
+  interceptorLiveFailures: 0,
+};
+
+const compositionTraces = new WeakMap<StrataAnalogRequest, string[]>();
+export const setCompositionTrace = (request: StrataAnalogRequest, trace: string[]) =>
+  compositionTraces.set(request, trace);
+export const getCompositionTrace = (request: StrataAnalogRequest) => compositionTraces.get(request);
+
+const verifiedPrincipals = new WeakMap<StrataAnalogRequest, "alpha" | "beta">();
+export const rememberVerifiedPrincipal = (
+  request: StrataAnalogRequest,
+  principal: "alpha" | "beta",
+) => verifiedPrincipals.set(request, principal);
+export const getVerifiedPrincipal = (request: StrataAnalogRequest) =>
+  verifiedPrincipals.get(request);
+
 /**
  * Stand-in for a future application-level integration (a CMS runtime, a
  * database client): created once, in the application injector, and shared by
@@ -59,6 +91,8 @@ let identities = 0;
 export class RequestIdentity implements OnDestroy {
   readonly id = ++identities;
   readonly productId = inject(STRATA_REQUEST).params["id"] ?? "";
+  readonly principal = inject(VERIFIED_PRINCIPAL, { optional: true }) ?? "public";
+  readonly configuration = inject(REQUEST_CONFIGURATION, { optional: true }) ?? "application";
 
   ngOnDestroy() {
     angularDiStats.identitiesDestroyed++;

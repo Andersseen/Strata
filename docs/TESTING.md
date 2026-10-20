@@ -24,6 +24,13 @@ safe error responses, byte limits, cleanup precedence and request isolation.
 See [the validation evidence](research/analog-input-validation.md); these new
 checks do not replace the broader M3 and 1.0 gates below.
 
+The [Angular DI HTTP composition report](research/analog-di-http-composition.md)
+extends the real Node dev/production runner with the existing guard,
+interceptor, Standard Schema and cleanup contracts. Its 24-request matrix is
+run as three concurrent eight-request batches with an eight-party rendezvous.
+Packed Angular DI remains outside the packed-consumer gates, and the existing
+workerd Angular JIT negative qualification remains required.
+
 | Gate | Required tests                                                                                                                                   | Evidence retained                                                                                                  |
 | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
 | M1   | Existing units/in-process H3 tests plus packed consumer types, compilation and execution                                                         | Exact tuple, tarball manifests/digests, commands, outputs and raw Vite characterization                            |

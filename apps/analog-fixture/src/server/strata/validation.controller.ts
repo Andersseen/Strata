@@ -8,18 +8,18 @@ function schema<Input, Output>(
 ) {
   return {
     "~standard": {
-      version: 1,
+      version: 1 as const,
       vendor,
       types: undefined as unknown as { readonly input: Input; readonly output: Output },
       validate: async
-        ? async (value) => {
+        ? async (value: unknown) => {
             await Promise.resolve();
             const output = transform(value);
             return output === undefined
               ? { issues: [{ message: "fixture-private-validation-detail" }] }
               : { value: output };
           }
-        : (value) => {
+        : (value: unknown) => {
             const output = transform(value);
             return output === undefined
               ? { issues: [{ message: "fixture-private-validation-detail" }] }
@@ -29,7 +29,7 @@ function schema<Input, Output>(
   };
 }
 
-const paramsSchema = schema<{ id: string }, { id: number }>("fixture-params", (value) => {
+export const paramsSchema = schema<{ id: string }, { id: number }>("fixture-params", (value) => {
   if (
     value === null ||
     typeof value !== "object" ||
@@ -40,7 +40,7 @@ const paramsSchema = schema<{ id: string }, { id: number }>("fixture-params", (v
     return undefined;
   return { id: Number(value.id) };
 });
-const querySchema = schema<
+export const querySchema = schema<
   { tag: string | readonly string[] },
   { tag: string | readonly string[] }
 >("fixture-query", (value) => {
@@ -53,7 +53,21 @@ const querySchema = schema<
     return undefined;
   return { tag: value.tag };
 });
-const bodySchema = schema<{ count: string }, { count: number }>(
+export const protectedQuerySchema = schema<{ tag: string }, { tag: string }>(
+  "fixture-protected-query",
+  (value) => {
+    if (
+      value === null ||
+      typeof value !== "object" ||
+      !("tag" in value) ||
+      typeof value.tag !== "string"
+    ) {
+      return undefined;
+    }
+    return { tag: value.tag.trim().toUpperCase() };
+  },
+);
+export const bodySchema = schema<{ count: string }, { count: number }>(
   "fixture-body",
   (value) => {
     if (
