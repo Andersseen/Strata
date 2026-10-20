@@ -1,5 +1,17 @@
 # Current implementation audit
 
+## Packed Angular DI consumer (2026-10-20)
+
+Starting from synchronized main `8272ce98e3908c40d788ce00363c675917c85a34`,
+`test/analog-packed-angular-di-consumer` adds a Node-only profile that installs the current
+`@strata-sc/{core,analog,server-components}` tarballs into an external Analog app. Strict
+TypeScript 6, a real Nitro Node production server, consumer-owned Angular root/request injectors,
+synthetic guard decisions, 24 concurrent requests, request cleanup and the Nitro close hook pass.
+This is a **partial qualification**: the complete two-interceptor and validation matrix, failure
+precedence, bundle/confidentiality comparison, and broader CI/Entwine reproduction remain open. The
+Worker JIT NO-GO is unchanged. See
+[the external consumer report](research/analog-packed-di-consumer.md).
+
 ## Angular DI with Analog HTTP composition (2026-10-20)
 
 On feature branch `test/analog-di-http-composition`, starting from synchronized
@@ -10,8 +22,8 @@ their prior behavior. Node dev and Nitro production evidence, provider
 overrides, failure precedence, a 24-request matrix and remaining limitations
 are recorded in the [composition report](research/analog-di-http-composition.md)
 and regenerated [integration baseline](research/analog-integration-baseline.md).
-The known local workerd Angular JIT NO-GO is preserved. Packed Angular DI,
-shared SSR/controller DI, real application adoption and Strata 1.0 remain
+The known local workerd Angular JIT NO-GO is preserved. The minimal packed Node DI profile is
+partially qualified; shared SSR/controller DI, real application adoption and Strata 1.0 remain
 unqualified.
 
 ## Analog request-scoped HTTP interceptors (2026-10-20)

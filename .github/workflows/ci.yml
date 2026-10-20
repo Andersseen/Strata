@@ -127,6 +127,10 @@ jobs:
       - name: Full-stack packed-package consumer (core + analog + server-components)
         run: pnpm test:full-stack-package-consumer
 
+      # Consumer-owned Angular DI over the same packed tarballs, isolated to Nitro Node.
+      - name: Packed Angular DI consumer (Node only)
+        run: pnpm test:analog-packed-di-consumer
+
       # The same packed packages built for Cloudflare Pages and verified black-box on local workerd. PR-safe:
       # no account, no secrets, no deployment (the manual full-stack-deployed-cloudflare.yml deploys).
       - name: Full-stack Cloudflare build + local workerd rehearsal (no deployment)

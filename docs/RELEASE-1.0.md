@@ -27,8 +27,10 @@ compatibility matrix; do not check it based on intent or a demonstration.
 - [ ] Angular/Analog integration and consumer compilation pass development and production checks
       through the documented supported extension points.
       The 2026-10-20 [DI HTTP composition report](research/analog-di-http-composition.md)
-      qualifies a fixture on Node; packed Angular DI, shared SSR/controller DI, real application
-      adoption and the known workerd JIT limitation remain open, so this release gate stays unticked.
+      qualifies the internal fixture on Node; the minimal external packed Node profile is only
+      partially qualified ([report](research/analog-packed-di-consumer.md)). The full packed
+      validation/failure/bundle matrix, shared SSR/controller DI, real application adoption and the
+      known workerd JIT limitation remain open, so this release gate stays unticked.
 - [ ] Strata uses no legacy decorators, parameter decorators, `emitDecoratorMetadata` or
       `reflect-metadata`; compiler coexistence with Angular is demonstrated.
 - [ ] Core remains independent of H3/Angular/Nitro; packages each have an owned responsibility.
