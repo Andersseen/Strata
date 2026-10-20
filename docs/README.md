@@ -48,6 +48,9 @@ Reconciled 2026-09-24 at `c671ba4` + SPEC-003 branch. See [STATE](STATE.md#recon
   controllers (PR #18) and request cleanup (PR #19).
   [SPEC-003](specs/003-analog-request-lifecycle-angular-di.md) reached a
   [CONDITIONAL GO for Angular DI](research/analog-di-feasibility.md) through consumer-owned injectors.
+  A later cross-runtime check confirms the existing Node scenarios and records a local workerd
+  **NO-GO** because Angular JIT code generation is refused; guard/interceptor composition with the
+  DI-backed controller remains unqualified ([report](research/analog-di-cross-runtime-lifecycle.md)).
 - Server Components: three PoCs reached CONDITIONAL GO
   ([graph](research/server-component-graph-poc.md),
   [navigation](research/server-component-navigation-poc.md),
