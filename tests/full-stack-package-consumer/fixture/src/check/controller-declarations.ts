@@ -2,7 +2,7 @@
 // @strata-sc/analog, compiled with standard (TC39) decorators.
 import { Controller, Get, STRATA_VERSION, getControllerDefinition } from "@strata-sc/core";
 import { registerControllers } from "@strata-sc/analog";
-import type { NitroRouter, StrataAnalogRequest } from "@strata-sc/analog";
+import type { NitroRouter, StrataAnalogGuard, StrataAnalogRequest } from "@strata-sc/analog";
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 const paramsSchema: StandardSchemaV1<{ id: string }, { id: number }> = {
@@ -33,8 +33,17 @@ export class CheckController {
 export const definition = getControllerDefinition(CheckController);
 export const version: string = STRATA_VERSION;
 
+const guard: StrataAnalogGuard = async ({ request, route, onCleanup }) => {
+  const method: string = route.method;
+  const path: string = route.path;
+  void request;
+  onCleanup(() => undefined);
+  return method && path ? { allow: true } : { allow: false, status: 403 };
+};
+
 export function register(router: NitroRouter): NitroRouter {
   return registerControllers(router, [CheckController], {
+    guards: [guard],
     controllerFactory: (controller, { onCleanup }) => {
       onCleanup(() => undefined);
 

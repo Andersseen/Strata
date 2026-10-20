@@ -250,6 +250,8 @@ interface RouteObservation {
   validation: Observed[];
   validationConcurrency: boolean;
   validationBodyPolicy: boolean;
+  guardContract: boolean;
+  guardDetail: string;
   /** SPEC-003 Angular DI scenarios under `/api/strata/angular-di`, with lifecycle counter deltas. */
   angularDi: AngularDiObservation;
   seam: SeamSnapshot | null;
@@ -573,6 +575,40 @@ async function observeRoutes(baseUrl: string): Promise<RouteObservation> {
       );
     }),
   ).then((results) => results.every(Boolean));
+  const guardResults = await Promise.all(
+    Array.from({ length: 24 }, async (_, index) => {
+      const kind = index % 6;
+      const method = kind === 0 || kind === 1 ? "POST" : kind === 5 ? "GET" : "DELETE";
+      const id = kind === 2 ? "ada-product" : "grace-product";
+      const path = method === "POST" ? "/api/protected-products" : `/api/protected-products/${id}`;
+      const authorization =
+        kind === 1
+          ? "Bearer invalid-canary"
+          : kind === 2 || kind === 3
+            ? "Bearer fixture-token-ada"
+            : kind === 4
+              ? "Bearer fixture-token-grace"
+              : undefined;
+      const headers = new Headers();
+      if (authorization) headers.set("authorization", authorization);
+      const response = await fetch(`${baseUrl}${path}`, { method, headers });
+      const text = await response.text();
+      const status = kind === 0 || kind === 1 ? 401 : kind === 3 ? 403 : 200;
+      const ok =
+        response.status === status &&
+        (status === 200 ||
+          (response.headers.get("cache-control") === "no-store" &&
+            response.headers.get("content-type") === "application/json; charset=utf-8" &&
+            text === JSON.stringify({ error: status === 401 ? "unauthorized" : "forbidden" }) &&
+            !text.includes("fixture-token") &&
+            !text.includes("canary")));
+      return {
+        ok,
+        observed: `${method} ${path}: ${response.status} ${response.headers.get("content-type")} ${text}`,
+      };
+    }),
+  );
+  const guardContract = guardResults.every(({ ok }) => ok);
 
   return {
     lifecycle,
@@ -580,6 +616,11 @@ async function observeRoutes(baseUrl: string): Promise<RouteObservation> {
     validation: validated,
     validationConcurrency,
     validationBodyPolicy,
+    guardContract,
+    guardDetail: guardResults
+      .filter(({ ok }) => !ok)
+      .map(({ observed }) => observed)
+      .join(" | "),
     greeting,
     angularDi,
     native: {
@@ -1253,6 +1294,11 @@ async function main(): Promise<void> {
     prod.validationBodyPolicy,
     "malformed JSON, text/plain and >1 MiB JSON",
   );
+  check(
+    "24 overlapping synthetic guard requests preserve public, 401, 403 and owner access in production",
+    prod.guardContract,
+    prod.guardDetail || "opaque fixture tokens and denial non-disclosure",
+  );
   checkAngularDi("production", prod.angularDi);
 
   // ---- Marker scan (before the dev server, which does not touch dist) ----
@@ -1396,6 +1442,11 @@ async function main(): Promise<void> {
     "JSON body failures return real 400/413/415 no-store responses in the dev server",
     dev.validationBodyPolicy,
     "malformed JSON, text/plain and >1 MiB JSON",
+  );
+  check(
+    "24 overlapping synthetic guard requests preserve public, 401, 403 and owner access in the dev server",
+    dev.guardContract,
+    dev.guardDetail || "opaque fixture tokens and denial non-disclosure",
   );
   checkAngularDi("the dev server", dev.angularDi);
 

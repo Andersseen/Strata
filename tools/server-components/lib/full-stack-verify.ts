@@ -99,6 +99,57 @@ export async function httpSuite(
     ),
   );
 
+  const guardCases = await Promise.all([
+    fetch(`${base}/api/guarded-products`, { method: "POST" }),
+    fetch(`${base}/api/guarded-products`, {
+      method: "POST",
+      headers: { authorization: "Bearer invalid-canary" },
+    }),
+    fetch(`${base}/api/guarded-products/ada-item`, {
+      method: "DELETE",
+      headers: { authorization: "Bearer opaque-ada" },
+    }),
+    fetch(`${base}/api/guarded-products/grace-item`, {
+      method: "DELETE",
+      headers: { authorization: "Bearer opaque-ada" },
+    }),
+    fetch(`${base}/api/guarded-products/public-item`),
+    ...Array.from({ length: 24 }, (_, index) => {
+      const kind = index % 4;
+      return fetch(
+        `${base}/api/guarded-products${kind === 0 ? "" : `/${kind === 3 ? "grace-item" : "ada-item"}`}`,
+        {
+          method: kind === 0 ? "POST" : kind === 1 || kind === 3 ? "DELETE" : "GET",
+          ...(kind === 0
+            ? {}
+            : {
+                headers: {
+                  authorization: kind === 2 ? "Bearer opaque-grace" : "Bearer opaque-ada",
+                },
+              }),
+        },
+      );
+    }),
+  ]);
+  const guardTexts = await Promise.all(guardCases.map((response) => response.text()));
+  const guardStatuses = guardCases.map((response) => response.status);
+  ok.push(
+    check(
+      `${label}: request guards return safe 401/403, allow public/owner requests, and isolate 24 overlaps`,
+      guardStatuses.slice(0, 5).join(",") === "401,401,200,403,200" &&
+        guardStatuses
+          .slice(5)
+          .every((status, index) => status === [401, 200, 200, 403][index % 4]) &&
+        [0, 1, 3].every(
+          (index) => guardCases[index]!.headers.get("cache-control") === "no-store",
+        ) &&
+        guardTexts.every((text) => !text.includes("opaque-") && !text.includes("invalid-canary")) &&
+        guardTexts[0] === '{"error":"unauthorized"}' &&
+        guardTexts[3] === '{"error":"forbidden"}',
+      `statuses=${guardStatuses.join(",")}`,
+    ),
+  );
+
   const unknown = await get(`${base}/api/products/999`);
 
   ok.push(

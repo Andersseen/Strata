@@ -1,5 +1,17 @@
 # Current implementation audit
 
+## Analog request-scoped guards (2026-10-19)
+
+The feature branch `feat/analog-request-guards` adds opt-in registration-level
+guards to `@strata-sc/analog`. Guards run sequentially before controller
+construction, receive immutable route identifiers and the existing request
+cleanup hook, and return an explicit allow or 401/403 denial. Identity and
+authorization remain consumer-owned. Analog unit, real production/dev Node,
+packed TypeScript 5.9/Node, and full-stack packed Node/local workerd fixture
+checks pass. The local CI-equivalent matrix and Entwine checks pass, while
+hosted Actions remain pending. This is not an M3 or 1.0 qualification. See
+[the guard report](research/analog-request-guards.md).
+
 ## Opt-in Analog request validation (2026-10-17)
 
 At baseline `41079a32e84f5c8d652fee04d212801571cb97f4`, the feature branch
