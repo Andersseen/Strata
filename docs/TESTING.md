@@ -4,10 +4,15 @@ Tests should prove observable contracts and failure boundaries. The existing sui
 [STATE](STATE.md). The M1 packed-consumer tooling now exists and has executed; later milestone
 requirements below remain future evidence.
 
-Analog request guards extend `pnpm test:analog` and the Analog package unit
+Analog request guards and HTTP interceptors extend `pnpm test:analog` and the Analog package unit
 suite. The current feature-branch report records the execution contract and
 passing Node/workerd and packed-consumer evidence; hosted CI is pending:
 [request guards](research/analog-request-guards.md). Guards do not complete M3.
+
+The interceptor report records ordered execution and `next()` contract checks.
+Node/workerd and packed-consumer qualification passed; the evidence and the
+separate website E2E failure are recorded in the
+[HTTP interceptors](research/analog-http-interceptors.md) report.
 
 ## Progressive gates
 

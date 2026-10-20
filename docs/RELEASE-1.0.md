@@ -9,8 +9,11 @@ Strata 1.0. See
 Analog's opt-in request guards are also experimental. They delegate identity
 verification and authorization to the application and do not qualify
 production authentication, tenant isolation, CSRF handling or real application
-adoption. Interceptors are not implemented. See
-[the guard report](research/analog-request-guards.md).
+adoption. Request-scoped interceptors are now implemented experimentally,
+with their own ordering and `next()` contract; they do not provide
+authentication, cancellation qualification or production tracing. See the
+[guard report](research/analog-request-guards.md) and
+[interceptor report](research/analog-http-interceptors.md).
 
 **Current status: none of these production gates is certified.** This checklist is authoritative
 for release readiness. Fill each item with evidence for one release candidate and its qualified

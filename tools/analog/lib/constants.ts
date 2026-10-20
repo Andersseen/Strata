@@ -44,7 +44,7 @@ export const EXPECTED_USER_BODY = { id: "42", name: "Ada" };
 export const EXPECTED_LIFECYCLE_BODY = { calls: 1 };
 
 /** What every `GET /api/strata/greeting` must return: per-request instance built by `controllerFactory`. */
-export const EXPECTED_GREETING_BODY = { greeting: "hello", calls: 1 };
+export const EXPECTED_GREETING_BODY = { greeting: "hello", calls: 1, intercepted: true };
 
 /**
  * The HTTP method table sent to `/api/strata/methods` (`methods.controller.ts`)
