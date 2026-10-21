@@ -92,9 +92,10 @@ compatibility matrix; do not check it based on intent or a demonstration.
       `ngServerMode` SSR define (app-level workaround), and a deployed environment.
 - [ ] Serialization value set, limits, escaping, boundary identity and version-skew behavior are
       stable and tested. Services, arbitrary closures and secrets cannot cross implicitly.
-      _Evidence so far (not certified):_ preview protocol v1 is tested for each of these (see
-      [STATE](STATE.md), "Client boundary protocol v1"). Still open: the protocol is not stable,
-      only one primitive value set exists, and it is qualified on local Node and workerd only.
+      _Evidence so far (not certified):_ preview protocols v1 and v2 cover flat primitives and
+      bounded structured JSON respectively (see [STATE](STATE.md), "Client boundary protocol v2"
+      and its research report). Still open: the protocol is experimental, production support is
+      unqualified, and this increment does not close the remaining M4/M5 gates.
 - [ ] Render, serialization, navigation and hydration failures have tested safe behavior; any
       streaming mode defines failure after headers, or streaming is explicitly unsupported.
       _Evidence so far (not certified; box left unticked):_ for the preview, buffered-SSR and
@@ -137,7 +138,7 @@ compatibility matrix; do not check it based on intent or a demonstration.
       [the report](research/server-component-deployed-cloudflare.md)). The real deployment to the isolated
       `strata-sc-qualification` project is **QUALIFIED for Server Components only (GO, narrow)**: the fifth
       deployment (Actions run 38243892864, `main` at `2c3f495c`, 2026-10-12) passed the whole verifier from a
-      GitHub runner with 0 failed checks (readiness, SSR, protocol v1, hydration, interaction, document
+      GitHub runner with 0 failed checks (readiness, SSR, protocol v1/v2, hydration, interaction, document
       navigation, confidentiality, 5/10/25 request smoke). The first four runs failed and are kept in the report.
       This item also asks for the complete Analog SSR/controller path and bindings, which the external fixture
       does not cover, so it **stays unticked**.
@@ -159,7 +160,7 @@ compatibility matrix; do not check it based on intent or a demonstration.
       registry consumer (`pnpm test:server-component-registry-consumer`, rerunnable via the
       "Verify published Server Components" workflow) passes against it: fresh `npm install` of the
       exact version outside the workspace, real non-symlink install, no workspace resolution,
-      production build, graph isolation, SSR, protocol v1, hydration, one interaction and the
+      production build, graph isolation, SSR, protocol v1/v2, hydration, one interaction and the
       server-only firewall ([report](research/server-component-first-release.md#publication-and-registry-evidence)).
       The packed-tarball consumer stays GO, with declarations qualified under TypeScript 6.0.3 and
       5.9.2 and consumer setup documented in the package README

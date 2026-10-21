@@ -66,6 +66,12 @@ Examples that exercise the packages in a real Analog application:
 | [`apps/relay`](../apps/relay/package.json)                   | Private, local-only operations console using controllers and Server Components. Not deployed.        | `pnpm relay:dev`   |
 | [`apps/analog-fixture`](../apps/analog-fixture/package.json) | Test fixture behind `pnpm test:analog`, `pnpm test:server-components` and the navigation experiments | `pnpm test:analog` |
 
+For Server Component islands, `[strataClient]` accepts readonly public view models containing
+strings, finite numbers, booleans, null, dense arrays and plain objects within documented limits.
+Every value passed through that input becomes browser-visible. Flat props remain protocol v1;
+nested props use protocol v2. See the
+[structured boundary example](../packages/server-components/README.md#client-boundary-protocol).
+
 Qualification commands (`pnpm test:consumer`, `pnpm test:server-components`,
 `pnpm test:server-components:cloudflare`, ...) are described in [Testing strategy](TESTING.md).
 `pnpm test:consumer` is expected to fail on a strict-types criterion while the H3 type blocker

@@ -175,6 +175,14 @@ Evidence: [SPEC-001 run](research/consumer-compilation.md), [Astra review and up
 The observed declaration failures do not negate the positive decorator/runtime evidence. Neither
 runtime success nor a completed no-go experiment closes M1. No new ADR is warranted by errors alone.
 
+R10's 0.3.0 candidate adds a recursive allow-list validator for boundary protocol v2. Unit and
+browser tests pin structural limits, UTF-8 size, dangerous keys, accessors, cycles, custom
+serializers, proxy failures and v1/v2 mismatch handling. Relay Node production dogfood, Node/workerd
+packed-consumer verification, and Node/workerd security scans pass, alongside the requested local CI
+matrix. Hosted checks remain pending until push. R10 remains open because deployment and production
+adoption are not qualified and protocol stability is not established. See
+[boundary v2 evidence](research/server-component-boundary-v2.md).
+
 ## Review discipline
 
 Each implementing PR identifies relevant IDs and attaches its evidence. Mark a risk “partially

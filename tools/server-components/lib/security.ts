@@ -637,10 +637,9 @@ export async function checkSecretErrors(
 // Unsupported values crossing [strataClient]
 
 /**
- * A cast smuggles the repository itself, and a nested object holding the DATA
- * canary, into `[strataClient]`. The runtime must reject both before
- * serialization; the diagnostic names the prop and the value's type and prints
- * nothing of the value.
+ * A cast smuggles the repository itself, and a nested DTO containing the
+ * repository, into `[strataClient]`. The runtime must reject both before
+ * serialization; diagnostics identify only the structural path and category.
  */
 export async function checkCrossings(target: RuntimeTarget): Promise<boolean> {
   const results: boolean[] = [];
@@ -648,14 +647,14 @@ export async function checkCrossings(target: RuntimeTarget): Promise<boolean> {
     {
       mode: "repository",
       diagnostic:
-        /^\[strata\] Cannot serialize client boundary <security-probe>: prop "repository": an instance of \w+ is not supported\.$/m,
-      expect: 'prop "repository": an instance of <the repository class> is not supported',
+        /^\[strata\] Cannot serialize client boundary <security-probe>: prop "repository": a non-plain object is not supported\.$/m,
+      expect: 'prop "repository": a non-plain object is not supported',
     },
     {
       mode: "nested",
       diagnostic:
-        /^\[strata\] Cannot serialize client boundary <security-probe>: prop "configuration": a nested object is not supported\.$/m,
-      expect: 'prop "configuration": a nested object is not supported',
+        /^\[strata\] Cannot serialize client boundary <security-probe>: prop "configuration\.repository": a non-plain object is not supported\.$/m,
+      expect: 'prop "configuration.repository": a non-plain object is not supported',
     },
   ] as const;
 
@@ -686,9 +685,9 @@ export async function checkCrossings(target: RuntimeTarget): Promise<boolean> {
       ),
       expectAbsent("server log of the rejection (diagnostic and stack)", DATA_SECRET_CANARY, log),
       check(
-        "rejected before serialization: the boundary host has no data-strata-props",
+        "rejected before serialization: no props payload is written, and the boundary host stays",
         !/<security-probe[^>]*data-strata-props/.test(response.body) &&
-          /<security-probe[^>]*data-strata-protocol="1"/.test(response.body),
+          /<security-probe[^>]*data-strata-client="security-probe"/.test(response.body),
         response.body.match(/<security-probe[^>]*>/)?.[0],
       ),
       expectResponseAbsent(`${mode} crossing`, DATA_SECRET_CANARY, response),

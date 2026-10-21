@@ -147,6 +147,12 @@ Broader M3 adoption and lifecycle gates remain open; see the
 
 **Status:** planned; depends on M2 component feasibility and M3 request/security contracts.
 
+The 0.3.0 candidate advances one bounded part of this milestone: structured client-boundary data
+and protocol v2, with v1 compatibility. It does not close M4: protocol stability, router subtree
+navigation, streaming, deployment qualification, complete production adoption and the remaining
+security gates are still open. Evidence is tracked in
+[the boundary v2 report](research/server-component-boundary-v2.md).
+
 - Capability: strict server-only UI composes Angular interactive descendants under a defined initial
   SSR and navigation strategy.
 - Hypothesis: the PoC remains correct across navigation, nested boundaries, errors and optimization.

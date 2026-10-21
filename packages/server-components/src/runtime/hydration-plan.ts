@@ -47,7 +47,7 @@ function checkBoundary(
 
   if (selector === null) return `${BOUNDARY_CLIENT_ATTRIBUTE} is missing.`;
   if (selector !== host.localName) {
-    return `${BOUNDARY_CLIENT_ATTRIBUTE}="${selector}" does not name its host element <${host.localName}>.`;
+    return `${BOUNDARY_CLIENT_ATTRIBUTE} does not match its host element selector <${host.localName}>.`;
   }
 
   const reference = references.get(selector);

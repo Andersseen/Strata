@@ -546,9 +546,9 @@ export async function checkServerRenderFailures(
 // B. Boundary serialization failure
 
 const SERIALIZATION_CASES = [
-  { mode: "instance", reason: /prop "start": an instance of \w+ is not supported\./ },
-  { mode: "nested", reason: /prop "start": a nested object is not supported\./ },
-  { mode: "nan", reason: /prop "start": the non-finite number NaN is not supported\./ },
+  { mode: "instance", reason: /prop "start": a non-plain object is not supported\./ },
+  { mode: "nested", reason: /prop "start\.repository": a non-plain object is not supported\./ },
+  { mode: "nan", reason: /prop "start": a non-finite number is not supported\./ },
 ] as const;
 
 /**
@@ -588,10 +588,10 @@ export async function checkSerializationFailures(
         summarize(response),
       ),
       check(
-        "no data-strata-props anywhere in the response, so no hydratable boundary with an unserialized value",
+        "the boundary host has no serialized props or protocol version",
         !/data-strata-props/.test(response.body) &&
           host.includes('data-strata-client="failure-island"') &&
-          host.includes('data-strata-protocol="1"'),
+          !host.includes("data-strata-protocol="),
         host,
       ),
       check(
@@ -639,7 +639,8 @@ export async function checkSerializationFailures(
           "preflight reports exactly one StrataBoundaryError (props missing) to the ErrorHandler, once on the console, no page error",
           state.errors.length === 1 &&
             reported.length === 1 &&
-            reported[0]?.includes("data-strata-props is missing") === true &&
+            (reported[0]?.includes("data-strata-protocol is missing") === true ||
+              reported[0]?.includes("data-strata-props is missing") === true) &&
             session.console.length === 1 &&
             session.pageErrors.length === 0,
           JSON.stringify([state.errors, session.console, session.pageErrors]),
@@ -699,7 +700,10 @@ const PREFLIGHT_CASES: readonly PreflightCase[] = [
       tamperBoundary(html, "B", 2, (tag) =>
         tag.replace('data-strata-protocol="1"', 'data-strata-protocol="999"'),
       ),
-    reports: ["(boundary 2 of 3 in <failure-host>)", 'data-strata-protocol="999" is not supported'],
+    reports: [
+      "(boundary 2 of 3 in <failure-host>)",
+      "data-strata-protocol is not a supported version",
+    ],
     never: [],
   },
   {
@@ -721,7 +725,10 @@ const PREFLIGHT_CASES: readonly PreflightCase[] = [
           ),
         html,
       ),
-    reports: ["(boundary 1 of 3 in <failure-host>)", 'data-strata-protocol="999"'],
+    reports: [
+      "(boundary 1 of 3 in <failure-host>)",
+      "data-strata-protocol is not a supported version",
+    ],
     never: [],
   },
 ];

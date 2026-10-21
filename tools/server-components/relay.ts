@@ -267,10 +267,23 @@ async function checkSsr(baseUrl: string, runtime: string): Promise<boolean> {
         newRow?.[1],
       ),
       check(
-        "one triage island per active incident, the new one first with its props",
+        "one v2 triage island per active incident with a nested public incident view model",
         triage.length === items &&
+          /<relay-incident-triage\s[^>]*data-strata-protocol="2"/.test(afterCreate) &&
           JSON.stringify(triage[0]?.[1]) ===
-            JSON.stringify({ incidentId: id, initialStatus: "open" }),
+            JSON.stringify({
+              incident: {
+                id,
+                title,
+                severity: "critical",
+                status: "open",
+                service: { name: "Checkout API" },
+                actions: [
+                  { label: "Start monitoring", status: "monitoring" },
+                  { label: "Resolve", status: "resolved" },
+                ],
+              },
+            }),
         JSON.stringify(triage),
       ),
       noMarkers("/incidents", afterCreate),

@@ -5,6 +5,7 @@ import type { DigestIncident } from "./incident-digest.source";
 import { fingerprint } from "./incident-digest.source";
 import { IncidentRunbook } from "./incident-runbook";
 import { IncidentTriageComponent } from "./incident-triage.component";
+import type { IncidentTriageView } from "./incident-triage.component";
 
 // Verified absent from Relay's browser output; only its hash is rendered.
 export const RELAY_SERVER_ONLY_GRANDCHILD_MARKER = "RELAY_SERVER_ONLY_GRANDCHILD_MARKER_84F2";
@@ -34,11 +35,7 @@ export const RELAY_SERVER_ONLY_GRANDCHILD_MARKER = "RELAY_SERVER_ONLY_GRANDCHILD
         Runbook: {{ guidance().step }}
       </p>
     </div>
-    <relay-incident-triage
-      [incidentId]="incident().id"
-      [initialStatus]="incident().status"
-      [strataClient]="{ incidentId: incident().id, initialStatus: incident().status }"
-    />
+    <relay-incident-triage [incident]="triageView()" [strataClient]="{ incident: triageView() }" />
   `,
 })
 export class IncidentRowComponent {
@@ -47,5 +44,20 @@ export class IncidentRowComponent {
   private readonly runbook = inject(IncidentRunbook);
 
   protected readonly guidance = computed(() => this.runbook.guidanceFor(this.incident()));
+  protected readonly triageView = computed<IncidentTriageView>(() => {
+    const incident = this.incident();
+
+    return {
+      id: incident.id,
+      title: incident.title,
+      severity: incident.severity,
+      status: incident.status,
+      service: { name: incident.serviceName },
+      actions: [
+        { label: "Start monitoring", status: "monitoring" },
+        { label: "Resolve", status: "resolved" },
+      ],
+    };
+  });
   protected readonly evidence = fingerprint(RELAY_SERVER_ONLY_GRANDCHILD_MARKER);
 }

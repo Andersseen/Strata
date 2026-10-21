@@ -46,7 +46,7 @@ export class FailureScenarioServerComponent {
       case "instance":
         return unsupported(new FailureRepository());
       case "nested":
-        return unsupported({ rows: 1 });
+        return unsupported({ repository: new FailureRepository() });
       case "nan":
         return unsupported(Number.NaN);
       default:
