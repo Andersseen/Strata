@@ -114,6 +114,41 @@ describe("config", () => {
       ssr: { noExternal: ["@strata-sc/server-components"] },
     });
   });
+
+  it("pre-bundles and SSR-bundles only the explicitly registered package entry", () => {
+    const instance = strataServerComponents({
+      root,
+      sourceDir: "src/app",
+      generatedDir: "src/generated",
+      clientComponents: [
+        {
+          selector: "acme-product-picker",
+          module: "@acme/angular-widgets",
+          exportName: "ProductPickerComponent",
+        },
+      ],
+    });
+
+    expect(
+      (instance.config as Hook).call({}, {}, { command: "serve", mode: "development" }),
+    ).toEqual({
+      optimizeDeps: {
+        include: ["@strata-sc/server-components", "@acme/angular-widgets"],
+      },
+      ssr: { noExternal: ["@strata-sc/server-components", "@acme/angular-widgets"] },
+    });
+  });
+
+  it("rejects malformed package registrations before graph generation", () => {
+    expect(() =>
+      strataServerComponents({
+        root,
+        sourceDir: "src/app",
+        generatedDir: "src/generated",
+        clientComponents: [{ selector: "bad", module: "../widgets", exportName: "Widget" }],
+      }),
+    ).toThrow(/invalid custom-element selector/);
+  });
 });
 
 describe("browser-graph firewall", () => {

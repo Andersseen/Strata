@@ -26,6 +26,13 @@ supports the listed Angular, TypeScript and Vite peer ranges. V1 carries flat pr
 bounded nested JSON data. The documented Node and local workerd rehearsals are evidence for those
 specific fixture tuples, not a production support matrix or a 1.0 guarantee.
 
+External Angular package islands add no new peer range. The fixture is intended to use the actual
+locked tuple (core/compiler 22.1.7, common 22.2.3, platform-browser 22.2.3, platform-server 22.2.2,
+router 22.2.2, Analog Router 2.8.1, Vite 8.3.0 and TypeScript 6.0.3, with a 5.9.2 declaration
+check). The independent library partial compile succeeded locally, but the isolated npm install
+failed before AOT linking; package-island support is therefore **not qualified** yet. See the
+[package-island report](research/server-component-package-islands.md).
+
 ## Current M1 consumer contract: experimental and blocked
 
 [SPEC-001](specs/001-packed-consumer-compilation.md) proves the external package/runtime path,

@@ -1,5 +1,19 @@
 # Current implementation audit
 
+## External Angular package islands (2026-10-21 feature branch)
+
+Starting `main` SHA: `88f68832361694caf683d529adc15d5e628559ea`. The `clientComponents` registry,
+import matching, alias-aware package references, package surrogate imports and Vite package
+prebundling/SSR inclusion are implemented in the feature branch. The Server Components unit suite
+passes (257 tests); package typecheck/build and repository lint/format/test gates pass. The isolated
+packed consumer passed npm installation, TypeScript 5.9/6 declaration checks, Angular AOT, Node SSR,
+Chromium hydration/interaction, installed-plugin server-only tests, Vite dev/HMR, Cloudflare
+Pages/workerd SSR and hydration, and graph-confidentiality checks. The consumer library is
+independently partial-compiled and packed in Angular Package Format. Hosted CI, measured bundle cost
+and production adoption are still pending. See
+[package-island evidence](research/server-component-package-islands.md). This candidate is not yet a
+release and does not replace the pending 0.3.0 version PR.
+
 ## Analog HTTP application contract for 0.5.0 (feature branch)
 
 On branch `feat/analog-http-contract-v05`, work began from synchronized `main`

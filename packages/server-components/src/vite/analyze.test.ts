@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { analyzeServerComponent } from "./analyze.js";
+import { analyzeServerComponent, validateExternalClientComponents } from "./analyze.js";
 import type { ReadFile } from "./analyze.js";
 
 const FILE = "/app/src/app/orders/order-summary.component.ts";
@@ -65,7 +65,11 @@ describe("analyzeServerComponent", () => {
       className: "OrderSummaryComponent",
       selector: "order-summary",
       clientReferences: [
-        { name: "QuantityPicker", module: "/app/src/app/orders/quantity-picker.component" },
+        {
+          kind: "local",
+          name: "QuantityPicker",
+          module: "/app/src/app/orders/quantity-picker.component",
+        },
       ],
       serverOwnedFiles: [
         "/app/src/app/orders/money.pipe.ts",
@@ -105,7 +109,11 @@ describe("analyzeServerComponent", () => {
     });
 
     expect(analyzeServerComponent(FILE, source, readFile)?.clientReferences).toEqual([
-      { name: "QuantityPicker", module: "/app/src/app/orders/quantity-picker.component" },
+      {
+        kind: "local",
+        name: "QuantityPicker",
+        module: "/app/src/app/orders/quantity-picker.component",
+      },
     ]);
   });
 
@@ -116,7 +124,11 @@ describe("analyzeServerComponent", () => {
     );
 
     expect(analyzeServerComponent(FILE, source, readFile)?.clientReferences).toEqual([
-      { name: "QuantityPicker", module: "/app/src/app/orders/quantity-picker.component" },
+      {
+        kind: "local",
+        name: "QuantityPicker",
+        module: "/app/src/app/orders/quantity-picker.component",
+      },
     ]);
   });
 
@@ -135,6 +147,113 @@ describe("analyzeServerComponent", () => {
       analyzeServerComponent(FILE, serverComponent({ template: '"<quantity-picker />"' }), readFile)
         ?.clientReferences,
     ).toEqual([]);
+  });
+
+  it("resolves an explicitly registered package component by module and export, including import aliases", () => {
+    const source = serverComponent({
+      imports: "ProductPicker, StrataClientBoundary",
+      template: '`<acme-product-picker [strataClient]="{ product: productView }" />`',
+    }).replace(
+      'import { RatingStars } from "@acme/widgets";',
+      'import { ProductPickerComponent as ProductPicker } from "@acme/angular-widgets";',
+    );
+
+    expect(
+      analyzeServerComponent(FILE, source, readFile, undefined, [
+        {
+          selector: "acme-product-picker",
+          module: "@acme/angular-widgets",
+          exportName: "ProductPickerComponent",
+        },
+      ])?.clientReferences,
+    ).toEqual([
+      {
+        kind: "package",
+        name: "ProductPickerComponent",
+        module: "@acme/angular-widgets",
+      },
+    ]);
+  });
+
+  it("does not authorize a package selector unless its registered export is imported", () => {
+    const source = serverComponent({
+      template: '`<acme-product-picker [strataClient]="{}" />`',
+    });
+
+    expect(() =>
+      analyzeServerComponent(FILE, source, readFile, undefined, [
+        {
+          selector: "acme-product-picker",
+          module: "@acme/angular-widgets",
+          exportName: "ProductPickerComponent",
+        },
+      ]),
+    ).toThrow(
+      /registry requests export ProductPickerComponent from package "@acme\/angular-widgets"/,
+    );
+  });
+
+  it.each([
+    ["the same package with a different export", "@acme/angular-widgets", "OtherComponent"],
+    [
+      "a different package with the requested export",
+      "@acme/other-widgets",
+      "ProductPickerComponent",
+    ],
+  ])("rejects a registry/import mismatch (%s)", (_case, module, exportName) => {
+    const source = serverComponent({
+      imports: "ProductPicker, StrataClientBoundary",
+      template: '`<acme-product-picker [strataClient]="{}" />`',
+    }).replace(
+      'import { RatingStars } from "@acme/widgets";',
+      'import { ProductPickerComponent as ProductPicker } from "@acme/angular-widgets";',
+    );
+
+    expect(() =>
+      analyzeServerComponent(FILE, source, readFile, undefined, [
+        { selector: "acme-product-picker", module, exportName },
+      ]),
+    ).toThrow(/registry requests export/);
+  });
+
+  it("keeps an unmarked external component opaque", () => {
+    const source = serverComponent({
+      imports: "ProductPicker, StrataClientBoundary",
+      template: '"<acme-product-picker />"',
+    }).replace(
+      'import { RatingStars } from "@acme/widgets";',
+      'import { ProductPickerComponent as ProductPicker } from "@acme/angular-widgets";',
+    );
+
+    expect(
+      analyzeServerComponent(FILE, source, readFile, undefined, [
+        {
+          selector: "acme-product-picker",
+          module: "@acme/angular-widgets",
+          exportName: "ProductPickerComponent",
+        },
+      ])?.clientReferences,
+    ).toEqual([]);
+  });
+
+  it("validates package registry entries before graph generation", () => {
+    expect(() =>
+      validateExternalClientComponents([
+        { selector: "picker", module: "../pkg", exportName: "Picker" },
+      ]),
+    ).toThrow(/invalid custom-element selector/);
+    expect(() =>
+      validateExternalClientComponents([
+        { selector: "acme-picker", module: "../pkg", exportName: "Picker" },
+      ]),
+    ).toThrow(/invalid bare package specifier/);
+    expect(() =>
+      validateExternalClientComponents([
+        { selector: "acme-picker", module: "@acme/widgets", exportName: "Picker" },
+        { selector: "acme-picker", module: "@other/widgets", exportName: "Picker" },
+      ]),
+    ).toThrow(/duplicate client component selector/);
+    expect(() => validateExternalClientComponents({})).toThrow(/must be an array/);
   });
 
   it.each([
@@ -179,9 +298,17 @@ describe("analyzeServerComponent", () => {
       "cannot find the import of Local",
     ],
     [
+      "a type-only component import",
+      serverComponent().replace(
+        'import { QuantityPicker } from "./quantity-picker.component";',
+        'import type { QuantityPicker } from "./quantity-picker.component";',
+      ),
+      "QuantityPicker is a type-only import",
+    ],
+    [
       "a boundary on an element no relative import declares",
       serverComponent({ template: '`<rating-stars [strataClient]="{}" />`' }),
-      '<rating-stars> is marked [strataClient], but no component in imports from a relative app module has selector "rating-stars".',
+      "<rating-stars> is marked [strataClient] in OrderSummaryComponent, but no imported local component or registered package export matches it.",
     ],
     [
       "an import from a module that does not declare it (a barrel)",

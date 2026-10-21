@@ -8,6 +8,7 @@ import {
   readdirSync,
   realpathSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { homedir, tmpdir } from "node:os";
@@ -79,8 +80,15 @@ import type { RunningServer, Snapshot, Tarball } from "./lib/package-consumer.ts
 const TITLE = "server-component packed-package consumer qualification";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const fixtureTemplate = join(repoRoot, "tests", "server-component-package-consumer", "fixture");
+const angularWidgetsSource = join(
+  repoRoot,
+  "tests",
+  "server-component-package-consumer",
+  "angular-widgets",
+);
 const packageDir = join(repoRoot, "packages", "server-components");
 const PACKAGE = "@strata-sc/server-components";
+const WIDGETS_PACKAGE = "@strata-test/angular-widgets";
 
 const TS59_VERSION = "5.9.2";
 
@@ -456,6 +464,53 @@ try {
   verdict.tarball = all(tarballOk);
 
   // ------------------------------------------------------------------------
+  section("Build and pack an independently compiled Angular partial library");
+
+  const widgetsDir = join(tmpRoot, "angular-widgets");
+  const widgetsTarballs = join(tmpRoot, "widgets-tarballs");
+  cpSync(angularWidgetsSource, widgetsDir, { recursive: true });
+  mkdirSync(widgetsTarballs, { recursive: true });
+  symlinkSync(join(packageDir, "node_modules"), join(widgetsDir, "node_modules"), "dir");
+  must(
+    run("pnpm", ["--filter", PACKAGE, "exec", "ngc", "-p", join(widgetsDir, "tsconfig.json")], {
+      cwd: repoRoot,
+    }),
+    "ngc partial-compiles @strata-test/angular-widgets",
+  );
+  must(
+    run(
+      "npm",
+      [
+        "pack",
+        "--pack-destination",
+        widgetsTarballs,
+        "--cache",
+        join(tmpRoot, "npm-cache"),
+        "--logs-dir",
+        join(tmpRoot, "npm-logs"),
+      ],
+      { cwd: widgetsDir },
+    ),
+    "npm pack @strata-test/angular-widgets",
+  );
+  const widgetsTarball = readdirSync(widgetsTarballs)
+    .filter((name) => name.endsWith(".tgz"))
+    .map((name) => join(widgetsTarballs, name))[0]!;
+  const widgetsArchive = readTarball(widgetsTarball, join(tmpRoot, "widgets-extracted"));
+  const widgetsPartial = widgetsArchive.files.some(
+    (file) =>
+      file.startsWith("dist/") &&
+      readFileSync(join(widgetsArchive.extractedDir, file), "utf8").includes(
+        "ɵɵngDeclareComponent",
+      ),
+  );
+  check(
+    "the test library is private and packed independently",
+    widgetsArchive.manifest.name === WIDGETS_PACKAGE && widgetsArchive.manifest.private === true,
+  );
+  check("the package tarball contains Angular partial declarations", widgetsPartial);
+
+  // ------------------------------------------------------------------------
   section("External install (npm, outside the workspace)");
 
   check(
@@ -481,10 +536,22 @@ try {
   );
 
   consumerManifest.dependencies[PACKAGE] = `file:${tarballPath}`;
+  consumerManifest.dependencies[WIDGETS_PACKAGE] = `file:${widgetsTarball}`;
   writeFileSync(consumerManifestPath, `${JSON.stringify(consumerManifest, null, 2)}\n`);
   pristine = snapshotDir(consumerDir, NOT_SOURCE);
 
-  const installArgs = ["install", "--no-audit", "--no-fund", "--loglevel=error"];
+  const installArgs = [
+    "install",
+    "--no-audit",
+    "--no-fund",
+    "--loglevel=error",
+    "--cache",
+    join(tmpRoot, "npm-cache"),
+    "--logs-dir",
+    join(tmpRoot, "npm-logs"),
+    "--fetch-retries=0",
+    "--fetch-timeout=30000",
+  ];
 
   console.log(
     `install command: npm ${installArgs.join(" ")}  (cwd ${consumerDir}; empty user config; npm_*/pnpm_*/NODE_PATH/NODE_OPTIONS removed)`,
@@ -530,7 +597,7 @@ try {
 
   const resolved = resolveFromConsumer(
     consumerDir,
-    [PACKAGE, `${PACKAGE}/vite`, `${PACKAGE}/server-only`],
+    [PACKAGE, `${PACKAGE}/vite`, `${PACKAGE}/server-only`, WIDGETS_PACKAGE],
     env,
   );
 
@@ -541,14 +608,16 @@ try {
   installOk.push(
     check(
       "`.`, `/vite` and `/server-only` resolve under consumer/node_modules/",
-      Object.values(resolved).every(
-        (url) =>
-          isUnder(url, join(consumerDir, "node_modules")) &&
-          url.includes("/node_modules/@strata-sc/server-components/dist/"),
+      Object.entries(resolved).every(([specifier, url]) =>
+        specifier === WIDGETS_PACKAGE
+          ? isUnder(url, join(consumerDir, "node_modules")) &&
+            url.includes("/node_modules/@strata-test/angular-widgets/dist/")
+          : isUnder(url, join(consumerDir, "node_modules")) &&
+            url.includes("/node_modules/@strata-sc/server-components/dist/"),
       ),
     ),
     check(
-      "nothing resolves into the Strata repository",
+      "the Strata and library packages resolve from installed package exports, not workspace source",
       Object.values(resolved).every(
         (url) => !realpathSync(new URL(url)).startsWith(realpathSync(repoRoot) + "/"),
       ),
@@ -574,7 +643,7 @@ try {
   // A single Angular universe, resolved from the installed package itself.
   const fromPackage = resolveFromConsumer(
     installed,
-    ["@angular/core", "@angular/compiler", "vite", "typescript"],
+    ["@angular/core", "@angular/compiler", "vite", "typescript", WIDGETS_PACKAGE],
     env,
   );
 
@@ -824,6 +893,9 @@ try {
       "browser source maps include the client island and the generated surrogate",
       sources.some((s) => s.endsWith("add-to-cart.component.ts")) &&
         sources.some((s) =>
+          s.includes("node_modules/@strata-test/angular-widgets/dist/fesm2022/index.js"),
+        ) &&
+        sources.some((s) =>
           s.includes("generated/server-components/product/product-details.server-component.ts"),
         ),
     ),
@@ -831,6 +903,12 @@ try {
       "the surrogate's runtime import resolves to consumer/node_modules/@strata-sc/server-components (browser source map)",
       sources.some((s) => s.includes("node_modules/@strata-sc/server-components/dist/fesm2022/")) &&
         !sources.some((s) => /packages\/server-components|\/Strata\//.test(s)),
+    ),
+  );
+  nodeOk.push(
+    check(
+      "the external Angular library is present in browser JavaScript",
+      filesWith(browserJs, "STRATA_PACKAGE_ANGULAR_WIDGET_CLIENT").length > 0,
     ),
   );
 
@@ -892,6 +970,13 @@ try {
       html.match(/<add-to-cart[^>]*>/)?.[0] ?? "no boundary",
     ),
     check(
+      "SSR renders the installed package component as protocol v2 with its public input alias",
+      /<acme-product-picker[^>]*data-strata-client="acme-product-picker"[^>]*data-strata-protocol="2"[^>]*data-strata-props="\{&quot;productView&quot;:\{&quot;id&quot;:&quot;42&quot;/.test(
+        html,
+      ) && html.includes("STRATA_PACKAGE_ANGULAR_WIDGET_CLIENT"),
+      html.match(/<acme-product-picker[^>]*>/)?.[0] ?? "no external package boundary",
+    ),
+    check(
       "SSR HTML keeps the primitive sibling on protocol v1",
       /<legacy-counter data-strata-client="legacy-counter" data-strata-protocol="1" data-strata-props="\{&quot;start&quot;:0\}" ngh="\d+">/.test(
         html,
@@ -929,6 +1014,22 @@ try {
         observation.beforeScripts.stock === "In stock: 12",
     ),
     check(
+      "the installed package component receives its aliased nested input and reuses SSR DOM",
+      observation.beforeScripts.packageStock === "Stock: 12" &&
+        observation.sameNodes.packageButton === true &&
+        observation.sameNodes.packageStockText === true &&
+        observation.sameNodes.packageAlternateButton === true &&
+        observation.beforeScripts.packageAlternateStock === "Stock: 112",
+    ),
+    check(
+      "one keyboard action updates package state and emits one event",
+      observation.packageStockAfterKeyboard === "Stock: 5" &&
+        observation.packageEventsAfterKeyboard === "1" &&
+        observation.packageAlternateStockAfterKeyboard === "Stock: 112" &&
+        observation.packageAlternateEventsAfterKeyboard === "0",
+      `primary ${observation.packageStockAfterKeyboard}; ${observation.packageEventsAfterKeyboard} event(s); sibling ${observation.packageAlternateStockAfterKeyboard}, ${observation.packageAlternateEventsAfterKeyboard} event(s)`,
+    ),
+    check(
       "keyboard selection updates variant stock and preserves the SSR button",
       observation.stockAfterKeyboard === "In stock: 5" &&
         observation.selectedVariantAfterKeyboard === "true" &&
@@ -937,8 +1038,20 @@ try {
     ),
     check(
       "no leftover ngh annotations, both v1 and v2 islands hydrate",
-      observation.remainingHydrationAnnotations === 0 && observation.hydratedIslands === 2,
+      observation.remainingHydrationAnnotations === 0 && observation.hydratedIslands === 4,
       `${observation.remainingHydrationAnnotations} ngh, ${observation.hydratedIslands} islands`,
+    ),
+    check(
+      "the installed package component hydrates over SSR DOM and receives its aliased nested input",
+      observation.sameNodes.packageButton === true &&
+        observation.sameNodes.packageStockText === true &&
+        observation.beforeScripts.packageStock === "Stock: 12",
+    ),
+    check(
+      "one keyboard interaction changes one package-local state and fires one event",
+      observation.packageStockAfterKeyboard === "Stock: 5" &&
+        observation.packageEventsAfterKeyboard === "1",
+      `${observation.packageStockAfterKeyboard}; ${observation.packageEventsAfterKeyboard} event(s)`,
     ),
     check(
       "one click: Count: 0 → Count: 1, the SSR button survived",
@@ -1047,7 +1160,7 @@ try {
       ),
       check(
         "after re-entry one click is one effect and both protocol islands exist",
-        afterReentryClick === "Count: 1" && islands === 2,
+        afterReentryClick === "Count: 1" && islands === 4,
         `${afterReentryClick}, ${islands} island(s)`,
       ),
       check(
@@ -1273,7 +1386,7 @@ try {
       check("dev edit: the old JS realm is gone (sentinel absent)", realm === undefined),
       check(
         "dev edit: the island hydrates once, starts at Count: 0 and one click is one effect",
-        newHydrated && islands === 2 && afterReload === "Count: 0" && afterClick === "Count: 1",
+        newHydrated && islands === 4 && afterReload === "Count: 0" && afterClick === "Count: 1",
         `${islands} island(s), ${afterReload} → ${afterClick}`,
       ),
       check(
@@ -1330,6 +1443,16 @@ try {
 
   console.log(`Worker: ${worker.modules.length} reachable modules`);
   cfOk.push(
+    check(
+      "workerd and its public browser graph include the installed Angular package",
+      workerJs.some((file) =>
+        readFileSync(dist(file), "utf8").includes("STRATA_PACKAGE_ANGULAR_WIDGET_CLIENT"),
+      ) &&
+        filesWith(
+          publicAssets.filter((file) => file.endsWith(".js")),
+          "STRATA_PACKAGE_ANGULAR_WIDGET_CLIENT",
+        ).length > 0,
+    ),
     check(
       "the build resolves the cloudflare-pages preset",
       nitroMeta.preset === "cloudflare-pages",
@@ -1417,7 +1540,7 @@ try {
       cfBrowser.hydratedWithinTimeout &&
         Object.values(cfBrowser.sameNodes).every(Boolean) &&
         cfBrowser.remainingHydrationAnnotations === 0 &&
-        cfBrowser.hydratedIslands === 2,
+        cfBrowser.hydratedIslands === 4,
     ),
     check(
       "workerd: one click, Count: 0 → Count: 1",

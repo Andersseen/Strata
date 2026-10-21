@@ -173,6 +173,11 @@ the exact configuration is in the
 - A module importing `@strata-sc/server-components/server-only` must never enter the browser
   graph; violating that fails the production build
   ([details](../packages/server-components/README.md#server-only-modules)).
+- A standalone Angular component from an installed library may be an island only when its selector,
+  bare package entry point and named export are explicitly declared in `clientComponents` and that
+  same export is imported into the Server Component. The feature is experimental and scoped to the
+  tested package tuple and export shape; see
+  [package islands](../packages/server-components/README.md#external-angular-package-islands).
 - Interactive bindings in server-owned templates, and `@defer` in a server-owned template, fail
   the build. `@defer` inside an island is Angular's own
   ([report](research/server-component-defer-poc.md)).
@@ -185,8 +190,8 @@ Do not rely on any of these (see the package
 - Angular Router navigation into a new Server Component subtree is a recorded **no-go**; it
   silently renders the empty surrogate. Only document navigation is qualified
   ([report](research/server-component-navigation-poc.md)).
-- Streaming SSR; components from packages as islands; content projection into islands (not
-  qualified); a request-scoped Server Component context.
+- Streaming SSR; unregistered or arbitrary package components as islands; content projection into
+  islands (not qualified); a request-scoped Server Component context.
 - Server render errors answer HTTP 200 (current Angular/Analog behaviour), see
   [failure and recovery](research/server-component-failure-recovery.md).
 

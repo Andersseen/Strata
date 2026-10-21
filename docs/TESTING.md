@@ -108,6 +108,15 @@ Self-tests grew from 94 to 163 (`pnpm test:performance-tools`). See the [scaling
 
 ## Current Server Component evidence
 
+The package-island candidate extends `pnpm test:server-component-package-consumer` with a private
+library fixture that is partial-compiled, packed independently, installed from a tarball and imported
+from a Server Component. It is intended to assert package exports, aliased protocol-v2 input,
+Node/workerd SSR, DOM reuse, browser interaction and server-only isolation. In the 2026-10-21 local
+attempt, the library partial compile and pack passed, but npm could not resolve the Angular 22.2.3
+fixture package in the restricted environment. No app AOT or runtime claim is made from that run;
+rerun after the fixture update to the repository's actual locked tuple. Details:
+[package-island report](research/server-component-package-islands.md).
+
 The experimental `@strata-sc/server-components` package has unit tests for its isolable logic
 (template boundary discovery, rejected module shapes, surrogate content, runtime import purity).
 They do not replace the production-build runners, which remain the authority for graphs and

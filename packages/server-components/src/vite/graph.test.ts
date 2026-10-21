@@ -95,6 +95,37 @@ describe("buildServerComponentGraph", () => {
       }),
     ).toThrow(/@defer block/);
   });
+
+  it("generates a package reference only from an explicit registration", () => {
+    const file = `${SRC}/package-root.ts`;
+    const source = `import { Component } from "@angular/core";
+import { ServerComponent, StrataClientBoundary } from "@strata-sc/server-components";
+import { ProductPickerComponent as Picker } from "@strata-test/angular-widgets";
+@ServerComponent()
+@Component({ selector: "package-root", imports: [StrataClientBoundary, Picker], template: '<acme-product-picker [strataClient]="{}" />' })
+export class PackageRoot {}`;
+    const graph = buildServerComponentGraph({
+      root: ROOT,
+      sourceDir: SRC,
+      generatedDir: GENERATED,
+      files: [file],
+      readFile: () => source,
+      clientComponents: [
+        {
+          selector: "acme-product-picker",
+          module: "@strata-test/angular-widgets",
+          exportName: "ProductPickerComponent",
+        },
+      ],
+    });
+    const output = graph.generated.get(`${GENERATED}/package-root.ts`);
+
+    expect(output).toContain(
+      'import { ProductPickerComponent } from "@strata-test/angular-widgets";',
+    );
+    expect(output).toContain("provideClientReferences([ProductPickerComponent])");
+    expect(output).not.toContain('from "./package-root"');
+  });
 });
 
 describe("hot regeneration: snapshot A → edit → snapshot B", () => {

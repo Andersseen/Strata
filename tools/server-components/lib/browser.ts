@@ -106,6 +106,10 @@ export interface BrowserObservation {
     readonly childHasHydrationAnnotation: boolean;
     readonly childMarkedHydrated: boolean;
     readonly stock: string | null;
+    readonly packageStock: string | null;
+    readonly packageEvents: string | null;
+    readonly packageAlternateStock: string | null;
+    readonly packageAlternateEvents: string | null;
   };
   readonly hydratedWithinTimeout: boolean;
   /** Node identity across hydration: the SSR nodes are the ones Angular now drives. */
@@ -116,6 +120,9 @@ export interface BrowserObservation {
     readonly countText: boolean;
     readonly variantButton: boolean;
     readonly stockText: boolean;
+    readonly packageButton?: boolean;
+    readonly packageStockText?: boolean;
+    readonly packageAlternateButton?: boolean;
   };
   /** `ngh` attributes left in the document: Angular removes each one it hydrates from. */
   readonly remainingHydrationAnnotations: number;
@@ -126,6 +133,10 @@ export interface BrowserObservation {
   readonly countAfterHydration: string | null;
   readonly countAfterClick: string | null;
   readonly stockAfterKeyboard: string | null;
+  readonly packageStockAfterKeyboard: string | null;
+  readonly packageEventsAfterKeyboard: string | null;
+  readonly packageAlternateStockAfterKeyboard: string | null;
+  readonly packageAlternateEventsAfterKeyboard: string | null;
   readonly selectedVariantAfterKeyboard: string | null;
   readonly variantButtonSurvivedKeyboard: boolean;
   readonly buttonSurvivedClick: boolean;
@@ -149,6 +160,9 @@ interface SsrNodes {
   countText: DomNode | null;
   variantButton: DomNode | null;
   stockText: DomNode | null;
+  packageButton: DomNode | null;
+  packageStockText: DomNode | null;
+  packageAlternateButton: DomNode | null;
 }
 
 declare const document: {
@@ -237,6 +251,15 @@ export async function observeBrowser(url: string): Promise<BrowserObservation> {
         countText: output?.firstChild ?? null,
         variantButton: document.querySelector('add-to-cart [data-variant="white"]'),
         stockText: stock?.firstChild ?? null,
+        packageButton: document.querySelector(
+          '#package-picker-primary [data-package-variant="white"]',
+        ),
+        packageStockText:
+          document.querySelector("#package-picker-primary [data-package-stock]")?.firstChild ??
+          null,
+        packageAlternateButton: document.querySelector(
+          '#package-picker-alternate [data-package-variant="white"]',
+        ),
       };
 
       return {
@@ -245,6 +268,18 @@ export async function observeBrowser(url: string): Promise<BrowserObservation> {
         childHasHydrationAnnotation: child?.hasAttribute("ngh") ?? false,
         childMarkedHydrated: child?.hasAttribute("data-strata-hydrated") ?? false,
         stock: stock?.textContent ?? null,
+        packageStock:
+          document.querySelector("#package-picker-primary [data-package-stock]")?.textContent ??
+          null,
+        packageEvents:
+          document.querySelector("#package-picker-primary [data-package-events]")?.textContent ??
+          null,
+        packageAlternateStock:
+          document.querySelector("#package-picker-alternate [data-package-stock]")?.textContent ??
+          null,
+        packageAlternateEvents:
+          document.querySelector("#package-picker-alternate [data-package-events]")?.textContent ??
+          null,
       };
     });
 
@@ -274,6 +309,22 @@ export async function observeBrowser(url: string): Promise<BrowserObservation> {
           stockText:
             !ssr?.stockText ||
             ssr.stockText === document.querySelector("add-to-cart #stock")?.firstChild,
+          ...(ssr?.packageButton
+            ? {
+                packageButton:
+                  ssr.packageButton ===
+                  document.querySelector('#package-picker-primary [data-package-variant="white"]'),
+                packageStockText:
+                  ssr.packageStockText ===
+                  document.querySelector("#package-picker-primary [data-package-stock]")
+                    ?.firstChild,
+                packageAlternateButton:
+                  ssr.packageAlternateButton ===
+                  document.querySelector(
+                    '#package-picker-alternate [data-package-variant="white"]',
+                  ),
+              }
+            : {}),
         },
         remainingHydrationAnnotations: document.querySelectorAll("[ngh]").length,
         islandsCreated: window.__STRATA_ISLAND_PROBE__?.created ?? 0,
@@ -281,7 +332,7 @@ export async function observeBrowser(url: string): Promise<BrowserObservation> {
       };
     });
 
-    const productVisible = await page.getByRole("heading", { name: "Product 42" }).isVisible();
+    const productVisible = await page.locator("product-details h1").isVisible();
     const output = page.locator("add-to-cart output:not(#stock)");
     const countAfterHydration = await output.textContent();
 
@@ -291,6 +342,16 @@ export async function observeBrowser(url: string): Promise<BrowserObservation> {
       await page.locator('add-to-cart [data-variant="white"]').press("Enter");
       await page.waitForFunction(
         () => document.querySelector("add-to-cart #stock")?.textContent === "In stock: 5",
+      );
+    }
+    const hasPackageVariant =
+      (await page.locator('#package-picker-primary [data-package-variant="white"]').count()) > 0;
+    if (hasPackageVariant) {
+      await page.locator('#package-picker-primary [data-package-variant="white"]').press("Enter");
+      await page.waitForFunction(
+        () =>
+          document.querySelector("#package-picker-primary [data-package-stock]")?.textContent ===
+          "Stock: 5",
       );
     }
     const stockAfterKeyboard = hasStructuredVariant
@@ -333,6 +394,20 @@ export async function observeBrowser(url: string): Promise<BrowserObservation> {
       countAfterHydration,
       countAfterClick,
       stockAfterKeyboard,
+      packageStockAfterKeyboard: hasPackageVariant
+        ? await page.locator("#package-picker-primary [data-package-stock]").textContent()
+        : null,
+      packageEventsAfterKeyboard: hasPackageVariant
+        ? await page.locator("#package-picker-primary [data-package-events]").textContent()
+        : null,
+      packageAlternateStockAfterKeyboard: await page
+        .locator("#package-picker-alternate [data-package-stock]")
+        .textContent()
+        .catch(() => null),
+      packageAlternateEventsAfterKeyboard: await page
+        .locator("#package-picker-alternate [data-package-events]")
+        .textContent()
+        .catch(() => null),
       selectedVariantAfterKeyboard,
       variantButtonSurvivedKeyboard,
       buttonSurvivedClick,

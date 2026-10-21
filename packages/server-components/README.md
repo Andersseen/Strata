@@ -89,19 +89,85 @@ a client module, directly or dynamically, or through a `?raw`/`?url` query, fail
 build with a `[strata]` diagnostic. A barrel that re-exports a marked module becomes server-only
 itself. See [Server-only modules](#server-only-modules).
 
+## External Angular package islands
+
+The `@acme/angular-widgets` names below are placeholders; replace them with your installed library's
+real public package specifier, component export and input types. A repository-owned test fixture is
+not a published consumer dependency.
+
+An installed Angular library component can be used as a client island without copying its source into
+the application. Register each selector, package entry point and named export in the Vite plugin:
+
+```ts
+strataServerComponents({
+  root: import.meta.dirname,
+  sourceDir: "src/app",
+  generatedDir: "src/generated/server-components",
+  clientComponents: [
+    {
+      selector: "acme-product-picker",
+      module: "@acme/angular-widgets",
+      exportName: "ProductPickerComponent",
+    },
+  ],
+});
+```
+
+The package must expose that named standalone Angular component through its public package exports.
+Import the same export into the Server Component's `imports` array and mark the element explicitly:
+
+```ts
+import { Component, inject } from "@angular/core";
+import { ServerComponent, StrataClientBoundary } from "@strata-sc/server-components";
+import { ProductPickerComponent } from "@acme/angular-widgets";
+import type { ProductView } from "@acme/angular-widgets";
+import { ProductRepository } from "./product.repository";
+
+@ServerComponent()
+@Component({
+  selector: "product-details",
+  imports: [ProductPickerComponent, StrataClientBoundary],
+  template: `<acme-product-picker
+    [productView]="product"
+    [strataClient]="{ productView: product }"
+  />`,
+})
+export class ProductDetails {
+  private readonly repository = inject(ProductRepository);
+  protected readonly product: ProductView = this.repository.publicView("42");
+}
+```
+
+The registration and named import must match exactly. Import aliases are supported. Unknown,
+conflicting, malformed or unregistered references fail before the generated graph is committed. The
+surrogate imports only the registered named export from the bare package specifier; Angular's normal
+AOT linker processes the package. At runtime Strata reflects the component's public input names and
+validates them before assigning props.
+
+Package islands use the existing boundary protocol: flat primitive props remain v1 and structured
+plain data uses v2. The example sends only a public `ProductView`; repositories, private fields and the
+Server Component implementation stay in the server graph. Never put secrets in boundary props.
+Packages are not crawled, and an unmarked package component remains outside the supported composition
+contract. The package must be safe for both server rendering and the browser. In dev, edits to an
+installed package require restarting Vite; package source files are not watched.
+
+This package-reference path is experimental and qualified only for the dependency tuple and package
+shape listed under [Compatibility](#compatibility). It does not promise support for arbitrary Angular
+libraries or export-condition layouts.
+
 ## Limitations (read these first)
 
-| Area                                                            | Status                                                                                                         |
-| --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| Document navigation into a Server Component page                | supported                                                                                                      |
-| Buffered SSR (Nitro `node-server`, Cloudflare Pages/workerd)    | supported                                                                                                      |
-| Angular Router navigation into a new Server Component subtree   | **unsupported** (SPA hydration renders the empty surrogate; use the opt-in `/navigation` guard experimentally) |
-| Streaming SSR                                                   | **unsupported**                                                                                                |
-| Components from packages as `[strataClient]` islands            | **unsupported**                                                                                                |
-| `NgComponentOutlet` / dynamic `createComponent` in analysis     | **unsupported** (invisible to the plugin)                                                                      |
-| Content projection into islands                                 | **not qualified**                                                                                              |
-| Request-scoped Server Component context                         | experimental: Angular `REQUEST_CONTEXT`                                                                        |
-| Module-level state shared between the SSR bundle and Nitro code | **separate bundles**: each evaluates its own copy                                                              |
+| Area                                                                            | Status                                                                                                         |
+| ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Document navigation into a Server Component page                                | supported                                                                                                      |
+| Buffered SSR (Nitro `node-server`, Cloudflare Pages/workerd)                    | supported                                                                                                      |
+| Angular Router navigation into a new Server Component subtree                   | **unsupported** (SPA hydration renders the empty surrogate; use the opt-in `/navigation` guard experimentally) |
+| Streaming SSR                                                                   | **unsupported**                                                                                                |
+| Explicitly registered standalone package components as `[strataClient]` islands | **experimental; bounded to the qualified package shape**                                                       |
+| `NgComponentOutlet` / dynamic `createComponent` in analysis                     | **unsupported** (invisible to the plugin)                                                                      |
+| Content projection into islands                                                 | **not qualified**                                                                                              |
+| Request-scoped Server Component context                                         | experimental: Angular `REQUEST_CONTEXT`                                                                        |
+| Module-level state shared between the SSR bundle and Nitro code                 | **separate bundles**: each evaluates its own copy                                                              |
 
 The full list is under [Experimental restrictions](#experimental-restrictions).
 

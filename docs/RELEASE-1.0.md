@@ -165,6 +165,10 @@ compatibility matrix; do not check it based on intent or a demonstration.
       The packed-tarball consumer stays GO, with declarations qualified under TypeScript 6.0.3 and
       5.9.2 and consumer setup documented in the package README
       ([report](research/server-component-package-consumer.md)).
+      External Angular package islands are a separate experimental candidate: their partial-compiled
+      tarball fixture exists, but its npm install/AOT/runtime gate has not passed, so arbitrary package
+      components are not a 1.0 capability
+      ([report](research/server-component-package-islands.md)).
       `pnpm test:full-stack-package-consumer` adds one app using all three packed packages together
       (controller API + hydrated island + Server Component, Node and local workerd;
       [report](research/full-stack-external-consumer.md)). It is a fixture: it does not close real-application
