@@ -13,7 +13,8 @@ import type { DevEnvironment, EnvironmentModuleNode, Plugin, Rollup, ViteDevServ
 
 type PluginContext = Rollup.PluginContext;
 
-import { RUNTIME_PACKAGE } from "./analyze.js";
+import { RUNTIME_PACKAGE, validateExternalClientComponents } from "./analyze.js";
+import type { ExternalClientComponent } from "./analyze.js";
 import { browserGraphError } from "./diagnostics.js";
 import type { BrowserForbidden, BrowserGraphContext } from "./diagnostics.js";
 import {
@@ -74,6 +75,8 @@ export interface ServerComponentsOptions {
    * app's Angular program, outside `sourceDir` or excluded from it, and gitignored.
    */
   readonly generatedDir: string;
+  /** Explicitly approved Angular package components usable as [strataClient] boundaries. */
+  readonly clientComponents?: readonly ExternalClientComponent[];
   /**
    * `false` keeps the real modules in the browser graph: the plain-SSR control build.
    * Omitted means `true`: a config that forgets the option must not silently ship
@@ -126,6 +129,9 @@ interface PendingReload {
 }
 
 export function strataServerComponents(options: ServerComponentsOptions): Plugin {
+  const clientComponents = validateExternalClientComponents(
+    (options as { readonly clientComponents?: unknown }).clientComponents,
+  );
   const enabled = options.enabled ?? true;
   const root = resolve(options.root);
   const sourceDir = join(root, options.sourceDir);
@@ -173,6 +179,7 @@ export function strataServerComponents(options: ServerComponentsOptions): Plugin
       root,
       sourceDir,
       generatedDir,
+      clientComponents,
       files: listSourceFiles(sourceDir, generatedDir),
       readFile,
     });
@@ -317,8 +324,10 @@ export function strataServerComponents(options: ServerComponentsOptions): Plugin
       // to the JIT compiler. Bundling the runtime through the SSR graph lets
       // Analog's linker process it, as it does for a linked workspace package.
       return {
-        optimizeDeps: { include: [RUNTIME_PACKAGE] },
-        ssr: { noExternal: [RUNTIME_PACKAGE] },
+        optimizeDeps: {
+          include: [RUNTIME_PACKAGE, ...clientComponents.map((entry) => entry.module)],
+        },
+        ssr: { noExternal: [RUNTIME_PACKAGE, ...clientComponents.map((entry) => entry.module)] },
       };
     },
 

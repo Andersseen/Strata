@@ -183,6 +183,13 @@ matrix. Hosted checks remain pending until push. R10 remains open because deploy
 adoption are not qualified and protocol stability is not established. See
 [boundary v2 evidence](research/server-component-boundary-v2.md).
 
+The external-package-island candidate adds an explicit registry and exact named-import matching, but
+its isolated package install did not complete in the restricted run. Do not treat analyzer tests or
+the independently compiled tarball as Angular app-AOT, hydration, workerd or security qualification.
+The remaining qualification gate is tracked in the
+[package-island report](research/server-component-package-islands.md); the existing release and
+production-adoption risks remain open.
+
 ## Review discipline
 
 Each implementing PR identifies relevant IDs and attaches its evidence. Mark a risk “partially

@@ -1,0 +1,20 @@
+{
+  "name": "@strata-test/angular-widgets",
+  "version": "0.0.0-test",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist/fesm2022"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/fesm2022/index.d.ts",
+      "default": "./dist/fesm2022/index.js"
+    }
+  },
+  "peerDependencies": {
+    "@angular/common": "^22.1.7",
+    "@angular/core": "^22.1.7"
+  }
+}

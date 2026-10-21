@@ -91,16 +91,23 @@ try {
       context,
       "K. Invalid server-owned event binding → diagnostic → fix recovers",
       () => {
-        edits.replace(
-          devFile("dev-child.component.ts"),
+        const path = devFile("dev-child.component.ts");
+        const original = edits.read(path);
+        const withButton = original.replace(
           "<dev-note />`",
           '<button type="button" (click)="noop()">x</button>\n    <dev-note />`',
         );
-        edits.replace(
-          devFile("dev-child.component.ts"),
+        const complete = withButton.replace(
           "export class DevChildComponent {}",
           "export class DevChildComponent {\n  protected noop(): void {}\n}",
         );
+
+        if (complete === original)
+          throw new Error("event-binding scenario did not edit its fixture");
+
+        // Publish the template and class method in one file change. Separate writes
+        // let Vite observe the template's new handler before the class declaration.
+        edits.write(path, complete);
       },
       /Interactive binding "\(click\)" on <button>/,
       true,
@@ -114,7 +121,7 @@ try {
           "<aside data-dev-boundary>Boundary host</aside>",
           '<aside data-dev-boundary>Boundary host</aside><dev-island-b [strataClient]="{}" />',
         ),
-      /<dev-island-b> is marked \[strataClient\], but no component in imports/,
+      /<dev-island-b> is marked \[strataClient\] in DevBoundaryServerComponent, but no imported local component or registered package export matches it\. No package registration exists for <dev-island-b>\./,
     );
 
     verdict["L Server Component created, wired, deleted"] = await checkCreateAndDelete(context);

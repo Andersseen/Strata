@@ -1,7 +1,7 @@
 import { dirname, relative } from "node:path";
 
 import { RUNTIME_PACKAGE } from "./analyze.js";
-import type { ServerComponentDeclaration } from "./analyze.js";
+import type { ResolvedClientReference, ServerComponentDeclaration } from "./analyze.js";
 
 export interface ServerComponentModule extends ServerComponentDeclaration {
   /** Absolute path of the authored server component module. */
@@ -39,7 +39,7 @@ export function renderSurrogate(module: ServerComponentModule, root: string): st
     "provideClientReferences",
     module.className,
   ]);
-  const references = module.clientReferences.map((ref) => {
+  const references = module.clientReferences.map((ref: ResolvedClientReference) => {
     let local = ref.name;
 
     for (let index = 2; taken.has(local); index++) local = `${ref.name}$${index}`;
@@ -50,7 +50,7 @@ export function renderSurrogate(module: ServerComponentModule, root: string): st
   const imports = references
     .map(
       (ref) =>
-        `import { ${ref.local === ref.name ? ref.name : `${ref.name} as ${ref.local}`} } from "${specifierFrom(module.surrogate, ref.module)}";`,
+        `import { ${ref.local === ref.name ? ref.name : `${ref.name} as ${ref.local}`} } from "${ref.kind === "package" ? ref.module : specifierFrom(module.surrogate, ref.module)}";`,
     )
     .join("\n");
 

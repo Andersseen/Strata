@@ -1,7 +1,7 @@
 import { dirname, join, relative } from "node:path";
 
 import { analyzeServerComponent, createAnalysisCache } from "./analyze.js";
-import type { ReadFile } from "./analyze.js";
+import type { ExternalClientComponent, ReadFile } from "./analyze.js";
 import { scanServerOnlyModules } from "./server-only.js";
 import type { ServerOnlyModule } from "./server-only.js";
 import { renderSurrogate } from "./surrogate.js";
@@ -39,6 +39,7 @@ export interface GraphInput {
   /** Absolute paths of the app's TypeScript sources, as listed at one instant. */
   readonly files: readonly string[];
   readonly readFile: ReadFile;
+  readonly clientComponents?: readonly ExternalClientComponent[];
 }
 
 export const EMPTY_GRAPH: ServerComponentGraph = {
@@ -68,7 +69,13 @@ export function buildServerComponentGraph(input: GraphInput): ServerComponentGra
   const serverOwnedFiles = new Set<string>();
 
   for (const file of files) {
-    const found = analyzeServerComponent(file, readFile(file), readFile, cache);
+    const found = analyzeServerComponent(
+      file,
+      readFile(file),
+      readFile,
+      cache,
+      input.clientComponents,
+    );
 
     if (!found) continue;
 

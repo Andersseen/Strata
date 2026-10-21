@@ -21,6 +21,14 @@ This is responsibility layering, not a claim that every call traverses a Strata 
 builds and hosts the server; Analog owns application routing/rendering. Native HTTP and internal
 RPC remain available independently.
 
+In the Server Components candidate, an explicit Vite registry may name a package selector, bare
+module and named export. The analyzer authorizes that reference only when the same named package
+import is present in the server-owned Angular component scope and the template uses
+`[strataClient]`. Package internals remain outside Strata's static composition walk. The surrogate
+imports the one approved export so Angular AOT can process the library; this does not establish
+automatic package trust or arbitrary package support. Qualification status is recorded in
+[STATE](STATE.md) and the [package-island report](research/server-component-package-islands.md).
+
 | Package                                                  | Responsibility                                                                                                        | Must not own                                                                |
 | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
 | `@strata-sc/core` — exists                               | Runtime-independent controller/route metadata and future justified domain contracts                                   | H3 events, Angular injectors, Nitro lifecycle, Vite transforms, HTTP server |

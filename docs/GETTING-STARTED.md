@@ -71,6 +71,9 @@ strings, finite numbers, booleans, null, dense arrays and plain objects within d
 Every value passed through that input becomes browser-visible. Flat props remain protocol v1;
 nested props use protocol v2. See the
 [structured boundary example](../packages/server-components/README.md#client-boundary-protocol).
+Installed Angular package components can also be used as islands when each selector, package entry
+point and named export is explicitly registered in `strataServerComponents`; see
+[external Angular package islands](../packages/server-components/README.md#external-angular-package-islands).
 
 Qualification commands (`pnpm test:consumer`, `pnpm test:server-components`,
 `pnpm test:server-components:cloudflare`, ...) are described in [Testing strategy](TESTING.md).

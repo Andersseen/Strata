@@ -27,6 +27,13 @@ export default defineConfig(() => ({
       root: import.meta.dirname,
       sourceDir: "src/app",
       generatedDir: "src/generated/server-components",
+      clientComponents: [
+        {
+          selector: "acme-product-picker",
+          module: "@strata-test/angular-widgets",
+          exportName: "ProductPickerComponent",
+        },
+      ],
     }),
     analog(),
   ],

@@ -29,15 +29,93 @@ const SOURCE_EXTENSION = ".ts";
 const ELEMENT_NAME = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)+$/;
 
 export interface ClientReference {
+  readonly kind: "local";
   readonly name: string;
   /** Absolute path of the app module declaring the component, without extension. */
   readonly module: string;
 }
 
+export interface PackageClientReference {
+  readonly kind: "package";
+  readonly name: string;
+  /** Bare package specifier, preserved for Vite and Angular AOT resolution. */
+  readonly module: string;
+}
+
+export type ResolvedClientReference = ClientReference | PackageClientReference;
+
+/** An opt-in package component that may be used as an explicit client boundary. */
+export interface ExternalClientComponent {
+  readonly selector: string;
+  readonly module: string;
+  readonly exportName: string;
+}
+
+const PACKAGE_SPECIFIER =
+  /^(?:@[a-z0-9][a-z0-9._~-]*\/)?[a-z0-9][a-z0-9._~-]*(?:\/[A-Za-z0-9._~-]+)*$/;
+const EXPORTED_IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
+
+/** Validate the explicit package registry before any generated graph is committed. */
+export function validateExternalClientComponents(
+  value: unknown,
+): readonly ExternalClientComponent[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value))
+    throw new Error(
+      "[strata] clientComponents must be an array of static component registrations.",
+    );
+
+  const selectors = new Map<string, ExternalClientComponent>();
+  for (const [index, candidate] of value.entries()) {
+    if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
+      throw new Error(
+        `[strata] clientComponents[${index}] must be an object with selector, module and exportName strings.`,
+      );
+    }
+    const entry = candidate as Record<string, unknown>;
+    const descriptors = Object.getOwnPropertyDescriptors(entry);
+    if (
+      (Object.getPrototypeOf(entry) !== Object.prototype &&
+        Object.getPrototypeOf(entry) !== null) ||
+      Reflect.ownKeys(entry).some(
+        (key) => typeof key !== "string" || !["selector", "module", "exportName"].includes(key),
+      ) ||
+      Object.values(descriptors).some((descriptor) => !("value" in descriptor))
+    ) {
+      throw new Error(`[strata] clientComponents[${index}] contains an unsupported property.`);
+    }
+    const { selector, module, exportName } = entry;
+    if (typeof selector !== "string" || !/^[a-z][a-z0-9]*(?:-[a-z0-9]+)+$/.test(selector)) {
+      throw new Error(
+        `[strata] clientComponents[${index}] has invalid custom-element selector ${JSON.stringify(selector)}.`,
+      );
+    }
+    if (typeof module !== "string" || !PACKAGE_SPECIFIER.test(module)) {
+      throw new Error(
+        `[strata] clientComponents[${index}] has invalid bare package specifier ${JSON.stringify(module)}.`,
+      );
+    }
+    if (typeof exportName !== "string" || !EXPORTED_IDENTIFIER.test(exportName)) {
+      throw new Error(
+        `[strata] clientComponents[${index}] has invalid named export ${JSON.stringify(exportName)}.`,
+      );
+    }
+    const registration = { selector, module, exportName };
+    const previous = selectors.get(selector);
+    if (previous) {
+      throw new Error(
+        `[strata] duplicate client component selector "${selector}" in registry (${previous.module}#${previous.exportName} and ${module}#${exportName}).`,
+      );
+    }
+    selectors.set(selector, registration);
+  }
+  return [...selectors.values()];
+}
+
 export interface ServerComponentDeclaration {
   readonly className: string;
   readonly selector: string;
-  readonly clientReferences: readonly ClientReference[];
+  readonly clientReferences: readonly ResolvedClientReference[];
   /**
    * Absolute paths of every file whose content this Server Component's
    * server render depends on and the browser graph never contains: its own
@@ -74,6 +152,7 @@ interface ImportBinding {
   readonly specifier: string;
   /** The name the module exports (differs from the local name for `{ A as B }`). */
   readonly exported: string;
+  readonly typeOnly: boolean;
 }
 
 interface ParsedModule {
@@ -105,7 +184,8 @@ interface AngularComponentDeclaration {
 }
 
 /** A client reference with the selector it hydrates, while the graph is walked. */
-interface FoundReference extends ClientReference {
+interface FoundReference extends Omit<ClientReference, "kind"> {
+  readonly kind: "local" | "package";
   readonly selector: string;
   /** The component whose template marked it, for diagnostics. */
   readonly markedIn: string;
@@ -114,6 +194,7 @@ interface FoundReference extends ClientReference {
 interface AnalysisContext {
   readonly readFile: ReadFile;
   readonly cache: AnalysisCache;
+  readonly externalComponents: readonly ExternalClientComponent[];
 }
 
 function fail(location: string, message: string): never {
@@ -199,6 +280,7 @@ function parseModule(file: string, text: string): ParsedModule {
         imports.set(element.name.text, {
           specifier: statement.moduleSpecifier.text,
           exported: (element.propertyName ?? element.name).text,
+          typeOnly: (statement.importClause?.isTypeOnly ?? false) || element.isTypeOnly,
         });
       }
     }
@@ -370,8 +452,12 @@ function componentScope(
   component: AngularComponentDeclaration,
   context: AnalysisContext,
   owned: Set<string>,
-): Map<string, AngularComponentDeclaration> {
+): {
+  local: Map<string, AngularComponentDeclaration>;
+  external: Map<string, ExternalClientComponent>;
+} {
   const scope = new Map<string, AngularComponentDeclaration>();
+  const external = new Map<string, ExternalClientComponent>();
   const imports = property(component.metadata, "imports");
   const owner = component.serverComponent ? "server component" : component.className;
 
@@ -387,9 +473,37 @@ function componentScope(
     const binding = component.module.imports.get(element.text);
 
     if (!binding) fail(component.file, `cannot find the import of ${element.text}.`);
+    if (binding.typeOnly) {
+      fail(
+        component.file,
+        `${element.text} is a type-only import and cannot be listed as an Angular component in ${component.className}.`,
+      );
+    }
 
-    // Runtime (the boundary directive) and package imports are opaque.
-    if (!binding.specifier.startsWith(".")) continue;
+    // Package modules remain opaque except for an exact explicit registration
+    // whose exported symbol is imported by this component.
+    if (!binding.specifier.startsWith(".")) {
+      const registered = context.externalComponents.find(
+        (candidate) =>
+          candidate.module === binding.specifier && candidate.exportName === binding.exported,
+      );
+      if (registered) {
+        if (scope.has(registered.selector)) {
+          fail(
+            component.file,
+            `<${registered.selector}> is ambiguous: a local component and a registered package component claim the same selector.`,
+          );
+        }
+        if (external.has(registered.selector)) {
+          fail(
+            component.file,
+            `two registered package imports declare selector "${registered.selector}" in ${component.className}.`,
+          );
+        }
+        external.set(registered.selector, registered);
+      }
+      continue;
+    }
 
     const module = loadModule(resolve(dirname(component.file), binding.specifier), context);
     const declaration = classNamed(module, binding.exported);
@@ -436,10 +550,16 @@ function componentScope(
       );
     }
 
+    if (external.has(name)) {
+      fail(
+        component.file,
+        `<${name}> is ambiguous: a local component and a registered package component claim the same selector.`,
+      );
+    }
     scope.set(name, child);
   }
 
-  return scope;
+  return { local: scope, external };
 }
 
 /** `(click)`, `[(ngModel)]`, `(@fade.done)`: the binding as the author wrote it. */
@@ -594,17 +714,24 @@ function walk(
 
       checkOutputs(element.name, element.outputs, marked);
 
-      const local = scope.get(element.name);
+      const local = scope.local.get(element.name);
+      const external = scope.external.get(element.name);
 
       if (marked) {
-        if (!local) {
+        if (!local && !external) {
+          const registration = context.externalComponents.find(
+            (candidate) => candidate.selector === element.name,
+          );
+          const registeredPackage = registration
+            ? ` The registry requests export ${registration.exportName} from package "${registration.module}" for <${element.name}>.`
+            : ` No package registration exists for <${element.name}>.`;
           fail(
             component.file,
-            `<${element.name}> is marked [${BOUNDARY_INPUT}], but no component in imports from a relative app module has selector "${element.name}".`,
+            `<${element.name}> is marked [${BOUNDARY_INPUT}] in ${component.className}, but no imported local component or registered package export matches it.${registeredPackage} Register the exact module and export, import that named component in ${component.className}, and ensure its Angular selector is "${element.name}".`,
           );
         }
 
-        if (local.serverComponent) {
+        if (local?.serverComponent) {
           fail(
             component.file,
             `<${element.name}> is marked [${BOUNDARY_INPUT}], but ${local.className} is a @${DECORATOR}(). A server component cannot be a client boundary.`,
@@ -612,12 +739,23 @@ function walk(
         }
 
         // The boundary: its own template belongs to the browser graph. Stop.
-        add({
-          name: local.className,
-          module: local.file.slice(0, -SOURCE_EXTENSION.length),
-          selector: element.name,
-          markedIn: component.className,
-        });
+        if (local) {
+          add({
+            kind: "local",
+            name: local.className,
+            module: local.file.slice(0, -SOURCE_EXTENSION.length),
+            selector: element.name,
+            markedIn: component.className,
+          });
+        } else if (external) {
+          add({
+            kind: "package",
+            name: external.exportName,
+            module: external.module,
+            selector: element.name,
+            markedIn: component.className,
+          });
+        }
       } else if (local) {
         if (trail.some((ancestor) => ancestor.key === local.key)) {
           fail(
@@ -687,6 +825,7 @@ export function analyzeServerComponent(
   text: string,
   readFile: ReadFile,
   cache: AnalysisCache = createAnalysisCache(),
+  externalComponents: readonly ExternalClientComponent[] = [],
 ): ServerComponentDeclaration | undefined {
   if (!text.includes(`@${DECORATOR}(`)) return undefined;
 
@@ -715,12 +854,12 @@ export function analyzeServerComponent(
   if (!metadata) fail(file, `@${DECORATOR}() must decorate an @Component({...}) class.`);
 
   const root = componentDeclaration(module, declaration, metadata);
-  const found = walk(root, [], { readFile, cache });
+  const found = walk(root, [], { readFile, cache, externalComponents });
 
   return {
     className: root.className,
     selector: root.selector,
-    clientReferences: found.map(({ name, module: path }) => ({ name, module: path })),
+    clientReferences: found.map(({ kind, name, module: path }) => ({ kind, name, module: path })),
     serverOwnedFiles: [...(cache.owned.get(root.key) ?? [])].sort(),
   };
 }

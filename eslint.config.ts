@@ -28,6 +28,9 @@ export default config(
       // External Analog consumer of the packed @strata-sc/server-components,
       // installed with npm outside the workspace (test:server-component-package-consumer).
       "tests/server-component-package-consumer/fixture/**",
+      // The package-island library is compiled by Angular ngc in a temporary external package with
+      // its own installed compiler/peer graph; it is intentionally outside workspace type services.
+      "tests/server-component-package-consumer/angular-widgets/**",
       // External full-stack consumer of the three packed packages, installed with
       // npm outside the workspace (test:full-stack-package-consumer).
       "tests/full-stack-package-consumer/fixture/**",
