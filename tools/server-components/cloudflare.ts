@@ -27,6 +27,7 @@ import {
 } from "./lib/harness.ts";
 import type { GraphSize, OutputGraph } from "./lib/harness.ts";
 import { isNodeBuiltin, moduleGraph } from "./lib/module-graph.ts";
+import { checkLinkFlow } from "./lib/navigation-checks.ts";
 import { CONTROL_DESTINATION, DESTINATION, ORIGIN, observeNavigation } from "./lib/navigation.ts";
 import type { DomSnapshot } from "./lib/navigation.ts";
 import { COMPATIBILITY_DATE, resolveWrangler, startWranglerPages } from "./lib/wrangler.ts";
@@ -116,6 +117,7 @@ const verdict = {
   defer: false,
   documentNavigation: false,
   routerFallback: false,
+  documentLink: false,
   routerNegative: false,
 };
 
@@ -708,6 +710,10 @@ try {
     ),
   ]);
 
+  section("StrataDocumentLink and StrataDocumentNavigator on workerd");
+
+  verdict.documentLink = checkLinkFlow(seen.link);
+
   section("Router document fallback: RouterLink and navigateByUrl");
 
   const fallbackRequests = fallback.session.requests.filter(
@@ -803,6 +809,7 @@ console.log(
 console.log(`Client boundary protocol v1         ${verdict.boundaryProtocol ? "GO" : "NO-GO"}`);
 console.log(`Angular @defer inside client islands ${verdict.defer ? "GO" : "NO-GO"}`);
 console.log(`Server Component document navigation ${verdict.documentNavigation ? "GO" : "NO-GO"}`);
+console.log(`StrataDocumentLink / Navigator             ${verdict.documentLink ? "GO" : "NO-GO"}`);
 console.log(
   `Router document fallback            ${verdict.routerFallback ? "EXPERIMENTAL GO" : "NO-GO"}`,
 );

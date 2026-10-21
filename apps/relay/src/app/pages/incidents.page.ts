@@ -1,15 +1,26 @@
+import { defineRouteMeta } from "@analogjs/router";
 import { ChangeDetectionStrategy, Component } from "@angular/core";
+import {
+  strataDocumentNavigationGuard,
+  StrataDocumentLink,
+} from "@strata-sc/server-components/navigation";
 
 import { IncidentDigestServerComponent } from "../server-components/incidents/incident-digest.server-component";
+
+// Server-owned routes are reached by document navigation; the guard cancels any
+// Angular Router activation before it can render an empty Server Component.
+export const routeMeta = defineRouteMeta({
+  canActivate: [strataDocumentNavigationGuard],
+});
 
 @Component({
   selector: "relay-incidents-page",
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [IncidentDigestServerComponent],
+  imports: [IncidentDigestServerComponent, StrataDocumentLink],
   template: `
     <main class="release-page">
       <header class="release-header">
-        <a href="/">← Back to operations</a>
+        <a [strataDocumentLink]="['/']">← Back to operations</a>
         <div>
           <p class="eyebrow">SERVER COMPONENT + CONTROLLERS</p>
           <h1>Incident digest</h1>

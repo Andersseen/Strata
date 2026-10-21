@@ -189,7 +189,11 @@ Do not rely on any of these (see the package
 
 - Angular Router navigation into a new Server Component subtree is a recorded **no-go**; it
   silently renders the empty surrogate. Only document navigation is qualified
-  ([report](research/server-component-navigation-poc.md)).
+  ([report](research/server-component-navigation-poc.md)). Link with `StrataDocumentLink`, navigate
+  programmatically with `StrataDocumentNavigator` and protect routes with
+  `strataDocumentNavigationGuard`, all from `@strata-sc/server-components/navigation`
+  ([document-navigation report](research/server-component-document-navigation-v04.md)); plain
+  `<a href>` stays valid.
 - Streaming SSR; unregistered or arbitrary package components as islands; content projection into
   islands (not qualified); a request-scoped Server Component context.
 - Server render errors answer HTTP 200 (current Angular/Analog behaviour), see

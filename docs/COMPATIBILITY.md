@@ -33,6 +33,14 @@ check). The independent library partial compile succeeded locally, but the isola
 failed before AOT linking; package-island support is therefore **not qualified** yet. See the
 [package-island report](research/server-component-package-islands.md).
 
+The optional `@strata-sc/server-components/navigation` entry adds no new peer range: it uses the
+public `Router`, `UrlSerializer`, `ActivatedRoute`, `Location` and `DOCUMENT` APIs of the same
+`@angular/router`/`@angular/common` tuple. It is Angular partial-compiled and linked by Analog's
+build optimizer; the Vite plugin pre-bundles it for `vite` dev when the app resolves
+`@angular/router`. It assumes a path-based location strategy (a hash strategy cannot render
+Server Components); an absolute `APP_BASE_HREF` on another origin is rejected. See the
+[document-navigation report](research/server-component-document-navigation-v04.md).
+
 ## Current M1 consumer contract: experimental and blocked
 
 [SPEC-001](specs/001-packed-consumer-compilation.md) proves the external package/runtime path,

@@ -656,6 +656,70 @@ export async function navigationSuite(
       ),
     );
 
+    // StrataDocumentLink and StrataDocumentNavigator from the packed /navigation entry.
+    await page.goto(`${base}/`, { waitUntil: "load" });
+    await evaluate(page, "window.__NAV_SENTINEL__ = 'strata'");
+
+    const linkHref = await page.getAttribute("#strata-link", "href");
+    const linkBefore = documentRequests("/products/42?ref=link");
+
+    await page.click("#strata-link");
+    await page.waitForURL("**/products/42?ref=link#details");
+
+    const linked = await hydrated();
+    const sentinelAfterLink2 = await evaluate<string | undefined>(page, "window.__NAV_SENTINEL__");
+
+    ok.push(
+      check(
+        `${label}: StrataDocumentLink renders a native href and a click is one real document request, preserving query and fragment`,
+        linkHref === "/products/42?ref=link#details" &&
+          linked &&
+          sentinelAfterLink2 === undefined &&
+          documentRequests("/products/42?ref=link") - linkBefore === 1,
+        `${linkHref} ${page.url()}`,
+      ),
+      check(
+        `${label}: the island works after StrataDocumentLink navigation`,
+        (await refresh()) === "Availability: available",
+      ),
+    );
+
+    await page.goto(`${base}/`, { waitUntil: "load" });
+    await evaluate(page, "window.__NAV_SENTINEL__ = 'navigator'");
+    const navBefore = documentRequests("/products/42?ref=nav");
+
+    await page.click("#navigate");
+    await page.waitForURL("**/products/42?ref=nav#details");
+
+    const navigated = await hydrated();
+    const sentinelAfterNavigator = await evaluate<string | undefined>(
+      page,
+      "window.__NAV_SENTINEL__",
+    );
+
+    ok.push(
+      check(
+        `${label}: StrataDocumentNavigator.navigate is one real document request, preserving query and fragment`,
+        navigated &&
+          sentinelAfterNavigator === undefined &&
+          documentRequests("/products/42?ref=nav") - navBefore === 1,
+        page.url(),
+      ),
+      check(
+        `${label}: the island works after StrataDocumentNavigator navigation (one island)`,
+        (await refresh()) === "Availability: available" &&
+          (await evaluate<number>(
+            page,
+            "document.querySelectorAll('[data-strata-hydrated]').length",
+          )) === 1,
+      ),
+    );
+
+    await page.goto(`${base}/`, { waitUntil: "load" });
+    await page.click("#router-link");
+    await page.waitForURL("**/products/42?ref=home#details");
+    await hydrated();
+
     await page.goBack();
     await page.waitForURL(`${base}/`);
     await page.goForward();

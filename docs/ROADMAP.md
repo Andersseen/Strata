@@ -153,7 +153,11 @@ navigation, streaming, deployment qualification, complete production adoption an
 security gates are still open. Evidence is tracked in
 [the boundary v2 report](research/server-component-boundary-v2.md).
 
-The next feature candidate explores explicitly registered Angular package islands on top of that
+The document-navigation candidate makes the one supported navigation path first-class
+(`StrataDocumentLink`, `StrataDocumentNavigator`, hardened `strataDocumentNavigationGuard`); it does
+not add SPA subtree navigation ([report](research/server-component-document-navigation-v04.md)).
+
+The previous feature candidate explored explicitly registered Angular package islands on top of that
 protocol. Its static analyzer and generated package imports are implemented, but the packed external
 consumer has not passed npm installation and AOT/runtime qualification. Treat this work as
 experimental branch evidence until the packed Node/workerd, browser, security, bundle and hosted CI

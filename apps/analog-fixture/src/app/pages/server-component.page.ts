@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component } from "@angular/core";
 import { defineRouteMeta } from "@analogjs/router";
 import { RouterLink } from "@angular/router";
+import { StrataDocumentLink } from "@strata-sc/server-components/navigation";
 
 import { serverComponentDocumentNavigation } from "../server-component-document-navigation";
 import { ProductDetailsComponent } from "../server-component/product-details.component";
@@ -19,12 +20,13 @@ export const routeMeta = defineRouteMeta({
 @Component({
   selector: "app-server-component-page",
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ProductDetailsComponent, RouterLink],
+  imports: [ProductDetailsComponent, RouterLink, StrataDocumentLink],
   template: `<main>
       <product-details />
     </main>
     <nav>
       <a routerLink="/server-component-navigation">Leave (router)</a>
+      <a data-nav-dev [strataDocumentLink]="['/server-component-dev']">Dev route (document link)</a>
     </nav>`,
 })
 export default class ServerComponentPage {}

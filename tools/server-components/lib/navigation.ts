@@ -420,7 +420,140 @@ async function teardownFlow(browser: Browser, baseUrl: string): Promise<Teardown
   };
 }
 
+export interface LinkFlow {
+  /** `href` of the Document link and of the target=_blank link, read after hydration. */
+  readonly href: string | null;
+  readonly newTabHref: string | null;
+  readonly newTabTarget: string | null;
+  /** The same anchors in the server-rendered origin HTML. */
+  readonly ssrOriginHtml: string;
+  readonly afterClick: DomSnapshot;
+  readonly clickDocument: string;
+  readonly clickHydrated: boolean;
+  readonly countAfterClick: string | null;
+  readonly afterBack: DomSnapshot;
+  readonly programmatic: DomSnapshot;
+  readonly programmaticDocument: string;
+  readonly programmaticHydrated: boolean;
+  readonly afterBackFromProgrammatic: DomSnapshot;
+  readonly afterForward: DomSnapshot;
+  /** Modified and middle clicks: native new-tab behaviour, no navigation of this tab. */
+  readonly modifiedClick: { readonly popupUrl: string | null; readonly stayed: DomSnapshot };
+  /** The middle-click (auxclick) was not cancelled by the page: the browser keeps its default. */
+  readonly middleClickNotPrevented: boolean;
+  readonly targetBlank: { readonly popupUrl: string | null; readonly stayed: DomSnapshot };
+  readonly session: Session;
+}
+
+async function popupOf(session: Session, click: () => Promise<void>): Promise<string | null> {
+  const popup = session.page
+    .context()
+    .waitForEvent("page", { timeout: 5_000 })
+    .catch(() => null);
+
+  await click();
+
+  const page = await popup;
+  if (!page) return null;
+
+  await page.waitForLoadState("domcontentloaded");
+  const url = new URL(page.url());
+  await page.close();
+
+  return `${url.pathname}${url.search}${url.hash}`;
+}
+
+/**
+ * origin → StrataDocumentLink → destination (query + fragment) → Back →
+ * StrataDocumentNavigator → destination → Back → Forward, plus native
+ * new-tab behaviour of the same anchors.
+ */
+async function linkFlow(browser: Browser, baseUrl: string): Promise<LinkFlow> {
+  const session = await open(browser, `${baseUrl}${ORIGIN}`);
+  const { page } = session;
+
+  await setSentinel(session);
+
+  const link = page.getByRole("link", { name: "Document link", exact: true });
+  const newTab = page.getByRole("link", { name: "Document link in new tab" });
+  const href = await link.getAttribute("href");
+  const newTabHref = await newTab.getAttribute("href");
+  const newTabTarget = await newTab.getAttribute("target");
+  const ssrOriginHtml = session.documents.get(ORIGIN) ?? "";
+
+  const modifiedPopup = await popupOf(session, () => link.click({ modifiers: ["ControlOrMeta"] }));
+  // Opening a tab from a middle-click is browser/OS dependent in headless Chromium, so assert
+  // what the page controls: the auxclick is not cancelled.
+  const middleClickNotPrevented = await page.evaluate(`(() => {
+    const anchor = [...document.querySelectorAll("a")].find(
+      (candidate) => candidate.textContent.trim() === "Document link",
+    );
+    const event = new MouseEvent("auxclick", { button: 1, bubbles: true, cancelable: true });
+
+    anchor.dispatchEvent(event);
+
+    return !event.defaultPrevented;
+  })()`);
+  const blankPopup = await popupOf(session, () => newTab.click());
+  const stayed = await session.snapshot();
+
+  session.phase("document link");
+  await link.click();
+  await page.waitForURL(
+    (url) => url.pathname === DESTINATION && url.search.startsWith("?product=42"),
+  );
+  const clickHydrated = await hydrated(session);
+
+  await page.waitForLoadState("networkidle");
+  const afterClick = await session.snapshot();
+  const clickDocument = session.documents.get(DESTINATION) ?? "";
+  const countAfterClick = await addToCart(session);
+
+  session.phase("document link back");
+  await page.goBack({ waitUntil: "load" });
+  await page.waitForLoadState("networkidle");
+  const afterBack = await session.snapshot();
+
+  session.phase("programmatic document navigation");
+  await page.getByRole("button", { name: "Programmatic document navigation" }).click();
+  await waitForDocumentDestination(session, "?product=43");
+  const programmaticHydrated = await hydrated(session);
+  const programmatic = await session.snapshot();
+  const programmaticDocument = session.documents.get(DESTINATION) ?? "";
+
+  session.phase("programmatic document navigation back");
+  await page.goBack({ waitUntil: "load" });
+  await page.waitForLoadState("networkidle");
+  const afterBackFromProgrammatic = await session.snapshot();
+
+  session.phase("programmatic document navigation forward");
+  await page.goForward({ waitUntil: "load" });
+  await page.waitForLoadState("networkidle");
+
+  return {
+    href,
+    newTabHref,
+    newTabTarget,
+    ssrOriginHtml,
+    afterClick,
+    clickDocument,
+    clickHydrated,
+    countAfterClick,
+    afterBack,
+    programmatic,
+    programmaticDocument,
+    programmaticHydrated,
+    afterBackFromProgrammatic,
+    afterForward: await session.snapshot(),
+    modifiedClick: { popupUrl: modifiedPopup, stayed },
+    middleClickNotPrevented,
+    targetBlank: { popupUrl: blankPopup, stayed },
+    session,
+  };
+}
+
 export interface NavigationObservation {
+  readonly link: LinkFlow;
   readonly document: DocumentFlow;
   readonly fallback: FallbackFlow;
   readonly router: RouterFlow;
@@ -432,6 +565,7 @@ export async function observeNavigation(baseUrl: string): Promise<NavigationObse
 
   try {
     return {
+      link: await linkFlow(browser, baseUrl),
       document: await documentFlow(browser, baseUrl),
       fallback: await fallbackFlow(browser, baseUrl),
       router: await routerFlow(browser, baseUrl),

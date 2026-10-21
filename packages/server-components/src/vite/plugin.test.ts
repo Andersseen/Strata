@@ -115,6 +115,32 @@ describe("config", () => {
     });
   });
 
+  it("also pre-bundles the /navigation entry when the app has @angular/router", () => {
+    const withRouter = join(root, "with-router");
+
+    mkdirSync(join(withRouter, "src", "app"), { recursive: true });
+    mkdirSync(join(withRouter, "node_modules", "@angular", "router"), { recursive: true });
+    writeFileSync(
+      join(withRouter, "node_modules", "@angular", "router", "package.json"),
+      JSON.stringify({ name: "@angular/router", version: "0.0.0" }),
+    );
+
+    const instance = strataServerComponents({
+      root: withRouter,
+      sourceDir: "src/app",
+      generatedDir: "src/generated",
+    });
+
+    expect(
+      (instance.config as Hook).call({}, {}, { command: "serve", mode: "development" }),
+    ).toEqual({
+      optimizeDeps: {
+        include: ["@strata-sc/server-components", "@strata-sc/server-components/navigation"],
+      },
+      ssr: { noExternal: ["@strata-sc/server-components"] },
+    });
+  });
+
   it("pre-bundles and SSR-bundles only the explicitly registered package entry", () => {
     const instance = strataServerComponents({
       root,

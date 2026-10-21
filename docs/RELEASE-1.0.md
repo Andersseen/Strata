@@ -77,8 +77,10 @@ compatibility matrix; do not check it based on intent or a demonstration.
       service-instance evidence, failure/recovery checks and the same Node/workerd
       overlap gate ([isolation report](research/server-component-request-isolation.md)).
 - [ ] One navigation strategy is explicitly selected, documented and production-safe. Explicit
-      document navigation is supported; the consumer-owned Angular guard fallback is experimental
-      and a full reload, not seamless SPA navigation. Unsupported client subtree hydration is not
+      document navigation is supported through `StrataDocumentLink`, `StrataDocumentNavigator` and
+      `strataDocumentNavigationGuard` ([report](research/server-component-document-navigation-v04.md)),
+      still a full reload, not seamless SPA navigation; unguarded Router activation is still the
+      empty surrogate. Unsupported client subtree hydration is not
       advertised and Strata 1.0 remains unqualified.
 - [ ] Ordinary/incremental hydration and `@defer` coexist under documented composition rules,
       including nested/interacting boundaries and clear errors for unsupported shapes.
