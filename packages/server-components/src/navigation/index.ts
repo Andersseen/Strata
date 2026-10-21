@@ -1,30 +1,51 @@
-import { DOCUMENT, isPlatformBrowser } from "@angular/common";
+import { DOCUMENT, Location, isPlatformBrowser } from "@angular/common";
 import { inject, PLATFORM_ID } from "@angular/core";
 import type { CanActivateFn } from "@angular/router";
-import { Router } from "@angular/router";
+import { Router, UrlSerializer } from "@angular/router";
+
+import { StrataDocumentNavigator } from "./navigator.js";
+import { documentUrlForRouterUrl } from "./resolve.js";
+
+export { StrataDocumentLink } from "./link.js";
+export { StrataDocumentNavigator } from "./navigator.js";
+export type { StrataDocumentNavigateOptions } from "./navigator.js";
+export { StrataDocumentNavigationError } from "./resolve.js";
+export type { StrataDocumentDestination, StrataDocumentNavigationExtras } from "./resolve.js";
 
 /**
- * Experimental opt-in fallback for routes whose rendered subtree is server-owned.
+ * Opt-in guard for routes whose rendered subtree is server-owned.
  *
- * SSR and the browser's initial navigation are allowed to render and hydrate
- * normally. Later Angular Router activations are cancelled and retried as a
- * same-origin document navigation because a client-side route activation only
- * has the generated empty surrogate available.
+ * SSR and the browser's initial navigation render and hydrate normally. Any
+ * later Angular Router activation is cancelled before the route component is
+ * created and retried as a same-origin document navigation (base href, query
+ * and fragment preserved), because a client-side activation only has the
+ * generated empty surrogate. A navigation to the current URL is cancelled
+ * without a request, so the guard cannot cause a reload loop.
  */
 export const strataDocumentNavigationGuard: CanActivateFn = (_route, state) => {
   if (!isPlatformBrowser(inject(PLATFORM_ID))) return true;
 
   const router = inject(Router);
-  const document = inject(DOCUMENT);
 
   if (!router.navigated) return true;
 
-  const currentLocation = document.defaultView?.location;
-  if (!currentLocation) return false;
+  const documentNavigator = inject(StrataDocumentNavigator);
 
-  const target = new URL(state.url, currentLocation.href);
-  if (target.origin !== currentLocation.origin) return false;
+  try {
+    documentNavigator.go(
+      documentUrlForRouterUrl(
+        {
+          router,
+          location: inject(Location),
+          serializer: inject(UrlSerializer),
+          origin: inject(DOCUMENT).location?.origin,
+        },
+        state.url,
+      ),
+    );
+  } catch {
+    // Unsafe or cross-origin target: fail closed, no activation, no request.
+  }
 
-  currentLocation.assign(`${target.pathname}${target.search}${target.hash}`);
   return false;
 };

@@ -219,6 +219,15 @@ consumer-owned GO, not a Strata package API or a general render-failure fix. See
 The full failure criterion, streaming, true SPA Server Component navigation and Strata 1.0 remain
 unqualified.
 
+## Server Component document navigation APIs (2026-10-21)
+
+The optional `@strata-sc/server-components/navigation` entry now exports `StrataDocumentLink`,
+`StrataDocumentNavigator` and the hardened `strataDocumentNavigationGuard`, all on one same-origin
+resolver built on public Angular APIs (starting `main` `21baee81f644b46b2142ca3dfd789a691417f16c`).
+Links stay native anchors; navigation is always a real document request; the guard cancels Router
+activation in `canActivate`. SPA subtree hydration, streaming and an SSR-error status redesign remain
+out of scope and unsupported. See [the report](research/server-component-document-navigation-v04.md).
+
 ## Server Component document-navigation fallback (2026-10-14)
 
 At `f62722b3e0ba23c80e61669bca7f4f056081979c`, the fixture qualified a consumer-owned experimental

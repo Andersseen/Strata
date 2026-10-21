@@ -1,16 +1,28 @@
-import { ChangeDetectionStrategy, Component } from "@angular/core";
+import { defineRouteMeta } from "@analogjs/router";
+import { ChangeDetectionStrategy, Component, inject } from "@angular/core";
+import {
+  strataDocumentNavigationGuard,
+  StrataDocumentLink,
+  StrataDocumentNavigator,
+} from "@strata-sc/server-components/navigation";
 
 import { BriefingMetadataServerComponent } from "../server-components/briefing/briefing-metadata.server-component";
 import { ReleaseGateServerComponent } from "../server-components/release/release-gate.server-component";
 
+// Server-owned routes are reached by document navigation; the guard cancels any
+// Angular Router activation before it can render an empty Server Component.
+export const routeMeta = defineRouteMeta({
+  canActivate: [strataDocumentNavigationGuard],
+});
+
 @Component({
   selector: "relay-release-page",
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReleaseGateServerComponent, BriefingMetadataServerComponent],
+  imports: [ReleaseGateServerComponent, BriefingMetadataServerComponent, StrataDocumentLink],
   template: `
     <main class="release-page">
       <header class="release-header">
-        <a href="/">← Back to operations</a>
+        <a [strataDocumentLink]="['/']">← Back to operations</a>
         <div>
           <p class="eyebrow">DOCUMENT NAVIGATION EXAMPLE</p>
           <h1>Release gate</h1>
@@ -18,6 +30,7 @@ import { ReleaseGateServerComponent } from "../server-components/release/release
             This route uses a full document request because client-router navigation is not
             supported by the current Server Component experiment.
           </p>
+          <button type="button" (click)="openIncidentDigest()">Open incident digest</button>
         </div>
       </header>
       <relay-release-gate />
@@ -45,4 +58,13 @@ import { ReleaseGateServerComponent } from "../server-components/release/release
     </main>
   `,
 })
-export default class ReleasePage {}
+export default class ReleasePage {
+  private readonly documentNavigator = inject(StrataDocumentNavigator);
+
+  openIncidentDigest(): void {
+    this.documentNavigator.navigate(["/incidents"], {
+      queryParams: { from: "release" },
+      fragment: "incident-digest-title",
+    });
+  }
+}

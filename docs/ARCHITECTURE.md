@@ -203,6 +203,13 @@ M4 chooses and specifies one production navigation strategy using measured fixtu
 | Full document navigation for server-component routes | Links, programmatic navigation, redirects, deep links and history consistently request server documents; interactive boundaries hydrate on each load | State reset, transition latency, scroll/focus and mixed CSR routes      |
 | Client router plus server subtree/payload            | Stable payload identity/versioning, Angular-supported attach/hydrate lifecycle, cleanup, cancellation, history and error recovery                    | Framework coupling, cache/auth/serialization surface and retained state |
 
+The selected path is full document navigation, exposed by the optional
+`@strata-sc/server-components/navigation` entry as a native-anchor directive, an explicit navigator
+service and a route guard that share one same-origin URL resolver built on Angular's public
+`Router`, `UrlSerializer` and `Location`
+([report](research/server-component-document-navigation-v04.md)). It does not replace the Angular
+Router and does not add SPA subtree hydration.
+
 Document navigation is eligible for 1.0 only if explicitly selected, automated and acceptable to the
 real consumer. It is not an excuse to leave normal router links rendering missing server code.
 Do not copy React Flight, invent Suspense, inject arbitrary DOM into Angular-owned views or ship the

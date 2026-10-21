@@ -157,17 +157,17 @@ libraries or export-condition layouts.
 
 ## Limitations (read these first)
 
-| Area                                                                            | Status                                                                                                         |
-| ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| Document navigation into a Server Component page                                | supported                                                                                                      |
-| Buffered SSR (Nitro `node-server`, Cloudflare Pages/workerd)                    | supported                                                                                                      |
-| Angular Router navigation into a new Server Component subtree                   | **unsupported** (SPA hydration renders the empty surrogate; use the opt-in `/navigation` guard experimentally) |
-| Streaming SSR                                                                   | **unsupported**                                                                                                |
-| Explicitly registered standalone package components as `[strataClient]` islands | **experimental; bounded to the qualified package shape**                                                       |
-| `NgComponentOutlet` / dynamic `createComponent` in analysis                     | **unsupported** (invisible to the plugin)                                                                      |
-| Content projection into islands                                                 | **not qualified**                                                                                              |
-| Request-scoped Server Component context                                         | experimental: Angular `REQUEST_CONTEXT`                                                                        |
-| Module-level state shared between the SSR bundle and Nitro code                 | **separate bundles**: each evaluates its own copy                                                              |
+| Area                                                                            | Status                                                                                                       |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Document navigation into a Server Component page                                | supported                                                                                                    |
+| Buffered SSR (Nitro `node-server`, Cloudflare Pages/workerd)                    | supported                                                                                                    |
+| Angular Router navigation into a new Server Component subtree                   | **unsupported** (SPA hydration renders the empty surrogate; use the `/navigation` link, navigator and guard) |
+| Streaming SSR                                                                   | **unsupported**                                                                                              |
+| Explicitly registered standalone package components as `[strataClient]` islands | **experimental; bounded to the qualified package shape**                                                     |
+| `NgComponentOutlet` / dynamic `createComponent` in analysis                     | **unsupported** (invisible to the plugin)                                                                    |
+| Content projection into islands                                                 | **not qualified**                                                                                            |
+| Request-scoped Server Component context                                         | experimental: Angular `REQUEST_CONTEXT`                                                                      |
+| Module-level state shared between the SSR bundle and Nitro code                 | **separate bundles**: each evaluates its own copy                                                            |
 
 The full list is under [Experimental restrictions](#experimental-restrictions).
 
@@ -226,9 +226,9 @@ and the Vite environment-aware `hotUpdate` dev integration have only been tested
 - **Document navigation only.** Explicit document navigation into a route containing a server
   component is supported. SPA hydration of a newly rendered server subtree remains unsupported:
   without a consumer-owned fallback it renders the empty surrogate, silently. A consumer may
-  experimentally protect designated routes with `strataDocumentNavigationGuard` from the optional
-  `/navigation` entry. This is a full reload, not seamless router integration, and is not a 1.0
-  qualification.
+  protect designated routes with `strataDocumentNavigationGuard` and link to them with
+  `StrataDocumentLink` / `StrataDocumentNavigator` from the optional `/navigation` entry. This is a
+  full document request, not seamless router integration, and is not a 1.0 qualification.
 
 ## Entries
 
@@ -236,7 +236,7 @@ and the Vite environment-aware `hotUpdate` dev integration have only been tested
 | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------- | --------------------------- |
 | `@strata-sc/server-components`             | `ServerComponent`, `StrataClientBoundary`, `ClientBoundaryProps`, `StrataIslandHost`, `provideClientReferences` | server + browser            |
 | `@strata-sc/server-components/vite`        | `strataServerComponents(options)`                                                                               | build (Node) only           |
-| `@strata-sc/server-components/navigation`  | `strataDocumentNavigationGuard`                                                                                 | Angular Router + browser    |
+| `@strata-sc/server-components/navigation`  | `StrataDocumentLink`, `StrataDocumentNavigator`, `strataDocumentNavigationGuard`                                | Angular Router + browser    |
 | `@strata-sc/server-components/server-only` | nothing: an empty module whose side-effect import is a build-time assertion                                     | server only (never browser) |
 
 The runtime entry imports only `@angular/core`. It is Angular partial-compiled by `ngc` into
@@ -244,10 +244,65 @@ The runtime entry imports only `@angular/core`. It is Angular partial-compiled b
 `/fesm20/`. The `/vite` entry imports `typescript`, `@angular/compiler` (template parsing), `vite`
 types and Node built-ins; nothing in the runtime entry imports it.
 
-### Experimental document-navigation fallback
+### Document navigation
 
-For a route whose rendered subtree contains Server Components, opt into the narrow document
-navigation fallback through normal Analog route metadata:
+A route whose rendered subtree contains Server Components is reached by a **real document
+navigation**: the browser requests a new HTML document, Angular bootstraps and hydrates it. Angular
+Router transitions into such a route are unsupported (they render the empty generated surrogate,
+silently). The optional `/navigation` entry makes the supported path the easy one. It adds
+`@angular/common` and `@angular/router` as peer dependencies and nothing else; it does not replace,
+patch or wrap the Angular Router, and it does not discover routes.
+
+| API                             | Use                                                                         |
+| ------------------------------- | --------------------------------------------------------------------------- |
+| `StrataDocumentLink`            | `<a [strataDocumentLink]="…">`: a native anchor with a computed `href`      |
+| `StrataDocumentNavigator`       | `navigate()` / `resolve()`: programmatic document navigation                |
+| `strataDocumentNavigationGuard` | Route guard: cancels a later Router activation and retries it as a document |
+
+**Link.** The directive only sets `href`; it never intercepts a click, so history, Cmd/Ctrl-click,
+middle-click, `target`, keyboard activation and fragments are the browser's own.
+
+```ts
+import { StrataDocumentLink } from "@strata-sc/server-components/navigation";
+
+@Component({
+  imports: [StrataDocumentLink],
+  template: `<a
+    [strataDocumentLink]="['/products', product.id]"
+    [queryParams]="{ tab: 'variants' }"
+    fragment="details"
+    >View product</a
+  >`,
+})
+export class ProductsPage {}
+```
+
+The destination is route commands, a `UrlTree` or a root-relative string (`'/products/42?tab=v#d'`).
+`null`/`undefined` renders no `href`. Commands resolve with Angular's `Router.createUrlTree`
+(relative to the injected `ActivatedRoute` unless `[relativeTo]` is set), are serialized with the
+application's `UrlSerializer`, and are prefixed with the base href through `Location`; segments are
+percent-encoded by Angular. The `href` is rendered during SSR. Anything that is not a same-origin
+path (`https:`, `//host`, `javascript:`, `data:`, a relative string, control characters, a base href
+on another origin) throws `StrataDocumentNavigationError` with an actionable message that never
+echoes query parameters. Use a plain `<a href>` for external URLs. Combining `strataDocumentLink`
+with `routerLink` on one anchor throws.
+
+**Programmatic navigation.**
+
+```ts
+const navigator = inject(StrataDocumentNavigator);
+
+navigator.navigate(["/products", id], { queryParams: { tab: "variants" }, fragment: "details" });
+```
+
+`navigate()` resolves the destination exactly like the link, checks the origin against the current
+document, and calls `Location.assign` (or `replace` with `{ replace: true }`). It returns `true` when
+a navigation was started, and `false` when nothing was: during SSR (it never throws there), when the
+destination is the current URL, or when the same navigation is already in flight. It never calls
+`Router.navigate()`. `resolve()` returns the document URL in any platform. State lives in the
+injector, not in a global.
+
+**Guard.** Unchanged for consumers; keep it on every route that renders a Server Component:
 
 ```ts
 import { defineRouteMeta } from "@analogjs/router";
@@ -258,12 +313,20 @@ export const routeMeta = defineRouteMeta({
 });
 ```
 
-The guard allows SSR and the browser's initial navigation. Later same-origin Angular Router
-activations are cancelled before the empty surrogate can render and retried with
-`Location.assign`, preserving the path, query parameters and fragment. It uses only public Angular
-Router APIs and browser `Location`; it does not discover routes globally, implement SPA hydration,
-or apply to routes that do not opt in. The `/navigation` entry therefore adds `@angular/common` and
-`@angular/router` as peer dependencies while keeping them out of the default runtime entry.
+SSR and the browser's initial navigation render and hydrate normally. Any later Router activation is
+cancelled in `canActivate`, before the route component (and its empty surrogate) is created, and
+retried as a document navigation to the same path, query and fragment, under the base href. A
+navigation to the URL already shown is cancelled without a request, so the guard cannot loop. A
+target that cannot be resolved to a same-origin path is cancelled and not retried. Limits: the guard
+protects only routes that opt in; a Router transition into an unguarded Server Component route still
+renders the empty surrogate (a negative control in the test suite pins this); a popstate to a guarded
+entry is retried as a document navigation, which is not seamless.
+
+**Migrating.** A plain `<a href="/products/42">` stays valid and is still the right choice for
+external or non-root-relative URLs. Replace `routerLink` on links into Server Component routes with
+`strataDocumentLink` (same commands, `queryParams` and `fragment`); replace `router.navigate(...)`
+with `StrataDocumentNavigator.navigate(...)`. Keep the guard as the safety net for any remaining
+`routerLink`. This is not SPA navigation: every hop is a full document request.
 
 ## Use
 

@@ -81,6 +81,44 @@ describe("package boundary", () => {
   });
 });
 
+describe("navigation entry", () => {
+  const navigationDir = join(packageDir, "src", "navigation");
+  const files = readdirSync(navigationDir).filter(
+    (name) => name.endsWith(".ts") && !name.endsWith(".test.ts"),
+  );
+
+  it("imports only Angular public packages and its own modules", () => {
+    for (const specifier of importsOf(navigationDir)) {
+      expect(
+        /^@angular\/(core|common|router)$/.test(specifier) || /^\.\/[\w-]+\.js$/.test(specifier),
+        specifier,
+      ).toBe(true);
+    }
+  });
+
+  it("holds no process-wide state: no globals, storage or module-scope mutable collection", () => {
+    for (const name of files) {
+      const source = readFileSync(join(navigationDir, name), "utf8");
+
+      expect(source, name).not.toMatch(/\b(globalThis|localStorage|sessionStorage|process)\b/);
+      expect(source, name).not.toMatch(/^(const|let|var) \w+ = (new (Map|Set|WeakMap)|\[|\{)/m);
+      // Browser globals are reached only through Angular's DOCUMENT token.
+      expect(source, name).not.toMatch(/(?<![\w.])(window|document)\./);
+    }
+  });
+
+  it("never navigates through an unsafe sink", () => {
+    for (const name of files) {
+      const source = readFileSync(join(navigationDir, name), "utf8")
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/^\s*\/\/.*$/gm, "");
+
+      expect(source, name).not.toMatch(/innerHTML|DOMParser|document\.write|\beval\(|\.href\s*=/);
+      expect(source, name).not.toMatch(/\.navigate\(|navigateByUrl\(/);
+    }
+  });
+});
+
 describe("no global data registry", () => {
   const runtimeDir = join(packageDir, "src", "runtime");
   const runtimeFiles = readdirSync(runtimeDir).filter(

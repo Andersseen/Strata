@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component } from "@angular/core";
+import { StrataDocumentLink } from "@strata-sc/server-components/navigation";
 
 import { DevBoundaryServerComponent } from "../server-component-dev/dev-boundary.server-component";
 import { DevRootServerComponent } from "../server-component-dev/dev-root.server-component";
@@ -12,10 +13,19 @@ import { DevRootServerComponent } from "../server-component-dev/dev-root.server-
 @Component({
   selector: "app-server-component-dev-page",
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DevBoundaryServerComponent, DevRootServerComponent],
+  imports: [DevBoundaryServerComponent, DevRootServerComponent, StrataDocumentLink],
   template: `<main>
     <dev-root />
     <dev-boundary />
+    <nav>
+      <a
+        data-dev-nav-product
+        [strataDocumentLink]="['/server-component']"
+        [queryParams]="{ from: 'dev' }"
+        fragment="details"
+        >Product route (document link)</a
+      >
+    </nav>
   </main>`,
 })
 export default class ServerComponentDevPage {}

@@ -128,6 +128,14 @@ interface PendingReload {
   timer: ReturnType<typeof setTimeout> | undefined;
 }
 
+/** Walks up from the app root like a bundler does; `NODE_PATH` (set by pnpm) must not count. */
+function hasAngularRouter(root: string): boolean {
+  for (let dir = root; ; dir = dirname(dir)) {
+    if (existsSync(join(dir, "node_modules", "@angular", "router", "package.json"))) return true;
+    if (dirname(dir) === dir) return false;
+  }
+}
+
 export function strataServerComponents(options: ServerComponentsOptions): Plugin {
   const clientComponents = validateExternalClientComponents(
     (options as { readonly clientComponents?: unknown }).clientComponents,
@@ -323,10 +331,18 @@ export function strataServerComponents(options: ServerComponentsOptions): Plugin
       // SSR, so Nitro would load the partial declarations unlinked and fall back
       // to the JIT compiler. Bundling the runtime through the SSR graph lets
       // Analog's linker process it, as it does for a linked workspace package.
+      //
+      // The optional `/navigation` entry is Angular partial-compiled too (its
+      // injectable and directive), so it is pre-bundled when the app has
+      // `@angular/router`, the peer it needs. Apps without a router never load it.
+      const linked = [
+        RUNTIME_PACKAGE,
+        ...(hasAngularRouter(root) ? [`${RUNTIME_PACKAGE}/navigation`] : []),
+        ...clientComponents.map((entry) => entry.module),
+      ];
+
       return {
-        optimizeDeps: {
-          include: [RUNTIME_PACKAGE, ...clientComponents.map((entry) => entry.module)],
-        },
+        optimizeDeps: { include: linked },
         ssr: { noExternal: [RUNTIME_PACKAGE, ...clientComponents.map((entry) => entry.module)] },
       };
     },

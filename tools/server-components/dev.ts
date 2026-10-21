@@ -14,6 +14,7 @@ import {
   checkBoundaryLifecycle,
   checkClientEdit,
   checkCreateAndDelete,
+  checkDocumentNavigation,
   checkDynamicAndQuery,
   checkInitialDev,
   checkInvalidEdit,
@@ -126,6 +127,8 @@ try {
 
     verdict["L Server Component created, wired, deleted"] = await checkCreateAndDelete(context);
     verdict["M repeated cycles leave no stale islands"] = await checkRepeatedEdits(context);
+    verdict["N document navigation between Server Component routes"] =
+      await checkDocumentNavigation(context);
 
     timings.push(...refreshTimings(server.output()));
 

@@ -1205,3 +1205,195 @@ export async function checkRepeatedEdits(ctx: DevContext): Promise<boolean> {
 export function refreshTimings(output: string): number[] {
   return [...output.matchAll(/graph refreshed in (\d+) ms/g)].map((match) => Number(match[1]));
 }
+
+// ---------------------------------------------------------------------------
+// N. Document navigation between Server Component routes while Vite edits
+
+const PRODUCT_ROUTE = "/server-component";
+const PRODUCT_IMPLEMENTATION = "STRATA_SERVER_COMPONENT_IMPLEMENTATION_MARKER";
+const PRODUCT_ISLAND = "add-to-cart[data-strata-hydrated]";
+
+/** Clicks a StrataDocumentLink and reports the document requests it caused. */
+async function followDocumentLink(
+  dev: DevPage,
+  selector: string,
+  pathname: string,
+  /** Vite's error overlay covers the page while a graph is invalid; activate the anchor itself. */
+  throughOverlay = false,
+): Promise<{ replaced: boolean; documents: number }> {
+  await dev.markRealm();
+
+  const before = dev.documentRequests();
+
+  if (throughOverlay) {
+    await dev.page.locator(selector).evaluate((anchor) => (anchor as { click(): void }).click());
+  } else {
+    await dev.page.click(selector);
+  }
+  await dev.page
+    .waitForURL((url) => url.pathname === pathname, { timeout: 15_000 })
+    .catch(() => undefined);
+  await dev.page.waitForLoadState("load").catch(() => undefined);
+  // A navigation loop would keep issuing documents; give it room to show.
+  await sleep(1_500);
+
+  return { replaced: !(await dev.realmSurvives()), documents: dev.documentRequests() - before };
+}
+
+/**
+ * N. StrataDocumentLink between two Server Component routes after a server-owned
+ * edit, a client-island edit and an invalid server-owned source that is then
+ * fixed: always a fresh server render, one document request per hop, one root,
+ * no loop, a closed graph while the source is invalid.
+ */
+export async function checkDocumentNavigation(ctx: DevContext): Promise<boolean> {
+  section("N. Document navigation between Server Component routes while Vite edits");
+
+  const results: boolean[] = [];
+  const dev = await openDevPage(ctx.browser, ctx.server);
+
+  try {
+    results.push(check("start: the dev route hydrated", await hydrated(dev)));
+
+    // 1. Server-owned edit, then a link hop to the product route and back.
+    await editAndWatch(ctx, dev, () =>
+      ctx.edits.replace(devFile("dev-child.component.ts"), "Server child A", "Server child N"),
+    );
+    await ssrWhen(ctx.server, (html) => html.includes("Server child N"));
+    results.push(await hydratedCheck("after the server-owned edit the dev route hydrated", dev));
+
+    const toProduct = await followDocumentLink(dev, "[data-dev-nav-product]", PRODUCT_ROUTE);
+
+    results.push(
+      check(
+        "the link hop made exactly one document request and a new realm",
+        toProduct.replaced && toProduct.documents === 1,
+        `${String(toProduct.documents)}`,
+      ),
+      await hydratedCheck("the product route's island hydrated", dev, PRODUCT_ISLAND),
+      check(
+        "query and fragment survived the hop",
+        new URL(dev.page.url()).search === "?from=dev" &&
+          new URL(dev.page.url()).hash === "#details",
+        dev.page.url(),
+      ),
+      check(
+        "exactly one server article, no duplicate Angular root",
+        (await probe(dev, 'document.querySelectorAll("product-details article").length')) === 1 &&
+          (await probe(dev, 'document.querySelectorAll("app-root").length')) <= 1,
+      ),
+    );
+
+    const backToDev = await followDocumentLink(dev, "[data-nav-dev]", DEV_ROUTE);
+
+    results.push(
+      check(
+        "the link back made exactly one document request",
+        backToDev.replaced && backToDev.documents === 1,
+        String(backToDev.documents),
+      ),
+      await hydratedCheck("the dev route hydrated again", dev),
+      check(
+        "the edited server source is rendered (no stale surrogate)",
+        (await dev.page.content()).includes("Server child N"),
+      ),
+      check(
+        "one island in the new document",
+        (await probe(dev, "globalThis.__STRATA_ISLAND_PROBE__?.created ?? 0")) === 1,
+      ),
+    );
+
+    // 2. Client-island edit (no Strata reload), then a hop.
+    ctx.edits.replace(devFile("dev-island.component.ts"), "Client label A", "Client label B");
+    await until(
+      async () => (await text(dev, "[data-dev-bump]")).includes("Client label B"),
+      20_000,
+    );
+
+    const afterClientEdit = await followDocumentLink(dev, "[data-dev-nav-product]", PRODUCT_ROUTE);
+
+    results.push(
+      check(
+        "after a client-island edit the hop is one document request",
+        afterClientEdit.replaced && afterClientEdit.documents === 1,
+      ),
+      await hydratedCheck("the product route hydrated after the client edit", dev, PRODUCT_ISLAND),
+    );
+    await followDocumentLink(dev, "[data-nav-dev]", DEV_ROUTE);
+    results.push(
+      await hydratedCheck("the dev route hydrated after the client edit", dev),
+      check(
+        "the edited client island is what the new document runs",
+        (await text(dev, "[data-dev-bump]")).includes("Client label B"),
+      ),
+    );
+
+    await restoreAndSettle(ctx);
+    await dev.page.goto(`${ctx.server.baseUrl}${DEV_ROUTE}`, { waitUntil: "load" });
+    await hydrated(dev);
+
+    // 3. An invalid server-owned source fails closed; the hop does not loop, and the fix recovers.
+    const mark = ctx.server.mark();
+
+    ctx.edits.replace(
+      devFile("dev-child.component.ts"),
+      "<dev-note />`",
+      "<dev-note />\n    @defer {<p>late</p>}`",
+    );
+
+    const reported = await until(() => ctx.server.since(mark).includes(FAIL_LINE), 20_000);
+    const responsesBefore = dev.log.mark();
+    const whileInvalid = await followDocumentLink(
+      dev,
+      "[data-dev-nav-product]",
+      PRODUCT_ROUTE,
+      true,
+    );
+    const hydratedWhileInvalid = await dev.page
+      .waitForSelector(PRODUCT_ISLAND, { state: "attached", timeout: 3_000 })
+      .then(() => true)
+      .catch(() => false);
+
+    results.push(
+      check("the invalid source was reported", reported === true),
+      check(
+        "the hop made one document request and did not loop",
+        whileInvalid.documents <= 1,
+        String(whileInvalid.documents),
+      ),
+      check("the closed graph does not hydrate a half-working island", !hydratedWhileInvalid),
+      check(
+        "no server-only marker reached the browser while invalid",
+        logContains(dev.log, PRODUCT_IMPLEMENTATION, responsesBefore).length === 0 &&
+          Object.values(CANARIES).every(
+            (canary) => logContains(dev.log, canary, responsesBefore).length === 0,
+          ),
+      ),
+    );
+
+    await restoreAndSettle(ctx);
+    await dev.page.goto(`${ctx.server.baseUrl}${DEV_ROUTE}`, { waitUntil: "load" });
+    results.push(await hydratedCheck("after the fix the dev route hydrates again", dev));
+
+    const recovered = await followDocumentLink(dev, "[data-dev-nav-product]", PRODUCT_ROUTE);
+
+    results.push(
+      check(
+        "after the fix the hop is one document request",
+        recovered.replaced && recovered.documents === 1,
+        String(recovered.documents),
+      ),
+      await hydratedCheck("after the fix the product route hydrates", dev, PRODUCT_ISLAND),
+      check(
+        "no browser page errors across the whole flow",
+        dev.log.pageErrors.length === 0,
+        dev.log.pageErrors.join(" | "),
+      ),
+    );
+  } finally {
+    await dev.close();
+    await restoreAndSettle(ctx);
+  }
+
+  return all(results);
+}

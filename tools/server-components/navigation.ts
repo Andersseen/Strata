@@ -12,6 +12,7 @@ import {
   section,
   startProductionServer,
 } from "./lib/harness.ts";
+import { checkLinkFlow } from "./lib/navigation-checks.ts";
 import { CONTROL_DESTINATION, DESTINATION, ORIGIN, observeNavigation } from "./lib/navigation.ts";
 import type { DomSnapshot, RequestRecord, ScriptRecord } from "./lib/navigation.ts";
 
@@ -62,6 +63,7 @@ const server = await startProductionServer();
 const verdict = {
   direct: false,
   document: false,
+  link: false,
   fallback: false,
   routerNegative: false,
   teardown: false,
@@ -105,8 +107,9 @@ try {
   const fallback = seen.fallback;
   const router = seen.router;
   const teardown = seen.teardown;
+  const link = seen.link;
 
-  for (const flow of [doc, router, teardown]) scripts.push(...flow.session.scripts);
+  for (const flow of [doc, router, teardown, link]) scripts.push(...flow.session.scripts);
   scripts.push(...fallback.session.scripts);
 
   // 3. Document navigation.
@@ -232,6 +235,9 @@ try {
       fallback.session.errors.join(" | "),
     ),
   ]);
+
+  section(`StrataDocumentLink / StrataDocumentNavigator: ${ORIGIN} → ${DESTINATION}`);
+  verdict.link = checkLinkFlow(link);
 
   section("Document navigation: re-entry (origin → destination → origin → destination)");
 
@@ -427,6 +433,7 @@ check(
 section("Classification (as measured)");
 console.log(`direct load                 ${verdict.direct ? "✓" : "✗"}`);
 console.log(`document navigation         ${verdict.document ? "GO" : "NO-GO"}`);
+console.log(`document link + navigator    ${verdict.link ? "GO" : "NO-GO"}`);
 console.log(`router document fallback    ${verdict.fallback ? "EXPERIMENTAL GO" : "NO-GO"}`);
 console.log(
   `router navigation           ${verdict.routerNegative ? "NO-GO (empty surrogate, no server subtree; limitation reproduced)" : "UNEXPECTED: differs from the recorded limitation"}`,

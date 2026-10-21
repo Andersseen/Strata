@@ -1,5 +1,6 @@
 import { afterNextRender, ChangeDetectionStrategy, Component, inject, signal } from "@angular/core";
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from "@angular/forms";
+import { StrataDocumentLink } from "@strata-sc/server-components/navigation";
 import {
   VoltBadge,
   VoltButton,
@@ -40,6 +41,7 @@ import { OperationsBriefingServerComponent } from "../server-components/briefing
 @Component({
   selector: "relay-dashboard",
   imports: [
+    StrataDocumentLink,
     ReactiveFormsModule,
     LmnArrowRightIcon,
     LmnBoltIcon,
@@ -86,8 +88,10 @@ import { OperationsBriefingServerComponent } from "../server-components/briefing
           <a class="nav-item" href="#services"><span class="nav-dot"></span> Services</a>
           <a class="nav-item" href="#incidents"><span class="nav-dot"></span> Incidents</a>
           <a class="nav-item" href="#activity"><span class="nav-dot"></span> Activity</a>
-          <a class="nav-item" href="/release"><span class="nav-dot server"></span> Release gate</a>
-          <a class="nav-item" href="/incidents"
+          <a class="nav-item" [strataDocumentLink]="['/release']"
+            ><span class="nav-dot server"></span> Release gate</a
+          >
+          <a class="nav-item" [strataDocumentLink]="['/incidents']"
             ><span class="nav-dot server"></span> Incident digest</a
           >
         </nav>

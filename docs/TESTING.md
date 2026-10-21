@@ -127,9 +127,11 @@ hydration:
   server-only-import canaries, `@angular/compiler`, the TypeScript compiler, the Vite transform and
   Node built-ins; the server output must contain them. Then HTTP SSR and Chromium hydration by DOM
   node identity, one island, one increment per click.
-- `pnpm test:server-component-navigation`: direct SSR, document navigation, the fixture's
-  consumer-owned Router document fallback (RouterLink and `navigateByUrl`), Back/Forward,
-  query/fragment preservation, the isolated Angular Router empty-surrogate control (pinned as
+- `pnpm test:server-component-navigation`: direct SSR, document navigation, `StrataDocumentLink`
+  (SSR-rendered encoded `href`, one document request, new realm, Navigation Timing, hydrated once,
+  Ctrl/Cmd-click, middle-click and `target=_blank` opening a new tab natively),
+  `StrataDocumentNavigator`, the fixture's consumer-owned Router document fallback (RouterLink and
+  `navigateByUrl`), Back/Forward, query/fragment preservation, the isolated Angular Router empty-surrogate control (pinned as
   the recorded NO-GO), and island teardown through fixture-owned probes.
 - `pnpm test:server-components:cloudflare`: the same contract, including the document fallback,
   on local workerd via Wrangler.
