@@ -114,7 +114,7 @@ try {
           "<aside data-dev-boundary>Boundary host</aside>",
           '<aside data-dev-boundary>Boundary host</aside><dev-island-b [strataClient]="{}" />',
         ),
-      /<dev-island-b> is marked \[strataClient\], but no component in imports/,
+      /<dev-island-b> is marked \[strataClient\] in DevBoundaryServerComponent, but no imported local component or registered package export matches it\. No package registration exists for <dev-island-b>\./,
     );
 
     verdict["L Server Component created, wired, deleted"] = await checkCreateAndDelete(context);
