@@ -1,5 +1,11 @@
 # @strata-sc/server-components
 
+## 0.4.0
+
+### Minor Changes
+
+- 7183d0b: Allow explicitly registered Angular components from installed packages to be used as `[strataClient]` islands, with package imports in AOT-compiled surrogates and the existing safe v1/v2 hydration protocol.
+
 ## 0.3.0
 
 ### Minor Changes
