@@ -1,5 +1,14 @@
 # @strata-sc/server-components
 
+## 0.3.0
+
+### Minor Changes
+
+- fe41a5f: Add bounded readonly structured props for `[strataClient]` with browser hydration through boundary
+  protocol v2, while preserving protocol v1 for flat primitive payloads. Server serialization and
+  browser preflight share strict recursive validation and independent snapshots, with explicit depth,
+  node, key, array and UTF-8 byte limits to reject unsafe values at both sides of the boundary.
+
 ## 0.2.1
 
 ### Patch Changes
