@@ -1,8 +1,7 @@
 /**
- * What the packed-package consumer fixture (tests/server-component-package-consumer/fixture)
- * emits, shared by the tarball qualification and the registry consumer: the
- * server/client markers, the consumer-authored server sources, and the
- * server-computed evidence the SSR HTML must carry.
+ * Shared evidence used by the packed-package and registry consumers: the
+ * server/client markers, consumer-authored server sources, and server-computed
+ * value the SSR HTML must carry.
  */
 
 export const MARKERS = {

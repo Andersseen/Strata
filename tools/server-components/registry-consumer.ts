@@ -84,6 +84,15 @@ const emptyNpmrc = join(tmpRoot, "empty.npmrc");
 const emptyGlobalNpmrc = join(tmpRoot, "empty-global.npmrc");
 const env = isolatedEnv(emptyNpmrc, emptyGlobalNpmrc);
 const fixtureTemplate = join(repoRoot, "tests", "server-component-package-consumer", "fixture");
+const registryV1Fixtures = join(
+  repoRoot,
+  "tests",
+  "server-component-package-consumer",
+  "registry-v1",
+  "src",
+  "app",
+  "product",
+);
 const servers: RunningServer[] = [];
 
 const npm = (args: readonly string[], cwd = tmpRoot) =>
@@ -171,6 +180,18 @@ try {
     !realpathSync(tmpRoot).startsWith(realpathSync(repoRoot)),
   );
   cpSync(fixtureTemplate, consumerDir, { recursive: true });
+
+  // This gate verifies the already-published artifact, which may be an older
+  // v1-only release. Keep its consumer on the flat protocol-v1 contract; the
+  // packed-package gate qualifies the candidate's structured-props fixture.
+  for (const [source, destination] of [
+    ["add-to-cart.component.fixture", "add-to-cart.component.ts"],
+    ["product-details.server-component.fixture", "product-details.server-component.ts"],
+  ])
+    cpSync(
+      join(registryV1Fixtures, source),
+      join(consumerDir, "src", "app", "product", destination),
+    );
 
   const manifestPath = join(consumerDir, "package.json");
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as {
