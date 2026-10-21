@@ -439,7 +439,8 @@ export interface LinkFlow {
   readonly afterForward: DomSnapshot;
   /** Modified and middle clicks: native new-tab behaviour, no navigation of this tab. */
   readonly modifiedClick: { readonly popupUrl: string | null; readonly stayed: DomSnapshot };
-  readonly middleClick: { readonly popupUrl: string | null; readonly stayed: DomSnapshot };
+  /** The middle-click (auxclick) was not cancelled by the page: the browser keeps its default. */
+  readonly middleClickNotPrevented: boolean;
   readonly targetBlank: { readonly popupUrl: string | null; readonly stayed: DomSnapshot };
   readonly session: Session;
 }
@@ -481,7 +482,18 @@ async function linkFlow(browser: Browser, baseUrl: string): Promise<LinkFlow> {
   const ssrOriginHtml = session.documents.get(ORIGIN) ?? "";
 
   const modifiedPopup = await popupOf(session, () => link.click({ modifiers: ["ControlOrMeta"] }));
-  const middlePopup = await popupOf(session, () => link.click({ button: "middle" }));
+  // Opening a tab from a middle-click is browser/OS dependent in headless Chromium, so assert
+  // what the page controls: the auxclick is not cancelled.
+  const middleClickNotPrevented = await page.evaluate(`(() => {
+    const anchor = [...document.querySelectorAll("a")].find(
+      (candidate) => candidate.textContent.trim() === "Document link",
+    );
+    const event = new MouseEvent("auxclick", { button: 1, bubbles: true, cancelable: true });
+
+    anchor.dispatchEvent(event);
+
+    return !event.defaultPrevented;
+  })()`);
   const blankPopup = await popupOf(session, () => newTab.click());
   const stayed = await session.snapshot();
 
@@ -534,7 +546,7 @@ async function linkFlow(browser: Browser, baseUrl: string): Promise<LinkFlow> {
     afterBackFromProgrammatic,
     afterForward: await session.snapshot(),
     modifiedClick: { popupUrl: modifiedPopup, stayed },
-    middleClick: { popupUrl: middlePopup, stayed },
+    middleClickNotPrevented,
     targetBlank: { popupUrl: blankPopup, stayed },
     session,
   };

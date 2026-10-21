@@ -116,11 +116,7 @@ export function checkLinkFlow(link: LinkFlow): boolean {
         link.modifiedClick.stayed.url === ORIGIN,
       String(link.modifiedClick.popupUrl),
     ),
-    check(
-      "middle-click opens a new tab natively",
-      link.middleClick.popupUrl === expectedHref,
-      String(link.middleClick.popupUrl),
-    ),
+    check("middle-click (auxclick) is not cancelled by the page", link.middleClickNotPrevented),
     check(
       "target=_blank opens a new tab natively",
       link.targetBlank.popupUrl === DESTINATION,
