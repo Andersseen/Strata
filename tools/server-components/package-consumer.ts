@@ -865,7 +865,7 @@ try {
   const node = await timeAsync("start production server", () => startNodeServer(consumerDir, env));
 
   servers.push(node);
-  section("Production server: SSR, protocol v1, hydration, interaction");
+  section("Production server: SSR, v1 + v2, hydration, interaction");
 
   const response = await httpGet(`${node.baseUrl}/product`);
   const html = response.body;
@@ -885,11 +885,17 @@ try {
       html.match(/data-evidence="[^"]*"/)?.[0] ?? "",
     ),
     check(
-      'SSR HTML has the client boundary with data-strata-protocol="1" and an ngh annotation',
-      /<add-to-cart data-strata-client="add-to-cart" data-strata-protocol="1" data-strata-props="\{&quot;productId&quot;:&quot;42&quot;\}" ngh="\d+">/.test(
+      'SSR HTML has the structured boundary with data-strata-protocol="2" and an ngh annotation',
+      /<add-to-cart data-strata-client="add-to-cart" data-strata-protocol="2" data-strata-props="\{&quot;product&quot;:\{&quot;id&quot;:&quot;42&quot;,&quot;name&quot;:&quot;Product 42&quot;,&quot;variants&quot;:\[/.test(
         html,
       ),
       html.match(/<add-to-cart[^>]*>/)?.[0] ?? "no boundary",
+    ),
+    check(
+      "SSR HTML keeps the primitive sibling on protocol v1",
+      /<legacy-counter data-strata-client="legacy-counter" data-strata-protocol="1" data-strata-props="\{&quot;start&quot;:0\}" ngh="\d+">/.test(
+        html,
+      ),
     ),
     check(
       "SSR HTML exposes no server implementation marker as public data",
@@ -916,8 +922,22 @@ try {
       JSON.stringify(observation.sameNodes),
     ),
     check(
-      "no leftover ngh annotations, exactly one hydrated island",
-      observation.remainingHydrationAnnotations === 0 && observation.hydratedIslands === 1,
+      "the public nested product view is visible before scripts",
+      html.includes("Black") &&
+        html.includes("White") &&
+        html.includes("In stock: 12") &&
+        observation.beforeScripts.stock === "In stock: 12",
+    ),
+    check(
+      "keyboard selection updates variant stock and preserves the SSR button",
+      observation.stockAfterKeyboard === "In stock: 5" &&
+        observation.selectedVariantAfterKeyboard === "true" &&
+        observation.variantButtonSurvivedKeyboard,
+      `${observation.stockAfterKeyboard}; selected=${observation.selectedVariantAfterKeyboard}`,
+    ),
+    check(
+      "no leftover ngh annotations, both v1 and v2 islands hydrate",
+      observation.remainingHydrationAnnotations === 0 && observation.hydratedIslands === 2,
       `${observation.remainingHydrationAnnotations} ngh, ${observation.hydratedIslands} islands`,
     ),
     check(
@@ -959,7 +979,8 @@ try {
         () => true,
         () => false,
       );
-    const count = (): Promise<string | null> => page.locator("add-to-cart output").textContent();
+    const count = (): Promise<string | null> =>
+      page.locator("add-to-cart output:not(#stock)").textContent();
 
     await page.goto(`${node.baseUrl}/`, { waitUntil: "load" });
     await evaluate(page, "window.__NAV_SENTINEL__ = 'home'");
@@ -974,7 +995,7 @@ try {
     await page.click("add-to-cart button");
     await page
       .waitForFunction(
-        "document.querySelector('add-to-cart output')?.textContent === 'Count: 1'",
+        "document.querySelector('add-to-cart output:not(#stock)')?.textContent === 'Count: 1'",
         undefined,
         { timeout: 5_000 },
       )
@@ -991,7 +1012,7 @@ try {
     await page.click("add-to-cart button");
     await page
       .waitForFunction(
-        "document.querySelector('add-to-cart output')?.textContent === 'Count: 1'",
+        "document.querySelector('add-to-cart output:not(#stock)')?.textContent === 'Count: 1'",
         undefined,
         { timeout: 5_000 },
       )
@@ -1025,8 +1046,8 @@ try {
         `${reentered} ${afterBack}`,
       ),
       check(
-        "after re-entry one click is one effect and exactly one island exists",
-        afterReentryClick === "Count: 1" && islands === 1,
+        "after re-entry one click is one effect and both protocol islands exist",
+        afterReentryClick === "Count: 1" && islands === 2,
         `${afterReentryClick}, ${islands} island(s)`,
       ),
       check(
@@ -1169,12 +1190,13 @@ try {
         () => true,
         () => false,
       );
-    const count = (): Promise<string | null> => page.locator("add-to-cart output").textContent();
+    const count = (): Promise<string | null> =>
+      page.locator("add-to-cart output:not(#stock)").textContent();
     const click = async (expected: string): Promise<string | null> => {
-      await page.click("add-to-cart button");
+      await page.click("add-to-cart button[data-product-id]");
       await page
         .waitForFunction(
-          `document.querySelector('add-to-cart output')?.textContent === ${JSON.stringify(expected)}`,
+          `document.querySelector('add-to-cart output:not(#stock)')?.textContent === ${JSON.stringify(expected)}`,
           undefined,
           { timeout: 5_000 },
         )
@@ -1189,9 +1211,10 @@ try {
 
     devOk.push(
       check(
-        "dev: SSR content and boundary (protocol v1)",
+        "dev: SSR content and v1 + v2 boundaries",
         firstHtml.body.includes(SERVER_MESSAGE_A) &&
-          /data-strata-protocol="1"/.test(firstHtml.body),
+          /data-strata-protocol="1"/.test(firstHtml.body) &&
+          /data-strata-protocol="2"/.test(firstHtml.body),
       ),
       check(
         "dev: the island hydrates (optimizeDeps.include works from node_modules)",
@@ -1250,7 +1273,7 @@ try {
       check("dev edit: the old JS realm is gone (sentinel absent)", realm === undefined),
       check(
         "dev edit: the island hydrates once, starts at Count: 0 and one click is one effect",
-        newHydrated && islands === 1 && afterReload === "Count: 0" && afterClick === "Count: 1",
+        newHydrated && islands === 2 && afterReload === "Count: 0" && afterClick === "Count: 1",
         `${islands} island(s), ${afterReload} → ${afterClick}`,
       ),
       check(
@@ -1365,10 +1388,13 @@ try {
         cfResponse.body.includes(`data-evidence="${EXPECTED_EVIDENCE}"`),
     ),
     check(
-      'workerd: the boundary carries data-strata-protocol="1"',
-      /<add-to-cart data-strata-client="add-to-cart" data-strata-protocol="1" data-strata-props="[^"]*" ngh="\d+">/.test(
+      "workerd: structured v2 and flat v1 boundaries are both written",
+      /<add-to-cart data-strata-client="add-to-cart" data-strata-protocol="2" data-strata-props="[^"]*" ngh="\d+">/.test(
         cfResponse.body,
-      ),
+      ) &&
+        /<legacy-counter data-strata-client="legacy-counter" data-strata-protocol="1" data-strata-props="\{&quot;start&quot;:0\}" ngh="\d+">/.test(
+          cfResponse.body,
+        ),
     ),
     check(
       "workerd: no server marker in the HTML",
@@ -1390,11 +1416,18 @@ try {
       "workerd: the island hydrates by DOM identity",
       cfBrowser.hydratedWithinTimeout &&
         Object.values(cfBrowser.sameNodes).every(Boolean) &&
-        cfBrowser.remainingHydrationAnnotations === 0,
+        cfBrowser.remainingHydrationAnnotations === 0 &&
+        cfBrowser.hydratedIslands === 2,
     ),
     check(
       "workerd: one click, Count: 0 → Count: 1",
       cfBrowser.countAfterHydration === "Count: 0" && cfBrowser.countAfterClick === "Count: 1",
+    ),
+    check(
+      "workerd: keyboard selection of a structured variant updates stock",
+      cfBrowser.beforeScripts.stock === "In stock: 12" &&
+        cfBrowser.stockAfterKeyboard === "In stock: 5" &&
+        cfBrowser.selectedVariantAfterKeyboard === "true",
     ),
     check(
       "workerd: no console error/warning; no server marker in any loaded script",

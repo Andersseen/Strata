@@ -21,6 +21,11 @@ Upstream constraints and source links are in [RESEARCH](RESEARCH.md). A supporte
 all these layers together, the Strata candidate digest and the fixture lockfile. Individual compatible
 ranges do not establish that their cross-product is supported.
 
+Server Component boundary protocol v1 and v2 remain experimental, even when the package manifest
+supports the listed Angular, TypeScript and Vite peer ranges. V1 carries flat primitives; v2 carries
+bounded nested JSON data. The documented Node and local workerd rehearsals are evidence for those
+specific fixture tuples, not a production support matrix or a 1.0 guarantee.
+
 ## Current M1 consumer contract: experimental and blocked
 
 [SPEC-001](specs/001-packed-consumer-compilation.md) proves the external package/runtime path,

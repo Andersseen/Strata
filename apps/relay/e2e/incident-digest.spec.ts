@@ -29,7 +29,7 @@ test("the server render reads what a controller just wrote", async ({ request })
   expect(html).toContain(title);
   expect(html).toMatch(
     new RegExp(
-      `<relay-incident-triage data-strata-client="relay-incident-triage" data-strata-protocol="1" data-strata-props="[^"]*${id}[^"]*" ngh="\\d+">`,
+      `<relay-incident-triage data-strata-client="relay-incident-triage" data-strata-protocol="2" data-strata-props="[^"]*${id}[^"]*" ngh="\\d+">`,
     ),
   );
   // Rendered by the ordinary server child and, per incident, the grandchild
@@ -81,6 +81,8 @@ test("hydrates one triage island per incident and resolves through the controlle
 
   const triage = item.getByRole("group", { name: `Triage ${id}` });
   await expect(triage.locator("output")).toHaveText("Status: open");
+  await expect(triage).toContainText(title);
+  await expect(triage).toContainText("Checkout API");
 
   // The server tree between the digest and the island is not hydrated.
   await expect(digest.locator("relay-incident-list, relay-incident-row")).not.toHaveCount(0);
@@ -90,7 +92,7 @@ test("hydrates one triage island per incident and resolves through the controlle
     ),
   ).toHaveCount(0);
 
-  await triage.getByRole("button", { name: "Start monitoring" }).click();
+  await triage.getByRole("button", { name: "Start monitoring" }).press("Enter");
   await expect(triage.locator("output")).toHaveText("Status: monitoring");
   await expect(triage.getByRole("button", { name: "Start monitoring" })).toHaveCount(0);
   // One interaction, one effect: one island instance, one listener, one PATCH.
@@ -117,4 +119,32 @@ test("hydrates one triage island per incident and resolves through the controlle
   );
 
   expect(errors).toEqual([]);
+});
+
+test("a v2 payload downgraded to v1 fails preflight and preserves inert SSR DOM", async ({
+  page,
+}) => {
+  const errors = collectAngularErrors(page);
+  let tampered = false;
+
+  await page.route("**/incidents", async (route) => {
+    const response = await route.fetch();
+    const html = await response.text();
+    const changed = html.replace(
+      /(<relay-incident-triage\s+data-strata-client="relay-incident-triage"\s+data-strata-protocol=")2(")/,
+      (_match, opening: string, closing: string) => `${opening}1${closing}`,
+    );
+    tampered = changed !== html;
+    await route.fulfill({ response, body: changed });
+  });
+  await page.goto("/incidents");
+
+  const digest = page.locator("relay-incident-digest");
+  await expect(digest.locator(".digest-item").first()).toBeVisible();
+  await expect(digest.locator("relay-incident-triage[data-strata-hydrated]")).toHaveCount(0);
+  await expect(digest.getByRole("button", { name: /Start monitoring/ }).first()).toBeAttached();
+  expect(tampered).toBe(true);
+  expect(
+    errors.some((error) => error.includes("does not support") || error.includes("protocol 1")),
+  ).toBe(true);
 });

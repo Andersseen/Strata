@@ -164,9 +164,11 @@ the exact configuration is in the
 
 ### Client boundaries and hydration
 
-- Only an element marked `[strataClient]` hydrates. Its props are a flat plain object of
-  `string`, finite `number`, `boolean` or `null`, validated on the server (64 props, 64 KiB maximum)
-  under protocol v1, which is not stable. See the
+- Only an element marked `[strataClient]` hydrates. Its props are explicit public data: primitives,
+  dense arrays and plain objects, recursively validated on the server and browser. Flat primitive
+  payloads use protocol v1; structured payloads use protocol v2. Limits are 8 nested levels, 512
+  values, 128 array items, 64 object keys, 64 root props and 64 KiB UTF-8. Both previews are
+  experimental and not stable. See the
   [client boundary protocol](../packages/server-components/README.md#client-boundary-protocol).
 - A module importing `@strata-sc/server-components/server-only` must never enter the browser
   graph; violating that fails the production build

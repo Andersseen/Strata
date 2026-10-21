@@ -413,7 +413,7 @@ const TAMPER_CASES: readonly TamperCase[] = [
   {
     name: 'version skew: boundary B has data-strata-protocol="999"',
     tamper: (html) => replaceNth(html, /data-strata-protocol="1"/, 1, 'data-strata-protocol="999"'),
-    reason: 'data-strata-protocol="999" is not supported by this runtime',
+    reason: "data-strata-protocol is not a supported version",
     boundary: 2,
   },
   {
@@ -603,8 +603,11 @@ async function checkInvalidSsr(browser: Browser, baseUrl: string, serverOutput: 
     check(
       "SSR reports a Strata error naming the boundary, prop, received type and allowed values",
       log.includes(
-        '[strata] Cannot serialize client boundary <boundary-counter>: prop "createdAt": Date is not supported.',
-      ) && log.includes("Allowed values: string | finite number | boolean | null"),
+        '[strata] Cannot serialize client boundary <boundary-counter>: prop "createdAt": a non-plain object is not supported.',
+      ) &&
+        log.includes(
+          "Allowed values: string | finite number | boolean | null | dense arrays | plain objects",
+        ),
       log.slice(0, 1_000),
     ),
     check(
@@ -631,10 +634,14 @@ async function checkInvalidSsr(browser: Browser, baseUrl: string, serverOutput: 
     return all([
       ssr,
       check(
-        "browser: the props-less boundary fails preflight and nothing hydrates",
+        "browser: the incomplete boundary fails preflight and nothing hydrates",
         state.created === 0 &&
           state.hydrated === 0 &&
-          session.errors.some((e) => e.includes("data-strata-props is missing")),
+          session.errors.some(
+            (e) =>
+              e.includes("data-strata-protocol is missing") ||
+              e.includes("data-strata-props is missing"),
+          ),
         `${JSON.stringify(state)} ${session.errors.join(" | ")}`,
       ),
     ]);

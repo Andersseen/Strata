@@ -35,6 +35,7 @@ const boundary = (
 
 class Triage {}
 class Window {}
+class ProductView {}
 
 /** As built from `reflectComponentType`: propName → public templateName. */
 const references = new Map<string, ClientReference>([
@@ -58,6 +59,14 @@ const references = new Map<string, ClientReference>([
       inputs: new Map([["caption", "label"]]),
     },
   ],
+  [
+    "relay-product-view",
+    {
+      type: ProductView,
+      selector: "relay-product-view",
+      inputs: new Map([["product", "product"]]),
+    },
+  ],
 ]);
 
 const plan = (hosts: readonly FakeHost[]) =>
@@ -75,6 +84,12 @@ function planError(hosts: readonly FakeHost[]): string {
 }
 
 const valid = (id = "INC-1") => boundary("relay-triage", JSON.stringify({ incidentId: id }));
+const v2Product = () =>
+  new FakeHost("relay-product-view", {
+    "data-strata-client": "relay-product-view",
+    "data-strata-protocol": "2",
+    "data-strata-props": JSON.stringify({ product: { id: "42", variants: [{ id: "black" }] } }),
+  });
 
 describe("planClientBoundaries", () => {
   it("plans every boundary on its own host, in document order", () => {
@@ -86,6 +101,26 @@ describe("planClientBoundaries", () => {
       { host: a, type: Triage, props: [["incidentId", "INC-1"]] },
       { host: b, type: Window, props: [["label", "Observation window"]] },
     ]);
+  });
+
+  it("assigns each v2 object payload to its public input on that boundary host", () => {
+    const host = v2Product();
+    const planned = plan([host]);
+
+    expect(planned).toEqual([
+      { host, type: ProductView, props: [["product", { id: "42", variants: [{ id: "black" }] }]] },
+    ]);
+  });
+
+  it("preflights mixed v1 and v2 boundaries independently under the same host", () => {
+    const primitive = valid("legacy");
+    const structured = v2Product();
+    const planned = plan([primitive, structured]);
+
+    expect(planned.map((entry) => entry.host)).toEqual([primitive, structured]);
+    expect(planned[0]?.props).toEqual([["incidentId", "legacy"]]);
+    expect(planned[1]?.props).toEqual([["product", { id: "42", variants: [{ id: "black" }] }]]);
+    expect(planned[0]?.props[0]?.[1]).not.toBe(planned[1]?.props[0]?.[1]);
   });
 
   it("keeps identical selector + identical props as distinct boundaries (identity is the host)", () => {
@@ -116,7 +151,7 @@ describe("planClientBoundaries", () => {
     [
       "unknown protocol",
       boundary("relay-triage", "{}", { "data-strata-protocol": "999" }),
-      'data-strata-protocol="999" is not supported',
+      "data-strata-protocol is not a supported version",
     ],
     [
       "missing props",
@@ -129,9 +164,9 @@ describe("planClientBoundaries", () => {
       'prop "__proto__" is a reserved name',
     ],
     [
-      "unsupported nested value",
+      "v1 nested value",
       boundary("relay-triage", '{"incidentId":{"id":1}}'),
-      'prop "incidentId": a nested object is not supported',
+      'prop "incidentId": a non-plain object is not supported by protocol 1.',
     ],
     [
       "unknown input",
@@ -141,7 +176,7 @@ describe("planClientBoundaries", () => {
     [
       "selector mismatch (attribute vs host element)",
       boundary("relay-window", "{}", { "data-strata-client": "relay-triage" }),
-      'data-strata-client="relay-triage" does not name its host element <relay-window>',
+      "data-strata-client does not match its host element selector <relay-window>",
     ],
     [
       "missing client attribute",

@@ -155,7 +155,7 @@ and the Vite environment-aware `hotUpdate` dev integration have only been tested
   (see [Consumer setup](#consumer-setup)). After each release publishes it,
   `pnpm test:server-component-registry-consumer` installs the exact published version from
   registry.npmjs.org into a fresh app and re-checks resolution, the production build and graph
-  split, SSR, protocol v1, hydration, one interaction and the server-only firewall (the full
+  split, SSR, protocol v1 and v2, hydration, structured typed input, one interaction and the server-only firewall (the full
   Cloudflare/workerd and dev-server qualification stays with the tarball gate).
 - **Document navigation only.** Explicit document navigation into a route containing a server
   component is supported. SPA hydration of a newly rendered server subtree remains unsupported:
@@ -299,39 +299,71 @@ export default defineConfig({
 
 ## Client boundary protocol
 
-Preview protocol, version 1. **Not stable.** It hardens the existing value set; it does not widen
-it. The authoring API is unchanged: `[strataClient]="{ someInput: value }"`.
+Preview protocols, versions 1 and 2. **Not stable.** The authoring API is unchanged:
+`[strataClient]="{ someInput: value }"`. Flat primitive props keep protocol v1; any nested object
+or array selects protocol v2.
 
 **Props are public browser data.** Everything placed in `[strataClient]` is written into the HTML
 and readable by anyone who loads the page. Serialization is not a security boundary, and Strata
 cannot tell whether a string is a secret: `[strataClient]="{ token: internalSecret }"` leaks it, by
 the developer's explicit choice. There is no name-based heuristic.
 
-What Strata does guarantee is that nothing crosses _implicitly_. The server validates the props at
-runtime, so a cast (`as unknown as ClientBoundaryProps`) or a dynamic value cannot carry a service,
-repository, class instance, function, closure, signal or nested object across. Reduce server values
-to explicit primitive props first.
+The useful pattern is an explicit public view model, reduced from server data:
+
+```ts
+interface ProductVariant {
+  readonly id: string;
+  readonly label: string;
+  readonly stock: number;
+}
+interface ProductView {
+  readonly id: string;
+  readonly name: string;
+  readonly variants: readonly ProductVariant[];
+}
+
+// On the server, omit repository fields such as credentials and provenance.
+protected readonly publicProduct: ProductView = {
+  id: product.id,
+  name: product.name,
+  variants: product.variants.map(({ id, label, stock }) => ({ id, label, stock })),
+};
+```
+
+```html
+<product-picker [product]="publicProduct" [strataClient]="{ product: publicProduct }" />
+```
+
+The island can receive the same typed readonly model through its public Angular input:
+
+```ts
+readonly product = input.required<ProductView>();
+```
+
+What Strata does guarantee is that nothing crosses _implicitly_. The server validates and snapshots
+the props at runtime, so a cast (`as unknown as ClientBoundaryProps`) or dynamic value cannot carry a
+service, repository, class instance, function, closure or signal across. Reduce server values to an
+explicit readonly public view model first.
 
 ### Server: validate, then serialize
 
-| Rule        | Contract                                                                                                                                                                                        |
-| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Shape       | One plain, non-array object (prototype `Object.prototype` or `null`) of own, enumerable, string-keyed data properties. Getters never run; accessors, symbol keys and non-enumerable props fail. |
-| Values      | `string`, `boolean`, `null`, and `number` only where `Number.isFinite`. `NaN` and `±Infinity` fail, because JSON would turn them into `null`.                                                   |
-| Rejected    | `undefined`, `BigInt`, functions (signals included), symbols, arrays, nested objects, `Date`, `Map`, `Set`, `RegExp`, `Promise`, `Observable`, any class instance.                              |
-| Keys        | `__proto__`, `prototype` and `constructor` fail.                                                                                                                                                |
-| Limits      | At most 64 props, and at most 64 KiB (65 536 bytes) of serialized JSON measured as UTF-8 with `TextEncoder`, not as UTF-16 length.                                                              |
-| Determinism | JSON of the validated entries in the object's own-property order. Keys are not sorted.                                                                                                          |
-| Fidelity    | Values round-trip exactly, except `-0`, which JSON writes as `0`.                                                                                                                               |
+| Rule        | Contract                                                                                                                                                                                                                    |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Shape       | Root and nested objects must have `Object.prototype` or `null`, with own enumerable string-keyed data properties. Getters never run; accessors, symbols and non-enumerable properties fail.                                 |
+| Values      | Strings, booleans, null and finite numbers; dense arrays and plain objects recursively combine those values. `NaN` and infinities fail.                                                                                     |
+| Rejected    | `undefined`, `BigInt`, functions/closures/signals, symbols, class instances, services, `Date`, `Map`, `Set`, `RegExp`, `Promise`, custom prototypes, cycles, sparse arrays, custom array properties and custom serializers. |
+| Keys        | `__proto__`, `prototype` and `constructor` fail at every depth.                                                                                                                                                             |
+| Limits      | 64 root props; depth 8; 512 values; arrays of at most 128 items; objects of at most 64 keys; 64 KiB (65 536) UTF-8 bytes of serialized JSON.                                                                                |
+| Determinism | JSON of a validated independent snapshot in own-property order. Keys are not sorted.                                                                                                                                        |
+| Fidelity    | Values round-trip exactly, except `-0`, which JSON writes as `0`.                                                                                                                                                           |
 
-A violation throws a `StrataBoundaryError` before `JSON.stringify` runs. Nothing is dropped,
-coerced or stringified. The message names the boundary selector, the prop, what was received and
-the allowed value set:
+A violation throws a sanitized `StrataBoundaryError`; reflective proxy failures are also rejected
+with a generic message. Nothing is dropped, coerced or copied from caller objects. Rejected values
+and custom conversion methods are never printed or invoked.
 
 ```
-[strata] Cannot serialize client boundary <relay-widget>: prop "createdAt": Date is not supported.
-Allowed values: string | finite number | boolean | null, in one flat plain object of at most 64
-props and 65536 UTF-8 bytes serialized. …
+[strata] Cannot serialize client boundary <relay-widget>: prop "product.variants[2].stock": undefined is not supported.
+Allowed values: string | finite number | boolean | null | dense arrays | plain objects; maximum depth 8, …
 ```
 
 Angular reports an error thrown by a template binding to its `ErrorHandler` and still completes the
@@ -359,7 +391,8 @@ non-Latin text stay inside the attribute and reach the island exactly.
 
 Each attribute has one job: `data-strata-client` holds the host's own selector,
 `data-strata-protocol` the protocol version, and `data-strata-props` the props (always written, `{}`
-included). The version is not wrapped in an envelope inside the props.
+included). Version 1 is used for flat primitive data; version 2 is used when any nested object or
+array is present. The version is not wrapped in an envelope inside the props.
 
 **Identity is the host element.** A boundary is the concrete SSR host element that carries those
 three attributes and Angular's `ngh` annotation together. Its props belong to that host. There is no
@@ -376,9 +409,10 @@ Per Server Component host, `StrataIslandHost` hydrates all boundaries or none:
 1. **Discover** every element under the host that has any of the three attributes (minus those
    nested in another boundary), so a partial boundary is still checked.
 2. **Validate all** of them before creating anything. Each must have `data-strata-protocol` equal to
-   `"1"`. A missing protocol is incompatible (it is not read as version 1), and an unknown protocol
-   is refused without parsing its props. `data-strata-props` must be present, within the size limit,
-   valid JSON, and pass the same value contract as on the server. `data-strata-client` must equal
+   `"1"` or `"2"`. A missing protocol is incompatible (it is not read as version 1), and an unknown
+   protocol is refused without parsing its props. V1 accepts flat primitives only; v2 requires a
+   nested object/array shape. `data-strata-props` must be present, within the size limit, valid JSON,
+   and pass the same recursive value contract as on the server. `data-strata-client` must equal
    the host's `localName` and the client reference's selector. Every prop must be a public input
    name of that component, read from `reflectComponentType(type).inputs` (`templateName`, so input
    aliases are honoured; the property name of an aliased input is refused with a hint).
@@ -391,6 +425,18 @@ protocol or props attribute, a reserved key, an unsupported value, an unknown in
 mismatch. The server-rendered DOM stays in place, inert. There is no client-side re-render, CSR
 fallback or reload. A reload strategy is not defined yet. The error reaches the application's
 `ErrorHandler` once; see [Failure and recovery](#failure-and-recovery).
+
+| Server markup                | Browser runtime   | Result                                                                       |
+| ---------------------------- | ----------------- | ---------------------------------------------------------------------------- |
+| Old v1 server                | New v1/v2 browser | V1 payload is accepted.                                                      |
+| New server, flat props       | Old v1 browser    | V1 payload remains compatible.                                               |
+| New server, structured props | New v1/v2 browser | V2 is recursively validated and hydrated.                                    |
+| New server, structured props | Old v1 browser    | V2 is an unknown version; old runtime fails closed and leaves SSR DOM inert. |
+| Missing or unknown version   | Any runtime       | No fallback; hydration is refused.                                           |
+
+Mixed v1 and v2 boundaries are validated on their own SSR hosts. A malformed boundary still fails
+the existing all-or-nothing preflight for its owning Server Component host. This does not provide
+seamless rolling deployment when older browser assets are paired with v2 server markup.
 
 If `createComponent` or `setInput` fails during commit, the islands this commit already created are
 destroyed (which also detaches their views from the `ApplicationRef`), their SSR host elements,
@@ -467,7 +513,7 @@ Strata Server Components coexist with Angular incremental hydration inside expli
 boundaries. Strata implements no defer scheduler, trigger or event replay. Two layers:
 
 1. **Strata** hydrates each `[strataClient]` root when its Server Component host renders, after
-   the protocol v1 preflight. That is unchanged: the root is not hydrated lazily.
+   the protocol v1/v2 preflight. That is unchanged: the root is not hydrated lazily.
 2. **Angular** owns every `@defer` block in that client component's own template: SSR main
    content, dehydrated until its hydrate trigger, its dependencies in a lazy chunk, event replay.
 
@@ -717,11 +763,11 @@ Three separate mechanisms, each with its own evidence:
 "@strata-sc/server-components/server-only"` makes the build reject any browser import of the
   module ([Server-only modules](#server-only-modules)). This keeps the _module_ out of the browser
   graph; it says nothing about what a server-side module returns.
-- **Protocol runtime validation** (boundary confidentiality). `[strataClient]` accepts one flat plain
-  object of strings, finite numbers, booleans and `null` (protocol v1). A repository, service,
-  class instance, function, signal or nested object that a cast smuggles in is rejected with a
-  `StrataBoundaryError` before anything is serialized. The diagnostic names the prop, the value's
-  type and the allowed types, and never prints the value.
+- **Protocol runtime validation** (boundary confidentiality). `[strataClient]` keeps flat primitive
+  props on v1 and uses v2 for bounded nested JSON data. A repository, service, class instance,
+  function, signal or other unsupported value that a cast smuggles in is rejected with a
+  `StrataBoundaryError` before anything is serialized. Diagnostics can identify a structural path
+  and category, but never print the rejected value.
 - **Synthetic leak qualification.** `pnpm test:server-component-security` renders a Server
   Component that reads a server-only repository using a synthetic DATA canary and passes a PUBLIC
   control canary through `[strataClient]`. The DATA canary must be absent, in any of its encodings,

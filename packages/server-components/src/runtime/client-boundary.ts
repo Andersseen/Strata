@@ -1,13 +1,21 @@
 import { Directive, ElementRef, computed, inject, input } from "@angular/core";
 
-import { STRATA_BOUNDARY_PROTOCOL, serializeBoundaryProps } from "./boundary-protocol.js";
+import { serializeBoundary } from "./boundary-protocol.js";
 
 /**
- * Plain data only: a flat object of strings, finite numbers, booleans and
- * nulls. Enforced at runtime too (boundary-protocol.ts): a cast cannot smuggle
- * a class instance, function, signal or nested value across.
+ * Readonly JSON-compatible data accepted at a `[strataClient]` boundary.
+ * Runtime validation applies depth, node, key, array and byte limits and
+ * rejects class instances, accessors, cycles, functions and other live values.
  */
-export type ClientBoundaryProps = Readonly<Record<string, string | number | boolean | null>>;
+export type ClientBoundaryPrimitive = string | number | boolean | null;
+// TypeScript interfaces do not satisfy string index signatures, even when all
+// their declared fields are valid. `object` keeps authored readonly view-model
+// interfaces assignable; the shared runtime validator enforces every nested
+// key and value before this value crosses the browser boundary.
+export type ClientBoundaryObject = Readonly<object>;
+export type ClientBoundaryValue =
+  ClientBoundaryPrimitive | readonly ClientBoundaryValue[] | ClientBoundaryObject;
+export type ClientBoundaryProps = Readonly<Record<string, ClientBoundaryValue>>;
 
 /**
  * Server side of a client boundary. Placed on an interactive child inside a
@@ -21,16 +29,15 @@ export type ClientBoundaryProps = Readonly<Record<string, string | number | bool
   selector: "[strataClient]",
   host: {
     "[attr.data-strata-client]": "selector",
-    "[attr.data-strata-protocol]": "protocol",
-    "[attr.data-strata-props]": "serializedProps()",
+    "[attr.data-strata-protocol]": "serialized().protocol",
+    "[attr.data-strata-props]": "serialized().props",
   },
 })
 export class StrataClientBoundary {
   readonly strataClient = input.required<ClientBoundaryProps>();
 
   protected readonly selector = (inject(ElementRef).nativeElement as HTMLElement).localName;
-  protected readonly protocol = STRATA_BOUNDARY_PROTOCOL;
-  protected readonly serializedProps = computed(() =>
-    serializeBoundaryProps(this.selector, this.strataClient()),
+  protected readonly serialized = computed(() =>
+    serializeBoundary(this.selector, this.strataClient()),
   );
 }

@@ -22,9 +22,9 @@ export class SecurityRepository {
     return digest(this.credential) === EXPECTED_CREDENTIAL_DIGEST;
   }
 
-  /** A nested object holding the credential: a shape the boundary cannot carry. */
-  describeConfiguration(): { readonly endpoint: string; readonly credential: string } {
-    return { endpoint: "internal", credential: this.credential };
+  /** A nested DTO containing a live repository: the service must still be rejected. */
+  describeConfiguration(): { readonly endpoint: string; readonly repository: SecurityRepository } {
+    return { endpoint: "internal", repository: this };
   }
 
   /** Test-only: fails with the credential in the error. Never returns. */

@@ -105,6 +105,7 @@ export interface BrowserObservation {
     readonly count: string | null;
     readonly childHasHydrationAnnotation: boolean;
     readonly childMarkedHydrated: boolean;
+    readonly stock: string | null;
   };
   readonly hydratedWithinTimeout: boolean;
   /** Node identity across hydration: the SSR nodes are the ones Angular now drives. */
@@ -113,6 +114,8 @@ export interface BrowserObservation {
     readonly heading: boolean;
     readonly button: boolean;
     readonly countText: boolean;
+    readonly variantButton: boolean;
+    readonly stockText: boolean;
   };
   /** `ngh` attributes left in the document: Angular removes each one it hydrates from. */
   readonly remainingHydrationAnnotations: number;
@@ -122,6 +125,9 @@ export interface BrowserObservation {
   readonly productVisible: boolean;
   readonly countAfterHydration: string | null;
   readonly countAfterClick: string | null;
+  readonly stockAfterKeyboard: string | null;
+  readonly selectedVariantAfterKeyboard: string | null;
+  readonly variantButtonSurvivedKeyboard: boolean;
   readonly buttonSurvivedClick: boolean;
   readonly errors: readonly string[];
   /** Every script the page actually loaded, with its body, for a runtime graph scan. */
@@ -141,6 +147,8 @@ interface SsrNodes {
   heading: DomNode | null;
   button: DomNode | null;
   countText: DomNode | null;
+  variantButton: DomNode | null;
+  stockText: DomNode | null;
 }
 
 declare const document: {
@@ -219,13 +227,16 @@ export async function observeBrowser(url: string): Promise<BrowserObservation> {
 
     const beforeScripts = await page.evaluate(() => {
       const child = document.querySelector("add-to-cart");
-      const output = document.querySelector("add-to-cart output");
+      const output = document.querySelector("add-to-cart output:not(#stock)");
+      const stock = document.querySelector("add-to-cart #stock");
 
       window.__strataSsrNodes = {
         article: document.querySelector("product-details article"),
         heading: document.querySelector("product-details h1"),
         button: document.querySelector("add-to-cart button"),
         countText: output?.firstChild ?? null,
+        variantButton: document.querySelector('add-to-cart [data-variant="white"]'),
+        stockText: stock?.firstChild ?? null,
       };
 
       return {
@@ -233,6 +244,7 @@ export async function observeBrowser(url: string): Promise<BrowserObservation> {
         count: output?.textContent ?? null,
         childHasHydrationAnnotation: child?.hasAttribute("ngh") ?? false,
         childMarkedHydrated: child?.hasAttribute("data-strata-hydrated") ?? false,
+        stock: stock?.textContent ?? null,
       };
     });
 
@@ -255,7 +267,13 @@ export async function observeBrowser(url: string): Promise<BrowserObservation> {
           button: !!ssr?.button && ssr.button === document.querySelector("add-to-cart button"),
           countText:
             !!ssr?.countText &&
-            ssr.countText === document.querySelector("add-to-cart output")?.firstChild,
+            ssr.countText === document.querySelector("add-to-cart output:not(#stock)")?.firstChild,
+          variantButton:
+            !ssr?.variantButton ||
+            ssr.variantButton === document.querySelector('add-to-cart [data-variant="white"]'),
+          stockText:
+            !ssr?.stockText ||
+            ssr.stockText === document.querySelector("add-to-cart #stock")?.firstChild,
         },
         remainingHydrationAnnotations: document.querySelectorAll("[ngh]").length,
         islandsCreated: window.__STRATA_ISLAND_PROBE__?.created ?? 0,
@@ -264,8 +282,30 @@ export async function observeBrowser(url: string): Promise<BrowserObservation> {
     });
 
     const productVisible = await page.getByRole("heading", { name: "Product 42" }).isVisible();
-    const output = page.locator("add-to-cart output");
+    const output = page.locator("add-to-cart output:not(#stock)");
     const countAfterHydration = await output.textContent();
+
+    const hasStructuredVariant =
+      (await page.locator('add-to-cart [data-variant="white"]').count()) > 0;
+    if (hasStructuredVariant) {
+      await page.locator('add-to-cart [data-variant="white"]').press("Enter");
+      await page.waitForFunction(
+        () => document.querySelector("add-to-cart #stock")?.textContent === "In stock: 5",
+      );
+    }
+    const stockAfterKeyboard = hasStructuredVariant
+      ? await page.locator("add-to-cart #stock").textContent()
+      : null;
+    const selectedVariantAfterKeyboard = hasStructuredVariant
+      ? await page.locator('add-to-cart [data-variant="white"]').getAttribute("aria-pressed")
+      : null;
+    const variantButtonSurvivedKeyboard = hasStructuredVariant
+      ? await page.evaluate(
+          () =>
+            window.__strataSsrNodes?.variantButton ===
+            document.querySelector('add-to-cart [data-variant="white"]'),
+        )
+      : false;
 
     await page.getByRole("button", { name: "Add to cart" }).click();
     await page
@@ -292,6 +332,9 @@ export async function observeBrowser(url: string): Promise<BrowserObservation> {
       productVisible,
       countAfterHydration,
       countAfterClick,
+      stockAfterKeyboard,
+      selectedVariantAfterKeyboard,
+      variantButtonSurvivedKeyboard,
       buttonSurvivedClick,
       errors,
       scripts,

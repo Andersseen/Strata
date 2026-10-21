@@ -7,9 +7,21 @@ import {
   signal,
 } from "@angular/core";
 
-import type { IncidentStatus } from "../../../shared/operations.models";
+import type { IncidentSeverity, IncidentStatus } from "../../../shared/operations.models";
 
 export const RELAY_INCIDENT_TRIAGE_CLIENT_MARKER = "RELAY_INCIDENT_TRIAGE_CLIENT_ISLAND_A6C4";
+
+export interface IncidentTriageView {
+  readonly id: string;
+  readonly title: string;
+  readonly severity: IncidentSeverity;
+  readonly status: IncidentStatus;
+  readonly service: { readonly name: string };
+  readonly actions: readonly {
+    readonly label: string;
+    readonly status: IncidentStatus;
+  }[];
+}
 
 /**
  * One client island per incident in the server-rendered digest. It mutates
@@ -23,38 +35,34 @@ export const RELAY_INCIDENT_TRIAGE_CLIENT_MARKER = "RELAY_INCIDENT_TRIAGE_CLIENT
     <div
       class="triage-control"
       role="group"
-      [attr.aria-label]="'Triage ' + incidentId()"
+      [attr.aria-label]="'Triage ' + incident().id"
       [attr.data-client-marker]="marker"
     >
-      @if (status() === "open") {
-        <button
-          type="button"
-          class="server-action secondary"
-          [disabled]="pending()"
-          (click)="update('monitoring')"
-        >
-          Start monitoring
-        </button>
-      }
-      @if (status() !== "resolved") {
-        <button
-          type="button"
-          class="server-action"
-          [disabled]="pending()"
-          (click)="update('resolved')"
-        >
-          Resolve {{ incidentId() }}
-        </button>
+      <p>{{ incident().title }} · {{ incident().service.name }}</p>
+      @for (action of incident().actions; track action.status) {
+        @if (
+          (action.status === "monitoring" && status() === "open") ||
+          (action.status === "resolved" && status() !== "resolved")
+        ) {
+          <button
+            type="button"
+            class="server-action"
+            [class.secondary]="action.status === 'monitoring'"
+            [disabled]="pending()"
+            (click)="update(action.status)"
+          >
+            {{ action.label }}{{ action.status === "resolved" ? " " + incident().id : "" }}
+          </button>
+        }
       }
       <output class="island-output" aria-live="polite">{{ message() }}</output>
     </div>
   `,
 })
 export class IncidentTriageComponent {
-  readonly incidentId = input.required<string>();
-  readonly initialStatus = input.required<IncidentStatus>();
+  readonly incident = input.required<IncidentTriageView>();
 
-  protected readonly status = linkedSignal(() => this.initialStatus());
+  protected readonly status = linkedSignal(() => this.incident().status);
   protected readonly pending = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly marker = RELAY_INCIDENT_TRIAGE_CLIENT_MARKER;
@@ -69,7 +77,7 @@ export class IncidentTriageComponent {
     this.error.set(null);
 
     try {
-      const response = await fetch(`/api/ops/incidents/${encodeURIComponent(this.incidentId())}`, {
+      const response = await fetch(`/api/ops/incidents/${encodeURIComponent(this.incident().id)}`, {
         method: "PATCH",
         headers: { "content-type": "application/json", "x-relay-request": crypto.randomUUID() },
         body: JSON.stringify({ status }),
