@@ -1,4 +1,6 @@
 import analog from "@analogjs/platform";
+import { join } from "node:path";
+
 import { strataServerComponents } from "@strata-sc/server-components/vite";
 import { defineConfig } from "vite";
 
@@ -18,6 +20,10 @@ export default defineConfig(() => ({
   },
   resolve: {
     mainFields: ["module"],
+    // A consumer-owned Vite alias, mirrored by the `~app/*` tsconfig path that
+    // Angular's compiler needs. The plugin reads both when it follows
+    // re-exports; `@app/*` is a tsconfig path only.
+    alias: { "~app": join(import.meta.dirname, "src", "app") },
   },
   ssr: {
     noExternal: ["tslib"],

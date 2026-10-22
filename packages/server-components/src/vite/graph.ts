@@ -2,6 +2,8 @@ import { dirname, join, relative } from "node:path";
 
 import { analyzeServerComponent, createAnalysisCache } from "./analyze.js";
 import type { ExternalClientComponent, ReadFile } from "./analyze.js";
+import type { ModuleResolver } from "./resolve.js";
+import { createModuleResolver } from "./resolve.js";
 import { scanServerOnlyModules } from "./server-only.js";
 import type { ServerOnlyModule } from "./server-only.js";
 import { renderSurrogate } from "./surrogate.js";
@@ -30,6 +32,12 @@ export interface ServerComponentGraph {
    * and pipes it renders, and their `templateUrl` files.
    */
   readonly serverOwnedFiles: ReadonlySet<string>;
+  /**
+   * Maps a specifier written in an app module to the scanned module it names
+   * (relative paths, Vite aliases, tsconfig paths). Bound to this generation's
+   * file set: never a crawl of `node_modules`.
+   */
+  readonly resolve: ModuleResolver;
 }
 
 export interface GraphInput {
@@ -40,6 +48,8 @@ export interface GraphInput {
   readonly files: readonly string[];
   readonly readFile: ReadFile;
   readonly clientComponents?: readonly ExternalClientComponent[];
+  /** Builds the resolver for the scanned module set; relative paths only when omitted. */
+  readonly resolver?: (modules: ReadonlySet<string>) => ModuleResolver;
 }
 
 export const EMPTY_GRAPH: ServerComponentGraph = {
@@ -48,6 +58,7 @@ export const EMPTY_GRAPH: ServerComponentGraph = {
   serverOnly: new Map(),
   generated: new Map(),
   serverOwnedFiles: new Set(),
+  resolve: () => undefined,
 };
 
 /**
@@ -62,7 +73,10 @@ export function buildServerComponentGraph(input: GraphInput): ServerComponentGra
   // Shared by every Server Component of this graph, so a child module
   // composed under several of them is parsed once.
   const cache = createAnalysisCache();
-  const serverOnly = scanServerOnlyModules(files, readFile);
+  const resolve = (input.resolver ?? ((modules) => createModuleResolver({ root, modules })))(
+    new Set(files),
+  );
+  const serverOnly = scanServerOnlyModules(files, readFile, () => resolve);
   const bySource = new Map<string, ServerComponentModule>();
   const bySurrogate = new Map<string, ServerComponentModule>();
   const generated = new Map<string, string>();
@@ -88,7 +102,7 @@ export function buildServerComponentGraph(input: GraphInput): ServerComponentGra
     for (const owned of found.serverOwnedFiles) serverOwnedFiles.add(owned);
   }
 
-  return { bySource, bySurrogate, serverOnly, generated, serverOwnedFiles };
+  return { bySource, bySurrogate, serverOnly, generated, serverOwnedFiles, resolve };
 }
 
 /** What differs between two graphs; every list is sorted. */

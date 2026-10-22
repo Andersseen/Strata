@@ -86,9 +86,12 @@ const angularWidgetsSource = join(
   "server-component-package-consumer",
   "angular-widgets",
 );
+const kitSource = join(repoRoot, "tests", "server-component-package-consumer", "kit");
 const packageDir = join(repoRoot, "packages", "server-components");
 const PACKAGE = "@strata-sc/server-components";
 const WIDGETS_PACKAGE = "@strata-test/angular-widgets";
+/** A plain ESM package with a browser-safe root and subpath and a server-only subpath and barrel. */
+const KIT_PACKAGE = "@strata-test/kit";
 
 const TS59_VERSION = "5.9.2";
 
@@ -511,6 +514,33 @@ try {
   check("the package tarball contains Angular partial declarations", widgetsPartial);
 
   // ------------------------------------------------------------------------
+  const kitDir = join(tmpRoot, "kit");
+  const kitTarballs = join(tmpRoot, "kit-tarballs");
+
+  cpSync(kitSource, kitDir, { recursive: true });
+  mkdirSync(kitTarballs, { recursive: true });
+  must(
+    run(
+      "npm",
+      [
+        "pack",
+        "--pack-destination",
+        kitTarballs,
+        "--cache",
+        join(tmpRoot, "npm-cache"),
+        "--logs-dir",
+        join(tmpRoot, "npm-logs"),
+      ],
+      { cwd: kitDir },
+    ),
+    "npm pack @strata-test/kit",
+  );
+
+  const kitTarball = readdirSync(kitTarballs)
+    .filter((name) => name.endsWith(".tgz"))
+    .map((name) => join(kitTarballs, name))[0]!;
+
+  // ------------------------------------------------------------------------
   section("External install (npm, outside the workspace)");
 
   check(
@@ -537,6 +567,7 @@ try {
 
   consumerManifest.dependencies[PACKAGE] = `file:${tarballPath}`;
   consumerManifest.dependencies[WIDGETS_PACKAGE] = `file:${widgetsTarball}`;
+  consumerManifest.dependencies[KIT_PACKAGE] = `file:${kitTarball}`;
   writeFileSync(consumerManifestPath, `${JSON.stringify(consumerManifest, null, 2)}\n`);
   pristine = snapshotDir(consumerDir, NOT_SOURCE);
 
@@ -1252,6 +1283,252 @@ try {
       `import raw from "./product.repository?raw";\n${source.replace("protected readonly marker = CLIENT_MARKER;", "protected readonly marker = CLIENT_MARKER;\n  protected readonly leak = raw.length;")}`,
     /product\.repository\.ts\?raw/,
   );
+
+  // Module resolution forms and package boundaries (docs/research/server-component-graph-security-v06.md).
+  const KIT_CANARY = "STRATA_KIT_SERVER_ONLY_CANARY_6D1B94E2A07C";
+  const KIT_MARKER = "STRATA_KIT_BROWSER_SAFE_MARKER";
+  const REPOSITORY_MODULE = "src/app/product/product.repository.ts";
+  const ASSERTS =
+    /Reason: the module declares `import "@strata-sc\/server-components\/server-only";`/;
+  const PACKAGE_ASSERTS =
+    /Reason: the importer asserts server-only, but the pre-scan of sourceDir did not register it \(it lives outside sourceDir, for example in an installed or linked package/;
+  const withLeak = (imports: string, member: string) => (source: string) =>
+    `${imports}\n${source.replace("protected readonly marker = CLIENT_MARKER;", `protected readonly marker = CLIENT_MARKER;\n  protected readonly leak = ${member};`)}`;
+
+  interface GraphScenario {
+    readonly label: string;
+    /** Extra or replaced consumer files, by consumer-relative path. */
+    readonly files?: Record<string, string | ((source: string) => string)>;
+    readonly module: string;
+    readonly importer?: string;
+    readonly reason: RegExp;
+    /** The import chain line, when the bundler knows the importers (checked only if given). */
+    readonly chain?: RegExp;
+  }
+
+  const expectGraphFailure = (scenario: GraphScenario): void => {
+    const { label, files = {}, module, importer, reason, chain } = scenario;
+
+    restoreDir(consumerDir, pristine!, NOT_SOURCE);
+    for (const [path, content] of Object.entries(files)) {
+      const target = join(consumerDir, path);
+
+      mkdirSync(dirname(target), { recursive: true });
+      writeFileSync(
+        target,
+        typeof content === "string" ? content : content(readFileSync(target, "utf8")),
+      );
+    }
+    clean();
+
+    const result = vite(["build"]);
+    const output = sanitize(`${result.stdout}\n${result.stderr}`);
+    const diagnostic =
+      output.match(
+        /\[strata\][^\n]*(?:\n(?:Imported from|Reason|Move|Import|A package)[^\n]*)*/,
+      )?.[0] ?? "";
+
+    console.log(`\n${label}:\n${diagnostic}`);
+
+    const escaped = module.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
+
+    firewall.push(
+      check(`${label}: the production build fails`, result.status !== 0, output.slice(-800)),
+      check(
+        `${label}: the Strata diagnostic names the forbidden module (${module})`,
+        new RegExp(`\\[strata\\] Server-only module entered the browser graph: ${escaped}`).test(
+          output,
+        ),
+        output.match(/\[strata\][^\n]*/)?.[0] ?? output.slice(0, 600),
+      ),
+      check(`${label}: its Reason line is the intended invariant`, reason.test(output)),
+      check(
+        `${label}: it names the importer ${importer ?? "(not asserted)"}`,
+        importer === undefined || output.includes(`Imported from: ${importer}`),
+      ),
+      check(
+        `${label}: it prints the import chain the bundler knows`,
+        chain === undefined || chain.test(output),
+        output.match(/Import chain[^\n]*/)?.[0] ?? "(no chain line)",
+      ),
+      check(
+        `${label}: the diagnostic names no workspace path and no absolute path`,
+        !diagnostic.includes(repoRoot) &&
+          !diagnostic.includes(tmpRoot) &&
+          !/\s\/(?:Users|home|tmp|private|var)\//.test(diagnostic),
+        diagnostic,
+      ),
+      check(
+        `${label}: nothing printed carries a server-only marker`,
+        [...SERVER_MARKERS, KIT_CANARY].every((marker) => !output.includes(marker)),
+      ),
+    );
+    restoreDir(consumerDir, pristine!, NOT_SOURCE);
+    clean();
+  };
+
+  const ADD_TO_CART = "src/app/product/add-to-cart.component.ts";
+  const KIT = "node_modules/@strata-test/kit/dist";
+
+  expectGraphFailure({
+    label: "tsconfig path alias (@app/*)",
+    files: {
+      [ADD_TO_CART]: withLeak(
+        `import { ProductRepository } from "@app/product/product.repository";`,
+        "ProductRepository.name",
+      ),
+    },
+    module: REPOSITORY_MODULE,
+    importer: ADD_TO_CART,
+    reason: ASSERTS,
+  });
+  expectGraphFailure({
+    label: "Vite alias (~app)",
+    files: {
+      [ADD_TO_CART]: withLeak(
+        `import { ProductRepository } from "~app/product/product.repository";`,
+        "ProductRepository.name",
+      ),
+    },
+    module: REPOSITORY_MODULE,
+    importer: ADD_TO_CART,
+    reason: ASSERTS,
+  });
+  expectGraphFailure({
+    label: "aliased chained barrels through a directory index",
+    files: {
+      "src/app/product/data-barrel.ts": 'export * from "~app/product/product.repository";\n',
+      "src/app/product/index.ts": 'export * from "@app/product/data-barrel";\n',
+      [ADD_TO_CART]: withLeak(
+        `import { ProductRepository } from "@app/product";`,
+        "ProductRepository.name",
+      ),
+    },
+    module: "src/app/product/index.ts",
+    importer: ADD_TO_CART,
+    reason:
+      /Reason: it re-exports a server-only module: src\/app\/product\/index\.ts → src\/app\/product\/data-barrel\.ts → src\/app\/product\/product\.repository\.ts/,
+  });
+  expectGraphFailure({
+    label: "aliased ?raw",
+    files: {
+      [ADD_TO_CART]: withLeak(
+        `import raw from "~app/product/product.repository.ts?raw";`,
+        "raw.length",
+      ),
+    },
+    module: `${REPOSITORY_MODULE}?raw`,
+    importer: ADD_TO_CART,
+    reason: ASSERTS,
+  });
+  expectGraphFailure({
+    label: "package subpath that asserts server-only",
+    files: {
+      [ADD_TO_CART]: withLeak(
+        `import { readKitSecret } from "@strata-test/kit/server";`,
+        "readKitSecret()",
+      ),
+    },
+    module: `${KIT}/server.js`,
+    importer: ADD_TO_CART,
+    reason: PACKAGE_ASSERTS,
+  });
+  expectGraphFailure({
+    label: "package barrel re-exporting a server-only entry",
+    files: {
+      [ADD_TO_CART]: withLeak(
+        `import { formatPrice } from "@strata-test/kit/barrel";`,
+        "formatPrice(100)",
+      ),
+    },
+    module: `${KIT}/server.js`,
+    importer: `${KIT}/barrel.js`,
+    reason: PACKAGE_ASSERTS,
+  });
+  expectGraphFailure({
+    label:
+      "registered package island that asserts server-only (clientComponents does not authorize it)",
+    files: {
+      "vite.config.ts": (source) =>
+        source.replace(
+          "clientComponents: [",
+          `clientComponents: [
+        {
+          selector: "acme-leaky-picker",
+          module: "@strata-test/angular-widgets/leaky",
+          exportName: "LeakyPickerComponent",
+        },`,
+        ),
+      "src/app/product/product-details.server-component.ts": (source) =>
+        source
+          .replace(
+            "import { ProductPickerComponent }",
+            'import { LeakyPickerComponent } from "@strata-test/angular-widgets/leaky";\nimport { ProductPickerComponent }',
+          )
+          .replace(
+            "ProductPickerComponent,\n",
+            "ProductPickerComponent,\n    LeakyPickerComponent,\n",
+          )
+          .replace(
+            "<legacy-counter",
+            '<acme-leaky-picker [strataClient]="{}" />\n    <legacy-counter',
+          ),
+    },
+    module: "node_modules/@strata-test/angular-widgets/dist/fesm2022/leaky.js",
+    reason: PACKAGE_ASSERTS,
+  });
+
+  // Legal controls: the same alias and package forms, with nothing server-only behind them.
+  restoreDir(consumerDir, pristine, NOT_SOURCE);
+  writeFileSync(
+    join(consumerDir, "src", "app", "product", "shared-format.ts"),
+    "export function formatLabel(value: string): string {\n  return `shared:${value}`;\n}\n",
+  );
+  writeFileSync(
+    join(consumerDir, "src", "app", "product", "types-barrel.ts"),
+    'export type { ProductRepository } from "~app/product/product.repository";\nexport * from "@app/product/shared-format";\n',
+  );
+  writeFileSync(
+    join(consumerDir, ADD_TO_CART),
+    withLeak(
+      `import { formatPrice } from "@strata-test/kit";
+import { formatPrice as formatSafe } from "@strata-test/kit/safe";
+import { formatLabel } from "~app/product/types-barrel";
+import type { ProductRepository as RepositoryType } from "@app/product/types-barrel";`,
+      "formatPrice(100) + formatSafe(200) + formatLabel('x')",
+    )(readFileSync(join(consumerDir, ADD_TO_CART), "utf8")).replace(
+      "protected readonly marker",
+      "protected readonly unused?: RepositoryType;\n  protected readonly marker",
+    ),
+  );
+  clean();
+
+  const legal = vite(["build"]);
+  const legalOutput = sanitize(`${legal.stdout}\n${legal.stderr}`);
+  const legalBrowser = graphFiles(browserDirs);
+
+  firewall.push(
+    check(
+      "legal control: aliased shared module, a type-only re-export and browser-safe package root and subpath build",
+      legal.status === 0,
+      legalOutput.slice(-1_200),
+    ),
+    check(
+      "legal control: the browser-safe package marker reaches the browser JS",
+      filesWith(
+        legalBrowser.filter((file) => file.endsWith(".js")),
+        KIT_MARKER,
+      ).length > 0,
+    ),
+    check(
+      "legal control: no server-only canary (consumer or package) reaches any browser file",
+      [...SERVER_MARKERS, KIT_CANARY].every(
+        (marker) => filesWith(legalBrowser, marker).length === 0,
+      ),
+    ),
+  );
+  restoreDir(consumerDir, pristine, NOT_SOURCE);
+  clean();
 
   const restoredProblems = snapshotDiffers(consumerDir, pristine, NOT_SOURCE);
 

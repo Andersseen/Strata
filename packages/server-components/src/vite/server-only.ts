@@ -1,12 +1,11 @@
 /* eslint-disable import-x/no-named-as-default-member -- TypeScript ships
    CommonJS, so only its default export is reliable from ESM. */
-import { dirname, join, resolve } from "node:path";
-
 import ts from "typescript";
 
 import { RUNTIME_PACKAGE } from "./analyze.js";
 import type { ReadFile } from "./analyze.js";
-import { stripQuery } from "./module-id.js";
+import { createModuleResolver } from "./resolve.js";
+import type { ModuleResolver } from "./resolve.js";
 
 /** The side-effect import that marks a module as never allowed in a browser graph. */
 export const SERVER_ONLY_SPECIFIER = `${RUNTIME_PACKAGE}/server-only`;
@@ -65,30 +64,18 @@ export function serverOnlyFacts(file: string, text: string): ServerOnlyFacts {
 }
 
 /**
- * The scanned module a relative specifier names (`./x`, `./x.ts`, `./x.js`,
- * `./x/index.ts`), or `undefined` for package, aliased or unscanned targets.
- */
-function resolveLocal(
-  from: string,
-  specifier: string,
-  modules: ReadonlySet<string>,
-): string | undefined {
-  if (!specifier.startsWith(".")) return undefined;
-
-  const base = resolve(dirname(from), stripQuery(specifier));
-
-  return [base, `${base}.ts`, join(base, "index.ts"), base.replace(/\.m?js$/, ".ts")].find(
-    (candidate) => modules.has(candidate),
-  );
-}
-
-/**
  * The build-scoped set of server-only modules among `files` (absolute paths
  * of the app's TypeScript sources).
  *
  *   1. every module that asserts server-only is forbidden in the browser;
  *   2. every module that re-exports a forbidden module is forbidden too,
  *      propagated upward through re-export edges only, to a fixpoint.
+ *
+ * A re-export specifier names its target through `resolver`: relative paths
+ * by default, plus Vite aliases and tsconfig `paths` when the plugin passes a
+ * resolver that knows them. A specifier no resolver can map to a scanned
+ * module (a package, an unmodelled form) adds no edge here and is enforced
+ * when the client environment loads what Vite resolved it to.
  *
  * An ordinary import never propagates: a server-only module may import a
  * shared module that the browser imports as well. The propagation is a
@@ -99,8 +86,10 @@ function resolveLocal(
 export function scanServerOnlyModules(
   files: readonly string[],
   readFile: ReadFile,
+  resolver?: (modules: ReadonlySet<string>) => ModuleResolver,
 ): ReadonlyMap<string, ServerOnlyModule> {
   const modules = new Set(files);
+  const resolveSpecifier = resolver?.(modules) ?? createModuleResolver({ root: "/", modules });
   const forbidden = new Map<string, ServerOnlyModule>();
   /** Re-exported module → the modules that re-export it. */
   const reExporters = new Map<string, string[]>();
@@ -115,7 +104,7 @@ export function scanServerOnlyModules(
     }
 
     for (const specifier of facts.reExports) {
-      const target = resolveLocal(file, specifier, modules);
+      const target = resolveSpecifier(specifier, file);
 
       if (target) reExporters.set(target, [...(reExporters.get(target) ?? []), file]);
     }

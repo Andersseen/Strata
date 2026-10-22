@@ -16,5 +16,5 @@
     "compilationMode": "partial",
     "strictTemplates": true
   },
-  "files": ["src/index.ts"]
+  "files": ["src/index.ts", "src/leaky.ts", "src/server-only.d.ts"]
 }

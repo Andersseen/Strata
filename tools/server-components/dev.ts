@@ -11,6 +11,7 @@ import {
 } from "./lib/dev-harness.ts";
 import type { DevContext } from "./lib/dev.ts";
 import {
+  checkAliasedOwnership,
   checkBoundaryLifecycle,
   checkClientEdit,
   checkCreateAndDelete,
@@ -76,6 +77,8 @@ try {
     verdict["H2 dynamic import and ?raw/?url firewalled live"] =
       await checkDynamicAndQuery(context);
     verdict["I barrel becomes server-only live"] = await checkLiveBarrel(context);
+
+    verdict["O aliased re-export ownership changes live"] = await checkAliasedOwnership(context);
 
     verdict["J invalid @defer: diagnostic, then recovery"] = await checkInvalidEdit(
       context,

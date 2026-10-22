@@ -11,6 +11,10 @@
     ".": {
       "types": "./dist/fesm2022/index.d.ts",
       "default": "./dist/fesm2022/index.js"
+    },
+    "./leaky": {
+      "types": "./dist/fesm2022/leaky.d.ts",
+      "default": "./dist/fesm2022/leaky.js"
     }
   },
   "peerDependencies": {

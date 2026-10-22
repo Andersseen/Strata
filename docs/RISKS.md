@@ -88,9 +88,11 @@ Analog dev server the graph is regenerated after every source edit, a module tha
 server-only (or a barrel that starts re-exporting one) is refused to the browser live (import,
 `import()`, `?raw`, `?url`) and an invalid graph fails the client closed until fixed, without
 restarting Vite; bytes already delivered to a realm cannot be revoked, so the document reloads.
-Remaining R05 gaps: Analog `liveReload: true` is not qualified for server-owned edits; the pre-scan follows only relative re-exports under `sourceDir` (a marked module outside
-it is rejected only when its own assertion import resolves in the browser); an aliased import is
-rejected by the `load` backstop without naming its importer; unmarked transitive dependencies are
+Remaining R05 gaps: Analog `liveReload: true` is not qualified for server-owned edits; the pre-scan follows relative, Vite-aliased and tsconfig-path re-exports under `sourceDir` (0.6
+candidate; a marked module outside it, including a package module, is rejected only when its own
+assertion import resolves in the browser, with the importer and chain the bundler reports; a package
+that leaks without asserting is not detected; Analog's compile cache can serve a stale module that
+left its TypeScript program); unmarked transitive dependencies are
 protected by ownership, not by assertion; no deployed environment; data disclosure beyond modules is
 R11.
 

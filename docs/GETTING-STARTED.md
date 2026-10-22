@@ -46,7 +46,10 @@ The API is experimental and its `0.x` behavior may change in a minor release.
 
 1. **HTTP controllers in an Analog app** — follow [Controllers and server integrations](INTEGRATIONS.md).
 2. **Server Components** — follow [Server Components](INTEGRATIONS.md#server-components) and then the
-   package README, which is the full reference.
+   package README, which is the full reference. Keep repositories and secret loaders behind
+   `import "@strata-sc/server-components/server-only"` and share only DTO types with islands: the
+   build rejects an island that reaches one through a relative path, a Vite alias, a tsconfig path,
+   a barrel or a package ([recipe](../packages/server-components/README.md#server-only-recipe)).
 3. **Understand the design before using it** — [Architecture](ARCHITECTURE.md), [Vision](VISION.md)
    and the accepted [ADRs](README.md#accepted-decisions).
 

@@ -117,6 +117,16 @@ fixture package in the restricted environment. No app AOT or runtime claim is ma
 rerun after the fixture update to the repository's actual locked tuple. Details:
 [package-island report](research/server-component-package-islands.md).
 
+Server-only graph security (0.6 candidate; [report](research/server-component-graph-security-v06.md)):
+`resolve.test.ts` covers module identity (relative, index, `.js`, Vite string/RegExp aliases, tsconfig
+paths, packages never resolved) and alias-aware taint with cycles; the plugin tests cover the client
+`resolveId` over aliases and packages; `pnpm test:server-component-server-only` builds legal and
+illegal alias/barrel/cycle/query shapes; `pnpm test:server-component-dev` scenario O edits an aliased
+barrel live; and `pnpm test:server-component-package-consumer` runs the packed tarball with consumer
+aliases, a browser-safe and a server-only package, a package barrel and a registered package island
+that asserts server-only. Negative controls assert the intended diagnostic (module, importer, reason),
+not merely a non-zero exit.
+
 The experimental `@strata-sc/server-components` package has unit tests for its isolable logic
 (template boundary discovery, rejected module shapes, surrogate content, runtime import purity).
 They do not replace the production-build runners, which remain the authority for graphs and

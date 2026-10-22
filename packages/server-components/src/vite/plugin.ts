@@ -16,7 +16,7 @@ type PluginContext = Rollup.PluginContext;
 import { RUNTIME_PACKAGE, validateExternalClientComponents } from "./analyze.js";
 import type { ExternalClientComponent } from "./analyze.js";
 import { browserGraphError } from "./diagnostics.js";
-import type { BrowserForbidden, BrowserGraphContext } from "./diagnostics.js";
+import type { BrowserForbidden, BrowserGraphContext, ImportChain } from "./diagnostics.js";
 import {
   EMPTY_GRAPH,
   buildServerComponentGraph,
@@ -32,6 +32,8 @@ import type {
   ServerComponentGraph,
 } from "./graph.js";
 import { stripQuery } from "./module-id.js";
+import { createModuleResolver, findTsconfig } from "./resolve.js";
+import type { ViteAlias } from "./resolve.js";
 import { SERVER_ONLY_SPECIFIER } from "./server-only.js";
 
 /**
@@ -77,6 +79,13 @@ export interface ServerComponentsOptions {
   readonly generatedDir: string;
   /** Explicitly approved Angular package components usable as [strataClient] boundaries. */
   readonly clientComponents?: readonly ExternalClientComponent[];
+  /**
+   * App-relative tsconfig whose `paths` / `baseUrl` the graph analysis follows
+   * when it resolves re-exports. Defaults to `tsconfig.app.json`, then
+   * `tsconfig.json`, in the app root. Vite's `resolve.alias` is always read from
+   * the resolved config.
+   */
+  readonly tsconfig?: string;
   /**
    * `false` keeps the real modules in the browser graph: the plain-SSR control build.
    * Omitted means `true`: a config that forgets the option must not silently ship
@@ -153,8 +162,19 @@ export function strataServerComponents(options: ServerComponentsOptions): Plugin
    */
   let failure: string | undefined;
   let devServer: ViteDevServer | undefined;
+  /** The client environment's `resolve.alias`; known once the config is resolved. */
+  let aliases: readonly ViteAlias[] = [];
+  const tsconfigPath = options.tsconfig ? resolve(root, options.tsconfig) : findTsconfig(root);
   let pending: PendingReload | undefined;
   const passes = new Map<string, Pass>();
+  /**
+   * Production builds only: first parent of each module in the `client`
+   * environment, recorded as modules are parsed, because the bundler does not
+   * report a module's importers until its graph is linked, which is after the
+   * diagnostic is needed. One build's worth of edges, dropped at the next
+   * `buildStart`; the dev server uses its own module graph instead.
+   */
+  const parents = new Map<string, string>();
 
   const context: BrowserGraphContext = {
     root,
@@ -190,6 +210,10 @@ export function strataServerComponents(options: ServerComponentsOptions): Plugin
       clientComponents,
       files: listSourceFiles(sourceDir, generatedDir),
       readFile,
+      // A resolver per generation: its TypeScript resolution cache is dropped
+      // with the graph, so a changed tsconfig or file layout is never stale.
+      resolver: (modules) =>
+        createModuleResolver({ root, modules, aliases, tsconfig: tsconfigPath }),
     });
     const sync = syncGeneratedFiles(generatedDir, next.generated, nodeGeneratedFiles);
 
@@ -229,6 +253,7 @@ export function strataServerComponents(options: ServerComponentsOptions): Plugin
 
     const relevant =
       failure !== undefined ||
+      file === tsconfigPath ||
       graph.serverOwnedFiles.has(file) ||
       graph.serverOnly.has(file) ||
       (isInside(sourceDir, file) && SOURCE_FILE.test(file));
@@ -347,8 +372,32 @@ export function strataServerComponents(options: ServerComponentsOptions): Plugin
       };
     },
 
+    // Vite's resolved aliases are the supported source of truth for
+    // `resolve.alias` (other plugins' `config()` hooks may add to them), so the
+    // graph is derived once more with them. The surrogates do not depend on
+    // aliases; the server-only taint of aliased re-exports does.
+    configResolved(resolved) {
+      if (!enabled) return;
+
+      // `resolve.alias` is shared by every environment.
+      aliases = resolved.resolve.alias;
+      refresh();
+    },
+
     configureServer(server) {
       devServer = server;
+    },
+
+    buildStart() {
+      if (this.environment?.name === "client") parents.clear();
+    },
+
+    moduleParsed(info) {
+      if (!enabled || this.environment?.name !== "client") return;
+
+      for (const child of [...info.importedIds, ...info.dynamicallyImportedIds]) {
+        if (!parents.has(child)) parents.set(child, info.id);
+      }
     },
 
     /**
@@ -429,11 +478,27 @@ export function strataServerComponents(options: ServerComponentsOptions): Plugin
       // one the pre-scan never saw (outside sourceDir) is being loaded.
       if (source === SERVER_ONLY_SPECIFIER) {
         this.error(
-          browserGraphError({ kind: "server-only-specifier" }, importer, undefined, context),
+          browserGraphError(
+            { kind: "server-only-specifier" },
+            importer,
+            firstImporter(this, importer, parents),
+            context,
+            importChain(this, importer, parents).slice(0, -1),
+          ),
         );
       }
 
-      if (!source.startsWith(".") && !source.startsWith("/")) return null;
+      // A path is always resolved and checked. A bare specifier is resolved
+      // here only when the generation's resolver (Vite aliases, tsconfig
+      // `paths`) says it names an app module, so ordinary package imports pay
+      // nothing; whatever else Vite resolves is stopped by `load` below.
+      if (
+        !source.startsWith(".") &&
+        !source.startsWith("/") &&
+        graph.resolve(source, stripQuery(importer)) === undefined
+      ) {
+        return null;
+      }
 
       const resolved = await this.resolve(source, importer, { ...resolveOptions, skipSelf: true });
 
@@ -452,7 +517,15 @@ export function strataServerComponents(options: ServerComponentsOptions): Plugin
         return graph.bySource.get(forbidden.file)?.surrogate ?? null;
       }
 
-      this.error(browserGraphError(forbidden, resolved.id, importer, context));
+      this.error(
+        browserGraphError(
+          forbidden,
+          resolved.id,
+          importer,
+          context,
+          importChain(this, importer, parents),
+        ),
+      );
     },
 
     // A forbidden module reaching the browser graph by any other path (e.g. a
@@ -466,7 +539,17 @@ export function strataServerComponents(options: ServerComponentsOptions): Plugin
       const forbidden = forbiddenIn(id);
 
       if (forbidden) {
-        this.error(browserGraphError(forbidden, id, firstImporter(this, id), context));
+        const importer = firstImporter(this, id, parents);
+
+        this.error(
+          browserGraphError(
+            forbidden,
+            id,
+            importer,
+            context,
+            importer ? importChain(this, importer, parents) : [],
+          ),
+        );
       }
 
       return null;
@@ -478,14 +561,59 @@ export function strataServerComponents(options: ServerComponentsOptions): Plugin
  * Who imported `id`, for the diagnostic. Rollup's `getModuleInfo` knows during a
  * build; the dev server throws on `importers`, so it asks its own module graph.
  */
-function firstImporter(plugin: PluginContext, id: string): string | undefined {
+function firstImporter(
+  plugin: PluginContext,
+  id: string,
+  parents: ReadonlyMap<string, string>,
+): string | undefined {
+  return importersOf(plugin, id, parents)[0];
+}
+
+/** Upward steps of an import chain a diagnostic follows before it stops. */
+const MAX_CHAIN = 12;
+
+/**
+ * The chain of importers above `id`, outermost first and ending at `id`,
+ * following the first importer the bundler knows at each step. It stops at an
+ * unknown importer, at a cycle and after {@link MAX_CHAIN} steps, so the
+ * result is a true prefix of what the bundler knows, never an invention. Under
+ * the dev server's optimized dependencies the original importers of a
+ * package's internal modules are collapsed into one chunk and are not here.
+ */
+function importChain(
+  plugin: PluginContext,
+  id: string,
+  parents: ReadonlyMap<string, string>,
+): ImportChain {
+  const chain = [id];
+
+  for (let current = id; chain.length <= MAX_CHAIN;) {
+    const next = importersOf(plugin, current, parents)[0];
+
+    if (next === undefined || chain.includes(next)) break;
+
+    chain.unshift(next);
+    current = next;
+  }
+
+  return chain;
+}
+
+function importersOf(
+  plugin: PluginContext,
+  id: string,
+  parents: ReadonlyMap<string, string>,
+): readonly string[] {
   try {
-    return plugin.getModuleInfo(id)?.importers[0];
+    const known = plugin.getModuleInfo(id)?.importers ?? [];
+    const parent = parents.get(id);
+
+    return known.length > 0 ? known : parent === undefined ? [] : [parent];
   } catch {
     const graph = (plugin.environment as Partial<DevEnvironment>).moduleGraph;
     const importers = graph?.getModuleById(id)?.importers;
 
-    return importers ? ([...importers][0]?.file ?? undefined) : undefined;
+    return importers ? [...importers].flatMap((node) => (node.id ? [node.id] : [])) : [];
   }
 }
 

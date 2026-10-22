@@ -873,6 +873,212 @@ export async function checkLiveBarrel(ctx: DevContext): Promise<boolean> {
   return all(results);
 }
 
+const ALIAS_CANARY = "STRATA_DEV_ALIAS_CANARY_E41A7C0B96D2";
+
+/**
+ * O. Alias-aware ownership changes while Vite runs. A barrel re-exports a
+ * module through a Vite alias (Vite's dev server does not apply tsconfig `paths` by itself), and that module gains, loses and
+ * regains a server-only assertion; the island then imports the barrel
+ * illegally and legally. Every classification must follow the current
+ * sources, with no restart.
+ */
+export async function checkAliasedOwnership(ctx: DevContext): Promise<boolean> {
+  section("O. Aliased re-export ownership changes while Vite runs (alias-aware taint, live)");
+
+  const dev = await openDevPage(ctx.browser, ctx.server);
+  const data = devFile("dev-alias-data.ts");
+  const barrel = devFile("dev-alias-barrel.ts");
+  const cycle = devFile("dev-alias-cycle.ts");
+  const island = devFile("dev-island.component.ts");
+  const dataUrl = moduleUrl(ctx, "dev-alias-data.ts");
+  const barrelUrl = moduleUrl(ctx, "dev-alias-barrel.ts");
+  const results: boolean[] = [];
+  const closed = async (url: string, name: string, expected: boolean): Promise<boolean> => {
+    const response = await fetchIn(dev, url);
+
+    return check(
+      `${name}: ${expected ? "HTTP >= 400, no canary" : "HTTP 200"}`,
+      expected
+        ? response.status >= 400 && !response.body.includes(ALIAS_CANARY)
+        : response.status === 200,
+      `${response.status} ${response.body.slice(0, 400).replace(/\s+/g, " ")}`,
+    );
+  };
+
+  try {
+    results.push(check("start: the page hydrated", await hydrated(dev)));
+
+    // 1-2. A public module and its aliased re-export (fixture files).
+    results.push(
+      check(
+        "BEFORE (positive control): the module and its aliased barrel are public, the browser gets the canary",
+        (await fetchIn(dev, dataUrl)).body.includes(ALIAS_CANARY) &&
+          (await fetchIn(dev, barrelUrl)).status === 200,
+      ),
+    );
+
+    // 3. The module becomes server-only: the barrel follows through the alias.
+    const mark = ctx.server.mark();
+    const since = dev.log.mark();
+    const marked = await editAndWatch(ctx, dev, () =>
+      ctx.edits.write(data, `${SERVER_ONLY_IMPORT}\n${ctx.edits.original(data)}`),
+    );
+
+    results.push(
+      check("the graph change reloaded the document", marked.replaced),
+      await closed(dataUrl, "the asserting module", true),
+      await closed(
+        barrelUrl,
+        "its aliased barrel (re-export taint through the ~app Vite alias)",
+        true,
+      ),
+      check(
+        "the diagnostic names the aliased chain",
+        /re-exports a server-only module: .*dev-alias-barrel\.ts.*dev-alias-data\.ts/.test(
+          ctx.server.since(mark),
+        ),
+        ctx.server.since(mark),
+      ),
+    );
+
+    // 4. An illegal client import of the barrel: the graph closes.
+    const illegal = await editAndWatch(ctx, dev, () =>
+      ctx.edits.write(island, `import "./dev-alias-barrel";\n${ctx.edits.original(island)}`),
+    );
+
+    results.push(
+      check("the illegal client import reloaded the document", illegal.replaced),
+      check(
+        "the diagnostic names the island as the importer",
+        /Server-only module entered the browser graph: [^\n]*dev-alias-barrel\.ts\nImported from: src\/app\/server-component-dev\/dev-island\.component\.ts/.test(
+          illegal.serverLog,
+        ),
+        illegal.serverLog,
+      ),
+      check(
+        "the island did not hydrate (fail closed)",
+        (await dev.page.locator("dev-island[data-strata-hydrated]").count()) === 0,
+      ),
+    );
+
+    // 5. Remove the illegal import: the graph recovers.
+    await dev.markRealm();
+    ctx.edits.write(island, ctx.edits.original(island));
+    results.push(
+      check(
+        "removing the illegal import reloads the document",
+        (await until(async () => !(await dev.realmSurvives()), 20_000)) === true,
+      ),
+    );
+    await returnToRoute(dev, ctx.server);
+    results.push(await hydratedCheck("the island hydrates again", dev));
+
+    results.push(
+      check(
+        "no response or HMR frame while the module was server-only contains the canary",
+        logContains(dev.log, ALIAS_CANARY, since).length === 0,
+        logContains(dev.log, ALIAS_CANARY, since).join(", "),
+      ),
+    );
+
+    // 6. Remove the assertion: the shared module is browser-safe again, and
+    // the island can now import the barrel legally (it is hydrated by it).
+    // The module is requested through the island's import, never directly: a
+    // module that left the Angular program is not recompiled by Analog until an
+    // importer brings it back.
+    await editAndWatch(ctx, dev, () => ctx.edits.write(data, ctx.edits.original(data)));
+    await returnToRoute(dev, ctx.server);
+    results.push(await hydratedCheck("the island hydrates with the shared module public", dev));
+
+    const legal = await editAndWatch(ctx, dev, () =>
+      ctx.edits.write(island, `import "./dev-alias-barrel";\n${ctx.edits.original(island)}`),
+    );
+
+    await returnToRoute(dev, ctx.server);
+    results.push(
+      check("the now-legal import of the barrel reloaded the document", legal.replaced),
+      await hydratedCheck(
+        "the island hydrates through the aliased barrel (browser-safe again)",
+        dev,
+      ),
+      await closed(barrelUrl, "the barrel", false),
+      await closed(dataUrl, "the shared module", false),
+    );
+
+    // 7. Reintroduce the assertion: the same import is illegal again, so the
+    // firewall engages again (no stale classification) and the graph closes.
+    const reintroduced = dev.log.mark();
+    const again = await editAndWatch(ctx, dev, () =>
+      ctx.edits.write(data, `${SERVER_ONLY_IMPORT}\n${ctx.edits.original(data)}`),
+    );
+
+    results.push(
+      check("reintroducing the assertion reloaded the document", again.replaced),
+      check(
+        "the diagnostic names the island as the importer of the tainted barrel",
+        /Server-only module entered the browser graph: [^\n]*dev-alias-barrel\.ts\nImported from: src\/app\/server-component-dev\/dev-island\.component\.ts/.test(
+          again.serverLog,
+        ),
+        again.serverLog,
+      ),
+      check(
+        "the island did not hydrate (fail closed)",
+        (await dev.page.locator("dev-island[data-strata-hydrated]").count()) === 0,
+      ),
+      await closed(dataUrl, "the module", true),
+      await closed(barrelUrl, "the barrel", true),
+    );
+
+    // Drop the island's import; the assertion stays.
+    await dev.markRealm();
+    ctx.edits.write(island, ctx.edits.original(island));
+    await until(async () => !(await dev.realmSurvives()), 20_000);
+    await returnToRoute(dev, ctx.server);
+    results.push(await hydratedCheck("the island hydrates again once it stops importing it", dev));
+
+    // 8. A re-export cycle through the barrel terminates and stays forbidden.
+    ctx.edits.write(cycle, `export * from "~app/server-component-dev/dev-alias-barrel";\n`);
+    ctx.edits.write(
+      barrel,
+      `${ctx.edits.original(barrel)}export * from "~app/server-component-dev/dev-alias-cycle";\n`,
+    );
+    await sleep(1_500);
+    results.push(
+      await closed(barrelUrl, "the barrel in a re-export cycle", true),
+      await closed(moduleUrl(ctx, "dev-alias-cycle.ts"), "the other cycle member", true),
+      check("the dev server survived the cycle", !ctx.server.process.hasExited()),
+    );
+
+    // 9. Invalid syntax in a barrel, then the correction.
+    ctx.edits.write(barrel, `export { aliasedValue from "@app/server-component-dev/dev-alias-data`);
+    await sleep(1_500);
+    results.push(await closed(barrelUrl, "the syntactically invalid barrel", true));
+    ctx.edits.write(barrel, ctx.edits.original(barrel));
+    await sleep(1_500);
+    results.push(
+      await closed(barrelUrl, "the corrected barrel (still tainted through the alias)", true),
+      check(
+        "no response or HMR frame since the assertion came back contains the canary",
+        logContains(dev.log, ALIAS_CANARY, reintroduced).length === 0,
+        logContains(dev.log, ALIAS_CANARY, reintroduced).join(", "),
+      ),
+    );
+  } finally {
+    await dev.close();
+    await restoreAndSettle(ctx);
+  }
+
+  results.push(
+    check(
+      "the alias fixture files are back to their original bytes",
+      ctx.edits.verifyRestored().length === 0,
+      ctx.edits.verifyRestored().join(", "),
+    ),
+  );
+
+  return all(results);
+}
+
 /** J, K, composition: an invalid server-owned edit gives a diagnostic and fails closed; the fix recovers. */
 export async function checkInvalidEdit(
   ctx: DevContext,
