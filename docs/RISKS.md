@@ -1,5 +1,13 @@
 # Technical risk register
 
+Evidence note (2026-10-22): the Analog 0.6.0 routing candidate adds an opt-in API boundary on top of Nitro's
+H3 v1 router. It depends on pinned router behaviour (method-less registration serves every method, method
+fall-through to less specific routes, no backtracking), so a router upgrade must be re-qualified; the H3 v2
+transition is not qualified for it. Undeclared native routes are unknown to the boundary and answer `404` for a
+wrong method. Separately, an intermittent Server Component SSR failure (HTTP 200 with an empty island and
+`JIT compiler unavailable` in the log) was seen on PR #112 and reproduced once on main; its root cause is
+unestablished. See [the evidence](research/analog-http-routing-v06.md#baseline-ci-investigation).
+
 Evidence note (2026-10-20): the Analog 0.5.0 HTTP contract candidate adds safe
 application errors and portable `Response` helpers. Local Node and workerd
 fixtures exercise them. Cancellation is **NO-GO** for the pinned adapter path:

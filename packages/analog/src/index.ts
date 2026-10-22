@@ -1,3 +1,8 @@
+export type {
+  StrataAnalogApiBoundaryOptions,
+  StrataAnalogBoundaryMethod,
+  StrataAnalogNativeRoute,
+} from "./api-boundary.js";
 export { registerControllers } from "./register-controllers.js";
 export type {
   ControllerClass,

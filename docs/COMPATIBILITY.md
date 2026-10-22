@@ -106,6 +106,16 @@ release notes before selecting each exact candidate, particularly prereleases; t
 range is not a security or compatibility certification. Production eligibility of an upstream
 prerelease requires an explicit release decision and full evidence, never automatic promotion.
 
+## HTTP routing boundary assumptions
+
+The `apiBoundary` option of `@strata-sc/analog` depends on four behaviours of the pinned H3 v1 router
+that Nitro 2.13.4 mounts (h3 1.15.11, radix3 1.1.2): a handler registered without a method serves every method; a request that finds a
+route without a handler for its method falls through to the next less specific route that has one;
+`/<prefix>/**` does not match `<prefix>` itself; and the router does not backtrack out of a static
+branch. The first two are required; the last two are tolerated either way, so a router upgrade must be
+re-qualified rather than assumed. Strata declares no H3 or Nitro type and adds no dependency for this.
+The H3 v2 transition is not qualified for the boundary. See the [qualification report](research/analog-http-routing-v06.md).
+
 ## Deployment scope
 
 Required qualification targets are a supported Node server and Cloudflare Workers execution through

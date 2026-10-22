@@ -2,6 +2,29 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 import { getControllerDefinition } from "@strata-sc/core";
 import type { HttpMethod, RouteDefinition } from "@strata-sc/core";
 
+import {
+  buildAllow,
+  compareSpecificity,
+  compilePattern,
+  headResponse,
+  isCorsPreflight,
+  isUnderPrefix,
+  matchPattern,
+  methodNotAllowedResponse,
+  notFoundResponse,
+  optionsResponse,
+  parseApiBoundary,
+  prefixesOverlap,
+  shapeOf,
+  splitRequestPath,
+} from "./api-boundary.js";
+import type {
+  BoundaryRequest,
+  NativeEntry,
+  Segment,
+  StrataAnalogApiBoundaryOptions,
+  StrataAnalogBoundaryMethod,
+} from "./api-boundary.js";
 import { CleanupScope } from "./cleanup-scope.js";
 import type { StrataAnalogCleanup } from "./cleanup-scope.js";
 import { StrataAnalogConfigurationError } from "./errors.js";
@@ -146,6 +169,13 @@ export interface RegisterControllersOptions {
   readonly guards?: readonly StrataAnalogGuard[];
   /** Opt-in onion-style wrappers, entered in order after guards. */
   readonly interceptors?: readonly StrataAnalogInterceptor[];
+  /**
+   * Opt-in ownership of API path prefixes: unknown paths below them answer a
+   * safe JSON 404, known paths with an unsupported method answer 405 with
+   * `Allow`, and `HEAD`/`OPTIONS` follow the documented policy. Without it,
+   * routing is exactly what Nitro does.
+   */
+  readonly apiBoundary?: StrataAnalogApiBoundaryOptions;
 }
 
 type ControllerHandler = (this: object, request: StrataAnalogRequest) => unknown;
@@ -166,6 +196,13 @@ const ROUTER_METHOD = {
 } as const satisfies Record<HttpMethod, Lowercase<HttpMethod>>;
 
 type RouterMethod = (typeof ROUTER_METHOD)[HttpMethod];
+
+/**
+ * Nitro's H3 v1 router registers a handler for every method when none is
+ * given, and its runtime accepts `"all"` for it; its public `add()` type just
+ * does not list it. The boundary fallback needs that, and nothing else does.
+ */
+const ALL_METHODS = "all" as unknown as RouterMethod;
 
 /**
  * The part of Nitro 2's router that Strata uses: `nitroApp.router`, the
@@ -246,6 +283,15 @@ export interface NitroRouter {
  * instance of the controller class throws the same error at request time;
  * any error the factory itself throws or rejects with propagates unchanged.
  *
+ * API boundary (opt-in): `options.apiBoundary` makes explicitly listed path
+ * prefixes an API namespace. Below them, a request no route handled answers a
+ * safe JSON 404, a known path with an unsupported method answers 405 with
+ * `Allow`, `HEAD` is derived from the matching `GET` route and plain `OPTIONS`
+ * can be answered (never a CORS preflight). It is a fallback registered on
+ * `/<prefix>` and `/<prefix>/**` that Nitro's router only reaches when no more
+ * specific route handles the method, so native routes are never shadowed. See
+ * the package README.
+ *
  * Strata does not replace Nitro or Analog — this only adds routes to the
  * router you pass in. Native Analog routes (`src/server/routes/**`) keep
  * working exactly as before.
@@ -282,12 +328,16 @@ export function registerControllers<Router extends NitroRouter>(
   }
   const interceptorSnapshot = Object.freeze(interceptorValue.slice());
 
+  const boundary =
+    options.apiBoundary === undefined ? undefined : parseApiBoundary(options.apiBoundary);
+
   const plan = planRegistration(
     router,
     controllers,
     controllerFactory,
     guardSnapshot,
     interceptorSnapshot,
+    boundary,
   );
 
   commitRegistration(router, plan);
@@ -312,25 +362,61 @@ interface PlannedRoute {
   /** `Controller.handler`, for diagnostics. */
   readonly owner: string;
   readonly path: string;
+  readonly httpMethod: HttpMethod;
   readonly method: RouterMethod;
   readonly handler: (event: NitroEvent) => unknown;
 }
 
-/**
- * The Strata routes each router already owns (route key → owner), so a later
- * `registerControllers()` call on the same router cannot register a route
- * twice. Only registration diagnostics are kept; a `WeakMap` never retains a
- * router, and nothing is attached to it.
- *
- * It covers Strata registrations only: routes added to the router by Nitro,
- * Analog or anyone else are not visible here.
- */
-const registeredRoutes = new WeakMap<NitroRouter, Map<RouteKey, string>>();
+/** A route Strata registered on a router, as the boundary needs to see it. */
+interface RegisteredRoute {
+  readonly owner: string;
+  readonly path: string;
+  readonly method: HttpMethod;
+  readonly handler: (event: NitroEvent) => unknown;
+}
+
+/** An owned prefix on one router, with the policy it was declared under. */
+interface BoundaryEntry {
+  readonly prefix: string;
+  readonly head: "derive" | "off";
+  readonly options: "allow" | "off";
+  /** Strata routes below the prefix, most specific first. Grows with later batches. */
+  routes: BoundaryRoute[];
+  /** Declared native routes below the prefix. */
+  native: NativeEntry[];
+}
+
+interface BoundaryRoute {
+  readonly route: RegisteredRoute;
+  readonly segments: readonly Segment[];
+}
 
 /**
- * Validates the whole batch — every controller, handler and route key —
- * without touching the router or the registry, so a configuration error
- * leaves both exactly as they were.
+ * Everything Strata knows about one router: the routes it registered
+ * (route key → route) and the API prefixes it owns. Scoped to the router by a
+ * `WeakMap`, never retained past it and never attached to it: routes added by
+ * Nitro, Analog or anyone else are not visible here, and nothing is shared
+ * between routers or server lifetimes.
+ */
+interface RouterState {
+  readonly routes: Map<RouteKey, RegisteredRoute>;
+  readonly boundaries: Map<string, BoundaryEntry>;
+}
+
+const routerStates = new WeakMap<NitroRouter, RouterState>();
+
+/** The outcome of validating a boundary request against a router's state. */
+interface BoundaryPlan {
+  /** Prefixes this call introduces; already-owned prefixes only gain routes. */
+  readonly newPrefixes: readonly string[];
+  /** The call's `apiBoundary`; absent when a later call only adds routes to owned prefixes. */
+  readonly request: BoundaryRequest | undefined;
+}
+
+/**
+ * Validates the whole batch — every controller, handler and route key, and the
+ * API boundary — without touching the router or its state, so a configuration
+ * error leaves both exactly as they were.
  */
 function planRegistration(
   router: NitroRouter,
@@ -338,8 +424,10 @@ function planRegistration(
   controllerFactory: StrataAnalogControllerFactory,
   guards: readonly StrataAnalogGuard[],
   interceptors: readonly StrataAnalogInterceptor[],
-): PlannedRoute[] {
-  const registered = registeredRoutes.get(router);
+  boundary: BoundaryRequest | undefined,
+): { routes: PlannedRoute[]; boundary: BoundaryPlan | undefined } {
+  const state = routerStates.get(router);
+  const registered = state?.routes;
   const planned = new Map<RouteKey, PlannedRoute>();
 
   for (const controllerClass of controllers) {
@@ -357,7 +445,7 @@ function planRegistration(
       const path = buildRoutePath(definition.path, route.path);
       const key: RouteKey = `${route.method} ${path}`;
       const owner = `${controllerClass.name}.${route.handler}`;
-      const registeredOwner = registered?.get(key);
+      const registeredOwner = registered?.get(key)?.owner;
       const plannedOwner = planned.get(key)?.owner;
 
       if (registeredOwner !== undefined || plannedOwner !== undefined) {
@@ -376,6 +464,7 @@ function planRegistration(
         key,
         owner,
         path,
+        httpMethod: route.method,
         method: ROUTER_METHOD[route.method],
         handler: createRouteHandler(
           controllerClass,
@@ -394,7 +483,114 @@ function planRegistration(
     }
   }
 
-  return [...planned.values()];
+  const routes = [...planned.values()];
+  const boundaryPlan = planBoundary(state, routes, boundary);
+
+  return { routes, boundary: boundaryPlan };
+}
+
+/**
+ * Checks the owned prefixes against the router's existing state and every
+ * Strata route below them: the boundary can only answer 404/405 for paths it
+ * can match exactly like Nitro does, so unsupported patterns, ambiguous
+ * parameter names and shape collisions are rejected here, before any mutation.
+ */
+function planBoundary(
+  state: RouterState | undefined,
+  routes: readonly PlannedRoute[],
+  request: BoundaryRequest | undefined,
+): BoundaryPlan | undefined {
+  const prefixes = new Map<string, { head: string; options: string }>();
+
+  for (const entry of state?.boundaries.values() ?? []) {
+    prefixes.set(entry.prefix, { head: entry.head, options: entry.options });
+  }
+
+  const newPrefixes: string[] = [];
+
+  for (const prefix of request?.prefixes ?? []) {
+    const existing = prefixes.get(prefix);
+
+    if (existing) {
+      if (existing.head !== request?.head || existing.options !== request.options) {
+        throw new StrataAnalogConfigurationError(
+          `apiBoundary prefix "${prefix}" is already owned on this router with a different head/options policy.`,
+        );
+      }
+      continue;
+    }
+
+    for (const other of prefixes.keys()) {
+      if (prefixesOverlap(prefix, other)) {
+        throw new StrataAnalogConfigurationError(
+          `apiBoundary prefix "${prefix}" overlaps "${other}", already owned on this router; a path may have only one owner.`,
+        );
+      }
+    }
+
+    prefixes.set(prefix, { head: request?.head ?? "derive", options: request?.options ?? "off" });
+    newPrefixes.push(prefix);
+  }
+
+  if (prefixes.size === 0) {
+    return undefined;
+  }
+
+  // Every Strata route below an owned prefix, already registered or planned.
+  const owned = [
+    ...[...(state?.routes.values() ?? [])].map((route) => ({ ...route, planned: false })),
+    ...routes.map((route) => ({
+      owner: route.owner,
+      path: route.path,
+      method: route.httpMethod,
+      planned: true,
+    })),
+  ].filter((route) => [...prefixes.keys()].some((prefix) => isUnderPrefix(route.path, prefix)));
+  const shapes = new Map<string, { owner: string; path: string }>();
+
+  for (const route of owned) {
+    const segments = compilePattern(route.path);
+
+    if (!segments) {
+      throw new StrataAnalogConfigurationError(
+        `"${route.owner}" (${route.method} ${route.path}) is below an owned API prefix but uses a path ` +
+          'the boundary cannot match. Use static and ":param" segments only (no wildcards, ' +
+          "partial-segment parameters or repeated parameter names).",
+      );
+    }
+
+    const shapeKey = `${route.method} ${shapeOf(segments)}`;
+    const other = shapes.get(shapeKey);
+
+    if (other) {
+      throw new StrataAnalogConfigurationError(
+        `Ambiguous Strata routes below an owned API prefix: "${route.owner}" (${route.method} ${route.path}) ` +
+          `and "${other.owner}" (${route.method} ${other.path}) differ only in parameter names, so Nitro ` +
+          "would serve them from one route entry.",
+      );
+    }
+
+    shapes.set(shapeKey, { owner: route.owner, path: route.path });
+  }
+
+  const declared = [
+    ...[...(state?.boundaries.values() ?? [])].flatMap((entry) => entry.native),
+    ...(request?.native ?? []),
+  ];
+
+  for (const native of declared) {
+    for (const method of native.methods) {
+      const other = shapes.get(`${method} ${shapeOf(native.segments)}`);
+
+      if (other) {
+        throw new StrataAnalogConfigurationError(
+          `apiBoundary.nativeRoutes declares "${method} ${native.path}", which "${other.owner}" also registers as a Strata route.`,
+        );
+      }
+    }
+  }
+
+  return { newPrefixes, request };
 }
 
 /**
@@ -404,19 +600,139 @@ function planRegistration(
  * routes it already accepted stay registered: Strata cannot undo another
  * router's mutation.
  */
-function commitRegistration(router: NitroRouter, plan: readonly PlannedRoute[]): void {
-  for (const route of plan) {
+function commitRegistration(
+  router: NitroRouter,
+  plan: { routes: readonly PlannedRoute[]; boundary: BoundaryPlan | undefined },
+): void {
+  const state: RouterState = routerStates.get(router) ?? {
+    routes: new Map(),
+    boundaries: new Map(),
+  };
+
+  routerStates.set(router, state);
+
+  for (const route of plan.routes) {
     router.add(route.path, route.handler, route.method);
 
-    let registered = registeredRoutes.get(router);
+    state.routes.set(route.key, {
+      owner: route.owner,
+      path: route.path,
+      method: route.httpMethod,
+      handler: route.handler,
+    });
 
-    if (!registered) {
-      registered = new Map();
-      registeredRoutes.set(router, registered);
+    for (const entry of state.boundaries.values()) {
+      if (isUnderPrefix(route.path, entry.prefix))
+        addBoundaryRoute(entry, state.routes.get(route.key));
+    }
+  }
+
+  if (!plan.boundary) return;
+
+  const { request, newPrefixes } = plan.boundary;
+
+  for (const prefix of newPrefixes) {
+    const entry: BoundaryEntry = {
+      prefix,
+      head: request?.head ?? "derive",
+      options: request?.options ?? "off",
+      routes: [],
+      native: [],
+    };
+
+    for (const route of state.routes.values()) {
+      if (isUnderPrefix(route.path, prefix)) addBoundaryRoute(entry, route);
     }
 
-    registered.set(route.key, route.owner);
+    state.boundaries.set(prefix, entry);
+
+    const handler = createBoundaryHandler(entry);
+
+    // `/api/**` does not match `/api` itself in Nitro's router, so both are added.
+    router.add(prefix, handler, ALL_METHODS);
+    router.add(`${prefix}/**`, handler, ALL_METHODS);
   }
+
+  for (const entry of state.boundaries.values()) {
+    for (const native of request?.native ?? []) {
+      if (isUnderPrefix(native.path, entry.prefix)) entry.native.push(native);
+    }
+  }
+}
+
+function addBoundaryRoute(entry: BoundaryEntry, route: RegisteredRoute | undefined): void {
+  const segments = route ? compilePattern(route.path) : undefined;
+
+  if (!route || !segments) return;
+
+  entry.routes = [...entry.routes, { route, segments }].sort((a, b) =>
+    compareSpecificity(a.segments, b.segments),
+  );
+}
+
+/**
+ * The fallback Nitro reaches for a request below an owned prefix that no
+ * specific route handled: Nitro's router chooses the most specific entry that
+ * has a handler for the request method, and this is registered for every
+ * method on the least specific entry (`/prefix/**`). Native routes and Strata
+ * routes that handle the method are therefore never shadowed.
+ */
+function createBoundaryHandler(entry: BoundaryEntry): (event: NitroEvent) => Promise<unknown> {
+  return async (event) => {
+    const method = (event.method ?? event.node?.req?.method ?? "GET").toUpperCase();
+    const segments = splitRequestPath(
+      event.path ?? event.node?.req?.originalUrl ?? event.node?.req?.url ?? "/",
+    );
+    const strata = segments
+      ? entry.routes.flatMap((candidate) => {
+          const params = matchPattern(candidate.segments, segments);
+
+          return params ? [{ ...candidate, params }] : [];
+        })
+      : [];
+    const native = segments
+      ? entry.native.filter((candidate) => matchPattern(candidate.segments, segments))
+      : [];
+
+    if (strata.length === 0 && native.length === 0) {
+      return notFoundResponse();
+    }
+
+    // Nitro's router does not backtrack: a request that enters a static branch
+    // which cannot complete (`/a/new/x` against `/a/new/y` and `/a/:id/x`)
+    // lands here although a Strata route matches it. Serving that route keeps
+    // the route table and the response consistent; Nitro never gets here when
+    // it would have served a Strata route itself.
+    const served =
+      strata.find((candidate) => candidate.route.method === method) ??
+      (method === "HEAD" && entry.head === "derive"
+        ? strata.find((candidate) => candidate.route.method === "GET")
+        : undefined);
+
+    if (served) {
+      // The matched route handles this request: its parameters, not the fallback's.
+      if (event.context) (event.context as { params?: unknown }).params = served.params;
+
+      const result = await served.route.handler(event);
+
+      return method === "HEAD" && served.route.method === "GET" ? headResponse(result) : result;
+    }
+
+    const get = strata.find((candidate) => candidate.route.method === "GET");
+    const preflight = method === "OPTIONS" && isCorsPreflight(getEventHeaders(event));
+    const allowed = new Set<StrataAnalogBoundaryMethod>();
+
+    for (const candidate of strata) allowed.add(candidate.route.method);
+    for (const candidate of native) for (const declared of candidate.methods) allowed.add(declared);
+    if (get && entry.head === "derive") allowed.add("HEAD");
+    if (entry.options === "allow" && !preflight) allowed.add("OPTIONS");
+
+    if (method === "OPTIONS" && entry.options === "allow" && !preflight) {
+      return optionsResponse(buildAllow(allowed));
+    }
+
+    return methodNotAllowedResponse(buildAllow(allowed));
+  };
 }
 
 function createRouteHandler(

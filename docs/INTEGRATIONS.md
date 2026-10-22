@@ -107,6 +107,23 @@ Nitro/H3 Node and Cloudflare Pages adapters do not carry a trustworthy transport
 signal into the controller boundary; see the cancellation verdict in the
 [qualification report](research/analog-http-contract-v05.md#cancellation-investigation).
 
+#### HTTP routing and API boundary
+
+Without extra configuration, a request that matches no registered route falls through to Analog's HTML
+renderer, so `GET /api/unknown` answers `200 text/html` and an unsupported method on a known path does
+too. The opt-in `apiBoundary` option of `registerControllers()` makes explicitly listed prefixes an API
+namespace: unknown paths answer a safe JSON `404`, known paths with an unsupported method answer `405`
+with an `Allow` derived from route metadata, `HEAD` is derived from the matching `GET` route (one
+pipeline run, no body), and plain `OPTIONS` can be answered without ever answering a CORS preflight or
+adding CORS headers. The boundary is a low-priority fallback registered on `/<prefix>` and
+`/<prefix>/**` of Nitro's router, so native Nitro routes, Analog pages, static assets and Analog server
+functions (`/_analog/fn/:id`) are never shadowed. Framework `404`/`405`/`OPTIONS` answers run no guard,
+interceptor or controller factory; keep request-wide policy in Nitro middleware. Native routes under the
+prefix are declared with `nativeRoutes` for accurate `405`s. Under `vite dev`, Vite's own CORS middleware
+answers `OPTIONS` before Nitro; the boundary leaves it untouched. See the
+[package README](../packages/analog/README.md#api-boundary-404-405-head-and-options) and the
+[qualification report](research/analog-http-routing-v06.md).
+
 #### Consumer-owned Angular DI (experimental, Node only)
 
 Strata does not create an Angular injector or automatically connect to Analog's SSR or

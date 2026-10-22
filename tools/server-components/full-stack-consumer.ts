@@ -35,6 +35,7 @@ import {
   must,
   sanitize,
 } from "./lib/full-stack-install.ts";
+import { routingBrowserSuite, routingSuite } from "./lib/full-stack-routing.ts";
 import { httpSuite, islandSuite, navigationSuite } from "./lib/full-stack-verify.ts";
 import { check, finish, repoRoot, section } from "./lib/harness.ts";
 import { moduleGraph } from "./lib/module-graph.ts";
@@ -78,6 +79,7 @@ const verdict = {
   controllerIntegration: false,
   serverComponents: false,
   island: false,
+  routing: false,
   declarations59: false,
   declarations6: false,
   node: false,
@@ -245,6 +247,7 @@ try {
     "src/check/declarations.ts",
     "src/check/controller-declarations.ts",
     "src/check/http-contract-example.ts",
+    "src/check/api-boundary-example.ts",
   ]) {
     cpSync(join(consumerDir, file), join(ts59Dir, file));
   }
@@ -416,6 +419,10 @@ try {
   });
   const nodeIsland = await islandSuite(node.baseUrl, "node");
   const nodeNavigation = await navigationSuite(node.baseUrl, "node");
+  const nodeRouting = [
+    ...(await routingSuite(node.baseUrl, "node", { lifecycle: true, log: () => node.output() })),
+    ...(await routingBrowserSuite(node.baseUrl, "node")),
+  ];
 
   await node.stop();
   servers.length = 0;
@@ -425,6 +432,7 @@ try {
     ...nodeHttp.serverComponents,
     ...nodeIsland.ok,
     ...nodeNavigation,
+    ...nodeRouting,
     ...graphOk,
   ];
 
@@ -432,6 +440,7 @@ try {
   verdict.controllerIntegration = all(nodeHttp.controller);
   verdict.serverComponents = all(nodeHttp.serverComponents);
   verdict.island = all([...nodeIsland.ok, ...nodeNavigation]);
+  verdict.routing = all(nodeRouting);
   verdict.confidentiality = all(graphOk) && all(nodeIsland.ok);
 
   // ------------------------------------------------------------------------
@@ -573,12 +582,20 @@ try {
   });
   const cfIsland = await islandSuite(wrangler.baseUrl, "workerd");
   const cfNavigation = await navigationSuite(wrangler.baseUrl, "workerd");
+  const cfRouting = [
+    ...(await routingSuite(wrangler.baseUrl, "workerd", {
+      lifecycle: true,
+      log: () => wrangler.output(),
+    })),
+    ...(await routingBrowserSuite(wrangler.baseUrl, "workerd")),
+  ];
 
   cfOk.push(
     ...cfHttp.controller,
     ...cfHttp.serverComponents,
     ...cfIsland.ok,
     ...cfNavigation,
+    ...cfRouting,
     check(
       "workerd: no code-generation or JIT error in the runtime log",
       !/Code generation from strings disallowed|JIT compilation|needs to be compiled using the JIT/.test(
@@ -635,6 +652,10 @@ check("declaration portability (TypeScript 6)", verdict.declarations6);
 check("Core + Analog controller integration (Node)", verdict.controllerIntegration);
 check("Server Components integration (Node)", verdict.serverComponents);
 check("interactive island + controller HTTP API + navigation (Node)", verdict.island);
+check(
+  "HTTP routing and API boundary contract (Node production + workerd)",
+  verdict.routing && verdict.cloudflare,
+);
 check("Node production consumer", verdict.node);
 check("server-only firewall from the installed plugin", verdict.firewall);
 check("Cloudflare/workerd consumer", verdict.cloudflare);

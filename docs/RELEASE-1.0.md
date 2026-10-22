@@ -22,6 +22,11 @@ through the current Nitro adapters, streamed-response cleanup or real-applicatio
 adoption. These checks do not complete M3 or Strata 1.0; see the
 [HTTP contract report](research/analog-http-contract-v05.md).
 
+The 0.6.0 candidate adds an opt-in HTTP routing and API boundary (JSON 404, 405 with `Allow`, derived
+`HEAD`, opt-in `OPTIONS`) with local Node, workerd and packed-consumer evidence. It is not an authentication,
+CORS or CSRF policy, does not exercise a real Analog server function, and does not qualify a deployed runtime;
+it does not complete M3 or Strata 1.0 ([report](research/analog-http-routing-v06.md)).
+
 **Current status: none of these production gates is certified.** This checklist is authoritative
 for release readiness. Fill each item with evidence for one release candidate and its qualified
 compatibility matrix; do not check it based on intent or a demonstration.
