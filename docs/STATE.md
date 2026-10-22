@@ -14,6 +14,20 @@ and production adoption are still pending. See
 [package-island evidence](research/server-component-package-islands.md). This candidate is not yet a
 release and does not replace the pending 0.3.0 version PR.
 
+## Analog HTTP routing and API boundary for 0.6.0 (feature branch)
+
+On branch `feat/analog-http-routing-v06`, work began from synchronized `main`
+`b7ab2d6173fc3710ffb9fed92b64a612ba8e8063`. `registerControllers()` gains the opt-in `apiBoundary` option:
+explicitly owned prefixes answer a safe JSON `404` for unknown paths, `405` with `Allow` for unsupported
+methods, a derived `HEAD` and an opt-in plain `OPTIONS` (never a CORS preflight), without shadowing native
+Nitro routes, pages or Analog server-function dispatch. Package unit tests (173), real Analog dev and Nitro
+production HTTP checks, the packed external consumer on Node production and local workerd (including a
+hydrated island that observes JSON answers), and the full local CI matrix pass. Server functions are covered at
+route-table level only; no real `serverFn` module was exercised. The intermittent Server Component SSR failure
+seen on PR #112 was reproduced once on main and is unresolved; see the
+[report](research/analog-http-routing-v06.md). Experimental fixture evidence, not a deployment and not Strata
+1.0 certification.
+
 ## Analog HTTP application contract for 0.5.0 (feature branch)
 
 On branch `feat/analog-http-contract-v05`, work began from synchronized `main`

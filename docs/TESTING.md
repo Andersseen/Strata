@@ -22,6 +22,13 @@ trustworthy client-abort signal into Strata, so transport cancellation is not
 part of the public API; cleanup remains scoped to handler/interceptor settlement.
 See the [HTTP contract report](research/analog-http-contract-v05.md).
 
+The 0.6.0 routing candidate adds the shared HTTP assertions in `tools/consumer/lib/http-routing.ts` to
+`pnpm test:analog` (dev and production) and to `pnpm test:full-stack-package-consumer` (Node production and
+local workerd, plus a hydrated browser probe), with 24 or more gated overlapping requests and negative controls
+that must fail for their own reason. The Analog dev server answers `OPTIONS` through Vite's CORS middleware, so
+the `OPTIONS` policy is qualified on production builds only. See the
+[routing report](research/analog-http-routing-v06.md).
+
 ## Progressive gates
 
 Analog HTTP input validation adds coverage to `pnpm test:analog` (real Analog

@@ -115,6 +115,14 @@ location for request state. `@strata-sc/analog` creates a new controller instanc
 an experimental `controllerFactory` seam (default `new Controller()`) and runs the factory's
 `onCleanup` callbacks when the controller invocation settles. It provides no injector itself.
 
+**API boundary (opt-in).** Routing stays owned by Nitro. `registerControllers()` can additionally register
+one fallback per owned prefix (`/<prefix>` and `/<prefix>/**`, every method) on the same router. Nitro's
+router always prefers a more specific route that handles the request's method, so the fallback only
+receives what nothing else handled; it answers a JSON `404`, a `405` with `Allow`, a derived `HEAD`, or an
+opt-in plain `OPTIONS`, using route metadata scoped to that router in a `WeakMap`. It is not a router, adds
+no catch-all outside the declared prefixes and runs no guard or interceptor for requests that matched no
+route ([report](research/analog-http-routing-v06.md)).
+
 **SPEC-003 result (CONDITIONAL GO, [report](research/analog-di-feasibility.md)).** On Analog 2.7.2 /
 Angular 22.1.7, no supported seam exposes an Analog injector to Nitro handlers. The SSR injector
 exists only inside each `renderApplication()` call, the server-function injector is private to a

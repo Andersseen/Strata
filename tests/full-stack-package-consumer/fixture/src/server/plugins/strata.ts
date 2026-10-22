@@ -16,8 +16,20 @@ const interceptController: StrataAnalogInterceptor = async (_context, next) => n
 // The documented Nitro integration: Strata only adds routes to the router Nitro
 // already owns. The controller factory is plain TypeScript; there is no Angular
 // injector here and none is shared with SSR.
+//
+// `/api` is an explicitly owned API namespace: an unknown `/api/*` path answers a
+// JSON 404 instead of the Analog HTML shell, and a known path with an unsupported
+// method answers 405 with `Allow`. The native `GET /api/health` route is declared
+// so its wrong-method answer is accurate too; it is still served by Nitro itself.
+const apiBoundary = {
+  prefixes: ["/api"],
+  options: "allow",
+  nativeRoutes: [{ path: "/api/health", methods: ["GET"] }],
+} as const;
+
 export default defineNitroPlugin((nitroApp) => {
   registerControllers(nitroApp.router, [ProductsController, QualificationController], {
+    apiBoundary,
     controllerFactory: (Controller, { onCleanup }) => {
       lifecycleStats.created++;
       onCleanup(() => {

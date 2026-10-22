@@ -13,6 +13,18 @@ import { fileURLToPath } from "node:url";
 
 import { run } from "../consumer/lib/exec.ts";
 import type { CommandResult } from "../consumer/lib/exec.ts";
+import {
+  expectHead,
+  expectHeadMethodNotAllowed,
+  expectJsonNotFound,
+  expectMethodNotAllowed,
+  expectNativeServed,
+  expectNoCors,
+  expectOptions,
+  looksLikeHtml,
+  rawRequest,
+} from "../consumer/lib/http-routing.ts";
+import type { Verdict } from "../consumer/lib/http-routing.ts";
 
 import {
   ANALOG_ADAPTER_SYMBOL,
@@ -253,6 +265,8 @@ interface RouteObservation {
   guardContract: boolean;
   inventoryContract: boolean;
   inventoryDetail: string;
+  routingContract: boolean;
+  routingDetail: string;
   guardDetail: string;
   /** SPEC-003 Angular DI scenarios under `/api/strata/angular-di`, with lifecycle counter deltas. */
   angularDi: AngularDiObservation;
@@ -812,7 +826,7 @@ async function observeAngularDi(baseUrl: string): Promise<AngularDiObservation> 
 const isJson = (contentType: string | null): boolean =>
   contentType?.includes("application/json") ?? false;
 
-async function observeRoutes(baseUrl: string): Promise<RouteObservation> {
+async function observeRoutes(baseUrl: string, devServer = false): Promise<RouteObservation> {
   const native = await getJson<NativeBody>(`${baseUrl}/api/native`);
   const strata = await getJson<StrataCoreBody>(`${baseUrl}/api/strata-core`);
   const seam = await getJson<SeamBody>(`${baseUrl}/api/seam`);
@@ -997,6 +1011,7 @@ async function observeRoutes(baseUrl: string): Promise<RouteObservation> {
   const guardContract = guardResults.every(({ ok }) => ok);
 
   const inventory = await observeInventory(baseUrl);
+  const routing = await observeHttpRouting(baseUrl, devServer);
 
   return {
     lifecycle,
@@ -1007,6 +1022,8 @@ async function observeRoutes(baseUrl: string): Promise<RouteObservation> {
     guardContract,
     inventoryContract: inventory.ok,
     inventoryDetail: inventory.detail,
+    routingContract: routing.ok,
+    routingDetail: routing.detail,
     guardDetail: guardResults
       .filter(({ ok }) => !ok)
       .map(({ observed }) => observed)
@@ -1050,6 +1067,201 @@ async function observeRoutes(baseUrl: string): Promise<RouteObservation> {
     },
     seam: seam.json?.snapshot ?? null,
   };
+}
+
+/**
+ * The HTTP routing and API boundary contract on the real server (Analog dev
+ * server or Nitro production build): an owned `/api` namespace answers JSON 404
+ * and 405 + Allow, HEAD and OPTIONS follow the documented policy, native routes
+ * are never shadowed, and pages stay HTML (docs/research/analog-http-routing-v06.md).
+ */
+async function observeHttpRouting(
+  baseUrl: string,
+  devServer: boolean,
+): Promise<{ ok: boolean; detail: string }> {
+  const send = (method: string, path: string, headers: Record<string, string> = {}) =>
+    rawRequest(baseUrl, method, path, headers);
+  const auth = { authorization: "Bearer fixture-token-ada" };
+  const products = "/api/products/ada-product";
+  const allow = "GET, HEAD, PATCH, DELETE, OPTIONS";
+  const failures: string[] = [];
+  const expect = (name: string, verdict: Verdict): void => {
+    if (verdict !== undefined) failures.push(`${name}: ${verdict}`);
+  };
+
+  const found = await send("GET", products, auth);
+  expect(
+    "GET existing product",
+    found.status === 200 && found.body.includes('"sku":"ADA-1"')
+      ? undefined
+      : `${found.status} ${found.body}`,
+  );
+
+  const invalidId = await send("GET", "/api/products/not-a-route", auth);
+  expect(
+    "GET /api/products/not-a-route reaches its handler (application 404, not a boundary answer)",
+    invalidId.status === 404 &&
+      invalidId.body === '{"error":"not_found"}' &&
+      invalidId.headers.get("allow") === null
+      ? undefined
+      : `${invalidId.status} ${invalidId.body}`,
+  );
+
+  expect("GET /api/nonexistent", expectJsonNotFound(await send("GET", "/api/nonexistent")));
+  expect(
+    "GET unknown sub-route with a secret query",
+    expectJsonNotFound(await send("GET", `${products}/unknown?token=PRIVATE_ROUTING_CANARY`)),
+  );
+
+  for (const method of ["TRACE", "PUT", "PROPFIND"]) {
+    expect(`${method} ${products}`, expectMethodNotAllowed(await send(method, products), allow));
+  }
+  expect(
+    "DELETE /api/products → 405 Allow: POST, OPTIONS",
+    expectMethodNotAllowed(await send("DELETE", "/api/products"), "POST, OPTIONS"),
+  );
+  expect(
+    "DELETE /api/products/ada-product/x is a 404, not a 405",
+    expectJsonNotFound(await send("DELETE", `${products}/x`)),
+  );
+
+  const head = await send("HEAD", products, auth);
+  expect("HEAD with credentials", expectHead(head, "application/json"));
+  const headDenied = await send("HEAD", products);
+  expect(
+    "HEAD without credentials keeps the GET guard (401, no body)",
+    headDenied.status === 401 && headDenied.body === ""
+      ? undefined
+      : `${headDenied.status} ${headDenied.body.length}`,
+  );
+  expect(
+    "HEAD on a POST-only collection",
+    expectHeadMethodNotAllowed(await send("HEAD", "/api/products"), "POST, OPTIONS"),
+  );
+
+  const preflightHeaders = {
+    origin: "https://evil.example",
+    "access-control-request-method": "DELETE",
+  };
+
+  if (devServer) {
+    // `vite dev` runs its own CORS middleware ahead of Nitro and answers every OPTIONS
+    // request itself, so the boundary never sees one. That is existing native middleware
+    // ownership: Strata must leave the answer exactly as Vite wrote it.
+    for (const headers of [{}, preflightHeaders]) {
+      const viteOptions = await send("OPTIONS", products, headers);
+
+      expect(
+        "OPTIONS is answered by the dev server's own CORS middleware, untouched by Strata",
+        viteOptions.status === 204 &&
+          viteOptions.headers.has("access-control-allow-methods") &&
+          !viteOptions.headers.has("allow")
+          ? undefined
+          : `${viteOptions.status} ${[...viteOptions.headers.keys()].join(",")}`,
+      );
+    }
+  } else {
+    expect("OPTIONS", expectOptions(await send("OPTIONS", products), allow));
+    const preflight = await send("OPTIONS", products, preflightHeaders);
+    expect(
+      "OPTIONS preflight is not answered and carries no CORS header",
+      expectMethodNotAllowed(preflight, "GET, HEAD, PATCH, DELETE") ?? expectNoCors(preflight),
+    );
+  }
+
+  expect(
+    "native GET /api/health is not shadowed",
+    expectNativeServed(await send("GET", "/api/health"), { status: "ok", source: "nitro" }),
+  );
+  expect(
+    "native all-method /api/native is not shadowed",
+    expectNativeServed(await send("POST", "/api/native"), { source: "analog" }),
+  );
+  expect(
+    "POST /api/health (declared native GET) → 405",
+    expectMethodNotAllowed(await send("POST", "/api/health"), "GET, OPTIONS"),
+  );
+
+  const unauthorizedDelete = await send("DELETE", products);
+  expect(
+    "a matched route keeps its guard (DELETE without credentials → 401)",
+    unauthorizedDelete.status === 401 ? undefined : String(unauthorizedDelete.status),
+  );
+  const unauthorizedPut = await send("PUT", products);
+  expect(
+    "an unsupported method is a 405 with no guard applied",
+    expectMethodNotAllowed(unauthorizedPut, allow),
+  );
+
+  const page = await send("GET", "/");
+  expect(
+    "the Analog page stays HTML",
+    page.status === 200 && looksLikeHtml(page)
+      ? undefined
+      : `${page.status} ${page.headers.get("content-type")}`,
+  );
+
+  // Twenty-four overlapping requests released together by one gate.
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const plan: {
+    name: string;
+    run: () => ReturnType<typeof send>;
+    verdict: (reply: Awaited<ReturnType<typeof send>>) => Verdict;
+  }[] = [];
+  for (let index = 0; index < 4; index += 1) {
+    plan.push(
+      {
+        name: "found",
+        run: () => send("GET", products, auth),
+        verdict: (r) => (r.status === 200 ? undefined : String(r.status)),
+      },
+      {
+        name: "unknown",
+        run: () => send("GET", `/api/unknown-${index}`),
+        verdict: expectJsonNotFound,
+      },
+      {
+        name: "405",
+        run: () => send("PUT", products),
+        verdict: (r) => expectMethodNotAllowed(r, allow),
+      },
+      {
+        name: "native",
+        run: () => send("GET", "/api/health"),
+        verdict: (r) => expectNativeServed(r, { status: "ok", source: "nitro" }),
+      },
+      {
+        name: "401",
+        run: () => send("DELETE", products),
+        verdict: (r) => (r.status === 401 ? undefined : String(r.status)),
+      },
+      {
+        name: "head",
+        run: () => send("HEAD", products, auth),
+        verdict: (r) => expectHead(r, "application/json"),
+      },
+    );
+  }
+  for (let index = 0; index < (devServer ? 0 : 4); index += 1) {
+    plan.push({
+      name: "options",
+      run: () => send("OPTIONS", products),
+      verdict: (r) => expectOptions(r, allow),
+    });
+  }
+  const pending = plan.map((entry) => gate.then(entry.run));
+  release();
+  (await Promise.all(pending)).forEach((reply, index) => {
+    const entry = plan[index];
+    const verdict = entry?.verdict(reply);
+    if (verdict !== undefined) failures.push(`overlap ${entry?.name}: ${verdict}`);
+  });
+  if (plan.length < 24) failures.push(`only ${plan.length} overlapping requests`);
+
+  return { ok: failures.length === 0, detail: failures.slice(0, 4).join(" | ") };
 }
 
 async function observeInventory(baseUrl: string): Promise<{ ok: boolean; detail: string }> {
@@ -1672,7 +1884,7 @@ async function main(): Promise<void> {
 
   // ---- Production server ----
   console.log("Baseline — production server…");
-  const prod = await withProductionServer("Production server", observeRoutes);
+  const prod = await withProductionServer("Production server", (baseUrl) => observeRoutes(baseUrl));
 
   check(
     "Native Analog route works in production",
@@ -1772,6 +1984,11 @@ async function main(): Promise<void> {
     prod.inventoryContract,
     prod.inventoryDetail || "safe errors, validated bodies, 201, patch and bodyless 204",
   );
+  check(
+    "HTTP routing and API boundary contract (JSON 404, 405 + Allow, HEAD, OPTIONS, native routes, 24 overlapping requests) works in production",
+    prod.routingContract,
+    prod.routingDetail || "owned /api namespace, native routes not shadowed, pages stay HTML",
+  );
   checkAngularDi("production", prod.angularDi);
 
   // ---- Marker scan (before the dev server, which does not touch dist) ----
@@ -1860,7 +2077,7 @@ async function main(): Promise<void> {
 
   // ---- Dev server ----
   console.log("Baseline — dev server…");
-  const dev = await withDevServer("Dev server", {}, observeRoutes);
+  const dev = await withDevServer("Dev server", {}, (baseUrl) => observeRoutes(baseUrl, true));
 
   check(
     "Native Analog route works in the dev server",
@@ -1925,6 +2142,11 @@ async function main(): Promise<void> {
     "Inventory HTTP contract and protected mutation behavior work in the dev server",
     dev.inventoryContract,
     dev.inventoryDetail || "safe errors, validated bodies, 201, patch and bodyless 204",
+  );
+  check(
+    "HTTP routing and API boundary contract (JSON 404, 405 + Allow, HEAD, OPTIONS, native routes, 24 overlapping requests) works in the dev server",
+    dev.routingContract,
+    dev.routingDetail || "owned /api namespace, native routes not shadowed, pages stay HTML",
   );
   checkAngularDi("the dev server", dev.angularDi);
 

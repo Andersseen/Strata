@@ -19,10 +19,24 @@ const passThroughInterceptor: StrataAnalogInterceptor = async (_context, next) =
 
 export default defineNitroPlugin((nitroApp) => {
   // Default lifecycle: a new controller instance per request.
+  //
+  // `/api` is an explicitly owned API namespace (docs/research/analog-http-routing-v06.md):
+  // an unknown `/api/*` path answers a JSON 404 instead of the Analog HTML shell, and a
+  // known path with an unsupported method answers 405 with `Allow`. The native
+  // `GET /api/health` route (`routes/api/health.get.ts`) is declared so its wrong-method
+  // answer is accurate; Nitro still serves it. The other plugins' controllers under
+  // `/api` are covered too, because the boundary is shared by the whole router.
   registerControllers(
     nitroApp.router,
     [UsersController, LifecycleController, MethodsController, ValidationController],
-    { interceptors: [passThroughInterceptor] },
+    {
+      interceptors: [passThroughInterceptor],
+      apiBoundary: {
+        prefixes: ["/api"],
+        options: "allow",
+        nativeRoutes: [{ path: "/api/health", methods: ["GET"] }],
+      },
+    },
   );
 
   registerControllers(nitroApp.router, [ProtectedProductsController], {

@@ -326,6 +326,112 @@ these APIs from package tarballs installed outside the pnpm workspace. See the
 [HTTP contract qualification](../../docs/research/analog-http-contract-v05.md)
 for runtime and release evidence.
 
+## API boundary: 404, 405, HEAD and OPTIONS
+
+By default `registerControllers()` only adds routes to Nitro's router, so a
+request that matches none of them falls through to Analog's HTML renderer:
+`GET /api/unknown` answers `200 text/html`, and so does an unsupported method on
+a known path. The opt-in `apiBoundary` option makes selected path prefixes an
+explicit API namespace with deterministic, safe answers:
+
+```ts
+import { registerControllers } from "@strata-sc/analog";
+import { defineNitroPlugin } from "nitropack/runtime";
+
+export default defineNitroPlugin((nitroApp) => {
+  registerControllers(nitroApp.router, [OrdersController], {
+    apiBoundary: {
+      prefixes: ["/api"],
+      // Native Nitro routes under the prefix, declared for accurate 405 + Allow.
+      nativeRoutes: [{ path: "/api/health", methods: ["GET"] }],
+      head: "derive", // default
+      options: "allow", // default: "off"
+    },
+  });
+  // Later calls only add routes; the shared boundary already covers them.
+  registerControllers(nitroApp.router, [ProductsController], { guards: [requireToken] });
+});
+```
+
+A complete, compile-checked version (two controllers, a protected one, a native
+route and the boundary) is
+[`api-boundary-example.ts`](../../tests/full-stack-package-consumer/fixture/src/check/api-boundary-example.ts).
+
+| Request                                                        | Answer                                                                                       |
+| -------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Matches a Strata route and method                              | The route runs: guards, interceptors, factory, handler, cleanup                              |
+| Matches a native Nitro route that handles the method           | Nitro serves it, untouched                                                                   |
+| Below an owned prefix, matches nothing                         | `404`, `{"error":"not_found"}`, `application/json; charset=utf-8`, `Cache-Control: no-store` |
+| Matches a Strata (or declared native) path, method not handled | `405`, `{"error":"method_not_allowed"}`, same headers plus `Allow`                           |
+| Outside every owned prefix (pages, assets, `/_analog/fn/*`)    | Unchanged: Analog and Nitro decide                                                           |
+
+**Ownership.** The boundary owns only the prefixes you list. A prefix is one or
+more static segments (`/api`, `/internal/v1`); `/`, wildcards, parameters,
+repeated separators and overlapping prefixes are configuration errors, so the
+website itself can never be owned by accident. Internally it registers a
+fallback for every method on `/<prefix>` and `/<prefix>/**`; Nitro's router
+always prefers a more specific route that handles the request's method, so native
+routes, Strata routes and Analog's own endpoints are never shadowed.
+
+**404 versus an application 404.** The boundary's 404 means no route matched. A
+matched handler that throws `StrataAnalogHttpError(404, "not_found")` produces
+the same public body, but it did run its guards, interceptors and factory. A
+path parameter is never treated as an unknown route:
+`GET /api/products/not-a-route` reaches the `/:id` handler, which decides.
+
+**Allow.** Derived only from registered route metadata (plus declared native
+routes), in a stable order: `GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS`. If
+several patterns match the path (a static route next to a `/:id` route) the set
+is their union, which is also how Nitro falls through between them.
+Undeclared native routes are unknown to the boundary: their wrong-method request
+answers `404`, not `405` (declare them with `nativeRoutes` to get an accurate
+`405`). A declared native route that already handles the method is always served
+by Nitro.
+
+**HEAD** (`head: "derive"`, default). `HEAD` on a path with a Strata `GET` route
+runs that route's whole pipeline exactly once (guards, interceptors, factory,
+handler, one cleanup) and returns its status and headers without a body. A
+`Response` result's body is released without being read, so streams are not
+consumed. A denied `GET` is a denied `HEAD`. Handlers see `request.method ===
+"HEAD"`. Plain returned values get the content type H3 would give them (JSON,
+text); no `Content-Length` is synthesized. `HEAD` never maps to a mutating route.
+It is not derived for native routes. `head: "off"` answers it like any other
+unsupported method.
+
+**OPTIONS** (`options: "allow"`, default `"off"`). A plain `OPTIONS` on a known
+path returns `204` with `Allow` (including `OPTIONS`) and no body. A CORS
+preflight (`Origin` plus `Access-Control-Request-Method`) is never answered by
+Strata: it gets the `405` above without any `Access-Control-*` header, so the
+browser blocks the cross-origin request. CORS, authentication and CSRF are not
+part of routing: keep your CORS middleware, which runs before the router and
+handles preflights itself. This also means an `OPTIONS` answer discloses the
+supported methods of an owned path without authentication, exactly like a `405`;
+leave `options` off if that matters.
+
+**Guards and interceptors do not apply to framework answers.** A 404, a 405 and
+an `OPTIONS` answer are produced before any route matched, so no guard,
+interceptor or controller factory runs. Put request-wide policy (authentication
+for the whole namespace, rate limiting) in Nitro middleware; a route-specific
+guard is never pretended to apply to a route that did not match.
+
+**Registration checks** (all before the router is touched): invalid or
+overlapping prefixes, unknown option keys, invalid `nativeRoutes`, a policy
+change for an already owned prefix, and every Strata route below an owned prefix
+must use static and `:param` segments only, with unique parameter names and no
+two routes of one method that differ only in parameter names (Nitro would serve
+them from one entry). Routes outside owned prefixes keep every existing
+behavior. The metadata is scoped to the router, so independent Nitro apps and
+server lifetimes never share it.
+
+**Known limits.** A native method-less catch-all that Nitro registers for
+exactly `/<prefix>/**` is replaced by the fallback (use a method-specific file
+such as `[...].get.ts`, which keeps priority). Path matching follows what the
+router already decoded (`%34%32` is `42`, `%2F` stays encoded, one trailing `/`
+is ignored, `//` never matches). Nitro's router does not backtrack out of a
+static branch (`/a/new/x` against `/a/new/y` and `/a/:id/x`); the boundary then
+serves the matching Strata route instead of contradicting its own route table.
+Declaring Analog's own `/_analog` prefix is unsupported.
+
 ## Registration
 
 - `registerControllers()` validates the whole batch (controllers, handlers,
@@ -337,7 +443,8 @@ for runtime and release evidence.
 - Repeated calls on one router are supported for non-overlapping routes, and
   the same controllers can be registered on different routers.
 - Duplicate detection covers Strata registrations on the same router only; it
-  does not see native Analog/Nitro routes.
+  does not see native Analog/Nitro routes (declare them in
+  `apiBoundary.nativeRoutes` when you want accurate 405 answers).
 - Registration is atomic with respect to Strata configuration validation. It is
   not transactional against failures thrown by the external router while
   committing routes: that error propagates, and routes the router already

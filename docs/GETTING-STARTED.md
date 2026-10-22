@@ -45,6 +45,18 @@ The API is experimental and its `0.x` behavior may change in a minor release.
 ## Pick a path
 
 1. **HTTP controllers in an Analog app** — follow [Controllers and server integrations](INTEGRATIONS.md).
+   To make `/api` a real API namespace (JSON `404`, `405` with `Allow`, `HEAD`, optional `OPTIONS`
+   instead of Analog's HTML fallback), add the opt-in `apiBoundary` option:
+
+   ```ts
+   registerControllers(nitroApp.router, [OrdersController], {
+     apiBoundary: { prefixes: ["/api"], nativeRoutes: [{ path: "/api/health", methods: ["GET"] }] },
+   });
+   ```
+
+   A full, compile-checked example is in the
+   [HTTP routing report](research/analog-http-routing-v06.md#complete-consumer-example).
+
 2. **Server Components** — follow [Server Components](INTEGRATIONS.md#server-components) and then the
    package README, which is the full reference. Keep repositories and secret loaders behind
    `import "@strata-sc/server-components/server-only"` and share only DTO types with islands: the
