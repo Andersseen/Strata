@@ -41,6 +41,9 @@ jobs:
     name: Server Component graph (build, SSR, hydration, firewall)
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    env:
+      STRATA_DIAGNOSTICS_DIR: ${{ runner.temp }}/strata-diagnostics
+      STRATA_KEEP_CONSUMER: "1"
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -69,11 +72,29 @@ jobs:
       - name: Server Component dev server (graph regeneration, reload semantics, live firewall)
         run: pnpm test:server-component-dev
 
+      # Failure-only: an intermittent SSR failure (HTTP 200 with an empty page, `JIT compiler unavailable`)
+      # leaves no trace on the runner. Keep the server logs and the built server output so the next
+      # occurrence can be diagnosed. Never runs on success and changes no result.
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ssr-diagnostics-graph
+          path: |
+            ${{ runner.temp }}/strata-diagnostics
+            apps/analog-fixture/dist
+            /tmp/strata-*-consumer-*/consumer/dist
+          if-no-files-found: ignore
+          retention-days: 7
+
   # Runtime contracts on Node and local workerd: confidentiality, request context, failures, authorization.
   runtime:
     name: Server Component runtime contracts (Node + workerd)
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    env:
+      STRATA_DIAGNOSTICS_DIR: ${{ runner.temp }}/strata-diagnostics
+      STRATA_KEEP_CONSUMER: "1"
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -104,11 +125,29 @@ jobs:
       - name: Server Component authorization isolation (Node + workerd)
         run: pnpm test:server-component-authorization
 
+      # Failure-only: an intermittent SSR failure (HTTP 200 with an empty page, `JIT compiler unavailable`)
+      # leaves no trace on the runner. Keep the server logs and the built server output so the next
+      # occurrence can be diagnosed. Never runs on success and changes no result.
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ssr-diagnostics-runtime
+          path: |
+            ${{ runner.temp }}/strata-diagnostics
+            apps/analog-fixture/dist
+            /tmp/strata-*-consumer-*/consumer/dist
+          if-no-files-found: ignore
+          retention-days: 7
+
   # The PACKED packages installed with npm into real apps outside the workspace. Never publishes.
   consumers:
     name: Packed-package consumers (outside the workspace)
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    env:
+      STRATA_DIAGNOSTICS_DIR: ${{ runner.temp }}/strata-diagnostics
+      STRATA_KEEP_CONSUMER: "1"
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -142,6 +181,21 @@ jobs:
 
       - name: Packed-package consumer (TypeScript 5.9.2)
         run: pnpm test:package-consumer
+
+      # Failure-only: an intermittent SSR failure (HTTP 200 with an empty page, `JIT compiler unavailable`)
+      # leaves no trace on the runner. Keep the server logs and the built server output so the next
+      # occurrence can be diagnosed. Never runs on success and changes no result.
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ssr-diagnostics-consumers
+          path: |
+            ${{ runner.temp }}/strata-diagnostics
+            apps/analog-fixture/dist
+            /tmp/strata-*-consumer-*/consumer/dist
+          if-no-files-found: ignore
+          retention-days: 7
 
   # The official site and Relay dogfood the private package: graph split, SSR and their Playwright suites.
   apps:

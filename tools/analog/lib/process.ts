@@ -1,6 +1,8 @@
 import { spawn } from "node:child_process";
 import type { ChildProcess } from "node:child_process";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
+import { join } from "node:path";
 
 const OUTPUT_LIMIT = 256 * 1024;
 
@@ -41,6 +43,29 @@ export async function findFreePort(): Promise<number> {
  * process group, so stopping it also stops anything a package-manager wrapper
  * spawned on its behalf.
  */
+/**
+ * With `STRATA_DIAGNOSTICS_DIR` set (CI sets it), keeps what a server printed so a failed run can be
+ * inspected afterwards: the log is the only record of an SSR error the page itself does not show.
+ */
+function keepServerLog(command: string, output: string): void {
+  const directory = process.env["STRATA_DIAGNOSTICS_DIR"];
+
+  if (!directory) return;
+
+  try {
+    mkdirSync(directory, { recursive: true });
+    writeFileSync(
+      join(
+        directory,
+        `server-${Date.now()}-${command.replace(/[^a-z0-9]+/gi, "_").slice(-60)}.log`,
+      ),
+      output,
+    );
+  } catch {
+    // Diagnostics must never change the result of a run.
+  }
+}
+
 export function spawnManaged(
   command: string,
   args: readonly string[],
@@ -81,7 +106,11 @@ export function spawnManaged(
     output: () => output,
     hasExited: () => exited,
     async stop(): Promise<void> {
-      if (exited) return;
+      if (exited) {
+        keepServerLog(`${command} ${args.join(" ")}`, output);
+
+        return;
+      }
 
       const done = new Promise<void>((resolve) => child.once("exit", () => resolve()));
 
@@ -91,6 +120,7 @@ export function spawnManaged(
 
       await done;
       clearTimeout(timer);
+      keepServerLog(`${command} ${args.join(" ")}`, output);
     },
   };
 }
