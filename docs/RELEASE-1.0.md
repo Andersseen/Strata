@@ -61,9 +61,12 @@ compatibility matrix; do not check it based on intent or a demonstration.
       [STATE](STATE.md), "Server-only modules"). Not ticked: no release candidate; the dev server is
       qualified for Analog's default configuration ([report](research/server-component-dev-hmr.md): live
       firewall, regeneration, fail-closed recovery) but that is not a release certification;
-      aliased/package re-exports are not propagated by the pre-scan and an aliased
-      import is rejected only by the `load` backstop without naming its importer; local Node and
-      workerd only.
+      aliased re-exports (Vite aliases, tsconfig paths, index files) are followed by the pre-scan
+      and a package module that asserts server-only fails the client build, with the importer and
+      import chain the bundler knows (0.6 candidate,
+      [report](research/server-component-graph-security-v06.md)); package re-exports are not
+      crawled, a package that leaks without asserting is not detected, and dev pre-bundled chunks
+      hide a package's internal importer; local Node and workerd only.
 - [ ] Normal interactive Angular descendants are shipped and hydrated without shipping the server
       parent; DOM reuse and exactly-once events are asserted.
 - [ ] Initial SSR, direct URL loading and server-side service access work with request isolation.

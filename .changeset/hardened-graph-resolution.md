@@ -1,0 +1,5 @@
+---
+"@strata-sc/server-components": minor
+---
+
+Harden the server-only build graph. The pre-scan now follows re-exports through Vite `resolve.alias`, tsconfig `paths` / `baseUrl`, `index` files and `.js` → `.ts` specifiers (new optional `tsconfig` plugin option), using a per-generation resolver that can only answer with a scanned module and never crawls `node_modules`. The client environment checks the resolved identity of aliased specifiers before Vite loads them, and still refuses any forbidden module at `load`, so an unmodelled resolution form cannot become a bypass. A package module that asserts `@strata-sc/server-components/server-only` fails the client build whether or not the package is registered in `clientComponents`. Diagnostics now include the import chain the bundler reports, print app-relative paths (a dependency from its last `node_modules/` segment, never an arbitrary absolute path), and say `unavailable` instead of guessing an importer. Dev regeneration follows aliased ownership changes and re-reads the governing tsconfig. Existing islands, package islands and protocol v1/v2 are unchanged.

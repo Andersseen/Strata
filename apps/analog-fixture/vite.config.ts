@@ -1,5 +1,7 @@
 import analog from "@analogjs/platform";
 import { strataServerComponents } from "@strata-sc/server-components/vite";
+import { join } from "node:path";
+
 import { defineConfig } from "vite";
 
 // The stock configuration from the official `create-analog` template (2.7.2):
@@ -22,6 +24,11 @@ export default defineConfig(() => ({
   },
   resolve: {
     mainFields: ["module"],
+    // A Vite alias (mirrored by the `~app/*` tsconfig path, which Angular's
+    // compiler needs) next to the `@app/*` tsconfig path: the server-only graph
+    // checks (`pnpm test:server-component-server-only`) reach the same modules
+    // through both resolution forms.
+    alias: { "~app": join(import.meta.dirname, "src", "app") },
   },
   ssr: {
     noExternal: ["tslib"],

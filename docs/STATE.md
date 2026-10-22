@@ -410,8 +410,12 @@ graph: src/app/server-component/product-repository.ts` / `Imported from:` the is
   - Dogfood: Relay marks `server-operations-intelligence.ts` and `incident-digest.source.ts`; www
     marks `server-component-facts.repository.ts` and `server-component-proof.ts`. Their gates check
     the assertion in source (AST) and the modules' absence from browser source maps.
-  - Not covered: aliased or package re-exports in the pre-scan, marked modules
-    outside `sourceDir` (rejected only when their assertion import is resolved), data disclosure
+  - Superseded for aliases (0.6 candidate, see
+    [the report](research/server-component-graph-security-v06.md)): aliased re-exports (Vite
+    `resolve.alias`, tsconfig `paths`, index files) are now followed by the pre-scan. Still not
+    covered: package re-exports in the pre-scan (packages are enforced through their assertion
+    import, not crawled), marked modules outside `sourceDir` (rejected only when their assertion
+    import is resolved), data disclosure
     through HTML, errors or caches (R11: covered for synthetic canaries by the SC security entry
     below). Security as a whole is not complete.
 - Server Component dev server (`vite`; fixture `/server-component-dev`,

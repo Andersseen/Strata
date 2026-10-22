@@ -171,8 +171,11 @@ the exact configuration is in the
   experimental and not stable. See the
   [client boundary protocol](../packages/server-components/README.md#client-boundary-protocol).
 - A module importing `@strata-sc/server-components/server-only` must never enter the browser
-  graph; violating that fails the production build
-  ([details](../packages/server-components/README.md#server-only-modules)).
+  graph; violating that fails the production build, including through Vite aliases, tsconfig paths,
+  index files, re-export chains, query imports and package modules that assert it. A package listed
+  in `clientComponents` is not exempt
+  ([details](../packages/server-components/README.md#server-only-modules),
+  [report](research/server-component-graph-security-v06.md)).
 - A standalone Angular component from an installed library may be an island only when its selector,
   bare package entry point and named export are explicitly declared in `clientComponents` and that
   same export is imported into the Server Component. The feature is experimental and scoped to the

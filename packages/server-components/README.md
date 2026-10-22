@@ -113,6 +113,12 @@ strataServerComponents({
 });
 ```
 
+Registering a package authorizes that component reference only. It does not exempt the package from
+the [server-only contract](#module-resolution-and-packages): a registered package module that
+asserts server-only still fails the client build. The plugin also accepts an optional `tsconfig`
+(app-relative path of the tsconfig whose `paths` / `baseUrl` it follows when it resolves re-exports;
+default `tsconfig.app.json`, then `tsconfig.json`).
+
 The package must expose that named standalone Angular component through its public package exports.
 Import the same export into the Server Component's `imports` array and mark the element explicitly:
 
@@ -713,8 +719,9 @@ export class ProductRepository {
 - **Re-export barrels inherit the restriction.** A module that re-exports a marked module
   (`export * from`, `export { X } from`, `export * as X from`), directly or through a chain of
   barrels, is server-only for the browser too, even when the browser only wanted another of its
-  exports. Re-export cycles are handled. `export type { … } from` loads nothing and does not
-  propagate.
+  exports. The re-export is followed through relative paths, `index` files, `.js` → `.ts`
+  specifiers, Vite `resolve.alias` and the app's tsconfig `paths` / `baseUrl`. Re-export cycles are
+  handled. `export type { … } from` loads nothing and does not propagate.
 - **Ordinary imports do not propagate.** A marked repository importing `./shared-format` does not
   make `shared-format` server-only, so shared modules remain possible: a client island may import
   the same `shared-format`. A dependency that is itself sensitive (a secret loader, a database
@@ -723,9 +730,9 @@ export class ProductRepository {
 
 The pre-scan runs when the plugin is configured: it parses every TypeScript module under
 `sourceDir` with the TypeScript AST (comments and strings that merely contain the specifier do not
-count), records the assertions and the local re-export edges, and propagates the restriction
-upward through re-exports to a fixpoint. The set is rebuilt for every build and, in dev, for every
-source edit that can change it.
+count), records the assertions and the re-export edges it can resolve to a scanned module, and
+propagates the restriction upward through re-exports to a fixpoint. The set is rebuilt for every
+build and, in dev, for every source edit that can change it.
 
 ```
 [strata] Server-only module entered the browser graph: src/app/server-component/product-repository.ts
@@ -734,18 +741,99 @@ Reason: the module declares `import "@strata-sc/server-components/server-only";`
 Move the dependency behind the Server Component boundary (use it only from a @ServerComponent() or
 the server-owned components it renders, and pass plain data to the island through [strataClient]),
 or remove the browser import.
+Import chain (the bundler's first importer at each step): src/main.ts → … → src/app/catalog/product-widget.component.ts
 ```
 
 A barrel names the chain instead: `Reason: it re-exports a server-only module: src/app/server/index.ts
-→ src/app/server/product.repository.ts, which declares …`.
+→ src/app/server/product.repository.ts, which declares …`. Paths are app-relative; a dependency
+prints from its last `node_modules/` segment; a file outside the app prints only its name. The import
+chain is what the bundler reported and ends where it knows nothing more; when it reports no importer
+the diagnostic says `unavailable` instead of naming one.
 
-Limits of this preview: the pre-scan follows relative re-export specifiers only (an aliased or
-package re-export is not propagated, though the target is still rejected when Rollup resolves it);
-an import through an alias is rejected by the `load` backstop, whose diagnostic may not name the
-importer; a marked module outside `sourceDir` is not pre-scanned, and is rejected only when its own
-assertion import is resolved in the browser graph. Under `vite` the scan runs again after every
-source edit (see [Dev server](#dev-server-vite)). Checked by `pnpm test:server-component-server-only`
-(real production builds), `pnpm test:server-component-dev` (live edits) and unit tests.
+### Module resolution and packages
+
+| Import written in an app module                                     | Followed when scanning re-exports |   Refused in the browser graph   |
+| ------------------------------------------------------------------- | :-------------------------------: | :------------------------------: |
+| `./x`, `../x`, `./dir` (index), `./x.js` → `./x.ts`, `?raw`, `?url` |                yes                |               yes                |
+| Vite `resolve.alias` (`~app/x`, `@/x`)                              |                yes                |               yes                |
+| tsconfig `paths` / `baseUrl` (`@app/x`)                             |                yes                |               yes                |
+| `import()`, `@defer` lazy chunks                                    |                n/a                |               yes                |
+| Package root or exported subpath                                    |        no (never crawled)         | yes, when it asserts server-only |
+| `import.meta.glob`, import-then-`export { X }`                      |                no                 |         yes (load time)          |
+
+Aliases are read from Vite's resolved config; the tsconfig is `tsconfig.app.json`, else
+`tsconfig.json`, in the app root (or the optional `tsconfig` plugin option, app-relative). **A module
+the pre-scan cannot see is not exempt:** the client environment checks the resolved identity of every
+module it resolves or loads, so an unmodelled resolution form is still refused at build or load time;
+only its diagnostic is less specific.
+
+A package is never trusted by name. If an installed or linked package module (a package root, a
+subpath, a barrel) imports `@strata-sc/server-components/server-only`, the client build fails when
+that import is resolved, whether or not the package appears in `clientComponents`: the registry
+authorizes an Angular component reference, not a server-only dependency. A browser-safe package root
+or subpath builds and ships normally. Under the dev server's pre-bundled dependencies the importer
+inside a package is collapsed into a chunk, so the diagnostic there can name the package module but
+not its internal importer.
+
+Recipe (server-only repository → Server Component → public DTO → island): see
+[Server-only recipe](#server-only-recipe).
+
+### Server-only recipe
+
+```ts
+// src/app/catalog/product.dto.ts (shared and browser-safe: types and plain values only)
+export interface ProductView {
+  readonly id: string;
+  readonly name: string;
+  readonly stock: number;
+}
+```
+
+```ts
+// src/app/catalog/product.repository.ts (explicitly server-only)
+import "@strata-sc/server-components/server-only";
+import type { ProductView } from "~app/catalog/product.dto";
+
+export class ProductRepository {
+  findPublic(id: string): ProductView {
+    // database access, credentials, SDK clients … stay here
+    return { id, name: "Product", stock: 3 };
+  }
+}
+```
+
+```ts
+// src/app/catalog/product.server-component.ts: the repository is legal on the server side
+@ServerComponent()
+@Component({
+  selector: "product-card",
+  imports: [AddToCartComponent, StrataClientBoundary],
+  template: `<add-to-cart [strataClient]="{ product: product }" />`,
+})
+export class ProductCardServerComponent {
+  protected readonly product = inject(ProductRepository).findPublic("42");
+}
+```
+
+The island (`AddToCartComponent`) may import `ProductView` through any alias; it must not import the
+repository, directly or through a barrel, and the build rejects it if it does:
+
+```ts
+import { ProductRepository } from "@app/catalog"; // fails the client build, naming src/app/catalog/index.ts
+```
+
+Rejected shapes and their diagnostics are exercised against real production builds by
+`pnpm test:server-component-server-only` (Analog fixture) and
+`pnpm test:server-component-package-consumer` (packed tarball in an npm project).
+
+Limits of this preview: only the root tsconfig file is watched in dev (a change in an extended file
+needs a server restart); a Vite alias change is a `vite.config.ts` change and restarts Vite; the
+Server Component analyzer still resolves component imports relatively only; a package that exposes
+data without asserting server-only is not detected (packages are not crawled); and
+`@analogjs/vite-plugin-angular` can keep a stale compile of a module that left its TypeScript
+program. Under `vite` the scan runs again after every source edit (see [Dev server](#dev-server-vite)).
+Checked by `pnpm test:server-component-server-only` (real production builds),
+`pnpm test:server-component-dev` (live edits) and unit tests.
 
 ## Dev server (`vite`)
 

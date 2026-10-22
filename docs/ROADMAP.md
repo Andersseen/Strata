@@ -163,6 +163,11 @@ consumer has not passed npm installation and AOT/runtime qualification. Treat th
 experimental branch evidence until the packed Node/workerd, browser, security, bundle and hosted CI
 gates pass ([report](research/server-component-package-islands.md)).
 
+The server-only graph hardening candidate (0.6) extends the build-graph firewall to Vite aliases,
+tsconfig paths, index files, aliased re-export chains, package modules that assert server-only and
+importer-aware diagnostics; it does not add package crawling, SPA subtree navigation or streaming
+([report](research/server-component-graph-security-v06.md)).
+
 - Capability: strict server-only UI composes Angular interactive descendants under a defined initial
   SSR and navigation strategy.
 - Hypothesis: the PoC remains correct across navigation, nested boundaries, errors and optimization.

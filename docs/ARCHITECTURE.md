@@ -175,6 +175,15 @@ Angular hydration behaviour; see its [README](../packages/server-components/READ
 [navigation](research/server-component-navigation-poc.md) and
 [Cloudflare](research/server-component-cloudflare-poc.md) reports.
 
+**Module identity (0.6 candidate).** A forbidden module is identified by its resolved file path with
+the query removed, never by a specifier. The pre-scan resolves re-export specifiers through relative
+paths, index files, Vite `resolve.alias` and tsconfig `paths` into the scanned file set only (no
+`node_modules` crawl); the client environment's `resolveId` checks what Vite resolved for path and
+aliased specifiers; and `load` checks every module the client loads, which is the backstop for forms
+the pre-scan does not model. Packages are enforced through their server-only assertion import.
+Diagnostics carry the importer and import chain the bundler reports, sanitized to app-relative
+paths. See [the report](research/server-component-graph-security-v06.md).
+
 ### Boundary data and security
 
 The eventual serialization contract must enumerate permitted values, encoding/versioning, size

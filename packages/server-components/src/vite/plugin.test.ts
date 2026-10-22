@@ -240,7 +240,7 @@ describe("browser-graph firewall", () => {
 
   it("fails the load backstop for a module that bypassed resolution", () => {
     expect(() => loadIn("client", `${join(app, "barrel.ts")}?raw`)).toThrow(
-      "[strata] Server-only module entered the browser graph: src/app/barrel.ts?raw\nImported from: unknown",
+      "[strata] Server-only module entered the browser graph: src/app/barrel.ts?raw\nImported from: unavailable",
     );
   });
 
@@ -248,7 +248,7 @@ describe("browser-graph firewall", () => {
     await expect(
       resolveIn("client", SERVER_ONLY_SPECIFIER, join(root, "src", "server", "db.ts")),
     ).rejects.toThrow(
-      "[strata] Server-only module entered the browser graph: src/server/db.ts\nImported from: unknown",
+      "[strata] Server-only module entered the browser graph: src/server/db.ts\nImported from: unavailable",
     );
   });
 

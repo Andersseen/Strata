@@ -33,6 +33,12 @@ check). The independent library partial compile succeeded locally, but the isola
 failed before AOT linking; package-island support is therefore **not qualified** yet. See the
 [package-island report](research/server-component-package-islands.md).
 
+Server-only module resolution (0.6 candidate) adds no peer range. It reads Vite's resolved
+`resolve.alias` (Vite >= 8.3.0, the existing peer) and parses the app's tsconfig with the
+`typescript` peer (5.9 or 6.x, `ts.resolveModuleName` in bundler mode); it does not touch Angular
+private APIs. The packed consumer checks the declarations under TypeScript 6.0.3 and 5.9.2 with
+`strict` and `skipLibCheck: false`. See [the report](research/server-component-graph-security-v06.md).
+
 The optional `@strata-sc/server-components/navigation` entry adds no new peer range: it uses the
 public `Router`, `UrlSerializer`, `ActivatedRoute`, `Location` and `DOCUMENT` APIs of the same
 `@angular/router`/`@angular/common` tuple. It is Angular partial-compiled and linked by Analog's

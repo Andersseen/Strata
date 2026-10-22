@@ -144,6 +144,12 @@ const ISLAND = `${LEAK_DIR}/leak-island.component.ts`;
 const LAZY = `${LEAK_DIR}/leak-lazy.component.ts`;
 const BARREL_A = `${LEAK_DIR}/barrel-a.ts`;
 const BARREL_B = `${LEAK_DIR}/barrel-b.ts`;
+const BARREL_ALIAS = `${LEAK_DIR}/barrel-alias.ts`;
+const BARREL_INDEX = `${LEAK_DIR}/barrel-index/index.ts`;
+const BARREL_DIR = `${LEAK_DIR}/barrel-dir/index.ts`;
+const BARREL_TYPES = `${LEAK_DIR}/barrel-types.ts`;
+const CYCLE_A = `${LEAK_DIR}/cycle-a.ts`;
+const CYCLE_B = `${LEAK_DIR}/cycle-b.ts`;
 const ASSERTION = 'import "@strata-sc/server-components/server-only";';
 
 /** The temporary island; `body` is its imports, template and class members. */
@@ -195,6 +201,14 @@ export class ServerOnlyLeakServerComponent {
 `,
   [BARREL_A]: `export { ProductRepository } from "../server-component/product-repository";\n`,
   [BARREL_B]: `export * from "./barrel-a";\n`,
+  // Aliased re-exports: a Vite alias, then a tsconfig path, then an index file.
+  [BARREL_ALIAS]: `export { ProductRepository } from "~app/server-component/product-repository";\n`,
+  [BARREL_INDEX]: `export * as repositories from "@app/server-only-leak/barrel-alias";\n`,
+  [BARREL_DIR]: `export { ProductRepository as Repository } from "../barrel-a";\n`,
+  // Erased at runtime: legal to import from a browser module.
+  [BARREL_TYPES]: `export type { ProductRepository } from "~app/server-component/product-repository";\n`,
+  [CYCLE_A]: `export * from "./cycle-b";\nexport * from "@app/server-component/product-repository";\n`,
+  [CYCLE_B]: `export * from "./cycle-a";\n`,
 };
 
 interface IllegalShape {
@@ -267,10 +281,88 @@ const ILLEGAL: readonly IllegalShape[] = [
     reason: `it re-exports a server-only module: ${BARREL_B} → ${BARREL_A} → ${REPOSITORY}`,
   },
   {
+    shape: "client island → tsconfig path (@app/*) → server-only",
+    files: {
+      [ISLAND]: island(
+        `import { ProductRepository } from "@app/server-component/product-repository";`,
+        "<p>{{ name }}</p>",
+        `  protected readonly name = new ProductRepository().findById("1").name;`,
+      ),
+    },
+    module: REPOSITORY,
+    importer: ISLAND,
+    reason: `the module declares \`${ASSERTION}\``,
+  },
+  {
+    shape: "client island → Vite alias (~app) → server-only",
+    files: {
+      [ISLAND]: island(
+        `import { ProductRepository } from "~app/server-component/product-repository";`,
+        "<p>{{ name }}</p>",
+        `  protected readonly name = new ProductRepository().findById("1").name;`,
+      ),
+    },
+    module: REPOSITORY,
+    importer: ISLAND,
+    reason: `the module declares \`${ASSERTION}\``,
+  },
+  {
+    shape: "client island → tsconfig path → index barrel → Vite alias barrel → server-only",
+    files: {
+      [ISLAND]: island(
+        `import { repositories } from "@app/server-only-leak/barrel-index";`,
+        "<p>{{ name }}</p>",
+        `  protected readonly name = new repositories.ProductRepository().findById("1").name;`,
+      ),
+    },
+    module: BARREL_INDEX,
+    importer: ISLAND,
+    reason: `it re-exports a server-only module: ${BARREL_INDEX} → ${BARREL_ALIAS} → ${REPOSITORY}`,
+  },
+  {
+    shape: "client island → relative directory index barrel → server-only",
+    files: {
+      [ISLAND]: island(
+        `import { Repository } from "./barrel-dir";`,
+        "<p>{{ name }}</p>",
+        `  protected readonly name = new Repository().findById("1").name;`,
+      ),
+    },
+    module: BARREL_DIR,
+    importer: ISLAND,
+    reason: `it re-exports a server-only module: ${BARREL_DIR} → ${BARREL_A} → ${REPOSITORY}`,
+  },
+  {
+    shape: "client island → re-export cycle → aliased server-only",
+    files: {
+      [ISLAND]: island(
+        `import { ProductRepository } from "./cycle-b";`,
+        "<p>{{ name }}</p>",
+        `  protected readonly name = new ProductRepository().findById("1").name;`,
+      ),
+    },
+    module: CYCLE_B,
+    importer: ISLAND,
+    reason: `it re-exports a server-only module: ${CYCLE_B} → ${CYCLE_A} → ${REPOSITORY}`,
+  },
+  {
     shape: "client island → server-only?raw",
     files: {
       [ISLAND]: island(
         `import source from "../server-component/server-secret.ts?raw";`,
+        "<p>{{ length }}</p>",
+        "  protected readonly length = source.length;",
+      ),
+    },
+    module: `${SECRET}?raw`,
+    importer: ISLAND,
+    reason: `the module declares \`${ASSERTION}\``,
+  },
+  {
+    shape: "client island → aliased server-only?raw",
+    files: {
+      [ISLAND]: island(
+        `import source from "~app/server-component/server-secret.ts?raw";`,
         "<p>{{ length }}</p>",
         "  protected readonly length = source.length;",
       ),
@@ -372,9 +464,12 @@ export function checkServerOnlyFailsClosed(): boolean {
     write(SCAFFOLD);
     write({
       [ISLAND]: island(
-        `import { formatShared } from "../server-component/shared-format";`,
+        `import { formatShared } from "@app/server-component/shared-format";
+import { formatShared as formatAliased } from "~app/server-component/shared-format";
+import type { ProductRepository } from "./barrel-types";`,
         "<p>{{ label }}</p>",
-        `  protected readonly label = formatShared("legal");`,
+        `  protected readonly label = formatShared("legal") + formatAliased("alias");
+  protected readonly repository?: ProductRepository;`,
       ),
     });
 
@@ -382,7 +477,7 @@ export function checkServerOnlyFailsClosed(): boolean {
 
     results.push(
       check(
-        "legal control: Server Component → server-only repository, island → shared module, build exits 0",
+        "legal control: Server Component → server-only repository; island → shared module through relative, tsconfig-path and Vite-alias imports and a type-only re-export; build exits 0",
         legal.status === 0,
         legal.output.slice(-2_000),
       ),
