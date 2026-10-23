@@ -29,6 +29,12 @@ import { DuplicateCreateController, ItemsController } from "./items.controller.j
 import { PostsController, registerPosts } from "./posts.controller.js";
 import { UnregisteredController } from "./registration.controller.js";
 import { ValidatedController } from "./validated.controller.js";
+import {
+  cursorLog,
+  gates,
+  OrdersExportController,
+  orderCursorFactory,
+} from "./streaming.controller.js";
 
 // --- Registration ----------------------------------------------------------
 assert.deepEqual(getControllerDefinition(PostsController), {
@@ -136,6 +142,7 @@ registerControllers(router, [LifecycleController, FailingController], { controll
 registerControllers(router, [BaseController, DecoratedChild]);
 registerControllers(router, [ItemsController]);
 registerControllers(router, [ValidatedController]);
+registerControllers(router, [OrdersExportController], { controllerFactory: orderCursorFactory });
 
 // Same path, different method is fine (above); same method and path is not.
 assert.throws(
@@ -312,6 +319,57 @@ try {
   const failure = await get("/api/failing");
   assert.equal(failure.status, 500);
   assert.deepEqual(cleanupLog.slice(-2), ["async /api/failing", "sync /api/failing"]);
+
+  // --- Streaming lifecycle: the request-scoped cursor outlives the handler ----
+  async function openExport(id: string) {
+    const response = await fetch(`http://127.0.0.1:${port}/api/orders/export?id=${id}`);
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("content-type"), "application/x-ndjson");
+    assert.ok(response.body);
+
+    return response.body.getReader();
+  }
+  const decoder = new TextDecoder();
+  const readText = async (reader: ReadableStreamDefaultReader<Uint8Array>) => {
+    const step = await reader.read();
+
+    return step.done ? null : decoder.decode(step.value);
+  };
+  const drainText = async (reader: ReadableStreamDefaultReader<Uint8Array>) => {
+    let text = "";
+    for (let chunk = await readText(reader); chunk !== null; chunk = await readText(reader)) {
+      text += chunk;
+    }
+
+    return text;
+  };
+  const opened = async (id: string) => {
+    while (!gates.has(id)) await new Promise((resolve) => setTimeout(resolve, 5));
+  };
+
+  const [first, second] = await Promise.all([openExport("s1"), openExport("s2")]);
+  assert.equal(await readText(first), '{"cursor":"s1","row":1}\n');
+  assert.equal(await readText(second), '{"cursor":"s2","row":1}\n');
+  await Promise.all([opened("s1"), opened("s2")]);
+  // Both handlers settled long ago; both cursors are still open and separate.
+  assert.deepEqual(cursorLog, ["open:s1", "open:s2"]);
+  gates.get("s1")?.();
+  assert.equal(await drainText(first), '{"cursor":"s1","row":2}\n{"cursor":"s1","row":3}\n');
+  assert.deepEqual(cursorLog, ["open:s1", "open:s2", "close:s1"]);
+  gates.get("s2")?.();
+  assert.equal(await drainText(second), '{"cursor":"s2","row":2}\n{"cursor":"s2","row":3}\n');
+  assert.deepEqual(cursorLog, ["open:s1", "open:s2", "close:s1", "close:s2"]);
+
+  // A client that disconnects is not a body cancellation: H3 v1 never tells the response
+  // body, so the cursor stays open until the (finite) producer ends, then closes once.
+  const dropped = await openExport("s3");
+  assert.equal(await readText(dropped), '{"cursor":"s3","row":1}\n');
+  await opened("s3");
+  await dropped.cancel();
+  assert.deepEqual(cursorLog.slice(-1), ["open:s3"]);
+  gates.get("s3")?.();
+  while (!cursorLog.includes("close:s3")) await new Promise((resolve) => setTimeout(resolve, 5));
+  assert.equal(cursorLog.filter((entry) => entry === "close:s3").length, 1);
 
   console.log(
     `PACKAGE_CONSUMER_RESULT ${JSON.stringify({

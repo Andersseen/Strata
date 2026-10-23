@@ -30,6 +30,7 @@ import type { StrataAnalogCleanup } from "./cleanup-scope.js";
 import { StrataAnalogConfigurationError } from "./errors.js";
 import { StrataAnalogHttpError } from "./http-error.js";
 import { StrataAnalogInputError } from "./input-error.js";
+import { claimStreamResponse } from "./stream-lifecycle.js";
 import { buildRoutePath } from "./utils/build-route-path.js";
 
 export type StrataAnalogQueryValue = string | readonly string[];
@@ -131,7 +132,9 @@ export interface StrataAnalogControllerFactoryContext {
    * route handler settles only after all of them.
    *
    * The scope is the controller invocation, not the HTTP response: cleanup
-   * does not wait for a streamed response body to be consumed.
+   * does not wait for a response body to be consumed, unless the handler
+   * returns a `streamResponse()`, which keeps the scope open until its body
+   * completes, fails or is cancelled.
    *
    * Calling it once the invocation has finished throws a
    * `StrataAnalogConfigurationError`. It does not depend on `this`, so it can
@@ -748,6 +751,7 @@ function createRouteHandler(
     const scope = new CleanupScope();
     let result: unknown;
     let denied = false;
+    let streaming = false;
     try {
       for (const guard of guards) {
         const decision: unknown = await guard(
@@ -838,6 +842,9 @@ function createRouteHandler(
           })();
         };
         result = await executeInterceptor(0);
+        // Only the response that leaves the last interceptor owns the scope, so an
+        // interceptor that replaces a streamResponse() hands nothing over.
+        streaming = claimStreamResponse(result, scope);
       }
     } catch (error) {
       try {
@@ -859,6 +866,8 @@ function createRouteHandler(
 
       throw error;
     }
+
+    if (streaming) return result;
 
     return scope.close({ failed: false }, result);
   };

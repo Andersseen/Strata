@@ -183,6 +183,75 @@ try {
     `${JSON.stringify(stats)}; response=${statsResponse.status}; log=${server.output().slice(-1_200)}`,
   );
 
+  section("Streamed responses keep the request-scoped Angular injector open until the body ends");
+  const before = (await (await fetch(`${server.baseUrl}/api/packed-di-stats`)).json()) as {
+    injectorsCreated: number;
+    injectorsDestroyed: number;
+    identitiesDestroyed: number;
+    controllersDestroyed: number;
+    live: number;
+  };
+  const streamed = await Promise.all(
+    Array.from({ length: 6 }, async (_, index) => {
+      const response = await fetch(
+        `${server!.baseUrl}/api/packed-angular-di/stream-${index}/stream`,
+        {
+          headers: { authorization: `Bearer ${index % 2 ? "packed-beta" : "packed-alpha"}` },
+        },
+      );
+      const rows = (await response.text())
+        .trim()
+        .split("\n")
+        .map(
+          (line) =>
+            JSON.parse(line) as {
+              row: number;
+              product: { id: string };
+              principal: string;
+              destroyed: boolean;
+            },
+        );
+      return { status: response.status, rows, index };
+    }),
+  );
+  check(
+    "six overlapping streamed responses each read their own request injector for every row",
+    streamed.every(
+      ({ status, rows, index }) =>
+        status === 200 &&
+        rows.length === 3 &&
+        rows.every(
+          (row, position) =>
+            row.row === position + 1 &&
+            row.product.id === `stream-${index}` &&
+            row.principal === (index % 2 ? "beta" : "alpha") &&
+            row.destroyed === false,
+        ),
+    ),
+    JSON.stringify(streamed.slice(0, 2)),
+  );
+  const after = (await (
+    await fetch(`${server.baseUrl}/api/packed-di-stats`)
+  ).json()) as typeof before;
+  check(
+    "each streamed response's injector, request identity and controller are destroyed exactly once, after the body",
+    after.injectorsCreated === before.injectorsCreated + 6 &&
+      after.injectorsDestroyed === before.injectorsDestroyed + 6 &&
+      after.identitiesDestroyed === before.identitiesDestroyed + 6 &&
+      after.controllersDestroyed === before.controllersDestroyed + 6 &&
+      after.live === 0,
+    `${JSON.stringify(before)} -> ${JSON.stringify(after)}`,
+  );
+  const deniedStream = await fetch(`${server.baseUrl}/api/packed-angular-di/stream-denied/stream`);
+  await deniedStream.text();
+  const afterDenied = (await (
+    await fetch(`${server.baseUrl}/api/packed-di-stats`)
+  ).json()) as typeof before;
+  check(
+    "a denied streamed request creates no injector",
+    deniedStream.status === 401 && afterDenied.injectorsCreated === after.injectorsCreated,
+  );
+
   section("Repeat the strict consumer declaration check with TypeScript 5.9.2");
   const ts59Dir = join(tmpRoot, "typescript-59");
   mkdirSync(ts59Dir, { recursive: true });

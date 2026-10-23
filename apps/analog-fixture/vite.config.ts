@@ -52,6 +52,16 @@ export default defineConfig(() => ({
       nitro: {
         moduleSideEffects: ["@angular/compiler"],
         timing: false,
+        // A zoneless app has no `zone.js`, but the generated server-function module imports
+        // `zone.js/node`; Node leaves it external and tree-shakes it, the Cloudflare preset
+        // cannot. See docs/research/analog-stream-lifecycle-v07.md.
+        ...(process.env["BUILD_PRESET"] === "cloudflare-pages"
+          ? {
+              alias: {
+                "zone.js/node": join(import.meta.dirname, "src", "server", "empty-zone.ts"),
+              },
+            }
+          : {}),
       },
       // Off by default, as in the stock template (every Angular TypeScript
       // edit then reloads the page). `pnpm test:server-component-dev` also runs

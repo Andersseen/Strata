@@ -11,7 +11,15 @@ onlyBuiltDependencies:
 # API Analog/Nitro 2 expects (`createEvent`). Declare the H3 major Nitro 2 uses
 # so the plugin resolves the same h3 as nitropack. See
 # docs/research/analog-integration-baseline.md.
+#
+# `@analogjs/router/server` has the same undeclared `h3` import (`readBody`,
+# `getRouterParam`), and a server function dispatched with POST needs the H3 v1
+# `readBody`: with H3 v2 hoisted it answers 400 `Malformed request body`. See
+# docs/research/analog-stream-lifecycle-v07.md.
 packageExtensions:
   "@analogjs/vite-plugin-nitro":
+    dependencies:
+      h3: ^1.15.11
+  "@analogjs/router":
     dependencies:
       h3: ^1.15.11

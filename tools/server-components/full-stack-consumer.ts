@@ -12,6 +12,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { listFiles } from "../analog/lib/scan.ts";
+import { observeStreaming } from "../analog/lib/streaming.ts";
 import { run } from "../consumer/lib/exec.ts";
 import type { CommandResult } from "../consumer/lib/exec.ts";
 import { readManifest } from "../release/lib/packages.ts";
@@ -248,6 +249,7 @@ try {
     "src/check/controller-declarations.ts",
     "src/check/http-contract-example.ts",
     "src/check/api-boundary-example.ts",
+    "src/check/stream-example.ts",
   ]) {
     cpSync(join(consumerDir, file), join(ts59Dir, file));
   }
@@ -424,10 +426,19 @@ try {
     ...(await routingBrowserSuite(node.baseUrl, "node")),
   ];
 
+  const nodeStreaming: boolean[] = [];
+
+  await observeStreaming(node.baseUrl, "node", (name, passed, detail) => {
+    nodeStreaming.push(check(name, passed, detail));
+
+    return passed;
+  });
+
   await node.stop();
   servers.length = 0;
 
   const nodeAll = [
+    ...nodeStreaming,
     ...nodeHttp.controller,
     ...nodeHttp.serverComponents,
     ...nodeIsland.ok,
@@ -590,7 +601,16 @@ try {
     ...(await routingBrowserSuite(wrangler.baseUrl, "workerd")),
   ];
 
+  const cfStreaming: boolean[] = [];
+
+  await observeStreaming(wrangler.baseUrl, "workerd", (name, passed, detail) => {
+    cfStreaming.push(check(name, passed, detail));
+
+    return passed;
+  });
+
   cfOk.push(
+    ...cfStreaming,
     ...cfHttp.controller,
     ...cfHttp.serverComponents,
     ...cfIsland.ok,

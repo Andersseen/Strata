@@ -143,8 +143,9 @@ This is a separate DI universe: its `providedIn: 'root'` instances are not those
 server functions. The Nitro bundle needs `@angular/compiler` declared in `nitro.moduleSideEffects`,
 because Nitro does not run the Angular linker. Local workerd builds the Worker graph but refuses
 Angular JIT factory compilation with `Code generation from strings disallowed`; consumer-owned
-Angular DI is therefore NO-GO on the checked Worker tuple. Provider overrides, abort/timeout and
-streamed bodies remain open. Guard/interceptor composition with this DI fixture is also not
+Angular DI is therefore NO-GO on the checked Worker tuple. Provider overrides and abort/timeout remain
+open; a streamed body keeps the request scope open only through the opt-in `streamResponse()`
+([0.7.0 evidence](research/analog-stream-lifecycle-v07.md)). Guard/interceptor composition with this DI fixture is also not
 qualified. No DI public API, package or ADR is selected; the glue stays consumer code until
 Server Components show a reusable responsibility. See the [cross-runtime qualification](research/analog-di-cross-runtime-lifecycle.md).
 

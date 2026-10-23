@@ -6,6 +6,13 @@ import { GreetingController, GreetingService } from "../strata/greeting.controll
 import { LifecycleController } from "../strata/lifecycle.controller";
 import { MethodsController } from "../strata/methods.controller";
 import { InventoryController, inventoryGuard } from "../strata/inventory.controller";
+import {
+  needsReader,
+  openChunkReader,
+  StreamingController,
+  streamingGuard,
+  streamingInterceptor,
+} from "../strata/streaming.controller";
 import { UsersController } from "../strata/users.controller";
 import { ValidationController } from "../strata/validation.controller";
 import {
@@ -47,6 +54,19 @@ export default defineNitroPlugin((nitroApp) => {
   registerControllers(nitroApp.router, [InventoryController], {
     guards: [inventoryGuard],
     interceptors: [passThroughInterceptor],
+  });
+
+  // HTTP streaming lifecycle: each request opens its own reader and registers its release
+  // with `onCleanup`; `streamResponse()` keeps it open until the body ends.
+  registerControllers(nitroApp.router, [StreamingController], {
+    controllerFactory: (Controller, { request, onCleanup }) =>
+      Controller === StreamingController
+        ? new StreamingController(
+            needsReader(request.path) ? openChunkReader(request, onCleanup) : undefined,
+          )
+        : new Controller(),
+    guards: [streamingGuard],
+    interceptors: [streamingInterceptor],
   });
 
   // Custom factory: still one instance per request, built with a dependency

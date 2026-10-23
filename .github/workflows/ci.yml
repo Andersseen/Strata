@@ -131,6 +131,11 @@ jobs:
       - name: Server Component authorization isolation (Node + workerd)
         run: pnpm test:server-component-authorization
 
+      # `streamResponse()` request-scoped resource lifetime, a real Analog serverFn beside Strata, native
+      # routes, the API boundary and SSR, on the Node production server, the Vite dev server and local workerd.
+      - name: Analog streaming lifecycle and serverFn coexistence (Node + dev + workerd)
+        run: pnpm test:analog-streaming
+
       # Failure-only: an intermittent SSR failure (HTTP 200 with an empty page, `JIT compiler unavailable`)
       # leaves no trace on the runner. Keep the server logs and the built server output so the next
       # occurrence can be diagnosed. Never runs on success and changes no result.

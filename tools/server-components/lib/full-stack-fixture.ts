@@ -40,6 +40,8 @@ export const FULL_STACK_SERVER_SOURCES = [
   "qualification.controller.ts",
   "product-catalog.ts",
   "lifecycle-stats.ts",
+  "streaming.controller.ts",
+  "stream-barrier.ts",
 ] as const;
 
 export const PRODUCT_42 = { id: "42", name: "Product 42", available: true } as const;

@@ -98,7 +98,8 @@ must be independently qualified before changing this temporary blocked dispositi
 version-sensitive routing, events, response/error mapping and any bridge; core remains independent.
 
 M2 must compare a dedicated v1 execution path, a tested Web Request/Response bridge and a supported
-upstream runtime upgrade. Explicitly test repeated headers/cookies, streaming if supported, status,
+upstream runtime upgrade. Explicitly test repeated headers/cookies, streaming if supported (the 0.7.0 evidence qualifies the Nitro 2 /
+H3 v1 Node and local-workerd behaviour of `streamResponse()` only; H3 v2 is not covered), status,
 base paths, context ownership, abort and error behavior. Never cast an H3 v1 app/event into v2 types.
 
 Support more than one major only if a real consumer needs it and each path has its own CI fixtures,
