@@ -111,8 +111,9 @@ response body just to log it. Errors propagate to Nitro unless consumer code
 deliberately catches and replaces one. Such replacement is consumer policy.
 Cleanup runs after interceptor unwinding and preserves the existing LIFO and
 `AggregateError` rules. Do not log credentials, request bodies or private
-validation issues. Production tracing, cancellation and full response-stream
-lifecycle are not qualified.
+validation issues. Production tracing and client-disconnect cancellation are not
+qualified. A response body outlives the invocation only through
+[`streamResponse()`](#streaming-responses); an ordinary `Response` does not.
 
 Every `@strata-sc/core` HTTP decorator (`Get`, `Post`, `Put`, `Patch`,
 `Delete`) is registered for its own method on the Nitro router, and all of them
@@ -160,7 +161,8 @@ remain unqualified.
 
 Controllers are request-scoped. An optional `controllerFactory` (sync or async)
 creates each request's controller and can register `onCleanup` callbacks that
-run after the invocation settles.
+run after the invocation settles. A handler that returns
+[`streamResponse()`](#streaming-responses) keeps them open until its body ends.
 
 ## Application HTTP contract
 
@@ -326,6 +328,100 @@ these APIs from package tarballs installed outside the pnpm workspace. See the
 [HTTP contract qualification](../../docs/research/analog-http-contract-v05.md)
 for runtime and release evidence.
 
+## Streaming responses
+
+Cleanup callbacks normally run when the handler settles, which is too early for a
+response body that is still being read: an ordinary `Response` over a
+`ReadableStream` finds its request-scoped resources already closed. Return
+`streamResponse()` to keep them open for the life of the body:
+
+```ts
+import { Controller, Get } from "@strata-sc/core";
+import { streamResponse } from "@strata-sc/analog";
+import type { StrataAnalogControllerFactory } from "@strata-sc/analog";
+
+class OrderCursor {
+  async *rows(): AsyncGenerator<string> {
+    /* reads from a connection that must stay open */
+  }
+  close(): void {}
+}
+
+@Controller("/api/orders")
+class OrdersController {
+  constructor(private readonly cursor: OrderCursor) {}
+
+  @Get("/export")
+  export() {
+    return streamResponse(this.cursor.rows(), {
+      headers: { "content-type": "application/x-ndjson" },
+    });
+  }
+}
+
+const controllerFactory: StrataAnalogControllerFactory = (_Controller, { onCleanup }) => {
+  const cursor = new OrderCursor();
+  onCleanup(() => cursor.close());
+  return new OrdersController(cursor);
+};
+```
+
+`streamResponse(body, init?)` takes an async iterable of strings (UTF-8 encoded)
+or `Uint8Array` and returns a native `Response`. It is opt-in: Strata never
+infers ownership from a response's shape, because every buffered `Response` also
+has a `ReadableStream` body.
+
+**Lifetime.** After the handler and all interceptors settle, the adapter binds the
+invocation's cleanup scope to the response. It stays open until the first of:
+
+- the body completes;
+- the body iterable throws;
+- the consumer cancels the body (`response.body.cancel()`, or a transport
+  cancelling its reader).
+
+Then the cleanups run once, last registered first and awaited, exactly as for an
+ordinary request. The body is pulled lazily, one chunk per read, never ahead of
+the consumer. A cleanup registered while the stream runs (through the factory's
+`onCleanup`) is still accepted.
+
+**Errors.** Status and headers are committed when the first chunk is written, so
+nothing after that can change the HTTP status. A body that throws errors the
+stream with that error, after the cleanups have run; if cleanups also fail the
+stream errors with an `AggregateError` of the body error followed by every cleanup
+error. A cleanup that fails after a complete body errors the stream instead of
+ending it cleanly. No message or stack is ever written to the response body by
+Strata; what the client observes of an errored stream is up to the transport (see
+below). Before the first chunk, guards, validation and handler errors behave as for
+any request: a denied or invalid request never starts a stream.
+
+**Interceptors.** Passing the same `Response` through, and reading its headers or
+status, keeps the stream owned. Replacing it with another response (including
+`new Response(original.body, …)`) hands ownership to nobody: the scope closes at
+once as for an ordinary request, and the abandoned body fails with a
+`StrataAnalogConfigurationError` if anything reads it. Reading the body before the
+adapter owns it fails the invocation the same way; so does returning one
+`streamResponse()` object from two invocations.
+
+**HEAD.** A derived `HEAD` request cancels the body, which releases the resources.
+
+**What the transport decides.** Release depends on the transport reading the body
+to its end or cancelling it. Qualified on the pinned tuple (Analog 2.7.2, Nitro
+2.13.4, H3 1.15.11), see
+[the evidence](../../docs/research/analog-stream-lifecycle-v07.md):
+
+| Behavior                                 | Node (`node-server`, Vite dev) | Cloudflare Pages (local workerd) |
+| ---------------------------------------- | ------------------------------ | -------------------------------- |
+| Chunks delivered incrementally           | yes                            | **no: the body is buffered**     |
+| Resources released once after the body   | yes                            | yes                              |
+| Client disconnect releases the resources | **no**: when the body ends     | **no**: when the body ends       |
+| Body error after the first chunk         | connection left open, no end   | empty `200`, indistinguishable   |
+
+Client disconnect is **not** propagated to the body on either runtime, so a body
+must be finite: an unbounded producer is not released when its client goes away.
+Strata adds no timers and no abort signal for this. Do not stream where the
+transport buffers if you need incremental delivery: the body is still delivered,
+complete, and released, just not early.
+
 ## API boundary: 404, 405, HEAD and OPTIONS
 
 By default `registerControllers()` only adds routes to Nitro's router, so a
@@ -392,7 +488,7 @@ by Nitro.
 runs that route's whole pipeline exactly once (guards, interceptors, factory,
 handler, one cleanup) and returns its status and headers without a body. A
 `Response` result's body is released without being read, so streams are not
-consumed. A denied `GET` is a denied `HEAD`. Handlers see `request.method ===
+consumed; a `streamResponse()` body is cancelled, which releases its resources. A denied `GET` is a denied `HEAD`. Handlers see `request.method ===
 "HEAD"`. Plain returned values get the content type H3 would give them (JSON,
 text); no `Content-Length` is synthesized. `HEAD` never maps to a mutating route.
 It is not derived for native routes. `head: "off"` answers it like any other

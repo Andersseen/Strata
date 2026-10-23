@@ -14,6 +14,18 @@ supported way to change that. Separately, `release.yml` publishes on every push 
 the aggregate CI `Verify` result of the same SHA: a release-safety issue deliberately kept out of this change.
 See [the evidence](research/server-component-ssr-integrity-v07.md).
 
+Evidence note (2026-10-23, Analog 0.7.0 candidate): `streamResponse()` closes the gap between the controller
+invocation and the response body for an explicitly owned stream, but it inherits what the pinned transport does.
+Nitro 2.13.4 / H3 1.15.11 never tells the response body that the client left, so a streamed body that does not
+end holds its request-scoped resources (and, on Node, keeps producing into a closed socket): only finite bodies
+are safe. A body that fails after the first chunk leaves a Node connection open with no end, and on the
+Cloudflare Pages preset the whole body is buffered and a mid-body failure becomes an empty `200`, so neither
+runtime lets a client tell a failed stream from a finished one. Analog 2.7.2 server-function dispatch with POST
+needs the H3 v1 `readBody`, but `@analogjs/router` imports an undeclared `h3`: with H3 v2 hoisted it answers
+`400 Malformed request body` (declared as a workspace `packageExtensions` entry, as for the Nitro plugin), and on
+workerd every server function answers `500` because Angular's JIT is unavailable. Fixture evidence, not
+production adoption. See [the evidence](research/analog-stream-lifecycle-v07.md).
+
 Evidence note (2026-10-22): the Analog 0.6.0 routing candidate adds an opt-in API boundary on top of Nitro's
 H3 v1 router. It depends on pinned router behaviour (method-less registration serves every method, method
 fall-through to less specific routes, no backtracking), so a router upgrade must be re-qualified; the H3 v2

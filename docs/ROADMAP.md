@@ -135,7 +135,13 @@ Broader M3 adoption and lifecycle gates remain open; see the
 - Capability delivered in the 0.6.0 candidate: a deterministic HTTP routing and API boundary (JSON 404,
   405 with `Allow`, derived `HEAD`, opt-in `OPTIONS`) that does not shadow native Nitro routes, Analog pages
   or server functions ([report](research/analog-http-routing-v06.md)).
-- Remaining M3 work: close metadata/member/registration contracts and verify Analog SSR/serverFn coexistence;
+- Capability delivered in the 0.7.0 candidate: an explicit, opt-in streaming lifetime (`streamResponse()`)
+  that holds the request cleanup scope until the body completes, fails or is cancelled, and a real compiled
+  Analog `serverFn` executed beside controllers, native routes, the API boundary and Server Component SSR on
+  Node. Client-disconnect cancellation stays **NO-GO** on the pinned Nitro adapters, Cloudflare Pages buffers
+  the body, and `serverFn` is **NO-GO** on workerd (Angular JIT)
+  ([report](research/analog-stream-lifecycle-v07.md)). M3 is not marked complete.
+- Remaining M3 work: close metadata/member/registration contracts;
   compare request-input APIs before selecting one; define params/query/body/headers and Standard
   Schema validation; safe errors; Angular providers/lifetimes; guards and interceptors with explicit
   order, cancellation and logging; stabilize consumer compilation and Analog integration.

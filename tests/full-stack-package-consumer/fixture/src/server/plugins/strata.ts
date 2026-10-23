@@ -2,6 +2,13 @@ import { registerControllers } from "@strata-sc/analog";
 import type { StrataAnalogInterceptor } from "@strata-sc/analog";
 import { defineNitroPlugin } from "nitropack/runtime";
 
+import {
+  needsReader,
+  openChunkReader,
+  StreamingController,
+  streamingGuard,
+  streamingInterceptor,
+} from "../strata/streaming.controller";
 import { lifecycleStats } from "../strata/lifecycle-stats";
 import { ProductsController } from "../strata/products.controller";
 import { QualificationController } from "../strata/qualification.controller";
@@ -46,5 +53,17 @@ export default defineNitroPlugin((nitroApp) => {
   });
   registerControllers(nitroApp.router, [HttpContractController], {
     interceptors: [interceptController],
+  });
+  // HTTP streaming lifecycle (docs/research/analog-stream-lifecycle-v07.md): each request
+  // opens its own reader and `streamResponse()` keeps it open until the body ends.
+  registerControllers(nitroApp.router, [StreamingController], {
+    controllerFactory: (Controller, { request, onCleanup }) =>
+      Controller === StreamingController
+        ? new StreamingController(
+            needsReader(request.path) ? openChunkReader(request, onCleanup) : undefined,
+          )
+        : new Controller(),
+    guards: [streamingGuard],
+    interceptors: [streamingInterceptor],
   });
 });

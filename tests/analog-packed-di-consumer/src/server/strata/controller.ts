@@ -1,5 +1,6 @@
 import { DestroyRef, inject } from "@angular/core";
 import { Controller, Get } from "@strata-sc/core";
+import { streamResponse } from "@strata-sc/analog";
 import type { StrataAnalogRequest } from "@strata-sc/analog";
 
 import { CatalogService, PACKED_DI_REQUEST, RequestIdentity, packedDiStats } from "./providers";
@@ -34,5 +35,31 @@ export class PackedDiController {
       destroyedBeforeResponse: this.destroyed,
       marker: PACKED_DI_MARKER,
     };
+  }
+
+  /**
+   * The request injector must outlive the handler call: every row is read from it after the
+   * handler has settled, and the injector is destroyed only when the body ends.
+   */
+  @Get("/:id/stream")
+  stream(request: StrataAnalogRequest) {
+    packedDiStats.handlerCalls++;
+    const self = this;
+    const id = request.params["id"] ?? "";
+
+    return streamResponse(
+      (async function* () {
+        for (let row = 1; row <= 3; row++) {
+          await new Promise((resolve) => setTimeout(resolve, 10));
+          yield `${JSON.stringify({
+            row,
+            product: self.catalog.product(id),
+            principal: self.identity.principal,
+            destroyed: self.destroyed,
+          })}\n`;
+        }
+      })(),
+      { headers: { "content-type": "application/x-ndjson" } },
+    );
   }
 }

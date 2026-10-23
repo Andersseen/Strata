@@ -22,9 +22,18 @@ through the current Nitro adapters, streamed-response cleanup or real-applicatio
 adoption. These checks do not complete M3 or Strata 1.0; see the
 [HTTP contract report](research/analog-http-contract-v05.md).
 
+The 0.7.0 candidate adds `streamResponse()`, an opt-in streaming lifetime for the request cleanup scope, and
+executes a real compiled Analog `serverFn` next to Strata in the fixture. Locally integrated on Node (production
+and dev) and local workerd, and packed-consumer qualified on Node and workerd; not hosted-CI qualified at the time
+of writing, not deployed, not adopted. Still **NO-GO**: client-disconnect cancellation through the pinned Nitro
+adapters (no abort signal reaches the body, so a streamed body must be finite), incremental delivery on the
+Cloudflare Pages preset (the body is buffered), a client-visible failure signal after a body fails mid-stream on
+either runtime, and `serverFn` on workerd (Angular JIT). It does not complete M3 or Strata 1.0
+([report](research/analog-stream-lifecycle-v07.md)).
+
 The 0.6.0 candidate adds an opt-in HTTP routing and API boundary (JSON 404, 405 with `Allow`, derived
 `HEAD`, opt-in `OPTIONS`) with local Node, workerd and packed-consumer evidence. It is not an authentication,
-CORS or CSRF policy, does not exercise a real Analog server function, and does not qualify a deployed runtime;
+CORS or CSRF policy, did not exercise a real Analog server function (the 0.7.0 report now does), and does not qualify a deployed runtime;
 it does not complete M3 or Strata 1.0 ([report](research/analog-http-routing-v06.md)).
 
 **Current status: none of these production gates is certified.** This checklist is authoritative

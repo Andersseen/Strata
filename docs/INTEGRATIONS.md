@@ -72,7 +72,10 @@ Verified behaviour (Analog 2.7.2, Nitro 2.13.4; see the
 - A handler may take one provisional `StrataAnalogRequest` with params, query, headers, URL and lazy
   body readers. Nitro's H3 event is not exposed.
 - `onCleanup` on the factory context runs registered callbacks last-in-first-out, exactly once,
-  including on failure paths. It covers the controller invocation, not a streamed response body.
+  including on failure paths. It covers the controller invocation, not a response body, unless the
+  handler returns the opt-in `streamResponse()`, which keeps the scope open until its body completes,
+  fails or is cancelled. Client disconnect is not propagated to the body, so a streamed body must be
+  finite; Cloudflare Pages buffers it ([evidence](research/analog-stream-lifecycle-v07.md)).
 - Angular DI is possible only through injectors your application owns
   ([SPEC-003](specs/003-analog-request-lifecycle-angular-di.md), a **conditional go**, not a
   Strata API). Resolve dependencies at construction; `inject()` inside a handler throws `NG0203`.

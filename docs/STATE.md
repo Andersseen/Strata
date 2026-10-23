@@ -1,5 +1,25 @@
 # Current implementation audit
 
+## Analog streaming lifecycle for 0.7.0 (feature branch)
+
+On branch `feat/analog-stream-lifecycle-v07`, work began from synchronized `main`
+`279275eafe7519725b8413046335fc91330795d6` (@strata-sc/analog 0.6.0). The old behaviour is reproduced on the real
+fixture: an ordinary `Response` over a `ReadableStream` finds its request-scoped resource already closed when
+Nitro reads the body. `@strata-sc/analog` gains `streamResponse(body, init?)`, an explicit opt-in that holds the
+invocation's cleanup scope until the body completes, fails or is cancelled, then closes it once (LIFO, awaited,
+`AggregateError` rules unchanged). Ownership is claimed after every interceptor settles, so a replaced response
+closes eagerly; an owned body read before the claim fails with a configuration error. Every other handler keeps
+the eager contract. Qualified on Analog 2.7.2 / Nitro 2.13.4 / H3 1.15.11: Node (production and dev) delivers
+incrementally; local workerd (Cloudflare Pages) buffers the body but still releases once. Client disconnect does
+not reach the body on either runtime (**NO-GO**; bodies must be finite), and what a client sees after a mid-body
+failure is up to the transport (Node: connection left open; workerd: empty `200`). A real compiled `serverFn`
+(GET and POST, validated input) runs in the same application, undisturbed by the API boundary; POST needed the
+`@analogjs/router` `h3` dependency declared (workspace `packageExtensions`), and on workerd every `serverFn`
+answers 500 (Angular JIT). Packed consumers (TypeScript 6 and 5.9.2) stream from tarballs, including a request
+Angular injector that outlives the handler. See the [evidence report](research/analog-stream-lifecycle-v07.md).
+Experimental fixture evidence: not hosted-CI qualified when written, not deployed, not production adoption, and
+not M3 or Strata 1.0 certification.
+
 ## Server Components SSR integrity for 0.7.0 (feature branch)
 
 On branch `feat/server-components-ssr-integrity-v07`, work began from synchronized `main`
@@ -781,7 +801,8 @@ further M1 direction (upstream issue, alternate closure hypothesis, or continued
 - Resolved (Analog, workerd): `StrataAnalogRequest` body readers failed under Nitro's Cloudflare presets,
   which attach the payload to a non-iterable mock Node request (`req.body`). They now read an attached
   body first, like H3 v1's `readRawBody`; POST/PATCH JSON bodies are asserted under Wrangler.
-- Handler exceptions, `Response`/stream passthrough and cancellation lack dedicated Strata tests.
+- Handler exceptions and `Response` passthrough are tested (later releases); the stream lifetime has dedicated
+  tests since 0.7.0, and client-disconnect cancellation remains NO-GO on the pinned adapters.
 
 These remain inputs to M1/M3, not permission for Astra to implement fixes. SPEC-002 addresses the
 consumer type-contract blocker; it does not declare the remaining primitive contracts stable.

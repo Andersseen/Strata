@@ -235,6 +235,17 @@ input/validation behavior. H3 integration must exercise actual HTTP semantics: m
 params, status/headers, repeated cookies, `Response`, supported streams, errors and cancellation.
 Test native H3 routes beside controllers and document collision behavior.
 
+`pnpm test:analog-streaming` ([evidence](research/analog-stream-lifecycle-v07.md)) drives the real fixture
+(`@strata-sc/analog` `streamResponse()`, a real compiled Analog `serverFn`, native Nitro routes, the API
+boundary and Angular SSR in one app) on the Node production server, the Vite dev server and local workerd. It
+first classifies the transport with a native Nitro route that has no Strata code on the path, then asserts the
+matching suite: incremental delivery with a deterministic barrier (the producer polls a flag another request
+sets, never a shared promise, which workerd cancels), reader lifetime and exactly-once release, overlapping
+streams, guard denial, interceptor replacement, HEAD, producer and cleanup failure, client disconnect and a
+private canary. `STRATA_STREAMING_RUNTIMES=node,dev,workerd` selects runtimes. The packed consumers
+(`test:package-consumer`, `test:analog-packed-di-consumer`, `test:full-stack-package-consumer`) stream from
+installed tarballs; unit coverage is `packages/analog/src/stream-lifecycle.test.ts`.
+
 Use overlapping authenticated requests to expose accidental instance/global reuse. Verify request
 services and provider disposal under success, validation/auth rejection, thrown/rejected handler,
 aborted request and navigation cancellation. Identity checks must cover controller/SSR/serverFn
