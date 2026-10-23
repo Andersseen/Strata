@@ -9,6 +9,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { builtinModules } from "node:module";
+import { createConnection } from "node:net";
 import { dirname, join, relative, sep } from "node:path";
 import { stripVTControlCharacters } from "node:util";
 
@@ -406,6 +407,65 @@ export async function startNodeServer(
     readyPath: "/",
     timeoutMs: 30_000,
   });
+}
+
+/** Resolves once something accepts a TCP connection on `port`; never sends a byte. */
+async function waitForTcp(port: number, server: ManagedProcess, timeoutMs: number): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    if (server.hasExited()) throw new Error(`Server exited before listening:\n${server.output()}`);
+
+    const accepted = await new Promise<boolean>((resolve) => {
+      const socket = createConnection({ host: "127.0.0.1", port });
+
+      socket.once("connect", () => {
+        socket.destroy();
+        resolve(true);
+      });
+      socket.once("error", () => resolve(false));
+    });
+
+    if (accepted) return;
+
+    await sleep(50);
+  }
+
+  throw new Error(`Timed out waiting for port ${port}:\n${server.output()}`);
+}
+
+/**
+ * `node dist/analog/server/index.mjs`, ready when it accepts a connection. Unlike
+ * {@link startNodeServer} it sends no request, so the caller's first request is the
+ * process's first request: the cold-start path (initial Angular bootstrap and
+ * first render) is what is under test.
+ */
+export async function startNodeServerCold(
+  consumerDir: string,
+  env: NodeJS.ProcessEnv,
+): Promise<RunningServer> {
+  const port = await findFreePort();
+  const server = spawnManaged(process.execPath, ["dist/analog/server/index.mjs"], {
+    cwd: consumerDir,
+    env: { ...env, PORT: String(port), NITRO_PORT: String(port) },
+  });
+  const output = (): string => stripVTControlCharacters(server.output());
+
+  try {
+    await waitForTcp(port, server, 30_000);
+  } catch (error) {
+    await server.stop();
+    throw error;
+  }
+
+  return {
+    baseUrl: `http://127.0.0.1:${port}`,
+    output,
+    mark: () => output().length,
+    since: (mark) => output().slice(mark),
+    stop: () => server.stop(),
+    process: server,
+  };
 }
 
 /** The consumer's own `vite` binary in dev mode. */

@@ -29,6 +29,19 @@ that must fail for their own reason. The Analog dev server answers `OPTIONS` thr
 the `OPTIONS` policy is qualified on production builds only. See the
 [routing report](research/analog-http-routing-v06.md).
 
+The 0.7.0 integrity increment changes what an SSR qualification may count as a pass. `tools/server-components/lib/ssr-integrity.ts`
+classifies each answer (`build-compilation`, `server-bootstrap`, `incomplete-ssr`, `boundary-serialization`,
+`client-hydration`, `graph-confidentiality`) from the document and the server log, so an HTTP 200 empty shell
+fails. `pnpm test:server-components`, `pnpm test:server-components:cloudflare` and
+`pnpm test:server-component-package-consumer` apply it; the packed consumer also scans every built output for
+uncompiled Angular classes and unlinked partial declarations, fails two deliberately broken builds for the
+intended reason (a page outside Angular's program, an installed package whose partial declaration was not
+linked), builds under an adversarial client/ssr environment schedule, and sends eight overlapping first
+requests to cold servers behind a barrier. `STRATA_INTEGRITY_BUILDS` (default 2) sets the independent
+rebuild-and-cold-start repetitions; the extended workflow raises it. Set `STRATA_DIAGNOSTICS_DIR` to keep the
+server logs and a content-free JSON record of a failed assessment. See
+[the report](research/server-component-ssr-integrity-v07.md).
+
 ## Progressive gates
 
 Analog HTTP input validation adds coverage to `pnpm test:analog` (real Analog

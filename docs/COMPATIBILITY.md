@@ -33,6 +33,11 @@ check). The independent library partial compile succeeded locally, but the isola
 failed before AOT linking; package-island support is therefore **not qualified** yet. See the
 [package-island report](research/server-component-package-islands.md).
 
+_Update (2026-10-22):_ the sentence above records the first, failed install attempt. The installed-package
+shape was later qualified by the packed consumer (independently partial-compiled library, AOT linking in the
+Node and workerd builds, SSR and hydration), shipped in 0.4.0 and has gated every pull request since. It
+remains bounded to that package shape.
+
 Server-only module resolution (0.6 candidate) adds no peer range. It reads Vite's resolved
 `resolve.alias` (Vite >= 8.3.0, the existing peer) and parses the app's tsconfig with the
 `typescript` peer (5.9 or 6.x, `ts.resolveModuleName` in bundler mode); it does not touch Angular
@@ -145,3 +150,11 @@ deprecations include migration guidance. Security fixes may narrow unsafe depend
 with a documented impact and replacement tuple. Maintainers own support-window announcements and
 must revalidate when frameworks retire a supported line. Do not promise a support duration without
 the ability to maintain it.
+
+The production compilation contract (0.7 candidate) adds no peer range and uses only public Vite/Rollup
+hooks (`buildStart`, `buildEnd`, `closeBundle`, and an `order: "post"` `transform`) and the `typescript` peer
+for a structural check; it does not touch Angular or Analog private APIs. The barrier mitigates how Analog 2.7.2
+shares one Angular plugin between concurrently built environments; another Analog version must be re-qualified
+(the packed consumer's adversarial schedule is the control). Node and local workerd are held to the same
+contract; JIT-mode production builds are outside it. See
+[the report](research/server-component-ssr-integrity-v07.md).

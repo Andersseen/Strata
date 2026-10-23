@@ -131,7 +131,7 @@ printSizes(control, poc);
 const server = await startProductionServer();
 
 try {
-  await checkDirectLoad(server.baseUrl, ROUTE);
+  await checkDirectLoad(server.baseUrl, ROUTE, "Production server", () => server.output());
   await checkBoundaryProtocol(server.baseUrl, {
     runtime: "Production server",
     full: true,

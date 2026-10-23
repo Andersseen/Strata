@@ -174,6 +174,7 @@ libraries or export-condition layouts.
 | Content projection into islands                                                 | **not qualified**                                                                                            |
 | Request-scoped Server Component context                                         | experimental: Angular `REQUEST_CONTEXT`                                                                      |
 | Module-level state shared between the SSR bundle and Nitro code                 | **separate bundles**: each evaluates its own copy                                                            |
+| Unexpected Angular render error during SSR                                      | **still HTTP 200** (no supported status bridge); an uncompiled class is stopped at build time instead        |
 
 The full list is under [Experimental restrictions](#experimental-restrictions).
 
@@ -224,6 +225,9 @@ and the Vite environment-aware `hotUpdate` dev integration have only been tested
   Analog app in an OS temp directory, then production Node build/SSR/hydration/navigation, the
   server-only firewall, `vite` dev with a server-owned edit and a Cloudflare build on local workerd,
   plus declarations under TypeScript 6.0.3 and 5.9.2: `pnpm test:server-component-package-consumer`
+  (it also asserts the [production compilation contract](#production-compilation-contract): the gate fails
+  two intentionally broken builds for the intended reason, the adversarial environment schedule builds, and
+  overlapping first requests to cold servers return complete documents, never an HTTP 200 shell)
   (see [Consumer setup](#consumer-setup)). After each release publishes it,
   `pnpm test:server-component-registry-consumer` installs the exact published version from
   registry.npmjs.org into a fresh app and re-checks resolution, the production build and graph
@@ -431,6 +435,29 @@ export default defineConfig({
 - Cloudflare Pages: `BUILD_PRESET=cloudflare-pages vite build`, as for the in-repo gates.
 - `enabled` is optional and defaults to `true`, so a config that forgets it cannot silently ship Server
   Component implementations to the browser. Only `enabled: false` is the plain-SSR control build.
+
+## Production compilation contract
+
+A production build must leave every Angular class AOT-compiled. A class that reaches the server with its
+decorator still applied is compiled by Angular's JIT compiler on first use, which a production server does not
+carry (`JIT compiler unavailable`, logged while the response is still HTTP 200 with the component missing) and
+which Workers refuse outright. Angular and Analog swallow such a render error, and Strata has no supported way to
+turn it into an error response, so the failure is stopped at build time instead:
+
+- In a `vite build`, after every other transform, the plugin fails the build when a **source-owned** module still
+  applies `@Component`, `@Directive`, `@Pipe`, `@Injectable` or `@NgModule` (it names the module, the
+  environment and the class), or when a **bundled package** still calls an Angular partial declaration
+  (`ɵɵngDeclare*`) the Angular linker should have replaced. The diagnostic carries app-relative paths and no source
+  text. It does not run under `vite` (dev).
+- Analog builds the `client` and `ssr` environments concurrently with one shared Angular plugin that releases its
+  compilation output when the first environment finishes. This plugin holds each environment at `buildEnd` until
+  every environment of the build has finished transforming, so that release cannot starve a slower environment.
+  This is a mitigation of observed upstream behaviour built on public Rollup hooks, not a claim about Analog.
+
+The gate covers modules that pass through Vite. Third-party Angular packages that Nitro traces into its server
+output without Vite bundling them are not checked (they are not evaluated unless imported), and a production build
+with Analog's `jit: true` option is outside this contract. See
+[the evidence](https://github.com/Andersseen/Strata/blob/main/docs/research/server-component-ssr-integrity-v07.md).
 
 ## Client boundary protocol
 

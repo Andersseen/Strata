@@ -15,7 +15,8 @@ type PluginContext = Rollup.PluginContext;
 
 import { RUNTIME_PACKAGE, validateExternalClientComponents } from "./analyze.js";
 import type { ExternalClientComponent } from "./analyze.js";
-import { browserGraphError } from "./diagnostics.js";
+import { aotIntegrityMessage, inspectCompiledModule } from "./aot-integrity.js";
+import { browserGraphError, displayPath } from "./diagnostics.js";
 import type { BrowserForbidden, BrowserGraphContext, ImportChain } from "./diagnostics.js";
 import {
   EMPTY_GRAPH,
@@ -175,6 +176,15 @@ export function strataServerComponents(options: ServerComponentsOptions): Plugin
    * `buildStart`; the dev server uses its own module graph instead.
    */
   const parents = new Map<string, string>();
+  /** True for `vite build`: the compilation contract and the build barrier apply to builds only. */
+  let building = false;
+  /**
+   * Environments of this build that have started and not yet finished
+   * transforming, with the callers waiting for the last one to leave.
+   * See {@link leaveBuild}.
+   */
+  const activeBuilds = new Set<string>();
+  let drainWaiters: Array<() => void> = [];
 
   const context: BrowserGraphContext = {
     root,
@@ -336,13 +346,38 @@ export function strataServerComponents(options: ServerComponentsOptions): Plugin
     pending.timer.unref();
   };
 
+  /**
+   * An environment leaves the build. With `wait`, resolves only once every
+   * environment that started has left, so no environment's `buildEnd`
+   * (and Analog's release of the shared compilation) runs while another is
+   * still transforming. Each environment leaves before it waits, so the
+   * environments cannot wait on each other forever.
+   */
+  const leaveBuild = async (environment: string | undefined, wait = true): Promise<void> => {
+    if (!building || environment === undefined) return;
+
+    activeBuilds.delete(environment);
+
+    if (activeBuilds.size === 0) {
+      const waiters = drainWaiters;
+
+      drainWaiters = [];
+      for (const resolveWaiter of waiters) resolveWaiter();
+
+      return;
+    }
+
+    if (wait) await new Promise<void>((_resolve) => drainWaiters.push(_resolve));
+  };
+
   return {
     name: PLUGIN_NAME,
     enforce: "pre",
 
     // Runs before Analog reads its tsconfig, so the surrogates are in the
     // Angular program from the start. Hot regeneration is additional.
-    config() {
+    config(_config, env) {
+      building = env.command === "build";
       refresh();
 
       // The runtime is Angular partial-compiled. A linked workspace package is
@@ -390,6 +425,60 @@ export function strataServerComponents(options: ServerComponentsOptions): Plugin
 
     buildStart() {
       if (this.environment?.name === "client") parents.clear();
+      if (building && this.environment) activeBuilds.add(this.environment.name);
+    },
+
+    /**
+     * Analog builds `client` and `ssr` concurrently, with one shared Angular
+     * plugin instance, and that plugin discards its compilation output when
+     * the first environment ends (`buildEnd`). An environment still transforming
+     * then finds no output for its files, and Analog only skips them, which
+     * leaves their decorators for the JIT compiler at runtime. This plugin runs
+     * ahead of Analog's, so its `buildEnd` holds each environment at the
+     * boundary until every environment of the build has finished transforming.
+     * Plain Rollup hooks; no Analog or Angular internals.
+     */
+    async buildEnd() {
+      await leaveBuild(this.environment?.name);
+    },
+
+    // `buildEnd` is skipped when a build fails before it; never strand a waiter.
+    closeBundle() {
+      void leaveBuild(this.environment?.name, false);
+    },
+
+    /**
+     * The production compilation contract. Runs after every other transform
+     * (`order: "post"`), so it sees what Angular's plugin actually emitted:
+     * a source-owned module whose Angular decorator is still applied, or a
+     * bundled library still holding partial declarations, never compiled.
+     * Failing here names the module at build time, instead of the first
+     * request of a deployed server answering HTTP 200 with a missing component.
+     */
+    transform: {
+      order: "post",
+      handler(code, id) {
+        if (!building || id.startsWith("\0")) return null;
+
+        const file = stripQuery(id);
+
+        if (!/\.[cm]?[jt]sx?$/.test(file) || file.endsWith(".d.ts")) return null;
+
+        // A dependency is checked for unlinked partial declarations only; a
+        // source-owned module for both. Dependency decorators are not ours.
+        const owned = isInside(root, file) && !file.includes(`${sep}node_modules${sep}`);
+        const finding = inspectCompiledModule(code, file);
+
+        if (!finding || (finding.kind === "uncompiled" && !owned)) return null;
+
+        this.error(
+          aotIntegrityMessage(
+            displayPath(file, root),
+            this.environment?.name ?? "unknown",
+            finding,
+          ),
+        );
+      },
     },
 
     moduleParsed(info) {

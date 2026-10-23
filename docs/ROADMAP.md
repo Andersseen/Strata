@@ -160,16 +160,21 @@ The document-navigation candidate makes the one supported navigation path first-
 (`StrataDocumentLink`, `StrataDocumentNavigator`, hardened `strataDocumentNavigationGuard`); it does
 not add SPA subtree navigation ([report](research/server-component-document-navigation-v04.md)).
 
-The previous feature candidate explored explicitly registered Angular package islands on top of that
-protocol. Its static analyzer and generated package imports are implemented, but the packed external
-consumer has not passed npm installation and AOT/runtime qualification. Treat this work as
-experimental branch evidence until the packed Node/workerd, browser, security, bundle and hosted CI
-gates pass ([report](research/server-component-package-islands.md)).
+Explicitly registered Angular package islands were first explored on a branch whose packed consumer had
+not yet passed npm installation; that was superseded. They were merged (#107) and released in 0.4.0, and the
+packed Node/workerd consumer now gates them on every pull request. Bundle cost, production adoption and a
+deployment of the package shape remain open ([report](research/server-component-package-islands.md)).
 
 The server-only graph hardening candidate (0.6) extends the build-graph firewall to Vite aliases,
 tsconfig paths, index files, aliased re-export chains, package modules that assert server-only and
 importer-aware diagnostics; it does not add package crawling, SPA subtree navigation or streaming
 ([report](research/server-component-graph-security-v06.md)).
+
+The production SSR integrity increment (0.7) turns an intermittent SSR failure into a build-time error: a
+reproduced Analog multi-environment compilation race is serialized by the plugin and a post-transform gate
+fails builds that contain uncompiled Angular classes or unlinked partial declarations; qualification suites
+classify SSR answers instead of trusting HTTP 200. It does not add a render-error response seam, streaming or
+SPA navigation ([report](research/server-component-ssr-integrity-v07.md)).
 
 - Capability: strict server-only UI composes Angular interactive descendants under a defined initial
   SSR and navigation strategy.

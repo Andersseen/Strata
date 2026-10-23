@@ -1,6 +1,24 @@
 # Current implementation audit
 
-## External Angular package islands (2026-10-21 feature branch)
+## Server Components SSR integrity for 0.7.0 (feature branch)
+
+On branch `feat/server-components-ssr-integrity-v07`, work began from synchronized `main`
+`a54948b614368d8d0246f11fca34e72ea02838aa` (@strata-sc/server-components 0.6.0, @strata-sc/analog 0.6.0).
+The intermittent Server Component SSR failure (HTTP 200, empty island, `JIT compiler unavailable`) has a
+**reproduced mechanism**: Analog builds the `client` and `ssr` environments concurrently with one shared Angular
+plugin that discards its compilation output when the first environment ends, so the other environment's files
+are skipped and ship with their decorators uncompiled. The plugin now holds each environment at `buildEnd`
+until every environment has finished transforming, and a post-transform gate fails a production build that
+still contains an uncompiled source-owned Angular class or an unlinked partial declaration. The qualification
+suites now classify every SSR answer (an HTTP 200 alone is never a pass) and the packed consumer adds two
+failing-build controls, an adversarial environment schedule, and cold-start overlapping first requests. The
+mechanism was reproduced by fault injection, **not** observed naturally (0 of 18 un-injected local builds), and
+the two CI failures are consistent with it but were never captured with their build output; the failure is
+therefore **mitigated and made detectable, not proven eliminated**. See the
+[evidence report](research/server-component-ssr-integrity-v07.md). Experimental fixture evidence, not a
+deployment and not Strata 1.0 certification.
+
+## External Angular package islands (2026-10-21; merged in #107, released as 0.4.0)
 
 Starting `main` SHA: `88f68832361694caf683d529adc15d5e628559ea`. The `clientComponents` registry,
 import matching, alias-aware package references, package surrogate imports and Vite package
@@ -10,11 +28,12 @@ packed consumer passed npm installation, TypeScript 5.9/6 declaration checks, An
 Chromium hydration/interaction, installed-plugin server-only tests, Vite dev/HMR, Cloudflare
 Pages/workerd SSR and hydration, and graph-confidentiality checks. The consumer library is
 independently partial-compiled and packed in Angular Package Format. Hosted CI, measured bundle cost
-and production adoption are still pending. See
-[package-island evidence](research/server-component-package-islands.md). This candidate is not yet a
-release and does not replace the pending 0.3.0 version PR.
+and production adoption were pending when this was written. See
+[package-island evidence](research/server-component-package-islands.md). _Superseded:_ the feature was
+merged in #107 and published as `@strata-sc/server-components` 0.4.0 (see its CHANGELOG); the packed consumer
+still gates it on every pull request. Production adoption remains unestablished.
 
-## Analog HTTP routing and API boundary for 0.6.0 (feature branch)
+## Analog HTTP routing and API boundary for 0.6.0 (merged in #113, released as 0.6.0 in #116)
 
 On branch `feat/analog-http-routing-v06`, work began from synchronized `main`
 `b7ab2d6173fc3710ffb9fed92b64a612ba8e8063`. `registerControllers()` gains the opt-in `apiBoundary` option:
@@ -24,8 +43,9 @@ Nitro routes, pages or Analog server-function dispatch. Package unit tests (173)
 production HTTP checks, the packed external consumer on Node production and local workerd (including a
 hydrated island that observes JSON answers), and the full local CI matrix pass. Server functions are covered at
 route-table level only; no real `serverFn` module was exercised. The intermittent Server Component SSR failure
-seen on PR #112 was reproduced once on main and is unresolved; see the
-[report](research/analog-http-routing-v06.md). Experimental fixture evidence, not a deployment and not Strata
+seen on PR #112 was reproduced once on main and was unresolved when this was written; it has since been
+traced to a reproduced mechanism (see the 0.7.0 section above); see the
+[original report](research/analog-http-routing-v06.md). Experimental fixture evidence, not a deployment and not Strata
 1.0 certification.
 
 ## Analog HTTP application contract for 0.5.0 (feature branch)

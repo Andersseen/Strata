@@ -55,10 +55,20 @@ import {
   sleep,
   startDevServer,
   startNodeServer,
+  startNodeServerCold,
   startWrangler,
   until,
 } from "./lib/package-consumer.ts";
 import type { RunningServer, Snapshot, Tarball } from "./lib/package-consumer.ts";
+import {
+  assessHydration,
+  assessSsrDocument,
+  describeAssessment,
+  describeScan,
+  keepIntegrityRecord,
+  scanBuildOutput,
+} from "./lib/ssr-integrity.ts";
+import type { SsrExpectation, SsrReply } from "./lib/ssr-integrity.ts";
 
 /**
  * `pnpm test:server-component-package-consumer`: can the PACKED
@@ -98,6 +108,36 @@ const TS59_VERSION = "5.9.2";
 const sanitize = (text: string): string => stripVTControlCharacters(text);
 const all = (results: readonly boolean[]): boolean => results.every(Boolean);
 
+/**
+ * What a complete `/product` document is, by label (docs/research/server-component-ssr-integrity-v07.md):
+ * an HTTP 200 alone never satisfies the qualification.
+ */
+const PRODUCT_PAGE: SsrExpectation = {
+  content: {
+    "server heading": "<h1>Product 42</h1>",
+    "server message": `>${SERVER_MESSAGE_A}</p>`,
+    "server-computed evidence": `data-evidence="${EXPECTED_EVIDENCE}"`,
+    "public nested stock": "In stock: 12",
+    "installed package island output": "STRATA_PACKAGE_ANGULAR_WIDGET_CLIENT",
+  },
+  boundaries: [
+    { selector: "add-to-cart", protocol: "2" },
+    { selector: "acme-product-picker", protocol: "2" },
+    { selector: "legacy-counter", protocol: "1" },
+  ],
+  forbidden: Object.fromEntries(SERVER_MARKERS.map((marker) => [marker, marker])),
+};
+
+/** Repeated independent builds per run: bounded for CI; the extended gate raises it. */
+const REPEATED_BUILDS = Number(process.env["STRATA_INTEGRITY_BUILDS"] ?? "2");
+/** Concurrent first requests against a cold server. */
+const OVERLAPPING_FIRST_REQUESTS = 8;
+
+/** Results of the production compilation contract, one per built output. */
+const contract: boolean[] = [];
+/** Results of the negative/positive controls and cold-start assessments. */
+const integrity: boolean[] = [];
+
 const verdict = {
   tarball: false,
   declarations59: false,
@@ -108,6 +148,7 @@ const verdict = {
   dev: false,
   cloudflare: false,
   confidentiality: false,
+  compilation: false,
 };
 
 const timings: string[] = [];
@@ -173,10 +214,115 @@ function clean(): void {
   }
 }
 
+/** Final artifacts of one build: the SSR bundle, Nitro's server and Worker, and the browser graph. */
+const OUTPUT_ROOTS = {
+  classes: ["ssr", "analog/server", "analog/public/_worker.js", "client"],
+  partials: ["ssr", "client"],
+} as const;
+const inDist = (roots: readonly string[]): string[] =>
+  roots.map((root) => join(consumerDir, "dist", root));
+
+/**
+ * The compilation contract over what the build produced (after bundling and
+ * Nitro): no module applies an Angular decorator, none still calls a partial
+ * declaration, and the scan saw compiled definitions (it is not vacuous).
+ */
+function checkOutputContract(label: string): boolean {
+  const scan = scanBuildOutput(
+    { classes: inDist(OUTPUT_ROOTS.classes), partials: inDist(OUTPUT_ROOTS.partials) },
+    consumerDir,
+  );
+  const ok = check(
+    `${label}: every emitted Angular class is compiled and no partial declaration is unlinked`,
+    scan.uncompiled.length === 0 && scan.unlinked.length === 0 && scan.definitions > 0,
+    describeScan(scan),
+  );
+
+  if (!ok) keepIntegrityRecord(`output-${label}`, { class: "build-compilation", scan });
+
+  contract.push(ok);
+
+  return ok;
+}
+
 function build(label: string, extraEnv: NodeJS.ProcessEnv = {}): CommandResult {
   clean();
 
-  return time(label, () => must(vite(["build"], extraEnv), label));
+  const result = time(label, () => must(vite(["build"], extraEnv), label));
+
+  checkOutputContract(label);
+
+  return result;
+}
+
+/**
+ * With `STRATA_DIAGNOSTICS_DIR` set (CI sets it) and a failed qualification, keeps the consumer's
+ * last SSR bundle (JavaScript only, no maps, no dependencies, bounded) next to the server logs:
+ * the intermittent failure this gate exists for left no built output behind the first time.
+ */
+function retainFailedOutput(): void {
+  const directory = process.env["STRATA_DIAGNOSTICS_DIR"];
+
+  if (!directory || Object.values(verdict).every(Boolean)) return;
+
+  try {
+    const target = join(directory, "consumer-ssr-output");
+
+    for (const root of ["ssr", "analog/server"]) {
+      const from = dist(root);
+
+      if (!existsSync(from)) continue;
+
+      for (const file of listFiles(from)) {
+        if (!/\.m?js$/.test(file) || file.startsWith("node_modules/")) continue;
+
+        const source = join(from, file);
+
+        if (lstatSync(source).size > 2_000_000) continue;
+
+        mkdirSync(dirname(join(target, root, file)), { recursive: true });
+        cpSync(source, join(target, root, file));
+      }
+    }
+  } catch {
+    // Diagnostics must never change the result of a run.
+  }
+}
+
+/** One SSR answer, assessed as a whole (class-labelled), never by status alone. */
+function assessProduct(label: string, reply: SsrReply, serverLog: string): boolean {
+  const assessment = assessSsrDocument(reply, serverLog, PRODUCT_PAGE);
+
+  if (!assessment.ok) {
+    keepIntegrityRecord(label, {
+      label,
+      findings: assessment.findings,
+      summary: assessment.summary,
+    });
+  }
+
+  return check(
+    `${label}: complete SSR document, clean server log`,
+    assessment.ok,
+    describeAssessment(assessment),
+  );
+}
+
+/** `count` GETs issued behind one barrier: all are constructed before any is sent. */
+async function overlapped(url: string, count: number): Promise<SsrReply[]> {
+  let open!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    open = resolve;
+  });
+  const pending = Array.from({ length: count }, async () => {
+    await gate;
+
+    return httpGet(url);
+  });
+
+  open();
+
+  return Promise.all(pending);
 }
 
 const dist = (...parts: string[]): string => join(consumerDir, "dist", ...parts);
@@ -1024,6 +1170,8 @@ try {
     ),
   );
 
+  nodeOk.push(assessProduct("Node SSR", response, sanitize(node.output())));
+
   const observation = await observeBrowser(`${node.baseUrl}/product`);
 
   nodeOk.push(
@@ -1108,6 +1256,16 @@ try {
           !s.body.includes(ANGULAR_COMPILER_FINGERPRINT) &&
           !s.body.includes("strata:server-components"),
       ),
+    ),
+  );
+
+  const hydrationFindings = assessHydration(observation);
+
+  nodeOk.push(
+    check(
+      "Node hydration: islands hydrated over the SSR DOM, no browser error",
+      hydrationFindings.length === 0,
+      hydrationFindings.map((finding) => `${finding.class}: ${finding.detail}`).join("; "),
     ),
   );
 
@@ -1554,6 +1712,248 @@ import type { ProductRepository as RepositoryType } from "@app/product/types-bar
   verdict.firewall = all(firewall);
 
   // ------------------------------------------------------------------------
+  section("Production compilation contract (AOT integrity) and cold-start SSR");
+
+  const variantConfigs: string[] = [];
+
+  // Control of the scan itself: it must see an uncompiled class and an unlinked partial declaration
+  // (and accept a compiled module), or its green results on real builds would mean nothing.
+  const scanProbe = join(tmpRoot, "scan-probe");
+
+  mkdirSync(join(scanProbe, "ssr"), { recursive: true });
+  writeFileSync(
+    join(scanProbe, "ssr", "uncompiled.js"),
+    'import { Component } from "@angular/core";\nlet A = class A {};\nA = __decorate([Component({})], A);\n',
+  );
+  writeFileSync(
+    join(scanProbe, "ssr", "unlinked.js"),
+    'i0.ɵɵngDeclareComponent({ minVersion: "14.0.0", version: "22.0.0" });\n',
+  );
+  writeFileSync(
+    join(scanProbe, "ssr", "compiled.js"),
+    "class B {}\nB.ɵcmp = i0.ɵɵdefineComponent({ type: B });\n",
+  );
+
+  const probed = scanBuildOutput(
+    { classes: [join(scanProbe, "ssr")], partials: [join(scanProbe, "ssr")] },
+    scanProbe,
+  );
+
+  integrity.push(
+    check(
+      "output scan control: finds the uncompiled class, the unlinked declaration, and accepts the compiled module",
+      probed.uncompiled.length === 1 &&
+        probed.uncompiled[0]?.file === "ssr/uncompiled.js" &&
+        probed.unlinked.length === 1 &&
+        probed.unlinked[0]?.file === "ssr/unlinked.js" &&
+        probed.definitions === 1,
+      describeScan(probed),
+    ),
+  );
+
+  /** The consumer's own `vite.config.ts` with one more plugin in front, under another file name. */
+  const variantConfig = (name: string, plugin: string): string => {
+    const base = readFileSync(join(consumerDir, "vite.config.ts"), "utf8");
+
+    if (!base.includes("plugins: ["))
+      throw new Abort("the consumer vite.config.ts has no plugins array");
+
+    writeFileSync(
+      join(consumerDir, name),
+      base.replace("plugins: [", `plugins: [\n    ${plugin},`),
+    );
+    variantConfigs.push(join(consumerDir, name));
+
+    return name;
+  };
+  const discardVariants = (): void => {
+    for (const file of variantConfigs.splice(0)) rmSync(file, { force: true });
+  };
+  const diagnosticOf = (output: string): string =>
+    output.match(/\[strata\] AOT integrity:[^\n]*/)?.[0] ?? "";
+  const noLeak = (text: string): boolean =>
+    !text.includes(repoRoot) && !text.includes(tmpRoot) && !text.includes("app-product-page");
+
+  // Negative control 1: a source-owned page the Angular compiler never sees. Analog skips it
+  // without failing, so before this gate the build exited 0 and the first request returned HTTP 200
+  // with the component missing and `JIT compiler unavailable` in the log.
+  restoreDir(consumerDir, pristine, NOT_SOURCE);
+  clean();
+
+  const tsconfigApp = join(consumerDir, "tsconfig.app.json");
+
+  writeFileSync(
+    tsconfigApp,
+    readFileSync(tsconfigApp, "utf8").replace(
+      '"include": [',
+      '"exclude": ["src/app/pages/product.page.ts"],\n  "include": [',
+    ),
+  );
+
+  const outsideProgram = vite(["build"]);
+  const outsideOutput = sanitize(`${outsideProgram.stdout}\n${outsideProgram.stderr}`);
+  const outsideDiagnostic = diagnosticOf(outsideOutput);
+
+  integrity.push(
+    check(
+      "page outside Angular's program: the production build fails (it used to exit 0)",
+      outsideProgram.status !== 0,
+      outsideOutput.slice(-800),
+    ),
+    check(
+      "page outside Angular's program: the failure is the AOT integrity gate, naming the module, environment and class",
+      /AOT integrity: "src\/app\/pages\/product\.page\.ts" \((?:ssr|client) build\)/.test(
+        outsideDiagnostic,
+      ) && outsideDiagnostic.includes("@Component ProductPage"),
+      outsideDiagnostic || outsideOutput.slice(-600),
+    ),
+    check(
+      "page outside Angular's program: the diagnostic explains the consequence and the cause",
+      outsideDiagnostic.includes("JIT compiler unavailable") &&
+        outsideDiagnostic.includes("tsconfig program"),
+      outsideDiagnostic,
+    ),
+    check(
+      "page outside Angular's program: the diagnostic carries no absolute path and no source text",
+      outsideDiagnostic !== "" && noLeak(outsideDiagnostic),
+      outsideDiagnostic,
+    ),
+  );
+  restoreDir(consumerDir, pristine, NOT_SOURCE);
+  clean();
+
+  // Negative control 2: an installed Angular package whose partial declarations were never linked.
+  // The control appends one declaration after Analog's linker has run, which is what a skipped or
+  // bypassed linker leaves in the module.
+  const linkerSkipped = variantConfig(
+    "vite.control-unlinked.config.ts",
+    `{
+      name: "control-unlinked-package",
+      enforce: "post" as const,
+      transform(this: { environment?: { name: string } }, code: string, id: string) {
+        if (this.environment?.name !== "ssr") return null;
+        if (!id.includes("/node_modules/@strata-test/angular-widgets/dist/fesm2022/index.js")) return null;
+
+        return { code: code + '\\nglobalThis.__control = i0.ɵɵngDeclareComponent({ minVersion: "14.0.0", version: "22.0.0", type: null });\\n', map: null };
+      },
+    }`,
+  );
+  const unlinked = vite(["build", "-c", linkerSkipped]);
+  const unlinkedOutput = sanitize(`${unlinked.stdout}\n${unlinked.stderr}`);
+  const unlinkedDiagnostic = diagnosticOf(unlinkedOutput);
+
+  integrity.push(
+    check("unlinked partial declaration: the production build fails", unlinked.status !== 0),
+    check(
+      "unlinked partial declaration: the gate names the installed package module and the linker",
+      /AOT integrity: "node_modules\/@strata-test\/angular-widgets\/dist\/fesm2022\/index\.js" \(ssr build\)/.test(
+        unlinkedDiagnostic,
+      ) && unlinkedDiagnostic.includes("Angular linker did not process this package"),
+      unlinkedDiagnostic || unlinkedOutput.slice(-600),
+    ),
+    check(
+      "unlinked partial declaration: the diagnostic carries no absolute path",
+      unlinkedDiagnostic !== "" && noLeak(unlinkedDiagnostic),
+      unlinkedDiagnostic,
+    ),
+  );
+  discardVariants();
+  clean();
+
+  // Positive control 3: the adversarial environment schedule. The client environment reaches its
+  // buildEnd while the ssr environment is still transforming the page. Analog releases the shared
+  // compilation at that point; the plugin's barrier must hold it back until ssr has finished.
+  const raced = variantConfig(
+    "vite.control-schedule.config.ts",
+    `{
+      name: "control-environment-schedule",
+      enforce: "pre" as const,
+      buildEnd(this: { environment?: { name: string } }) {
+        if (this.environment?.name === "client") {
+          console.log("[schedule] client buildEnd");
+          releaseSchedule();
+        }
+      },
+      async transform(this: { environment?: { name: string } }, _code: string, id: string) {
+        if (this.environment?.name === "ssr" && id.endsWith("/src/app/pages/product.page.ts")) {
+          console.log("[schedule] ssr transform of the page is held");
+          await scheduleGate;
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+          console.log("[schedule] ssr transform of the page resumes");
+        }
+
+        return null;
+      },
+    }`,
+  );
+
+  writeFileSync(
+    join(consumerDir, raced),
+    `let releaseSchedule: () => void = () => undefined;\nconst scheduleGate = new Promise<void>((resolve) => { releaseSchedule = resolve; });\n${readFileSync(join(consumerDir, raced), "utf8")}`,
+  );
+  clean();
+
+  const schedule = time("consumer `vite build` under the adversarial environment schedule", () =>
+    vite(["build", "-c", raced]),
+  );
+  const scheduleOutput = sanitize(`${schedule.stdout}\n${schedule.stderr}`);
+  const held = scheduleOutput.indexOf("[schedule] ssr transform of the page is held");
+  const clientEnded = scheduleOutput.indexOf("[schedule] client buildEnd");
+  const resumed = scheduleOutput.indexOf("[schedule] ssr transform of the page resumes");
+
+  integrity.push(
+    check(
+      "adversarial schedule: the page's ssr transform really resumed after the client buildEnd",
+      held !== -1 && clientEnded !== -1 && resumed > clientEnded,
+      `held@${held} clientEnd@${clientEnded} resumed@${resumed}`,
+    ),
+    check(
+      "adversarial schedule: the build succeeds (the shared compilation outlives both environments)",
+      schedule.status === 0,
+      scheduleOutput.slice(-800),
+    ),
+    checkOutputContract("adversarial schedule"),
+  );
+  discardVariants();
+
+  // Cold-start SSR over the final, valid build.
+  build("production build for cold-start qualification");
+
+  let coldStarts = 0;
+  const coldStart = async (label: string, requests: number): Promise<void> => {
+    const server = await startNodeServerCold(consumerDir, env);
+
+    servers.push(server);
+    coldStarts++;
+
+    const replies = await overlapped(`${server.baseUrl}/product`, requests);
+    const log = sanitize(server.output());
+
+    integrity.push(
+      ...replies.map((reply, index) =>
+        assessProduct(`${label}, first request ${index + 1}/${requests}`, reply, log),
+      ),
+    );
+
+    await server.stop();
+    servers.pop();
+  };
+
+  await coldStart("cold start (single first request)", 1);
+  await coldStart("cold start (overlapping first requests)", OVERLAPPING_FIRST_REQUESTS);
+
+  // Repeated independent builds: every build starts from empty output and caches.
+  for (let index = 1; index <= REPEATED_BUILDS; index++) {
+    build(`independent production build ${index}/${REPEATED_BUILDS}`);
+    await coldStart(
+      `independent build ${index}/${REPEATED_BUILDS}, cold start`,
+      OVERLAPPING_FIRST_REQUESTS,
+    );
+  }
+
+  console.log(`cold starts: ${coldStarts}; independent rebuilds: ${REPEATED_BUILDS}`);
+
+  // ------------------------------------------------------------------------
   section("External `vite` dev server (installed plugin, node_modules, no workspace)");
 
   const devOk: boolean[] = [];
@@ -1809,6 +2209,8 @@ import type { ProductRepository as RepositoryType } from "@app/product/types-bar
     ),
   );
 
+  cfOk.push(assessProduct("workerd SSR", cfResponse, sanitize(wrangler.output())));
+
   const cfBrowser = await observeBrowser(`${wrangler.baseUrl}/product`);
 
   cfOk.push(
@@ -1834,6 +2236,16 @@ import type { ProductRepository as RepositoryType } from "@app/product/types-bar
       cfBrowser.errors.length === 0 &&
         cfBrowser.scripts.every((s) => SERVER_MARKERS.every((m) => !s.body.includes(m))),
       cfBrowser.errors.join(" | "),
+    ),
+  );
+
+  const cfHydration = assessHydration(cfBrowser);
+
+  cfOk.push(
+    check(
+      "workerd hydration: islands hydrated over the SSR DOM, no browser error",
+      cfHydration.length === 0,
+      cfHydration.map((finding) => `${finding.class}: ${finding.detail}`).join("; "),
     ),
   );
 
@@ -1872,12 +2284,16 @@ import type { ProductRepository as RepositoryType } from "@app/product/types-bar
 
   console.log(`\ntimings: ${timings.join("; ")}`);
 
+  retainFailedOutput();
+
   if (process.env["STRATA_KEEP_CONSUMER"] === "1") {
     console.log(`kept: ${tmpRoot}`);
   } else {
     rmSync(tmpRoot, { recursive: true, force: true });
   }
 }
+
+verdict.compilation = all(contract) && all(integrity) && contract.length > 0;
 
 section("Verdict");
 check("tarball integrity", verdict.tarball);
@@ -1889,6 +2305,7 @@ check("server-only firewall from the installed plugin", verdict.firewall);
 check("external dev server", verdict.dev);
 check("Cloudflare/workerd consumer", verdict.cloudflare);
 check("graph confidentiality", verdict.confidentiality);
+check("production compilation integrity and cold-start SSR", verdict.compilation);
 
 void __dirname;
 void sleep;

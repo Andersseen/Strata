@@ -629,3 +629,146 @@ export class Island {}`,
     ).toBeUndefined();
   });
 });
+
+type EnvContext = ReturnType<typeof hookContext>;
+
+function ownedFile(name: string): string {
+  return join(app, name);
+}
+
+const LOWERED_PAGE = `import { Component } from "@angular/core";
+import { __decorate } from "tslib";
+let Page = class Page {};
+Page = __decorate([Component({ selector: "app-page", template: "" })], Page);
+export default Page;`;
+
+const COMPILED_PAGE = `import * as i0 from "@angular/core";
+class Page {}
+Page.ɵcmp = i0.ɵɵdefineComponent({ type: Page });
+export default Page;`;
+
+function integrity(
+  instance: ReturnType<typeof plugin>,
+  environment: string,
+  code: string,
+  id: string,
+) {
+  const handler = (instance.transform as unknown as { handler: Hook }).handler;
+
+  return handler.call(hookContext(environment), code, id);
+}
+
+describe("production compilation contract", () => {
+  it("runs after every other transform", () => {
+    expect((plugin().transform as unknown as { order: string }).order).toBe("post");
+  });
+
+  it("fails a source-owned module whose Angular decorator was never compiled, naming it", () => {
+    expect(() => integrity(plugin(), "ssr", LOWERED_PAGE, ownedFile("page.ts"))).toThrow(
+      /AOT integrity: "src\/app\/page\.ts" \(ssr build\).*@Component Page/s,
+    );
+    expect(() => integrity(plugin(), "client", LOWERED_PAGE, ownedFile("page.ts"))).toThrow(
+      /\(client build\)/,
+    );
+  });
+
+  it("does not leak the absolute app location", () => {
+    try {
+      integrity(plugin(), "ssr", LOWERED_PAGE, ownedFile("page.ts"));
+    } catch (error) {
+      expect((error as Error).message).not.toContain(root);
+    }
+  });
+
+  it("accepts compiled output and non-Angular modules", () => {
+    expect(integrity(plugin(), "ssr", COMPILED_PAGE, ownedFile("page.ts"))).toBeNull();
+    expect(integrity(plugin(), "ssr", "export const a = 1;", ownedFile("a.ts"))).toBeNull();
+  });
+
+  it("fails a dependency that still holds partial declarations, but ignores its decorators", () => {
+    const dependency = join(root, "node_modules", "@acme", "widgets", "fesm2022", "widgets.mjs");
+
+    expect(() =>
+      integrity(plugin(), "ssr", `i0.ɵɵngDeclareComponent({ minVersion: "14.0.0" });`, dependency),
+    ).toThrow(/Angular linker did not process this package/);
+    expect(integrity(plugin(), "ssr", LOWERED_PAGE, dependency)).toBeNull();
+  });
+
+  it("applies to builds only", () => {
+    const instance = strataServerComponents({
+      root,
+      sourceDir: "src/app",
+      generatedDir: "src/generated",
+    });
+
+    (instance.config as Hook).call({}, {}, { command: "serve", mode: "development" });
+
+    expect(integrity(instance, "ssr", LOWERED_PAGE, ownedFile("page.ts"))).toBeNull();
+  });
+});
+
+describe("environment barrier", () => {
+  function environmentContext(name: string): EnvContext {
+    return hookContext(name);
+  }
+
+  const start = (instance: ReturnType<typeof plugin>, name: string) =>
+    (instance.buildStart as Hook).call(environmentContext(name));
+  const end = (instance: ReturnType<typeof plugin>, name: string) =>
+    (instance.buildEnd as Hook).call(environmentContext(name)) as Promise<void>;
+
+  it("holds the first environment to finish until the other has finished", async () => {
+    const instance = plugin();
+    const order: string[] = [];
+
+    start(instance, "client");
+    start(instance, "ssr");
+
+    const client = end(instance, "client").then(() => order.push("client released"));
+
+    // The client environment has reached buildEnd; the ssr one is still transforming.
+    await Promise.resolve();
+    await new Promise((_resolve) => setImmediate(_resolve));
+    expect(order).toEqual([]);
+
+    order.push("ssr finished");
+    await end(instance, "ssr");
+    await client;
+
+    expect(order).toEqual(["ssr finished", "client released"]);
+  });
+
+  it("does not wait when one environment builds at a time", async () => {
+    const instance = plugin();
+
+    start(instance, "client");
+    await end(instance, "client");
+    start(instance, "ssr");
+    await end(instance, "ssr");
+  });
+
+  it("is released by closeBundle when the other environment's build failed before buildEnd", async () => {
+    const instance = plugin();
+
+    start(instance, "client");
+    start(instance, "ssr");
+
+    const client = end(instance, "client");
+
+    (instance.closeBundle as Hook).call(environmentContext("ssr"));
+    await client;
+  });
+
+  it("does nothing outside a build", async () => {
+    const instance = strataServerComponents({
+      root,
+      sourceDir: "src/app",
+      generatedDir: "src/generated",
+    });
+
+    (instance.config as Hook).call({}, {}, { command: "serve", mode: "development" });
+    start(instance, "client");
+    start(instance, "ssr");
+    await end(instance, "client");
+  });
+});
