@@ -167,14 +167,15 @@ Run outside the workspace from the packed tarball. Added to the existing harness
 
 All local, macOS, Node 22.23.1, 2026-10-22/23. Hosted CI is recorded below once the PR has run.
 
-| Check                                                                   | Result                                               |
-| ----------------------------------------------------------------------- | ---------------------------------------------------- |
-| Package unit tests                                                      | **PASS** (327)                                       |
-| Packed consumer, Node production + local workerd, controls, cold starts | **PASS**, 0 failing checks                           |
-| Packed consumer with the barrier neutralized (schedule control)         | **FAIL as designed** at the integrity gate; reverted |
-| `pnpm test:server-components` (Node)                                    | **PASS**                                             |
-| `pnpm test:server-components:cloudflare` (local workerd)                | **PASS** after the log-window fix (see below)        |
-| Remaining matrix                                                        | see the PR description for the final table           |
+| Check                                                                                                                                                                                                                               | Result                                                                      |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Package unit tests                                                                                                                                                                                                                  | **PASS** (327)                                                              |
+| Packed consumer, Node production + local workerd, controls, cold starts                                                                                                                                                             | **PASS**, 0 failing checks                                                  |
+| Packed consumer with the barrier neutralized (schedule control)                                                                                                                                                                     | **FAIL as designed** at the integrity gate; reverted                        |
+| `pnpm test:server-components` (Node)                                                                                                                                                                                                | **PASS**                                                                    |
+| `pnpm test:server-components:cloudflare` (local workerd)                                                                                                                                                                            | **PASS** after the log-window fix (see below)                               |
+| Remaining local matrix (analog, navigation, defer, server-only, security, request-context, authorization, failures, ssr-response, dev, full-stack consumer and deployed rehearsal, www, relay, www cloudflare build, Entwine 0.5.1) | **PASS**                                                                    |
+| Hosted CI on PR #118 (run 39920611112)                                                                                                                                                                                              | **PASS**, all jobs, including the packed consumer on Node and local workerd |
 
 An early workerd run failed the new SSR assessment because of a late-flushed `NG04002` line from the _deliberate_
 `/_worker.js/index.js` probe landing in the window. That is a harness window defect, not an SSR defect, and was fixed
@@ -216,3 +217,11 @@ the same SHA. This is a cross-cutting release-safety concern recorded as its own
 | Local Cloudflare Pages/workerd                                       | **CONDITIONAL GO**, local only (not a deployment)                                  |
 | General unexpected render-error status                               | **NO-GO** (unchanged)                                                              |
 | Strata 1.0 / M3 / M4 / M5                                            | **NOT QUALIFIED**; M1 H3 v2 independently blocked upstream                         |
+
+## Hosted CI findings
+
+- `ci.yml` had been an **invalid workflow since #115** (`runner.temp` in job-level `env`): no CI job ran on any push or
+  pull request after it. The same mistake was in the new `integrity` job. Both now export the directory from a step.
+- The first real hosted run failed two jobs on the Ctrl/Cmd-click navigation check, a pre-existing race (it also failed
+  the release run 39781556585 of `main`): the helper read a new tab's URL while it was still `about:blank`. It now waits
+  for the URL to change. Neither failure involved the compilation gate or the SSR assessment.
