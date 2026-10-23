@@ -42,11 +42,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
-      STRATA_DIAGNOSTICS_DIR: ${{ runner.temp }}/strata-diagnostics
       STRATA_KEEP_CONSUMER: "1"
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+
+      # `runner.*` is not available in job-level `env`, so the diagnostics directory is set here.
+      - name: Diagnostics directory
+        run: echo "STRATA_DIAGNOSTICS_DIR=$RUNNER_TEMP/strata-diagnostics" >> "$GITHUB_ENV"
 
       - uses: ./.github/actions/setup
         with:
@@ -93,11 +96,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
-      STRATA_DIAGNOSTICS_DIR: ${{ runner.temp }}/strata-diagnostics
       STRATA_KEEP_CONSUMER: "1"
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+
+      # `runner.*` is not available in job-level `env`, so the diagnostics directory is set here.
+      - name: Diagnostics directory
+        run: echo "STRATA_DIAGNOSTICS_DIR=$RUNNER_TEMP/strata-diagnostics" >> "$GITHUB_ENV"
 
       - uses: ./.github/actions/setup
         with:
@@ -146,11 +152,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
-      STRATA_DIAGNOSTICS_DIR: ${{ runner.temp }}/strata-diagnostics
       STRATA_KEEP_CONSUMER: "1"
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+
+      # `runner.*` is not available in job-level `env`, so the diagnostics directory is set here.
+      - name: Diagnostics directory
+        run: echo "STRATA_DIAGNOSTICS_DIR=$RUNNER_TEMP/strata-diagnostics" >> "$GITHUB_ENV"
 
       - uses: ./.github/actions/setup
         with:
