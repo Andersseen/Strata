@@ -13,6 +13,8 @@ import type { DevEnvironment, EnvironmentModuleNode, Plugin, Rollup, ViteDevServ
 
 type PluginContext = Rollup.PluginContext;
 
+import { BUILD_ID_DEFINE, isValidBuildId } from "../runtime/build-identity.js";
+
 import { RUNTIME_PACKAGE, validateExternalClientComponents } from "./analyze.js";
 import type { ExternalClientComponent } from "./analyze.js";
 import { aotIntegrityMessage, inspectCompiledModule } from "./aot-integrity.js";
@@ -93,6 +95,16 @@ export interface ServerComponentsOptions {
    * Server Component implementations to the browser.
    */
   readonly enabled?: boolean;
+  /**
+   * The identity of this application build, shared by its server and browser
+   * artifacts: the deployment-skew contract (docs/research/server-component-deployment-skew-v08.md).
+   * Server-rendered client boundaries carry it and the browser refuses to
+   * hydrate a boundary from a different build. Give every release one value and
+   * never reuse it for different code (a release number, or the Git SHA plus a
+   * hash of the build configuration). Public, 1 to 64 characters of
+   * `A-Za-z0-9._:+-`: never a secret. Omitted: nothing is stamped or enforced.
+   */
+  readonly buildId?: string;
 }
 
 const SOURCE_EXTENSION = ".ts";
@@ -151,6 +163,13 @@ export function strataServerComponents(options: ServerComponentsOptions): Plugin
     (options as { readonly clientComponents?: unknown }).clientComponents,
   );
   const enabled = options.enabled ?? true;
+  const buildId = (options as { readonly buildId?: unknown }).buildId;
+  if (buildId !== undefined && !isValidBuildId(buildId)) {
+    throw new Error(
+      "[strata] buildId must be a string of 1 to 64 characters from A-Z a-z 0-9 . _ : + - " +
+        "starting with a letter or digit. It is public: do not use a secret.",
+    );
+  }
   const root = resolve(options.root);
   const sourceDir = join(root, options.sourceDir);
   const generatedDir = join(root, options.generatedDir);
@@ -402,6 +421,11 @@ export function strataServerComponents(options: ServerComponentsOptions): Plugin
       ];
 
       return {
+        // One compile-time constant for every environment of this build, so the
+        // server and browser artifacts cannot be given different identities.
+        ...(buildId === undefined
+          ? {}
+          : { define: { [BUILD_ID_DEFINE]: JSON.stringify(buildId) } }),
         optimizeDeps: { include: linked },
         ssr: { noExternal: [RUNTIME_PACKAGE, ...clientComponents.map((entry) => entry.module)] },
       };

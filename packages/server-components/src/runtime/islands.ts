@@ -13,9 +13,11 @@ import {
 } from "@angular/core";
 import type { ComponentRef, Provider, Type } from "@angular/core";
 
-import { BOUNDARY_HYDRATED_ATTRIBUTE } from "./boundary-protocol.js";
+import { BOUNDARY_HYDRATED_ATTRIBUTE, StrataBuildMismatchError } from "./boundary-protocol.js";
+import { STRATA_BUILD_ID } from "./build-token.js";
 import { BOUNDARY_HOST_SELECTOR, planClientBoundaries } from "./hydration-plan.js";
 import type { ClientReference, PlannedClientBoundary } from "./hydration-plan.js";
+import { SkewRecovery } from "./skew-recovery.js";
 
 /** The interactive components a server component may render, by selector. */
 const CLIENT_REFERENCES = new InjectionToken<readonly Type<unknown>[]>("STRATA_CLIENT_REFERENCES");
@@ -82,6 +84,8 @@ export class StrataIslandHost {
   constructor() {
     const host = inject(ElementRef).nativeElement as HTMLElement;
     const references = clientReferences(inject(CLIENT_REFERENCES));
+    const buildId = inject(STRATA_BUILD_ID);
+    const recovery = inject(SkewRecovery);
     const appRef = inject(ApplicationRef);
     const environmentInjector = inject(EnvironmentInjector);
     const elementInjector = inject(Injector);
@@ -121,7 +125,14 @@ export class StrataIslandHost {
     };
 
     afterNextRender(() => {
-      commit(planClientBoundaries(host.localName, discoverBoundaries(host), references));
+      try {
+        commit(planClientBoundaries(host.localName, discoverBoundaries(host), references, buildId));
+      } catch (error) {
+        // Only a confirmed build mismatch is a candidate for recovery, and the
+        // error is rethrown either way: the ErrorHandler still sees it.
+        if (error instanceof StrataBuildMismatchError) recovery.handle(error);
+        throw error;
+      }
     });
 
     inject(DestroyRef).onDestroy(() => {

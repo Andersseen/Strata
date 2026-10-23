@@ -155,7 +155,7 @@ jobs:
   consumers:
     name: Packed-package consumers (outside the workspace)
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 40
     env:
       STRATA_KEEP_CONSUMER: "1"
     steps:
@@ -174,6 +174,12 @@ jobs:
       # `vite` dev with one server-owned edit, Cloudflare build on local workerd.
       - name: Server Component packed-package consumer (outside the workspace)
         run: pnpm test:server-component-package-consumer
+
+      # Two independently built releases of the packed consumer (identity A, identity B, and one without),
+      # a document of one served with the script of another, on Nitro Node and LOCAL workerd (not a deployed
+      # Pages project): build-mismatch classification, bounded opt-in reload, rollback, confidentiality.
+      - name: Server Component deployment skew (two-build matrix, Node + local workerd)
+        run: pnpm test:server-component-deployment-skew
 
       # All three packed packages in ONE Analog app: a Strata controller behind a public HTTP API called by a
       # hydrated [strataClient] island next to a server-only @ServerComponent().

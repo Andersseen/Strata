@@ -231,6 +231,11 @@ deployed workerd, conditional support and release readiness as four different cl
 [ADR-003](adr/003-server-components-release-gate.md) and the [1.0 gates](RELEASE-1.0.md).
 Data confidentiality evidence: [report](research/server-component-data-security.md).
 
+- Deploying across releases: set `buildId` (one value per release, shared by every part of the build) so a
+  document and a script from different builds are refused with a classified error instead of hydrating the
+  wrong code; `provideSkewRecovery({ reload: true })` additionally allows one bounded document reload. Scripts
+  built before the option cannot detect it. See the [package README](../packages/server-components/README.md#deployment-compatibility).
+
 ## Where to read next
 
 - [Current state](STATE.md) for implemented facts and [Roadmap](ROADMAP.md) for intent only.

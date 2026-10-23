@@ -1,6 +1,22 @@
 # Current implementation audit
 
-## Analog streaming lifecycle for 0.7.0 (feature branch)
+## Server Components deployment skew for 0.8.0 (feature branch)
+
+On branch `feat/server-components-deployment-skew-v08`, work began from synchronized `main`
+`ef31c0d0d73ef57f3228856bc70e5b7833d5df0f` (@strata-sc/server-components 0.7.0). The 0.7.0 and
+Analog 0.7.0 work described below is merged (#118, #119, #120); the Analog 0.7.0 version PR (#121) was still
+open and is untouched. `strataServerComponents({ buildId })` compiles a consumer-chosen label into every
+environment of one build; server-rendered boundaries carry `data-strata-build` and the browser compares it
+before creating any island. `StrataBoundaryError` gains a stable `category`, a confirmed mismatch of two
+well-formed identities is `StrataBuildMismatchError`, and `provideSkewRecovery()` adds an opt-in, bounded
+(`sessionStorage` counter) reload of the current document for that case only. Protocol numbers are unchanged;
+without the option nothing changes. Qualified with three independently built releases of an external consumer
+installed from the packed tarball, a document of one served with the script of another, on Nitro Node and
+local workerd (125 checks). Not deployed, not hosted-CI qualified when written, no production adoption; scripts
+built before the feature cannot detect anything. See the
+[evidence report](research/server-component-deployment-skew-v08.md).
+
+## Analog streaming lifecycle for 0.7.0 (merged in #120; version PR #121 open when written)
 
 On branch `feat/analog-stream-lifecycle-v07`, work began from synchronized `main`
 `279275eafe7519725b8413046335fc91330795d6` (@strata-sc/analog 0.6.0). The old behaviour is reproduced on the real
@@ -20,7 +36,7 @@ Angular injector that outlives the handler. See the [evidence report](research/a
 Experimental fixture evidence: not hosted-CI qualified when written, not deployed, not production adoption, and
 not M3 or Strata 1.0 certification.
 
-## Server Components SSR integrity for 0.7.0 (feature branch)
+## Server Components SSR integrity for 0.7.0 (merged in #118, released as 0.7.0 in #119)
 
 On branch `feat/server-components-ssr-integrity-v07`, work began from synchronized `main`
 `a54948b614368d8d0246f11fca34e72ea02838aa` (@strata-sc/server-components 0.6.0, @strata-sc/analog 0.6.0).

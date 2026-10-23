@@ -122,6 +122,15 @@ branch. The first two are required; the last two are tolerated either way, so a 
 re-qualified rather than assumed. Strata declares no H3 or Nitro type and adds no dependency for this.
 The H3 v2 transition is not qualified for the boundary. See the [qualification report](research/analog-http-routing-v06.md).
 
+## Deployment skew (Server Components 0.8)
+
+The build identity depends only on Vite `define` reaching every environment of one `vite build` and on the
+runtime being bundled into the SSR graph (`ssr.noExternal`, already required). Qualified on the packed
+consumer tuple Angular 22.2.3, Analog 2.7.2, Nitro 2.13.4, Vite 8.3.0, TypeScript 6.0.3, Wrangler 4.135.0
+(Nitro Node and local workerd). Split builds must pass the same value to every part. A deployed Cloudflare
+Pages run and CDN cache semantics are not qualified. See the
+[report](research/server-component-deployment-skew-v08.md).
+
 ## Deployment scope
 
 Required qualification targets are a supported Node server and Cloudflare Workers execution through

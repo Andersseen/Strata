@@ -1,5 +1,13 @@
 # Technical risk register
 
+Evidence note (2026-10-23, 0.8.0 branch): deployment version skew for Server Components is detected and
+classified, not eliminated. With the opt-in `buildId` a document and a script of two real builds are refused
+as `build-mismatch` before any island exists (Node and local workerd, packed consumer); scripts built before the
+feature, apps that do not opt in, and rollbacks to pre-identity builds remain undetected. The identity is
+client-readable markup: a tampered well-formed value can cause at most one bounded reload per tab and window.
+Recovery is local evidence only; no deployed Pages run and no CDN-cache behaviour was exercised. See
+[the evidence](research/server-component-deployment-skew-v08.md).
+
 Evidence note (2026-10-22, 0.7.0 branch): the intermittent Server Component SSR failure (HTTP 200, empty
 island, `JIT compiler unavailable`) has a reproduced mechanism. Analog builds `client` and `ssr` concurrently
 with one shared Angular plugin that releases its compilation output at the first environment's `buildEnd`;

@@ -547,6 +547,7 @@ non-Latin text stay inside the attribute and reach the island exactly.
   data-strata-client="quantity-picker"
   data-strata-protocol="1"
   data-strata-props='{"max":3}'
+  data-strata-build="rel-2026.10.2"
   ngh="0"
 ></quantity-picker>
 ```
@@ -554,7 +555,9 @@ non-Latin text stay inside the attribute and reach the island exactly.
 Each attribute has one job: `data-strata-client` holds the host's own selector,
 `data-strata-protocol` the protocol version, and `data-strata-props` the props (always written, `{}`
 included). Version 1 is used for flat primitive data; version 2 is used when any nested object or
-array is present. The version is not wrapped in an envelope inside the props.
+array is present. The version is not wrapped in an envelope inside the props. `data-strata-build`
+exists only when the app sets the [`buildId`](#deployment-compatibility) option; an old runtime ignores
+it, and the protocol number does not change.
 
 **Identity is the host element.** A boundary is the concrete SSR host element that carries those
 three attributes and Angular's `ngh` annotation together. Its props belong to that host. There is no
@@ -978,8 +981,9 @@ lifecycles (observed in Chromium as a new document, `back_forward`; no stale fai
 per lifecycle). Angular Router navigation into a Server Component subtree remains unsupported.
 
 **Version skew.** `data-strata-protocol` different from the browser runtime's: that host is inert with
-its SSR DOM, one `StrataBoundaryError`, sibling hosts hydrate. Automatic stale-client recovery
-(reload, asset reconciliation, build ids) is **not** implemented.
+its SSR DOM, one `StrataBoundaryError` (category `protocol`), sibling hosts hydrate. A protocol number
+says nothing about the _application_: for a document and a script from different deployments, opt in to
+the [build identity](#deployment-compatibility) below. Without it nothing recovers automatically.
 
 **Streaming.** Unsupported and not qualified. Strata Server Components are qualified with buffered SSR
 only; Analog's experimental streaming (`experimental.streaming`, `renderStream`) is not, and Strata does
@@ -988,6 +992,108 @@ not detect it. No failure-after-headers behaviour is defined.
 There is no general `ErrorBoundary`, fallback template, `retry()` or other package recovery API yet.
 Expected service recovery is application-owned and must catch only explicitly expected failures;
 unexpected Angular render errors remain the HTTP 200 behavior above.
+
+## Deployment compatibility
+
+Server Components are safe across a deployment only when the document and the browser script come from
+the same application build. The boundary protocol (`1`/`2`) cannot tell: two different builds can speak
+the same protocol while a client component's inputs, implementation or registry have changed. The
+opt-in **build identity** closes that gap and nothing more. It is a deployment label chosen by you, not
+a package version, not a content fingerprint and not a security boundary; it is public (it is written
+into the document) and proves nothing about who produced the markup.
+
+```ts
+// vite.config.ts — one value per release, the same for the whole build
+strataServerComponents({
+  root: import.meta.dirname,
+  sourceDir: "src/app",
+  generatedDir: "src/generated/server-components",
+  buildId: process.env["RELEASE_ID"], // e.g. "rel-2026.10.2": 1–64 chars of A–Z a–z 0–9 . _ : + -
+});
+```
+
+```ts
+// app.config.ts — optional; without it a mismatch is only reported
+import { provideSkewRecovery } from "@strata-sc/server-components";
+
+provideSkewRecovery({
+  reload: true, // opt in to ONE bounded document reload per tab and window
+  onMismatch: ({ browserBuildId, serverBuildId }) => report(browserBuildId, serverBuildId),
+});
+```
+
+**How both artifacts get the same identity.** `buildId` becomes the compile-time constant
+`__STRATA_BUILD_ID__` through Vite `define`, for every environment of that one build (client, `ssr`,
+Nitro). There is no runtime lookup, no request state, no global and no generated server module. The
+server writes it as `data-strata-build` on each client boundary host; the browser compares it
+with its own before creating any `ComponentRef`. Your CI/CD must give **each distinct build its own
+value** and must build the client and server artifacts of a release in one `vite build` (or pass the
+same value to every part of a split build). Reusing a value for different code defeats the check: a
+Git SHA alone is not enough if the same commit is built with different configuration, so combine it
+with whatever else varies (`${GIT_SHA}-${CONFIG_HASH}`). It must never be a secret, a credential, a
+request or user id.
+
+**What the browser decides, per Server Component host (before anything is created):**
+
+| Situation                                                   | Error (`category`)                                              | Hydrates    | Reload (if opted in) |
+| ----------------------------------------------------------- | --------------------------------------------------------------- | ----------- | -------------------- |
+| Same identity                                               | none                                                            | yes         | no                   |
+| Browser has no identity (option off)                        | none: the attribute is ignored                                  | as before   | no                   |
+| Both well-formed, **different**                             | `StrataBuildMismatchError` (`build-mismatch`)                   | no          | **yes, bounded**     |
+| Browser has an identity, the host has none                  | `StrataBoundaryError` (`build-identity`)                        | no          | no                   |
+| Host attribute empty, too long or not an identifier         | `StrataBoundaryError` (`build-identity`)                        | no          | no                   |
+| Identity fine, protocol unsupported                         | `StrataBoundaryError` (`protocol`)                              | no          | no                   |
+| Identity fine, bad props / unknown selector / unknown input | `StrataBoundaryError` (`props`/`reference`/`inputs`/`metadata`) | no          | no                   |
+| A component constructor or `setInput` throws                | that error, unchanged                                           | rolled back | no                   |
+
+Only a mismatch between two **well-formed** identities is treated as a deployment, and it is checked
+first because in a mixed deployment the registry, the inputs and the protocol are exactly what cannot be
+trusted to agree. A missing or malformed identity is reported, never acted on. Per-host all-or-nothing,
+sibling isolation, rollback and the SSR DOM staying in place are unchanged; the error goes to your
+`ErrorHandler` whether or not recovery ran (`error.recovery` says what happened: `disabled`,
+`reloading`, `exhausted` or `storage-unavailable`). A diagnostic names the category and the two public
+build ids, and never props, markup, paths or secrets.
+
+**Recovery is off unless you ask.** With `provideSkewRecovery({ reload: true })` a confirmed mismatch
+calls `location.reload()` of the current document, nothing else: the same URL, never a computed
+redirect, no fetch, no patching. Because that replaces the whole document, every healthy island and any
+unsaved state in it is lost, which is why it is opt-in. It is bounded by a counter in the tab's
+`sessionStorage` (`strata:skew-recovery`: `{count, since}` only; no URL, no build id): by default one
+reload per tab per five minutes (`maxReloads` 1–3, `windowSeconds` 30–3600), recorded before the reload
+is requested and read back. Several refused hosts schedule one reload. If storage is blocked, does not
+persist a write, or holds an implausible value, there is **no** reload (`storage-unavailable` /
+`exhausted`) and the page stays in its inert server-rendered state. A reload that lands on the same
+mismatch stops: the second document reports `exhausted`. An unrelated user reload inside the window
+does not earn another automatic one.
+
+**Deploying without breaking open documents.**
+
+1. Give the release a new `buildId` and publish its hashed assets **before** its documents; keep the
+   previous release's assets until old documents have aged out. Hashed asset names (the default) make a
+   mixed pair unlikely; a stable entry URL, a cache that holds an old document, or a rolling deployment
+   with a shared asset path make it real.
+2. A document and its script from different builds: an open tab keeps its old script, and its next
+   _document_ navigation is a new document with its own scripts. The check matters when those two
+   disagree: it turns "a half-working page" into "an inert, correct server-rendered page, one
+   error, and optionally one reload".
+3. Rollback is a release like any other: roll back to a build **that was deployed with an identity**
+   and keep that release's assets published. A rollback to a pre-identity build leaves open tabs with
+   no way to tell (see below).
+4. Watch `onMismatch`/the `ErrorHandler` rate during a rollout; a persistent rate means the CDN is not
+   converging.
+
+**What it cannot do.** A browser script built **before** `buildId` existed (including every script
+already open when you first deploy this feature) does not read the attribute and behaves exactly as it
+did: the first deployment cannot repair old clients. A newer document with an old script is not detected
+by that old script, and an older document (no stamp) with a new script is refused as `build-identity`.
+Reload is a full navigation: there is no partial patch, no service worker, no cross-tab coordination.
+The attribute is editable client-side; the worst a tampered value achieves is one bounded reload of the
+user's own document per window, no different from the user pressing reload.
+
+Qualification: `pnpm test:server-component-deployment-skew` builds releases A and B (and a no-identity
+release) of an external consumer from the packed tarball, serves a document of one with the script of
+another, and runs the matrix on Nitro Node and local workerd (not a deployed Pages project). Report:
+[docs/research/server-component-deployment-skew-v08.md](../../docs/research/server-component-deployment-skew-v08.md).
 
 ## Security
 
