@@ -448,7 +448,7 @@ export interface LinkFlow {
 async function popupOf(session: Session, click: () => Promise<void>): Promise<string | null> {
   const popup = session.page
     .context()
-    .waitForEvent("page", { timeout: 5_000 })
+    .waitForEvent("page", { timeout: 15_000 })
     .catch(() => null);
 
   await click();
@@ -456,6 +456,12 @@ async function popupOf(session: Session, click: () => Promise<void>): Promise<st
   const page = await popup;
   if (!page) return null;
 
+  // A new tab is `about:blank` until its navigation commits; on a loaded runner that is still
+  // the case at `domcontentloaded` of the blank document. Wait for the real URL (observable
+  // state), not a delay. A tab that never leaves `about:blank` reports exactly that.
+  await page
+    .waitForURL((candidate) => candidate.href !== "about:blank", { timeout: 15_000 })
+    .catch(() => undefined);
   await page.waitForLoadState("domcontentloaded");
   const url = new URL(page.url());
   await page.close();
