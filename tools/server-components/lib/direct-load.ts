@@ -3,6 +3,13 @@ import { httpGet } from "../../analog/lib/process.ts";
 import { observeBrowser } from "./browser.ts";
 import type { BrowserObservation } from "./browser.ts";
 import { MARKERS, SERVER_ONLY, check, section } from "./harness.ts";
+import {
+  assessHydration,
+  assessSsrDocument,
+  describeAssessment,
+  keepIntegrityRecord,
+} from "./ssr-integrity.ts";
+import type { SsrExpectation } from "./ssr-integrity.ts";
 
 /**
  * The direct-load contract of the server-component PoC, against whichever
@@ -22,10 +29,23 @@ export interface DirectLoadResult {
   readonly browser: BrowserObservation;
 }
 
+/** A complete fixture document (docs/research/server-component-ssr-integrity-v07.md). */
+const FIXTURE_PAGE: SsrExpectation = {
+  content: {
+    "server heading": "<h1>Product 42</h1>",
+    "server paragraph": "<p>Server rendered product</p>",
+    "child initial state": "Count: 0",
+    "Server Component subtree": "<product-details",
+  },
+  boundaries: [{ selector: "add-to-cart", protocol: "1" }],
+  forbidden: Object.fromEntries(SERVER_ONLY.map((marker) => [marker, marker])),
+};
+
 export async function checkDirectLoad(
   baseUrl: string,
   route: string,
   runtime = "Production server",
+  serverLog: () => string = () => "",
 ): Promise<DirectLoadResult> {
   section(`${runtime}: GET ${route}`);
 
@@ -59,6 +79,25 @@ export async function checkDirectLoad(
       "SSR HTML carries no server-only marker (only data crosses)",
       SERVER_ONLY.every((marker) => !html.includes(marker)),
     ),
+    (() => {
+      // A 200 is never enough: the document must be complete and the server log clean.
+      const assessment = assessSsrDocument(response, serverLog(), FIXTURE_PAGE);
+
+      if (!assessment.ok) {
+        keepIntegrityRecord(`direct-load-${runtime}`, {
+          runtime,
+          route,
+          findings: assessment.findings,
+          summary: assessment.summary,
+        });
+      }
+
+      return check(
+        "SSR integrity: complete document (not an empty shell), valid boundary, clean server log",
+        assessment.ok,
+        describeAssessment(assessment),
+      );
+    })(),
   ].every(Boolean);
 
   console.log(
@@ -102,6 +141,15 @@ export async function checkDirectLoad(
       seen.countAfterHydration === "Count: 0",
       String(seen.countAfterHydration),
     ),
+    (() => {
+      const findings = assessHydration(seen);
+
+      return check(
+        "hydration integrity: classified clean (islands hydrated over the SSR DOM, no browser error)",
+        findings.length === 0,
+        findings.map((finding) => `${finding.class}: ${finding.detail}`).join("; "),
+      );
+    })(),
   ].every(Boolean);
 
   const interaction = [

@@ -30,6 +30,7 @@ import { isNodeBuiltin, moduleGraph } from "./lib/module-graph.ts";
 import { checkLinkFlow } from "./lib/navigation-checks.ts";
 import { CONTROL_DESTINATION, DESTINATION, ORIGIN, observeNavigation } from "./lib/navigation.ts";
 import type { DomSnapshot } from "./lib/navigation.ts";
+import { until } from "./lib/package-consumer.ts";
 import { COMPATIBILITY_DATE, resolveWrangler, startWranglerPages } from "./lib/wrangler.ts";
 
 /**
@@ -624,7 +625,17 @@ try {
   }
 
   // 5. Direct load.
-  const direct = await checkDirectLoad(baseUrl, DESTINATION, "Wrangler Pages");
+  // Earlier scenarios of this run deliberately provoke runtime errors (the SPEC-003 DI NO-GO
+  // control, and the probe of `/_worker.js/index.js`, which the app answers with Angular's
+  // NG04002 "no route" error). workerd flushes a request's log lines asynchronously, so wait
+  // (bounded) for the probe's known line before marking: only what the server logs after it
+  // belongs to the direct load.
+  await until(() => /NG04002: '_worker\.js\/index\.js'/.test(server.output()), 10_000, 100);
+
+  const directLogMark = server.output().length;
+  const direct = await checkDirectLoad(baseUrl, DESTINATION, "Wrangler Pages", () =>
+    server.output().slice(directLogMark),
+  );
 
   verdict.directSsr = direct.ssr && direct.runtimeGraph;
   verdict.hydration = direct.hydration;

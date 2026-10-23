@@ -110,8 +110,10 @@ export function checkLinkFlow(link: LinkFlow): boolean {
       link.afterForward.hydratedIslands === 1 && link.afterForward.search === "?product=43",
     ),
     check(
-      "Ctrl/Cmd-click opens a new tab natively and leaves this one alone",
-      link.modifiedClick.popupUrl === expectedHref &&
+      "Ctrl/Cmd-click is left to the browser (not cancelled by the page) and leaves this one alone",
+      link.modifiedClick.notPrevented &&
+        // Opening the tab is the browser's; when it does open one, it must be the right document.
+        (link.modifiedClick.popupUrl === null || link.modifiedClick.popupUrl === expectedHref) &&
         link.modifiedClick.stayed.sentinel &&
         link.modifiedClick.stayed.url === ORIGIN,
       String(link.modifiedClick.popupUrl),

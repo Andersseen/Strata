@@ -117,6 +117,10 @@ compatibility matrix; do not check it based on intent or a demonstration.
       supported general Strata seam to change it. The narrow consumer-owned expected-service
       recovery fixture passes HTTP 503/no-store on Node and local workerd, but is not a general
       fallback API and does not close this criterion ([report](research/server-component-ssr-response.md)).
+      The 0.7 candidate adds a build-time production compilation gate and class-labelled SSR integrity
+      assertions (an HTTP 200 alone no longer passes a qualification), so a missing compilation, the one
+      observed cause of an HTTP 200 shell, is stopped before deployment; it does not change the status of
+      any other render error ([report](research/server-component-ssr-integrity-v07.md)).
       Router navigation into a Server
       Component subtree is NO-GO, the complete Analog deployment is unqualified (Server Components alone: narrow Cloudflare Pages GO, see the [deployed report](research/server-component-deployed-cloudflare.md)) (dev/HMR is qualified for Analog's default configuration, see the
       [dev report](research/server-component-dev-hmr.md)), and release-candidate

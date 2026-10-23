@@ -438,7 +438,11 @@ export interface LinkFlow {
   readonly afterBackFromProgrammatic: DomSnapshot;
   readonly afterForward: DomSnapshot;
   /** Modified and middle clicks: native new-tab behaviour, no navigation of this tab. */
-  readonly modifiedClick: { readonly popupUrl: string | null; readonly stayed: DomSnapshot };
+  readonly modifiedClick: {
+    readonly popupUrl: string | null;
+    readonly notPrevented: boolean;
+    readonly stayed: DomSnapshot;
+  };
   /** The middle-click (auxclick) was not cancelled by the page: the browser keeps its default. */
   readonly middleClickNotPrevented: boolean;
   readonly targetBlank: { readonly popupUrl: string | null; readonly stayed: DomSnapshot };
@@ -448,7 +452,7 @@ export interface LinkFlow {
 async function popupOf(session: Session, click: () => Promise<void>): Promise<string | null> {
   const popup = session.page
     .context()
-    .waitForEvent("page", { timeout: 5_000 })
+    .waitForEvent("page", { timeout: 15_000 })
     .catch(() => null);
 
   await click();
@@ -456,6 +460,12 @@ async function popupOf(session: Session, click: () => Promise<void>): Promise<st
   const page = await popup;
   if (!page) return null;
 
+  // A new tab is `about:blank` until its navigation commits; on a loaded runner that is still
+  // the case at `domcontentloaded` of the blank document. Wait for the real URL (observable
+  // state), not a delay. A tab that never leaves `about:blank` reports exactly that.
+  await page
+    .waitForURL((candidate) => candidate.href !== "about:blank", { timeout: 15_000 })
+    .catch(() => undefined);
   await page.waitForLoadState("domcontentloaded");
   const url = new URL(page.url());
   await page.close();
@@ -482,6 +492,30 @@ async function linkFlow(browser: Browser, baseUrl: string): Promise<LinkFlow> {
   const ssrOriginHtml = session.documents.get(ORIGIN) ?? "";
 
   const modifiedPopup = await popupOf(session, () => link.click({ modifiers: ["ControlOrMeta"] }));
+  // Whether headless Chromium opens a tab for a modified click depends on the browser and the
+  // runner, so also assert what the page controls: it does not cancel a modified click. A probe on
+  // `window` (after the page's own handlers) records the state, then cancels it so the synthetic
+  // click cannot navigate this tab.
+  const modifiedClickNotPrevented = await page.evaluate(`(() => {
+    const anchor = [...document.querySelectorAll("a")].find(
+      (candidate) => candidate.textContent.trim() === "Document link",
+    );
+    let prevented = true;
+
+    window.addEventListener(
+      "click",
+      (event) => {
+        prevented = event.defaultPrevented;
+        event.preventDefault();
+      },
+      { once: true },
+    );
+    anchor.dispatchEvent(
+      new MouseEvent("click", { ctrlKey: true, metaKey: true, bubbles: true, cancelable: true }),
+    );
+
+    return !prevented;
+  })()`);
   // Opening a tab from a middle-click is browser/OS dependent in headless Chromium, so assert
   // what the page controls: the auxclick is not cancelled.
   const middleClickNotPrevented = await page.evaluate(`(() => {
@@ -545,7 +579,7 @@ async function linkFlow(browser: Browser, baseUrl: string): Promise<LinkFlow> {
     programmaticHydrated,
     afterBackFromProgrammatic,
     afterForward: await session.snapshot(),
-    modifiedClick: { popupUrl: modifiedPopup, stayed },
+    modifiedClick: { popupUrl: modifiedPopup, notPrevented: modifiedClickNotPrevented, stayed },
     middleClickNotPrevented,
     targetBlank: { popupUrl: blankPopup, stayed },
     session,

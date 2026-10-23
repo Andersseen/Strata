@@ -6,8 +6,10 @@ name: Extended checks
 #                (docs/research/full-stack-performance-scaling.md)
 #   registry     the PUBLISHED @strata-sc/server-components from npm, built for Cloudflare Pages, local workerd
 #   types        the H3 consumer type-closure experiment (SPEC-002; its expected verdict is "upstream-blocked")
+#   integrity    the packed Server Components consumer with many independent rebuilds, each followed by
+#                cold-start overlapping first requests (docs/research/server-component-ssr-integrity-v07.md)
 #
-# - Weekly (Monday 04:00 UTC) runs all three; `workflow_dispatch` runs one or all with custom workload.
+# - Weekly (Monday 04:00 UTC) runs all four; `workflow_dispatch` runs one or all with custom workload.
 # - No deployment, no npm publication, no Cloudflare secrets, no write to any external service
 #   (`permissions: contents: read`; no `secrets.*` is referenced).
 # - The performance job asserts correctness only. There is deliberately NO latency or size gate:
@@ -21,7 +23,7 @@ on:
         description: Which suite to run
         type: choice
         default: all
-        options: [all, performance, registry, types]
+        options: [all, performance, registry, types, integrity]
       islands:
         description: "Performance: island profile. one (default, the PR #86 baseline), three, or both (same job and runner, then a comparison)"
         type: choice
@@ -172,3 +174,34 @@ jobs:
 
       - name: Type closure
         run: pnpm test:consumer:types
+
+  integrity:
+    name: Production SSR integrity (repeated independent builds, cold starts)
+    if: github.event_name == 'schedule' || inputs.suite == 'all' || inputs.suite == 'integrity'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      STRATA_INTEGRITY_BUILDS: "10"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # `runner.*` is not available in job-level `env`, so the diagnostics directory is set here.
+      - name: Diagnostics directory
+        run: echo "STRATA_DIAGNOSTICS_DIR=$RUNNER_TEMP/strata-diagnostics" >> "$GITHUB_ENV"
+
+      - uses: ./.github/actions/setup
+        with:
+          playwright: "true"
+
+      - name: Packed consumer with repeated independent builds
+        run: pnpm test:server-component-package-consumer
+
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ssr-integrity-diagnostics
+          path: ${{ runner.temp }}/strata-diagnostics
+          if-no-files-found: ignore
+          retention-days: 30
