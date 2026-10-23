@@ -185,13 +185,12 @@ try {
   // v1-only release. Keep its consumer on the flat protocol-v1 contract; the
   // packed-package gate qualifies the candidate's structured-props fixture.
   for (const [source, destination] of [
-    ["add-to-cart.component.fixture", "add-to-cart.component.ts"],
-    ["product-details.server-component.fixture", "product-details.server-component.ts"],
+    ["add-to-cart.component.fixture", "product/add-to-cart.component.ts"],
+    ["product-details.server-component.fixture", "product/product-details.server-component.ts"],
+    // The candidate's app config uses `provideSkewRecovery`, which an older artifact lacks.
+    ["../app.config.ts.fixture", "app.config.ts"],
   ])
-    cpSync(
-      join(registryV1Fixtures, source),
-      join(consumerDir, "src", "app", "product", destination),
-    );
+    cpSync(join(registryV1Fixtures, source), join(consumerDir, "src", "app", destination));
 
   const manifestPath = join(consumerDir, "package.json");
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as {
