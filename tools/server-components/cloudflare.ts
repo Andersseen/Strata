@@ -626,11 +626,15 @@ try {
 
   // 5. Direct load.
   // Earlier scenarios of this run deliberately provoke runtime errors (the SPEC-003 DI NO-GO
-  // control, and the probe of `/_worker.js/index.js`, which the app answers with Angular's
+  // control, and the two probes of `/_worker.js/...`, which the app answers with Angular's
   // NG04002 "no route" error). workerd flushes a request's log lines asynchronously, so wait
-  // (bounded) for the probe's known line before marking: only what the server logs after it
-  // belongs to the direct load.
-  await until(() => /NG04002: '_worker\.js\/index\.js'/.test(server.output()), 10_000, 100);
+  // (bounded) for the known line of EACH probe (index.js and the server chunk) before marking:
+  // only what the server logs after them belongs to the direct load.
+  await until(
+    () => (server.output().match(/NG04002: '_worker\.js/g) ?? []).length >= 2,
+    10_000,
+    100,
+  );
 
   const directLogMark = server.output().length;
   const direct = await checkDirectLoad(baseUrl, DESTINATION, "Wrangler Pages", () =>
