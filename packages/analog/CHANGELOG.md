@@ -1,5 +1,13 @@
 # @strata-sc/analog
 
+## 0.7.0
+
+### Minor Changes
+
+- 49fabe7: Add `streamResponse()`, an explicit, opt-in way to keep a request's cleanup scope open for the life of a streamed response body. Until now cleanup ran when the handler settled, so an ordinary `Response` over a `ReadableStream` found its request-scoped resources (an Angular request injector, a database cursor) already closed when the transport began reading it; that behavior is unchanged for every handler that does not use the helper. `streamResponse(body, init?)` wraps an async iterable of strings or bytes in a native `Response` that is pulled lazily, one chunk per read. After the handler and every interceptor have settled, the adapter binds the invocation's cleanup scope to that response, and the scope closes exactly once, last registered first and awaited, on the first of completion, a failing body, or cancellation of the body. A failing body or cleanup errors the stream (the body error first, then every cleanup error, in an `AggregateError` when both fail) and Strata writes no message or stack into the response. A response an interceptor replaces is not owned and closes eagerly; reading an owned body before the adapter owns it, or returning one response from two invocations, fails with a `StrataAnalogConfigurationError`. Guards, validation, a derived `HEAD` and the existing cleanup, error-precedence and interceptor rules are unchanged.
+
+  Qualified on the pinned Analog 2.7.2 / Nitro 2.13.4 / H3 1.15.11 tuple: Node (production and dev) delivers the body incrementally; the local Cloudflare Pages runtime buffers it, still delivering the complete body and releasing the resources once. Client-disconnect cancellation is not propagated to the body on either runtime, so a streamed body must be finite, and what a client observes after a body fails mid-stream is decided by the transport. No new peer dependency and no change to `@strata-sc/core`.
+
 ## 0.6.0
 
 ### Minor Changes
