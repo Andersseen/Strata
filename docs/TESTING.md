@@ -255,6 +255,12 @@ private canary. `STRATA_STREAMING_RUNTIMES=node,dev,workerd` selects runtimes. T
 (`test:package-consumer`, `test:analog-packed-di-consumer`, `test:full-stack-package-consumer`) stream from
 installed tarballs; unit coverage is `packages/analog/src/stream-lifecycle.test.ts`.
 
+`pnpm test:analog-headers` ([evidence](research/analog-header-validation-v09.md)) drives `validateHeaders` on the real fixture
+(Node production, Vite dev, local workerd): transformed and async validation, missing/invalid headers, cleanup before
+observation, a throwing validator as `failed`, 24 overlapping requests with distinct canaries, and unchanged native routes
+and `serverFn`. `STRATA_HEADERS_RUNTIMES=node,dev,workerd` selects runtimes. Unit coverage is
+`packages/analog/src/header-validation.test.ts`; the packed full-stack consumer type-checks it under strict TypeScript.
+
 `pnpm test:analog-observability` ([evidence](research/analog-request-observability-v08.md)) drives the real
 fixture with a consumer-owned structured logger on the Node production server, the Vite dev server and local
 workerd, and verifies the observer's records through an unobserved route, independently of the HTTP response:

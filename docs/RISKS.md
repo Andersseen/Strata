@@ -34,6 +34,11 @@ needs the H3 v1 `readBody`, but `@analogjs/router` imports an undeclared `h3`: w
 workerd every server function answers `500` because Angular's JIT is unavailable. Fixture evidence, not
 production adoption. See [the evidence](research/analog-stream-lifecycle-v07.md).
 
+Evidence note (2026-10-24, 0.9.0 branch): `validateHeaders` gives schemas the native `Headers` view, so repeated fields arrive
+combined with `", "` and per-line fidelity is only available from `request.headers`; a schema that reads `authorization`,
+`cookie` or `x-forwarded-*` validates shape, not identity. Release risk remains: #117 (publish not gated on `Verify`) let
+Release succeed on `769899c` while CI failed. See [the evidence](research/analog-header-validation-v09.md).
+
 Evidence note (2026-10-24): the Analog 0.8.0 candidate adds `onRequestSettled`. A stream the transport never
 reads or cancels, and a client that disconnects while a finite producer keeps running, are not reported until (and
 unless) the body ends: Strata adds no timeout and does not claim a disconnect event. A broken observer is silent

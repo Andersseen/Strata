@@ -34,6 +34,11 @@ hosted-CI qualified when written, not deployed, not adopted. It does not observe
 complete M3 or Strata 1.0 ([report](research/analog-request-observability-v08.md)). Publishing is still not gated
 on CI (issue #117).
 
+The 0.9.0 candidate adds opt-in `validateHeaders(schema)` (Standard Schema v1, safe `source: "headers"` 400, cleanup-first,
+observed as `input-rejected`). Implemented, unit tested, locally integrated and packed-consumer type-qualified; not
+hosted-CI qualified, deployed or adopted. It does not complete M3 or Strata 1.0, and #117 still blocks a safe publish
+([report](research/analog-header-validation-v09.md)).
+
 The 0.7.0 candidate adds `streamResponse()`, an opt-in streaming lifetime for the request cleanup scope, and
 executes a real compiled Analog `serverFn` next to Strata in the fixture. Locally integrated on Node (production
 and dev) and local workerd, and packed-consumer qualified on Node and workerd; not hosted-CI qualified at the time

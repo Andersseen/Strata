@@ -1,5 +1,14 @@
 # Current implementation audit
 
+## Analog header validation for 0.9.0 (feature branch)
+
+On branch `feat/analog-header-validation-v09`, work began from synchronized `main` (`769899c`). `request.validateHeaders(schema)`
+validates a frozen, lowercase, string-valued, request-local header snapshot with Standard Schema v1 through the existing
+validation path: inferred output, safe `400` with `source: "headers"`, cleanup-first precedence and `input-rejected`
+observation. Repeated fields are the native `Headers` combination (`", "`); nothing is split, and no credential is verified.
+Implemented, unit tested, locally integrated (`pnpm test:analog-headers` on Node, dev, local workerd) and packed-consumer
+type-qualified; not hosted-CI qualified, deployed or adopted. See the [evidence report](research/analog-header-validation-v09.md).
+
 ## Analog request observability for 0.8.0 (feature branch)
 
 On branch `feat/analog-request-observability-v08`, work began from synchronized `main`
