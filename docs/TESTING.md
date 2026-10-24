@@ -255,6 +255,14 @@ private canary. `STRATA_STREAMING_RUNTIMES=node,dev,workerd` selects runtimes. T
 (`test:package-consumer`, `test:analog-packed-di-consumer`, `test:full-stack-package-consumer`) stream from
 installed tarballs; unit coverage is `packages/analog/src/stream-lifecycle.test.ts`.
 
+`pnpm test:analog-observability` ([evidence](research/analog-request-observability-v08.md)) drives the real
+fixture with a consumer-owned structured logger on the Node production server, the Vite dev server and local
+workerd, and verifies the observer's records through an unobserved route, independently of the HTTP response:
+one observation per request, cleanup before it, unchanged client-visible status and body for an ordinary, an
+expected-error, an unexpected and a streamed request, no private canary, native routes unobserved and the real
+`serverFn` unchanged. `STRATA_OBSERVABILITY_RUNTIMES=node,dev,workerd` selects runtimes. Unit coverage is
+`packages/analog/src/request-observation.test.ts`; `test:package-consumer` exercises the packed exports.
+
 Use overlapping authenticated requests to expose accidental instance/global reuse. Verify request
 services and provider disposal under success, validation/auth rejection, thrown/rejected handler,
 aborted request and navigation cancellation. Identity checks must cover controller/SSR/serverFn

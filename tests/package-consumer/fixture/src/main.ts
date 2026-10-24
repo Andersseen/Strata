@@ -30,6 +30,13 @@ import { PostsController, registerPosts } from "./posts.controller.js";
 import { UnregisteredController } from "./registration.controller.js";
 import { ValidatedController } from "./validated.controller.js";
 import {
+  observed,
+  observer,
+  ObservedController,
+  outcomes,
+  PRIVATE,
+} from "./observed.controller.js";
+import {
   cursorLog,
   gates,
   OrdersExportController,
@@ -143,6 +150,7 @@ registerControllers(router, [BaseController, DecoratedChild]);
 registerControllers(router, [ItemsController]);
 registerControllers(router, [ValidatedController]);
 registerControllers(router, [OrdersExportController], { controllerFactory: orderCursorFactory });
+registerControllers(router, [ObservedController], { onRequestSettled: observer });
 
 // Same path, different method is fine (above); same method and path is not.
 assert.throws(
@@ -370,6 +378,34 @@ try {
   gates.get("s3")?.();
   while (!cursorLog.includes("close:s3")) await new Promise((resolve) => setTimeout(resolve, 5));
   assert.equal(cursorLog.filter((entry) => entry === "close:s3").length, 1);
+
+  // --- Observation: one safe, structured fact per invocation, from the packed package ---
+  observed.length = 0;
+  const okResponse = await fetch(
+    `http://127.0.0.1:${port}/api/observed/ok/${PRIVATE}?token=${PRIVATE}`,
+    { headers: { authorization: `Bearer ${PRIVATE}` } },
+  );
+  assert.deepEqual(await okResponse.json(), { ok: true });
+  const expectedResponse = await fetch(`http://127.0.0.1:${port}/api/observed/expected`);
+  assert.equal(expectedResponse.status, 409);
+  assert.deepEqual(await expectedResponse.json(), { error: "conflict" });
+  assert.equal((await fetch(`http://127.0.0.1:${port}/api/observed/unexpected`)).status, 500);
+  const streamed = await fetch(`http://127.0.0.1:${port}/api/observed/stream`);
+  assert.equal(await streamed.text(), "a;b;");
+  assert.deepEqual(
+    observed.map((entry) => [entry.outcome, entry.status, entry.streaming, entry.cleanup]),
+    [
+      ["completed", undefined, false, "completed"],
+      ["application-error", 409, false, "completed"],
+      ["failed", undefined, false, "completed"],
+      ["stream-completed", undefined, true, "completed"],
+    ],
+  );
+  assert.equal(observed[0]?.route.path, "/api/observed/ok/:id");
+  assert.ok(outcomes.includes(observed[3]?.outcome ?? "failed"));
+  assert.ok(!JSON.stringify(observed).includes(PRIVATE));
+  assert.ok(!JSON.stringify(observed).includes("token"));
+  assert.ok(observed.every((entry) => entry.elapsedMs >= entry.invocationMs));
 
   console.log(
     `PACKAGE_CONSUMER_RESULT ${JSON.stringify({

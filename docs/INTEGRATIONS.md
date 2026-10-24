@@ -127,6 +127,17 @@ answers `OPTIONS` before Nitro; the boundary leaves it untouched. See the
 [package README](../packages/analog/README.md#api-boundary-404-405-head-and-options) and the
 [qualification report](research/analog-http-routing-v06.md).
 
+#### Request observation (opt-in)
+
+`registerControllers()` accepts `onRequestSettled(observation)`, called once per Strata-owned invocation after
+its cleanups settled (for an owned `streamResponse()`, when the body completes, fails or is cancelled). The
+observation holds the registered route template, a finite outcome, the phase, `streaming`, `cleanup`, a status
+only where Strata produced it and two monotonic durations; never request values, headers, bodies or error
+details. The callback is synchronous and cannot change the response; asynchronous export is the application's
+responsibility. Native routes, server functions and the API boundary's own 404/405 are not observed. See the
+[package README](../packages/analog/README.md#observing-requests-onrequestsettled) and the
+[qualification report](research/analog-request-observability-v08.md).
+
 #### Consumer-owned Angular DI (experimental, Node only)
 
 Strata does not create an Angular injector or automatically connect to Analog's SSR or

@@ -422,6 +422,88 @@ Strata adds no timers and no abort signal for this. Do not stream where the
 transport buffers if you need incremental delivery: the body is still delivered,
 complete, and released, just not early.
 
+## Observing requests: `onRequestSettled`
+
+Opt-in, request-local facts about how each Strata controller invocation ended.
+Strata does not log, export or store anything: the application decides what to do
+with them. Without the option nothing is allocated and nothing changes.
+
+```ts
+import { registerControllers } from "@strata-sc/analog";
+import type { StrataAnalogRequestObservation } from "@strata-sc/analog";
+import { defineNitroPlugin } from "nitropack/runtime";
+
+function record(o: StrataAnalogRequestObservation): void {
+  console.log(
+    JSON.stringify({
+      event: "strata.request",
+      method: o.route.method,
+      route: o.route.path, // the registered template, e.g. /users/:id
+      outcome: o.outcome,
+      status: o.status ?? null, // known only where Strata produced it
+      streaming: o.streaming,
+      cleanup: o.cleanup,
+      invocationMs: o.invocationMs,
+      elapsedMs: o.elapsedMs,
+    }),
+  );
+}
+
+export default defineNitroPlugin((nitroApp) => {
+  registerControllers(nitroApp.router, [UsersController], { onRequestSettled: record });
+});
+```
+
+**The observation** is a frozen object with `route` (`method`, `path` as
+registered, `controller`, `handler`), `outcome`, `status`, `phase`, `streaming`,
+`cleanup` and two durations.
+
+| `outcome`           | Meaning                                                               | `status`              |
+| ------------------- | --------------------------------------------------------------------- | --------------------- |
+| `completed`         | the controller returned and every cleanup succeeded                   | `undefined`           |
+| `guard-denied`      | a guard answered 401/403; no controller was constructed               | `401` / `403`         |
+| `input-rejected`    | validated params, query or body were rejected                         | `400` / `413` / `415` |
+| `application-error` | a `StrataAnalogHttpError` was thrown                                  | its status            |
+| `failed`            | anything else was thrown; it still propagates to Nitro                | `undefined`           |
+| `cleanup-failed`    | a cleanup callback failed (takes precedence over every other outcome) | `undefined`           |
+| `stream-completed`  | an owned `streamResponse()` body ended                                | `undefined`           |
+| `stream-failed`     | an owned body threw                                                   | `undefined`           |
+| `stream-cancelled`  | an owned body was cancelled (including by a derived `HEAD`)           | `undefined`           |
+
+`status` is never inferred: when Nitro owns the final status (a returned value or
+`Response`, an unexpected failure) it is `undefined`, not `200` or `500`.
+`phase` is `guards`, `execution`, `cleanup` or `stream`.
+
+**When it fires.** Exactly once per invocation, after its cleanups ran
+(last registered first). A handler that returned is not a finished request: a
+successful handler whose cleanup fails is `cleanup-failed`. For an owned
+`streamResponse()` it fires when the body completes, fails or is cancelled and
+its cleanups have settled, before the stream's own end is delivered, not when the
+handler returns. An interceptor that replaces the stream yields a normal
+`completed`. A stream the transport never reads or cancels is **never reported**:
+Strata does not observe client disconnects and adds no timeout to pretend it did.
+
+**Durations** use `performance.now()`. `invocationMs` covers guards, interceptors
+and the handler, before cleanup (for a stream: until it was returned).
+`elapsedMs` runs until the observation, after cleanup (for a stream: the full
+body lifetime). On Cloudflare Workers the clock only advances across I/O, so
+CPU-only work can read `0`.
+
+**Failure policy.** The callback is synchronous. Its return value is ignored and
+never awaited, and whatever it throws or rejects with is discarded, so it cannot
+change the response, the original error or a cleanup `AggregateError`. Do
+asynchronous work from it only through a lifetime your runtime provides (for
+example `waitUntil`); Strata provides none and keeps no queue.
+
+**What it never contains.** No URL, query or route parameter values, headers,
+cookies, bodies, error objects, messages, causes, stacks, validation issues or
+response content. The route is the registered template. A callback can of course
+log secrets it obtains elsewhere.
+
+**Scope.** Only Strata-owned controller invocations. Native Nitro routes,
+Analog server functions and the API boundary's own 404/405/`OPTIONS` answers are
+not observed (observing boundary decisions would need its own contract).
+
 ## API boundary: 404, 405, HEAD and OPTIONS
 
 By default `registerControllers()` only adds routes to Nitro's router, so a

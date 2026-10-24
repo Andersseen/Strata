@@ -30,6 +30,8 @@ import type { StrataAnalogCleanup } from "./cleanup-scope.js";
 import { StrataAnalogConfigurationError } from "./errors.js";
 import { StrataAnalogHttpError } from "./http-error.js";
 import { StrataAnalogInputError } from "./input-error.js";
+import { InvocationObservation } from "./request-observation.js";
+import type { StrataAnalogRequestObserver } from "./request-observation.js";
 import { claimStreamResponse } from "./stream-lifecycle.js";
 import { buildRoutePath } from "./utils/build-route-path.js";
 
@@ -179,6 +181,15 @@ export interface RegisterControllersOptions {
    * routing is exactly what Nitro does.
    */
   readonly apiBoundary?: StrataAnalogApiBoundaryOptions;
+  /**
+   * Opt-in observation of each Strata controller invocation's end, exactly once,
+   * after its cleanups settled (for an owned `streamResponse()`, when its body
+   * completes, fails or is cancelled). Synchronous and isolated: it is neither
+   * awaited nor able to change the response or error. Native Nitro routes, the
+   * API boundary's own 404/405 answers and Analog server functions are not
+   * observed. See the package README.
+   */
+  readonly onRequestSettled?: StrataAnalogRequestObserver;
 }
 
 type ControllerHandler = (this: object, request: StrataAnalogRequest) => unknown;
@@ -331,6 +342,13 @@ export function registerControllers<Router extends NitroRouter>(
   }
   const interceptorSnapshot = Object.freeze(interceptorValue.slice());
 
+  const observer: unknown = options.onRequestSettled;
+  if (observer !== undefined && typeof observer !== "function") {
+    throw new StrataAnalogConfigurationError(
+      "registerControllers() option `onRequestSettled` must be a function.",
+    );
+  }
+
   const boundary =
     options.apiBoundary === undefined ? undefined : parseApiBoundary(options.apiBoundary);
 
@@ -341,6 +359,7 @@ export function registerControllers<Router extends NitroRouter>(
     guardSnapshot,
     interceptorSnapshot,
     boundary,
+    observer as StrataAnalogRequestObserver | undefined,
   );
 
   commitRegistration(router, plan);
@@ -428,6 +447,7 @@ function planRegistration(
   guards: readonly StrataAnalogGuard[],
   interceptors: readonly StrataAnalogInterceptor[],
   boundary: BoundaryRequest | undefined,
+  observer: StrataAnalogRequestObserver | undefined,
 ): { routes: PlannedRoute[]; boundary: BoundaryPlan | undefined } {
   const state = routerStates.get(router);
   const registered = state?.routes;
@@ -481,6 +501,7 @@ function planRegistration(
             controller: controllerClass.name,
             handler: route.handler,
           }),
+          observer,
         ),
       });
     }
@@ -745,12 +766,15 @@ function createRouteHandler(
   guards: readonly StrataAnalogGuard[],
   interceptors: readonly StrataAnalogInterceptor[],
   route: StrataAnalogRouteInfo,
+  observer: StrataAnalogRequestObserver | undefined,
 ): (event: NitroEvent) => Promise<unknown> {
   return async (event) => {
+    const tracker = observer ? new InvocationObservation(route, observer) : undefined;
     const request = createStrataAnalogRequest(event);
     const scope = new CleanupScope();
     let result: unknown;
     let denied = false;
+    let denial: 401 | 403 | undefined;
     let streaming = false;
     try {
       for (const guard of guards) {
@@ -765,10 +789,12 @@ function createRouteHandler(
         if (!decision.allow) {
           result = guardDeniedResponse(decision.status);
           denied = true;
+          denial = decision.status;
           break;
         }
       }
       if (!denied) {
+        tracker?.enterExecution();
         const context: StrataAnalogInterceptorContext = Object.freeze({
           request,
           route,
@@ -844,16 +870,22 @@ function createRouteHandler(
         result = await executeInterceptor(0);
         // Only the response that leaves the last interceptor owns the scope, so an
         // interceptor that replaces a streamResponse() hands nothing over.
-        streaming = claimStreamResponse(result, scope);
+        tracker?.invoked();
+        streaming = claimStreamResponse(result, scope, tracker?.streamSettled);
       }
     } catch (error) {
+      tracker?.invoked();
       try {
         await scope.close({ failed: true, error });
       } catch (settledError) {
         // CleanupScope rethrows the invocation error unchanged only when every
         // cleanup succeeded. A cleanup failure (including an HTTP error thrown
         // by cleanup code) must remain visible as the route failure.
-        if (settledError !== error) throw settledError;
+        if (settledError !== error) {
+          tracker?.cleanupFailed();
+          throw settledError;
+        }
+        tracker?.failed(error);
         if (settledError instanceof StrataAnalogInputError) {
           return inputErrorResponse(settledError);
         }
@@ -869,7 +901,15 @@ function createRouteHandler(
 
     if (streaming) return result;
 
-    return scope.close({ failed: false }, result);
+    tracker?.invoked();
+    try {
+      const settled = await scope.close({ failed: false }, result);
+      tracker?.completed(denial);
+      return settled;
+    } catch (error) {
+      tracker?.cleanupFailed();
+      throw error;
+    }
   };
 }
 

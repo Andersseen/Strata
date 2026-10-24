@@ -122,6 +122,15 @@ branch. The first two are required; the last two are tolerated either way, so a 
 re-qualified rather than assumed. Strata declares no H3 or Nitro type and adds no dependency for this.
 The H3 v2 transition is not qualified for the boundary. See the [qualification report](research/analog-http-routing-v06.md).
 
+## Request observation assumptions
+
+`onRequestSettled` needs no Nitro or H3 type and adds no dependency. It relies on `globalThis.performance.now()`
+(Node and workerd) and on the existing `streamResponse()` ownership: a stream is reported only when its body
+completes, fails or is cancelled, and the pinned Nitro 2.13.4 / h3 1.15.11 adapters do not deliver client
+disconnect to the body. Cloudflare Workers advance the clock only across I/O. Qualified on the tuple of the
+[report](research/analog-request-observability-v08.md) (Nitro Node, Vite dev, local workerd; not a deployed Pages
+project).
+
 ## Deployment skew (Server Components 0.8)
 
 The build identity depends only on Vite `define` reaching every environment of one `vite build` and on the

@@ -1,5 +1,6 @@
 import type { CleanupScope } from "./cleanup-scope.js";
 import { StrataAnalogConfigurationError } from "./errors.js";
+import type { StreamTerminal } from "./request-observation.js";
 
 /** What a streamed body may yield: text (UTF-8 encoded) or raw bytes. */
 export type StrataAnalogStreamChunk = string | Uint8Array;
@@ -17,6 +18,7 @@ class StreamOwnership {
   #claimed = false;
   #abandoned = false;
   #release: Promise<void> | undefined;
+  #onSettled: StreamSettled | undefined;
 
   get claimed(): boolean {
     return this.#claimed;
@@ -26,7 +28,7 @@ class StreamOwnership {
    * Binds the scope to this stream. Returns false, leaving the scope with the
    * caller, when the consumer cancelled the stream before it was claimed.
    */
-  claim(scope: CleanupScope): boolean {
+  claim(scope: CleanupScope, onSettled?: StreamSettled): boolean {
     if (this.#abandoned) return false;
     if (this.#claimed) {
       throw new StrataAnalogConfigurationError(
@@ -35,6 +37,7 @@ class StreamOwnership {
     }
     this.#claimed = true;
     this.#scope = scope;
+    this.#onSettled = onSettled;
     return true;
   }
 
@@ -44,19 +47,45 @@ class StreamOwnership {
    * what `CleanupScope.close` throws: the stream error when every cleanup
    * succeeded, otherwise the cleanup error(s).
    */
-  release(failure: { readonly error: unknown } | undefined): Promise<void> {
+  release(
+    terminal: StreamTerminal,
+    failure: { readonly error: unknown } | undefined,
+  ): Promise<void> {
     if (!this.#claimed) {
       this.#abandoned = true;
       return Promise.resolve();
     }
-    this.#release ??= this.#close(failure);
+    this.#release ??= this.#close(terminal, failure);
     return this.#release;
   }
 
-  async #close(failure: { readonly error: unknown } | undefined): Promise<void> {
-    await this.#scope?.close(failure ? { failed: true, error: failure.error } : { failed: false });
+  async #close(
+    terminal: StreamTerminal,
+    failure: { readonly error: unknown } | undefined,
+  ): Promise<void> {
+    let cleanupFailed = false;
+    try {
+      await this.#scope?.close(
+        failure ? { failed: true, error: failure.error } : { failed: false },
+      );
+    } catch (error) {
+      // With every cleanup successful, close() rethrows the stream's own error unchanged.
+      cleanupFailed = !failure || error !== failure.error;
+      throw error;
+    } finally {
+      this.#notify(failure ? "failed" : terminal, cleanupFailed);
+    }
+  }
+
+  #notify(terminal: StreamTerminal, cleanupFailed: boolean): void {
+    const onSettled = this.#onSettled;
+    this.#onSettled = undefined;
+    onSettled?.(terminal, cleanupFailed);
   }
 }
+
+/** Called once, after the owned stream's cleanups settled. Must not throw. */
+type StreamSettled = (terminal: StreamTerminal, cleanupFailed: boolean) => void;
 
 const ownerships = new WeakMap<Response, StreamOwnership>();
 
@@ -94,14 +123,17 @@ export function streamResponse(body: StrataAnalogStreamBody, init: ResponseInit 
 
   // Stops the producer, then releases the scope. `failure` is set when the
   // stream, not the consumer, ended it.
-  const end = async (failure?: { readonly error: unknown }): Promise<void> => {
+  const end = async (
+    terminal: StreamTerminal,
+    failure?: { readonly error: unknown },
+  ): Promise<void> => {
     ended = true;
     try {
       await iterator?.return?.();
     } catch (error) {
       failure ??= { error };
     }
-    await ownership.release(failure);
+    await ownership.release(terminal, failure);
   };
 
   const source = new ReadableStream<Uint8Array>(
@@ -122,7 +154,7 @@ export function streamResponse(body: StrataAnalogStreamBody, init: ResponseInit 
         // The stream, not the consumer, ended: stop the producer, release, then error it.
         const fail = async (error: unknown): Promise<void> => {
           try {
-            await end({ error });
+            await end("failed", { error });
             controller.error(error);
           } catch (settled) {
             controller.error(settled);
@@ -144,7 +176,7 @@ export function streamResponse(body: StrataAnalogStreamBody, init: ResponseInit 
         if (step.done === true) {
           iterator = undefined;
           try {
-            await end();
+            await end("completed");
           } catch (settled) {
             controller.error(settled);
             return;
@@ -165,7 +197,7 @@ export function streamResponse(body: StrataAnalogStreamBody, init: ResponseInit 
       },
       async cancel() {
         if (ended) return;
-        await end();
+        await end("cancelled");
       },
     },
     { highWaterMark: 0 },
@@ -181,9 +213,13 @@ export function streamResponse(body: StrataAnalogStreamBody, init: ResponseInit 
  * not yet cancelled `streamResponse()` response. Returns whether it did, so the
  * caller must not close the scope itself.
  */
-export function claimStreamResponse(result: unknown, scope: CleanupScope): boolean {
+export function claimStreamResponse(
+  result: unknown,
+  scope: CleanupScope,
+  onSettled?: StreamSettled,
+): boolean {
   if (!(result instanceof Response)) return false;
   const ownership = ownerships.get(result);
   if (!ownership) return false;
-  return ownership.claim(scope);
+  return ownership.claim(scope, onSettled);
 }

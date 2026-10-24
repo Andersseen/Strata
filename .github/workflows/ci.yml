@@ -136,6 +136,11 @@ jobs:
       - name: Analog streaming lifecycle and serverFn coexistence (Node + dev + workerd)
         run: pnpm test:analog-streaming
 
+      # `onRequestSettled`: one safe observation per Strata invocation, after cleanup, with the
+      # client-visible response unchanged, on Node, the Vite dev server and local workerd.
+      - name: Analog request observability (Node + dev + workerd)
+        run: pnpm test:analog-observability
+
       # Failure-only: an intermittent SSR failure (HTTP 200 with an empty page, `JIT compiler unavailable`)
       # leaves no trace on the runner. Keep the server logs and the built server output so the next
       # occurrence can be diagnosed. Never runs on success and changes no result.
