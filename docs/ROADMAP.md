@@ -182,6 +182,12 @@ fails builds that contain uncompiled Angular classes or unlinked partial declara
 classify SSR answers instead of trusting HTTP 200. It does not add a render-error response seam, streaming or
 SPA navigation ([report](research/server-component-ssr-integrity-v07.md)).
 
+The deployment-skew increment (0.8) adds the one piece of "deployment-version skew" the work item below
+names that can be qualified locally: an opt-in application build identity, a classified `build-mismatch`
+refusal before islands exist, and an opt-in bounded document reload. It does not close M4: protocol
+stability, router subtree navigation, streaming, a deployed qualification and production adoption remain open
+([report](research/server-component-deployment-skew-v08.md)).
+
 - Capability: strict server-only UI composes Angular interactive descendants under a defined initial
   SSR and navigation strategy.
 - Hypothesis: the PoC remains correct across navigation, nested boundaries, errors and optimization.

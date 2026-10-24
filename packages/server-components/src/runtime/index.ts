@@ -7,3 +7,7 @@ export type {
   ClientBoundaryValue,
 } from "./client-boundary.js";
 export { StrataIslandHost, provideClientReferences } from "./islands.js";
+export { StrataBoundaryError, StrataBuildMismatchError } from "./boundary-protocol.js";
+export type { BoundaryFailureCategory, BuildRecoveryOutcome } from "./boundary-protocol.js";
+export { provideSkewRecovery } from "./skew-recovery.js";
+export type { BuildMismatch, SkewRecoveryOptions } from "./skew-recovery.js";

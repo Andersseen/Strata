@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { StrataBoundaryError } from "./boundary-protocol.js";
+import { StrataBoundaryError, StrataBuildMismatchError } from "./boundary-protocol.js";
 import { BOUNDARY_HOST_SELECTOR, planClientBoundaries } from "./hydration-plan.js";
 import type { BoundaryHost, ClientReference } from "./hydration-plan.js";
 
@@ -210,6 +210,95 @@ describe("planClientBoundaries", () => {
 
   it("plans nothing for no boundaries", () => {
     expect(plan([])).toEqual([]);
+  });
+});
+
+function planFailure(
+  hosts: readonly FakeHost[],
+  browserBuildId?: string,
+): StrataBoundaryError | undefined {
+  try {
+    planClientBoundaries("relay-digest", hosts, references, browserBuildId);
+  } catch (error) {
+    if (error instanceof StrataBoundaryError) return error;
+    throw error;
+  }
+
+  return undefined;
+}
+
+const stamped = (build: string | undefined, overrides: Record<string, string | undefined> = {}) =>
+  boundary("relay-triage", '{"incidentId":"INC-1"}', { "data-strata-build": build, ...overrides });
+
+describe("planClientBoundaries build identity", () => {
+  it("hydrates a boundary from the same build and ignores the attribute when not enforced", () => {
+    expect(planClientBoundaries("relay-digest", [stamped("a1")], references, "a1")).toHaveLength(1);
+    // An application that did not enable the identity behaves as before.
+    for (const attribute of ["b2", undefined, "not valid!"]) {
+      expect(planClientBoundaries("relay-digest", [stamped(attribute)], references)).toHaveLength(
+        1,
+      );
+    }
+  });
+
+  it("reports a well-formed, different identity as a build mismatch before anything else", () => {
+    // The registry, the protocol and the props are all wrong too: the build is the root cause.
+    const host = new FakeHost("relay-unknown", {
+      "data-strata-client": "relay-unknown",
+      "data-strata-protocol": "9",
+      "data-strata-props": "{",
+      "data-strata-build": "b2",
+    });
+    const failure = planFailure([host], "a1");
+
+    expect(failure).toBeInstanceOf(StrataBuildMismatchError);
+    expect(failure?.category).toBe("build-mismatch");
+    expect((failure as StrataBuildMismatchError).browserBuildId).toBe("a1");
+    expect((failure as StrataBuildMismatchError).serverBuildId).toBe("b2");
+    expect(failure?.message).toContain('application build "a1"');
+    expect(failure?.message).toContain('build "b2"');
+    expect(failure?.message).toContain("No client boundary in <relay-digest> was hydrated");
+  });
+
+  it("keeps the other failure classes distinct and never calls them a deployment skew", () => {
+    const cases: [string, FakeHost, string][] = [
+      ["missing identity", stamped(undefined), "build-identity"],
+      ["empty identity", stamped(""), "build-identity"],
+      ["malformed identity", stamped("<b>"), "build-identity"],
+      ["unsupported protocol", stamped("a1", { "data-strata-protocol": "3" }), "protocol"],
+      ["missing protocol", stamped("a1", { "data-strata-protocol": undefined }), "metadata"],
+      ["invalid props", stamped("a1", { "data-strata-props": "{" }), "props"],
+      ["unknown prop", stamped("a1", { "data-strata-props": '{"nope":1}' }), "inputs"],
+      [
+        "missing reference",
+        new FakeHost("relay-ghost", {
+          "data-strata-client": "relay-ghost",
+          "data-strata-protocol": "1",
+          "data-strata-props": "{}",
+          "data-strata-build": "a1",
+        }),
+        "reference",
+      ],
+    ];
+
+    for (const [label, host, category] of cases) {
+      const failure = planFailure([host], "a1");
+
+      expect(failure, label).toBeDefined();
+      expect(failure, label).not.toBeInstanceOf(StrataBuildMismatchError);
+      expect(failure?.category, label).toBe(category);
+    }
+  });
+
+  it("refuses the whole host on one mismatched boundary and plans nothing", () => {
+    const failure = planFailure([stamped("a1"), stamped("b2")], "a1");
+
+    expect(failure).toBeInstanceOf(StrataBuildMismatchError);
+    expect(failure?.message).toContain("boundary 2 of 2");
+  });
+
+  it("does not echo a malformed attribute value", () => {
+    expect(planFailure([stamped("<img src=x onerror=1>")], "a1")?.message).not.toContain("onerror");
   });
 });
 

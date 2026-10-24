@@ -22,6 +22,11 @@ through the current Nitro adapters, streamed-response cleanup or real-applicatio
 adoption. These checks do not complete M3 or Strata 1.0; see the
 [HTTP contract report](research/analog-http-contract-v05.md).
 
+The 0.8.0 candidate adds an opt-in Server Components build identity and bounded recovery for deployment skew
+(local Node and workerd evidence only; no deployed run, no hosted-CI record when written). The "version-skew
+behavior" item below stays open: protocol stability and a deployed qualification are not shown. M4 and M5 are not
+marked complete.
+
 The 0.7.0 candidate adds `streamResponse()`, an opt-in streaming lifetime for the request cleanup scope, and
 executes a real compiled Analog `serverFn` next to Strata in the fixture. Locally integrated on Node (production
 and dev) and local workerd, and packed-consumer qualified on Node and workerd; not hosted-CI qualified at the time

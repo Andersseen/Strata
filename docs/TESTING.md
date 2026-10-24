@@ -147,6 +147,15 @@ aliases, a browser-safe and a server-only package, a package barrel and a regist
 that asserts server-only. Negative controls assert the intended diagnostic (module, importer, reason),
 not merely a non-zero exit.
 
+`pnpm test:server-component-deployment-skew` (0.8; [report](research/server-component-deployment-skew-v08.md)):
+packs the package, installs an external consumer with npm, builds releases A, B and a no-identity release for
+Nitro Node and for the Cloudflare Pages preset, runs each on its own real server (Nitro Node; local
+`wrangler pages dev`) behind an edge that serves a document of one release with the script of another, and
+drives Chromium through matched builds, both mismatch directions, classification, a spliced mixed document,
+opt-in recovery (success, persistence, repeat, blocked storage), rollback, Back/Forward and a client-output
+confidentiality scan. Edited-document scenarios are labelled negative controls and are never the evidence for
+the two-build claims. `STRATA_SKEW_RUNTIMES=node` limits it to Node; local workerd is not a deployed project.
+
 The experimental `@strata-sc/server-components` package has unit tests for its isolable logic
 (template boundary discovery, rejected module shapes, surrogate content, runtime import purity).
 They do not replace the production-build runners, which remain the authority for graphs and

@@ -39,8 +39,53 @@ export type BoundaryValue = BoundaryPrimitive | readonly BoundaryValue[] | Bound
 /** Validated own props, in the object's own-property order. */
 export type BoundaryEntries = readonly (readonly [string, BoundaryValue])[];
 
+/**
+ * Why a boundary was refused, stable for consumers that react to it.
+ * `build-mismatch` is the only category that is evidence of a deployment skew.
+ */
+export type BoundaryFailureCategory =
+  | "serialization"
+  | "metadata"
+  | "protocol"
+  | "props"
+  | "reference"
+  | "inputs"
+  | "build-identity"
+  | "build-mismatch";
+
 export class StrataBoundaryError extends Error {
-  override readonly name = "StrataBoundaryError";
+  override readonly name: string = "StrataBoundaryError";
+
+  constructor(
+    message: string,
+    readonly category: BoundaryFailureCategory = "metadata",
+  ) {
+    super(message);
+  }
+}
+
+/** Where a confirmed build mismatch stands after the recovery policy has run. */
+export type BuildRecoveryOutcome =
+  "none" | "disabled" | "reloading" | "exhausted" | "storage-unavailable";
+
+/**
+ * Both runtimes understood the protocol and the host carries a well-formed
+ * build identity that differs from this browser build's: the document and the
+ * script come from different application builds. The identities are public
+ * deployment labels, safe to report. `recovery` is set by the recovery policy
+ * before the error reaches the application's `ErrorHandler`.
+ */
+export class StrataBuildMismatchError extends StrataBoundaryError {
+  override readonly name: string = "StrataBuildMismatchError";
+  recovery: BuildRecoveryOutcome = "none";
+
+  constructor(
+    message: string,
+    readonly browserBuildId: string,
+    readonly serverBuildId: string,
+  ) {
+    super(message, "build-mismatch");
+  }
 }
 
 type Checked<T> =
@@ -308,6 +353,7 @@ export function serializeBoundary(selector: string, props: unknown): SerializedB
         `${MAX_BOUNDARY_NODES} values, ${MAX_BOUNDARY_ARRAY_LENGTH} array items, ` +
         `${MAX_BOUNDARY_OBJECT_KEYS} object keys, ${MAX_BOUNDARY_PROPS} root props and ` +
         `${MAX_BOUNDARY_PAYLOAD_BYTES} UTF-8 bytes. Everything in [strataClient] is public browser data.`,
+      "serialization",
     );
   };
   if (!checked.ok) return reject(checked.problem);
@@ -334,27 +380,39 @@ export interface BoundaryAttributes {
   readonly props: string | null;
 }
 
-export function parseBoundaryAttributes(attributes: BoundaryAttributes): Checked<BoundaryEntries> {
+export type ParsedBoundary =
+  | { readonly ok: true; readonly value: BoundaryEntries }
+  | { readonly ok: false; readonly problem: string; readonly category: BoundaryFailureCategory };
+
+export function parseBoundaryAttributes(attributes: BoundaryAttributes): ParsedBoundary {
   const { protocol, props } = attributes;
-  if (protocol === null) return fail(`${BOUNDARY_PROTOCOL_ATTRIBUTE} is missing.`);
+  const problem = (message: string, category: BoundaryFailureCategory): ParsedBoundary => ({
+    ok: false,
+    problem: message,
+    category,
+  });
+  if (protocol === null) return problem(`${BOUNDARY_PROTOCOL_ATTRIBUTE} is missing.`, "metadata");
   if (protocol !== STRATA_BOUNDARY_PROTOCOL_V1 && protocol !== STRATA_BOUNDARY_PROTOCOL_V2) {
-    return fail(`${BOUNDARY_PROTOCOL_ATTRIBUTE} is not a supported version.`);
+    return problem(`${BOUNDARY_PROTOCOL_ATTRIBUTE} is not a supported version.`, "protocol");
   }
-  if (props === null) return fail(`${BOUNDARY_PROPS_ATTRIBUTE} is missing.`);
+  if (props === null) return problem(`${BOUNDARY_PROPS_ATTRIBUTE} is missing.`, "metadata");
   const bytes = utf8Length(props);
-  if (bytes > MAX_BOUNDARY_PAYLOAD_BYTES) return fail(sizeProblem(bytes));
+  if (bytes > MAX_BOUNDARY_PAYLOAD_BYTES) return problem(sizeProblem(bytes), "props");
 
   let parsed: unknown;
   try {
     parsed = JSON.parse(props) as unknown;
   } catch {
-    return fail(`${BOUNDARY_PROPS_ATTRIBUTE} is not valid JSON.`);
+    return problem(`${BOUNDARY_PROPS_ATTRIBUTE} is not valid JSON.`, "props");
   }
   const checked = checkBoundaryProps(parsed, protocol === STRATA_BOUNDARY_PROTOCOL_V2);
-  if (!checked.ok) return checked;
+  if (!checked.ok) return problem(checked.problem, "props");
   const structured = checked.value.some(([, value]) => hasStructuredValue(value));
   if ((protocol === STRATA_BOUNDARY_PROTOCOL_V2) !== structured) {
-    return fail(`${BOUNDARY_PROTOCOL_ATTRIBUTE} does not match the boundary payload shape.`);
+    return problem(
+      `${BOUNDARY_PROTOCOL_ATTRIBUTE} does not match the boundary payload shape.`,
+      "protocol",
+    );
   }
   return checked;
 }

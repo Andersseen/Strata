@@ -28,11 +28,26 @@ export default defineConfig(() => ({
   ssr: {
     noExternal: ["tslib"],
   },
+  // Deployment-skew qualification only: a STABLE browser entry URL, the way a CDN-fronted application
+  // that serves its entry script from a fixed name does. With hashed entry names a document and a
+  // script of different builds cannot meet; with a stable name the script a document loads is
+  // whatever the CDN holds under that name.
+  ...(process.env["STRATA_STABLE_ENTRY"]
+    ? {
+        environments: {
+          client: { build: { rollupOptions: { output: { entryFileNames: "assets/entry.js" } } } },
+        },
+      }
+    : {}),
   plugins: [
     strataServerComponents({
       root: import.meta.dirname,
       sourceDir: "src/app",
       generatedDir: "src/generated/server-components",
+      // Optional deployment identity (README "Deployment compatibility"). Unset, the
+      // fixture behaves exactly as it did before the option existed; the two-build
+      // qualification (`pnpm test:server-component-deployment-skew`) sets it per release.
+      buildId: process.env["STRATA_BUILD_ID"],
       clientComponents: [
         {
           selector: "acme-product-picker",

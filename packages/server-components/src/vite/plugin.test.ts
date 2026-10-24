@@ -115,6 +115,27 @@ describe("config", () => {
     });
   });
 
+  it("defines the build identity for every environment only when one is given, and rejects an invalid one", () => {
+    const configure = (buildId: unknown) =>
+      (
+        strataServerComponents({
+          root,
+          sourceDir: "src/app",
+          generatedDir: "src/generated",
+          buildId: buildId as string,
+        }).config as Hook
+      ).call({}, {}, { command: "build", mode: "production" }) as { define?: unknown };
+
+    expect(configure("rel-2026.10.1").define).toEqual({
+      __STRATA_BUILD_ID__: '"rel-2026.10.1"',
+    });
+    expect(configure(undefined)).not.toHaveProperty("define");
+
+    for (const bad of ["", " ", "a b", 'a"; steal(); "', "-x", "x".repeat(65), 7, null, {}]) {
+      expect(() => configure(bad)).toThrow(/buildId must be a string/);
+    }
+  });
+
   it("also pre-bundles the /navigation entry when the app has @angular/router", () => {
     const withRouter = join(root, "with-router");
 

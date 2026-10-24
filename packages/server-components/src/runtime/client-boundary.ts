@@ -1,6 +1,7 @@
 import { Directive, ElementRef, computed, inject, input } from "@angular/core";
 
 import { serializeBoundary } from "./boundary-protocol.js";
+import { STRATA_BUILD_ID } from "./build-token.js";
 
 /**
  * Readonly JSON-compatible data accepted at a `[strataClient]` boundary.
@@ -31,11 +32,14 @@ export type ClientBoundaryProps = Readonly<Record<string, ClientBoundaryValue>>;
     "[attr.data-strata-client]": "selector",
     "[attr.data-strata-protocol]": "serialized().protocol",
     "[attr.data-strata-props]": "serialized().props",
+    "[attr.data-strata-build]": "buildId",
   },
 })
 export class StrataClientBoundary {
   readonly strataClient = input.required<ClientBoundaryProps>();
 
+  /** The compiled application build identity; absent (no attribute) when not enabled. */
+  protected readonly buildId = inject(STRATA_BUILD_ID) ?? null;
   protected readonly selector = (inject(ElementRef).nativeElement as HTMLElement).localName;
   protected readonly serialized = computed(() =>
     serializeBoundary(this.selector, this.strataClient()),
