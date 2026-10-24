@@ -1,5 +1,22 @@
 # Current implementation audit
 
+## Analog request observability for 0.8.0 (feature branch)
+
+On branch `feat/analog-request-observability-v08`, work began from synchronized `main`
+`ea9b47a1bb49491ee92b840ae75f3209ce4384ea` (@strata-sc/analog 0.7.0). `registerControllers()` gains the opt-in
+`onRequestSettled` observer: one frozen, structured observation per Strata-owned invocation (registered route
+template, a finite outcome, the phase, a status only where Strata produced it, `streaming`, `cleanup`, and the
+monotonic `invocationMs` / `elapsedMs`), delivered once after cleanup has settled, and for an owned
+`streamResponse()` when its body completes, fails or is cancelled, not when the handler returns. It carries no
+request values, headers, bodies, error details or response content. It is synchronous and isolated: a throwing or
+rejecting observer changes neither the response nor the original error. Client disconnect is not observable on the
+pinned adapters, so a stream never read or cancelled is never reported. Native routes, `serverFn` and the API
+boundary's own 404/405 are not observed. Qualified by 26 unit tests on a real h3 router, `pnpm
+test:analog-observability` on the real fixture (Node, dev, local workerd) and the packed consumer. Not hosted-CI
+qualified when written, not deployed, no production adoption, observation overhead not measured, and the
+publish-before-CI issue #117 is untouched. See the
+[evidence report](research/analog-request-observability-v08.md).
+
 ## Server Components deployment skew for 0.8.0 (feature branch)
 
 On branch `feat/server-components-deployment-skew-v08`, work began from synchronized `main`

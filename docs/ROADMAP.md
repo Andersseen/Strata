@@ -141,6 +141,11 @@ Broader M3 adoption and lifecycle gates remain open; see the
   Node. Client-disconnect cancellation stays **NO-GO** on the pinned Nitro adapters, Cloudflare Pages buffers
   the body, and `serverFn` is **NO-GO** on workerd (Angular JIT)
   ([report](research/analog-stream-lifecycle-v07.md)). M3 is not marked complete.
+- Capability delivered in the 0.8.0 candidate: an opt-in `onRequestSettled` observation of each Strata
+  invocation's end (route template, finite outcome, cleanup state, monotonic durations; streams only at a
+  supported terminal outcome), synchronous and isolated from the response, with no request or error data. It is
+  not an observability SDK; client disconnect and the API boundary's own answers stay unobserved
+  ([report](research/analog-request-observability-v08.md)). M3 is not marked complete.
 - Remaining M3 work: close metadata/member/registration contracts;
   compare request-input APIs before selecting one; define params/query/body/headers and Standard
   Schema validation; safe errors; Angular providers/lifetimes; guards and interceptors with explicit

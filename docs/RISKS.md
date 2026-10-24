@@ -34,6 +34,13 @@ needs the H3 v1 `readBody`, but `@analogjs/router` imports an undeclared `h3`: w
 workerd every server function answers `500` because Angular's JIT is unavailable. Fixture evidence, not
 production adoption. See [the evidence](research/analog-stream-lifecycle-v07.md).
 
+Evidence note (2026-10-24): the Analog 0.8.0 candidate adds `onRequestSettled`. A stream the transport never
+reads or cancels, and a client that disconnects while a finite producer keeps running, are not reported until (and
+unless) the body ends: Strata adds no timeout and does not claim a disconnect event. A broken observer is silent
+by design (its errors are discarded so it cannot change the response), and Cloudflare Workers durations can read
+`0` between I/O. Observation overhead is not measured. Fixture evidence, not production adoption. See
+[the evidence](research/analog-request-observability-v08.md).
+
 Evidence note (2026-10-22): the Analog 0.6.0 routing candidate adds an opt-in API boundary on top of Nitro's
 H3 v1 router. It depends on pinned router behaviour (method-less registration serves every method, method
 fall-through to less specific routes, no backtracking), so a router upgrade must be re-qualified; the H3 v2

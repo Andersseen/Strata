@@ -27,6 +27,13 @@ The 0.8.0 candidate adds an opt-in Server Components build identity and bounded 
 behavior" item below stays open: protocol stability and a deployed qualification are not shown. M4 and M5 are not
 marked complete.
 
+The 0.8.0 candidate adds an opt-in `onRequestSettled` request observation (safe route/outcome/cleanup/duration
+facts, exactly once after cleanup, streams at a supported terminal outcome, isolated from the response).
+Implemented, unit tested, locally integrated (Node, dev, local workerd) and packed-consumer qualified; not
+hosted-CI qualified when written, not deployed, not adopted. It does not observe client disconnect and does not
+complete M3 or Strata 1.0 ([report](research/analog-request-observability-v08.md)). Publishing is still not gated
+on CI (issue #117).
+
 The 0.7.0 candidate adds `streamResponse()`, an opt-in streaming lifetime for the request cleanup scope, and
 executes a real compiled Analog `serverFn` next to Strata in the fixture. Locally integrated on Node (production
 and dev) and local workerd, and packed-consumer qualified on Node and workerd; not hosted-CI qualified at the time
