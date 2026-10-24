@@ -1,5 +1,17 @@
 # @strata-sc/analog
 
+## 0.8.0
+
+### Minor Changes
+
+- 15080f5: Add `onRequestSettled`, an opt-in observer of each Strata controller invocation, so an application can log, count or export how a request ended without Strata becoming a logging or telemetry system. It is a `registerControllers()` option and changes nothing when absent.
+
+  The observer is called exactly once per invocation with a frozen, structured `StrataAnalogRequestObservation`: the registered route (method, route template, controller and handler names, never the request URL), a finite `outcome` (`completed`, `guard-denied`, `input-rejected`, `application-error`, `failed`, `cleanup-failed`, `stream-completed`, `stream-failed`, `stream-cancelled`), the `phase` it ended in, whether it was `streaming`, whether `cleanup` completed, a `status` only where Strata itself produced it (guard denial, rejected input, `StrataAnalogHttpError`; otherwise `undefined`, never a guessed 500), and two monotonic durations: `invocationMs` (guards, interceptors and handler, before cleanup; for a stream, until the stream was returned) and `elapsedMs` (until the observation, after cleanup; for a stream, the full observed body lifetime). It never carries request values, headers, bodies, error messages, causes, stacks, validation issues or response content.
+
+  It is emitted after the invocation's cleanups have settled, and a cleanup failure is `cleanup-failed`, never a success. For an owned `streamResponse()` it is emitted when the body completes, fails or is cancelled and its cleanups have settled, not when the handler returns; an interceptor that replaces the stream produces an ordinary `completed` observation, and a stream the transport never reads or cancels is never reported (Strata does not observe client disconnects and will not invent a timeout). A derived `HEAD` over a stream is reported as `stream-cancelled`.
+
+  The callback is synchronous and isolated: its return value is ignored and never awaited, and anything it throws or rejects with is discarded, so it cannot change the response, the original error or a cleanup `AggregateError`. Native Nitro routes, the API boundary's own 404/405 answers and Analog server functions are not observed. Qualified with `pnpm test:analog-observability` on Nitro Node, the Vite dev server and local workerd (not a deployed Pages project), and from an externally installed packed tarball.
+
 ## 0.7.0
 
 ### Minor Changes
