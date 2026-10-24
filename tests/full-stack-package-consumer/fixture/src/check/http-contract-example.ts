@@ -25,6 +25,11 @@ const querySchema = z.object({
     .transform((value) => value === "true")
     .optional(),
 });
+const metadataSchema = z.object({
+  "x-request-id": z.string().min(1).max(128),
+  "x-client-version": z.string().regex(/^\d+$/).transform(Number),
+  "x-trace": z.string().optional(),
+});
 const createSchema = z.object({ name: z.string().trim().min(1) });
 const patchSchema = z.object({ name: z.string().trim().min(1) });
 let nextId = 2;
@@ -32,6 +37,18 @@ const durations: number[] = [];
 
 @Controller("/api/example-products")
 class ProductsController {
+  @Get("/metadata")
+  async metadata(request: StrataAnalogRequest) {
+    const metadata = await request.validateHeaders(metadataSchema);
+    const version: number = metadata["x-client-version"];
+    const trace: string | undefined = metadata["x-trace"];
+    return jsonResponse({
+      requestId: metadata["x-request-id"],
+      version,
+      traced: trace !== undefined,
+    });
+  }
+
   @Get("/:id")
   async get(request: StrataAnalogRequest) {
     const { id } = await request.validateParams(paramsSchema);

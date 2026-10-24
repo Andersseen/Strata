@@ -41,6 +41,13 @@ export type StrataAnalogQuery = Readonly<Record<string, StrataAnalogQueryValue>>
 
 export type StrataAnalogParams = Readonly<Record<string, string>>;
 
+/**
+ * Schema input for `validateHeaders()`: a frozen, request-local snapshot with
+ * lowercase names and string values. Repeated fields are already combined by
+ * the native `Headers` API (joined with ", "); nothing is split or coerced.
+ */
+export type StrataAnalogHeaders = Readonly<Record<string, string>>;
+
 export type StrataAnalogContext = Readonly<Record<string, unknown>>;
 
 export interface StrataAnalogRequest {
@@ -58,6 +65,9 @@ export interface StrataAnalogRequest {
     schema: Schema,
   ) => Promise<StandardSchemaV1.InferOutput<Schema>>;
   validateQuery: <Schema extends StandardSchemaV1>(
+    schema: Schema,
+  ) => Promise<StandardSchemaV1.InferOutput<Schema>>;
+  validateHeaders: <Schema extends StandardSchemaV1>(
     schema: Schema,
   ) => Promise<StandardSchemaV1.InferOutput<Schema>>;
   readValidatedJson: <Schema extends StandardSchemaV1>(
@@ -1089,6 +1099,8 @@ function createStrataAnalogRequest(event: NitroEvent): StrataAnalogRequest {
     validateSchema(schema, Object.freeze({ ...getEventParams(event) }), "params");
   const validateQuery = <Schema extends StandardSchemaV1>(schema: Schema) =>
     validateSchema(schema, Object.freeze(parseQuery(url.searchParams)), "query");
+  const validateHeaders = <Schema extends StandardSchemaV1>(schema: Schema) =>
+    validateSchema(schema, snapshotHeaders(headers), "headers");
   const readValidatedJson = async <Schema extends StandardSchemaV1>(schema: Schema) => {
     if (rawReadStarted) {
       throw new StrataAnalogConfigurationError(
@@ -1124,6 +1136,7 @@ function createStrataAnalogRequest(event: NitroEvent): StrataAnalogRequest {
     readJson,
     validateParams,
     validateQuery,
+    validateHeaders,
     readValidatedJson,
   });
 }
@@ -1161,6 +1174,17 @@ function getEventHeaders(event: NitroEvent): Headers {
   }
 
   return headers;
+}
+
+function snapshotHeaders(headers: Headers): StrataAnalogHeaders {
+  const snapshot: Record<string, string> = {};
+
+  for (const [key, value] of headers) {
+    const previous = Object.hasOwn(snapshot, key) ? snapshot[key] : undefined;
+    setOwn(snapshot, key, previous === undefined ? value : `${previous}, ${value}`);
+  }
+
+  return Object.freeze(snapshot);
 }
 
 function getEventParams(event: NitroEvent): Record<string, string> {
@@ -1239,7 +1263,7 @@ const MAX_VALIDATED_JSON_BYTES = 1024 * 1024;
 async function validateSchema<Schema extends StandardSchemaV1>(
   schema: Schema,
   value: unknown,
-  source: "params" | "query" | "body",
+  source: StrataAnalogInputError["source"],
 ): Promise<StandardSchemaV1.InferOutput<Schema>> {
   const schemaValue: unknown = schema;
   let standard: object;

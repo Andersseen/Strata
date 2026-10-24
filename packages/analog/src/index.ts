@@ -18,6 +18,7 @@ export type {
   StrataAnalogContext,
   StrataAnalogControllerFactory,
   StrataAnalogControllerFactoryContext,
+  StrataAnalogHeaders,
   StrataAnalogParams,
   StrataAnalogQuery,
   StrataAnalogQueryValue,

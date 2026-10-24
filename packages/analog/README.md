@@ -121,8 +121,8 @@ run through the same request-scoped invocation. Handlers receive a
 `StrataAnalogRequest` with `method`, params, query, headers and lazy body
 readers (`readJson()`, `readText()`, `readBody()`).
 
-Validation is opt-in through `validateParams(schema)`, `validateQuery(schema)`
-and `readValidatedJson(schema)`. These accept Standard Schema v1 schemas and
+Validation is opt-in through `validateParams(schema)`, `validateQuery(schema)`,
+`validateHeaders(schema)` and `readValidatedJson(schema)`. These accept Standard Schema v1 schemas and
 return the schema's inferred output type, including transformations. Validators
 may run synchronously or asynchronously. Zod, Valibot and other conforming
 libraries work; Analog has no runtime dependency on a schema library.
@@ -131,6 +131,30 @@ libraries work; Analog has no runtime dependency on a schema library.
 and URL decoding. `validateQuery` keeps a single value as a string and repeated
 values as arrays; it performs no implicit coercion. Empty query objects are
 valid inputs. A schema may transform or coerce values explicitly.
+
+`validateHeaders` hands the schema a frozen, request-local snapshot typed
+`StrataAnalogHeaders` (`Readonly<Record<string, string>>`): lowercase names,
+string values, own properties only, no coercion. `request.headers` is unchanged.
+The native `Headers` API has already normalized the names and combined repeated
+fields with `", "`; nothing is split, because a comma can be part of a value.
+Include transport headers (`host`, `accept`, `user-agent`) in a strict schema or
+use one that selects only its declared fields (Zod's `z.object` strips unknown
+keys by default). Optional headers are `z.string().optional()`.
+
+```ts
+const metadata = await request.validateHeaders(
+  z.object({
+    "x-request-id": z.string().min(1).max(128),
+    "x-client-version": z.string().regex(/^\d+$/).transform(Number),
+  }),
+);
+// { "x-request-id": string; "x-client-version": number }
+```
+
+This is input validation, not authentication: Strata verifies no credential,
+and does not trust `forwarded` or `x-forwarded-*`. A schema that reads
+`authorization` or `cookie` only checks its shape; verifying it stays with the
+application, which can still read the native `request.headers`.
 
 `readValidatedJson` accepts `application/json` and `application/*+json`, with
 UTF-8 (or no declared charset). The default maximum is 1 MiB of consumed body
@@ -148,7 +172,7 @@ Expected input failures return safe JSON with `Cache-Control: no-store`:
 | 413    | `payload_too_large`      | body exceeds 1 MiB                     |
 | 415    | `unsupported_media_type` | unsupported JSON media type or charset |
 
-Responses include a stable `source` (`params`, `query` or `body`) and never
+Responses include a stable `source` (`params`, `query`, `headers` or `body`) and never
 include schema issue messages or request values. A validator that throws or
 rejects is an application failure, not a 400. A malformed Standard Schema
 contract is a configuration error. Validation failures still run cleanup;

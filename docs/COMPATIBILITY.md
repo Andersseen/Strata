@@ -131,6 +131,10 @@ disconnect to the body. Cloudflare Workers advance the clock only across I/O. Qu
 [report](research/analog-request-observability-v08.md) (Nitro Node, Vite dev, local workerd; not a deployed Pages
 project).
 
+`validateHeaders` (0.9 candidate) reads the same normalized `Headers` on Nitro Node, Vite dev and local workerd: lowercase
+names, duplicates combined with `", "`. Qualified locally on that tuple, not on a deployed Pages project
+([report](research/analog-header-validation-v09.md)).
+
 ## Deployment skew (Server Components 0.8)
 
 The build identity depends only on Vite `define` reaching every environment of one `vite build` and on the

@@ -141,6 +141,11 @@ jobs:
       - name: Analog request observability (Node + dev + workerd)
         run: pnpm test:analog-observability
 
+      # `validateHeaders`: safe 400 with source "headers", cleanup-first, observed as input-rejected,
+      # isolated under overlap, on Node, the Vite dev server and local workerd.
+      - name: Analog header validation (Node + dev + workerd)
+        run: pnpm test:analog-headers
+
       # Failure-only: an intermittent SSR failure (HTTP 200 with an empty page, `JIT compiler unavailable`)
       # leaves no trace on the runner. Keep the server logs and the built server output so the next
       # occurrence can be diagnosed. Never runs on success and changes no result.

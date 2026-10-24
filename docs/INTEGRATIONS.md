@@ -138,6 +138,11 @@ responsibility. Native routes, server functions and the API boundary's own 404/4
 [package README](../packages/analog/README.md#observing-requests-onrequestsettled) and the
 [qualification report](research/analog-request-observability-v08.md).
 
+**Header validation (0.9 candidate).** `request.validateHeaders(schema)` validates a frozen lowercase string snapshot with any
+Standard Schema v1 library (Zod, Valibot, handwritten) and infers the output. Failures answer the safe `source: "headers"` 400.
+It checks shape only: Strata verifies no credential and trusts no forwarding header. See the
+[package README](../packages/analog/README.md) and the [report](research/analog-header-validation-v09.md).
+
 #### Consumer-owned Angular DI (experimental, Node only)
 
 Strata does not create an Angular injector or automatically connect to Analog's SSR or
