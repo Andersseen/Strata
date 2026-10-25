@@ -194,7 +194,9 @@ Releases are automated with [Changesets](./.changeset) and the
    with the bumped versions and CHANGELOGs.
 3. Merging that PR publishes the changed packages to npm on the `latest`
    dist-tag, aligns the dist-tags, and creates the matching git tags and GitHub
-   Releases.
+   Releases, but only after the aggregate CI `Verify` job succeeded for that
+   exact commit and the commit is still the current `main` head. The workflow
+   checks this before starting and again immediately before Changesets runs.
 
 While packages are `0.x`, breaking changes are released as `minor`. Release
 candidates use Changesets pre mode (`pnpm changeset pre enter next`) and are

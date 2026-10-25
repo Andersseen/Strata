@@ -1,6 +1,8 @@
 name: Release
 
-# Runs on every push to main (i.e. after a PR is merged):
+# Starts only after CI has completed. The authorization job proves the source was
+# this repository's main push, its aggregate Verify succeeded for its SHA, and
+# that SHA is still main before any versioning or publishing step can run.
 #
 # - If there are pending changesets, it opens/updates a "Version Packages" PR
 #   that bumps versions (patch/minor/major, as declared in each changeset) and
@@ -18,7 +20,9 @@ name: Release
 # access to @strata-sc/*), and "Allow GitHub Actions to create and approve pull
 # requests" enabled in Settings → Actions → General.
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
 
 concurrency:
@@ -26,18 +30,45 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: write # version commit, tags, GitHub Releases
-  pull-requests: write # Version Packages PR
-  id-token: write # npm provenance
+  actions: read
+  contents: read
 
 jobs:
+  authorize:
+    name: Verify exact main CI result
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      sha: ${{ steps.verify.outputs.sha }}
+    steps:
+      # The authorizer itself comes from the default branch. Do not execute a
+      # script from the untrusted workflow_run head before it is authorized.
+      - name: Checkout trusted default-branch authorizer
+        uses: actions/checkout@v7
+      - name: Validate source run, exact Verify job and current main head
+        id: verify
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: node --experimental-strip-types tools/release/authorize.ts
+
   release:
     name: Version or publish
+    needs: authorize
+    if: needs.authorize.outputs.sha != ''
     runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write # version commit, tags, GitHub Releases
+      pull-requests: write # Version Packages PR
+      id-token: write # npm provenance
     steps:
       - name: Checkout
         uses: actions/checkout@v7
         with:
+          ref: ${{ needs.authorize.outputs.sha }}
           fetch-depth: 0
 
       - name: Setup pnpm
@@ -55,6 +86,15 @@ jobs:
 
       - name: Build
         run: pnpm build
+
+      # Close the window in which a queued release can become stale while its
+      # dependencies are installing and building. Verify again immediately
+      # before Changesets decides between a Version Packages PR and publishing.
+      - name: Recheck exact main CI result before release action
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: node --experimental-strip-types tools/release/authorize.ts
 
       # changesets/action's `publishedPackages` output is not reliably populated
       # (changesets 3 prints no "New tag:" lines), so the post-publish gate is
