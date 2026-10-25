@@ -859,6 +859,221 @@ describe("registerControllers", () => {
     }
   });
 
+  it("validates URL-encoded forms with strict encoding and repeated literal keys", async () => {
+    const { router, handle } = createNitroLikeApp();
+    const schema = z.object({
+      name: z.string(),
+      tag: z.array(z.string()),
+      note: z.string().optional(),
+      amount: z.string().transform(Number),
+    });
+    @Controller("/form")
+    class FormController {
+      @Post()
+      async read(request: StrataAnalogRequest) {
+        const value = await request.readValidatedForm(schema);
+        expectTypeOf(value).toEqualTypeOf<{
+          name: string;
+          tag: string[];
+          note?: string | undefined;
+          amount: number;
+        }>();
+        return value;
+      }
+
+      @Post("/valibot")
+      valibot(request: StrataAnalogRequest) {
+        return request.readValidatedForm(
+          v.pipe(
+            v.object({ amount: v.string() }),
+            v.transform(({ amount }) => Number(amount)),
+          ),
+        );
+      }
+
+      @Post("/async")
+      async asynchronous(request: StrataAnalogRequest) {
+        return request.readValidatedForm(
+          z.object({ amount: z.string().transform(Number) }).refine(async ({ amount }) => {
+            await Promise.resolve();
+            return amount > 0;
+          }),
+        );
+      }
+    }
+    registerControllers(router, [FormController]);
+    const send = (
+      body: string,
+      contentType = "application/x-www-form-urlencoded; charset=UTF-8",
+      path = "/form",
+    ) =>
+      handle(
+        new Request(`http://localhost${path}`, {
+          method: "POST",
+          headers: { "content-type": contentType },
+          body,
+        }),
+      );
+
+    const response = await send(
+      "name=Alice+Smith&tag=one&tag=two&amount=3&note=&=empty&x%26y=a%3Db&user%5Brole%5D=reader&user.name=literal",
+    );
+    await expect(response.json()).resolves.toEqual({
+      name: "Alice Smith",
+      tag: ["one", "two"],
+      amount: 3,
+      note: "",
+    });
+    const valibot = await send("amount=4", "application/x-www-form-urlencoded", "/form/valibot");
+    await expect(valibot.json()).resolves.toBe(4);
+    const asynchronous = await send("amount=5", "application/x-www-form-urlencoded", "/form/async");
+    await expect(asynchronous.json()).resolves.toEqual({ amount: 5 });
+
+    for (const [body, contentType, status, error] of [
+      ["name=%", "application/x-www-form-urlencoded", 400, "invalid_request"],
+      ["name=%C3%28", "application/x-www-form-urlencoded", 400, "invalid_request"],
+      [
+        "name=ok",
+        "application/x-www-form-urlencoded; charset=iso-8859-1",
+        415,
+        "unsupported_media_type",
+      ],
+      ["name=ok", "application/json", 415, "unsupported_media_type"],
+    ] as const) {
+      const rejected = await send(body, contentType);
+      expect(rejected.status).toBe(status);
+      expect(await rejected.text()).toBe(JSON.stringify({ error, source: "body" }));
+      expect(rejected.headers.get("cache-control")).toBe("no-store");
+    }
+  });
+
+  it("keeps form keys literal, uses safe own properties, and follows form URL encoding", async () => {
+    const { router, handle } = createNitroLikeApp();
+    @Controller("/form-syntax")
+    class FormSyntaxController {
+      @Post()
+      read(request: StrataAnalogRequest) {
+        return request.readValidatedForm(z.unknown());
+      }
+    }
+    registerControllers(router, [FormSyntaxController]);
+    const response = await handle(
+      new Request("http://localhost/form-syntax", {
+        method: "POST",
+        headers: { "content-type": 'APPLICATION/X-WWW-FORM-URLENCODED; charset="utf-8"' },
+        body: "__proto__=own&constructor=ctor&prototype=proto&user%5Brole%5D=admin&user.name=dot&space=a+b&plus=a%2Bb&delim=a%26b%3Dc&empty=&=emptykey&utf8=%F0%9F%98%80&nul=%00&&",
+      }),
+    );
+    const values = (await response.json()) as Record<string, unknown>;
+    expect(Object.getPrototypeOf(values)).toBe(Object.prototype);
+    expect(Object.hasOwn(values, "__proto__")).toBe(true);
+    expect(values["__proto__"]).toBe("own");
+    expect(values["constructor"]).toBe("ctor");
+    expect(values["prototype"]).toBe("proto");
+    expect(values["user[role]"]).toBe("admin");
+    expect(values["user.name"]).toBe("dot");
+    expect(values["space"]).toBe("a b");
+    expect(values["plus"]).toBe("a+b");
+    expect(values["delim"]).toBe("a&b=c");
+    expect(values["empty"]).toBe("");
+    expect(values[""]).toBe("emptykey");
+    expect(values["utf8"]).toBe("😀");
+    expect(values["nul"]).toBe("\0");
+
+    const empty = await handle(
+      new Request("http://localhost/form-syntax", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: "",
+      }),
+    );
+    await expect(empty.json()).resolves.toEqual({});
+  });
+
+  it("bounds validated forms and prevents raw or incompatible readers from bypassing ownership", async () => {
+    const { router, handle } = createNitroLikeApp();
+    @Controller("/form-ownership")
+    class FormOwnershipController {
+      @Post()
+      async read(request: StrataAnalogRequest) {
+        const first = request.readValidatedForm(z.unknown());
+        const second = request.readValidatedForm(z.unknown());
+        const [left, right] = await Promise.all([first, second]);
+        return { left, right, raw: await request.readText() };
+      }
+      @Post("/conflict")
+      async conflict(request: StrataAnalogRequest) {
+        await request.readValidatedForm(z.unknown());
+        return request.readValidatedJson(z.unknown());
+      }
+      @Post("/raw-first")
+      async rawFirst(request: StrataAnalogRequest) {
+        await request.readBody();
+        return request.readValidatedForm(z.unknown());
+      }
+      @Post("/json-first")
+      async jsonFirst(request: StrataAnalogRequest) {
+        await request.readValidatedJson(z.unknown());
+        return request.readValidatedForm(z.unknown());
+      }
+    }
+    registerControllers(router, [FormOwnershipController]);
+    const send = (path: string, body: string) =>
+      handle(
+        new Request(`http://localhost${path}`, {
+          method: "POST",
+          headers: { "content-type": "application/x-www-form-urlencoded", "content-length": "0" },
+          body,
+        }),
+      );
+    const reused = await send("/form-ownership", "__proto__=safe&tag=one&tag=two");
+    const value = (await reused.json()) as {
+      left: Record<string, unknown>;
+      right: unknown;
+      raw: string;
+    };
+    expect(value.left["tag"]).toEqual(["one", "two"]);
+    expect(Object.hasOwn(value.left, "__proto__")).toBe(true);
+    expect(Object.getPrototypeOf(value.left)).toBe(Object.prototype);
+    expect(value.right).toEqual(value.left);
+    expect(value.raw).toBe("__proto__=safe&tag=one&tag=two");
+    expect((await send("/form-ownership/conflict", "x=1")).status).toBe(500);
+    expect((await send("/form-ownership/raw-first", "x=1")).status).toBe(500);
+    const jsonFirst = await handle(
+      new Request("http://localhost/form-ownership/json-first", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "{}",
+      }),
+    );
+    expect(jsonFirst.status).toBe(500);
+
+    @Controller("/form-limit")
+    class FormLimitController {
+      @Post()
+      read(request: StrataAnalogRequest) {
+        return request.readValidatedForm(z.unknown());
+      }
+    }
+    registerControllers(router, [FormLimitController]);
+    const exact = await handle(
+      new Request("http://localhost/form-limit", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: "x=" + "a".repeat(1024 * 1024 - 2),
+      }),
+    );
+    expect(exact.status).toBe(200);
+    const over = await handle(
+      new Request("http://localhost/form-limit", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: "x=" + "a".repeat(1024 * 1024 - 1),
+      }),
+    );
+    expect(over.status).toBe(413);
+  });
+
   it("keeps validation data and cleanup isolated across 24 overlapping requests", async () => {
     const { router, handle } = createNitroLikeApp();
     let cleanupCount = 0;

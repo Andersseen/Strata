@@ -261,6 +261,14 @@ observation, a throwing validator as `failed`, 24 overlapping requests with dist
 and `serverFn`. `STRATA_HEADERS_RUNTIMES=node,dev,workerd` selects runtimes. Unit coverage is
 `packages/analog/src/header-validation.test.ts`; the packed full-stack consumer type-checks it under strict TypeScript.
 
+`pnpm test:analog-forms` ([evidence](research/analog-validated-forms-v010.md)) drives `readValidatedForm` on the real
+fixture using Node production, Vite dev and local workerd. It covers a transformed URL-encoded order, repeated tags,
+malformed percent and UTF-8 input, 1 MiB and 10,000-field limits, safe 400/413/415 responses, 24 overlapping requests,
+cleanup-first observations, cleanup failure, native Nitro coexistence and no automatic validation on unrelated routes.
+`STRATA_FORMS_RUNTIMES=node,dev,workerd` selects runtimes. Unit coverage stays in
+`packages/analog/src/register-controllers.test.ts`; the packed-consumer qualification must compile and run the
+installed tarball before release.
+
 `pnpm test:analog-observability` ([evidence](research/analog-request-observability-v08.md)) drives the real
 fixture with a consumer-owned structured logger on the Node production server, the Vite dev server and local
 workerd, and verifies the observer's records through an unobserved route, independently of the HTTP response:

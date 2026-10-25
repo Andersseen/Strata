@@ -143,6 +143,15 @@ Standard Schema v1 library (Zod, Valibot, handwritten) and infers the output. Fa
 It checks shape only: Strata verifies no credential and trusts no forwarding header. See the
 [package README](../packages/analog/README.md) and the [report](research/analog-header-validation-v09.md).
 
+**URL-encoded form validation (0.10 candidate).** `request.readValidatedForm(schema)` validates only an explicitly
+read `application/x-www-form-urlencoded` body with Standard Schema v1. Repeated values are ordered arrays, field names
+stay literal, plus and percent decoding follow form URL encoding, and malformed escapes/UTF-8 fail with safe 400.
+The reader enforces a 1 MiB byte limit and a 10,000 non-empty field limit; unsupported content types or charsets fail
+with safe 415. The raw readers remain unchecked, and a raw-first call prevents later validated reads from bypassing
+the limit. This adds no upload handling or automatic route validation. State-changing forms still need a
+consumer-owned CSRF/origin policy. Node production, Analog dev, local workerd and the external packed consumer pass;
+hosted CI remains pending ([report](research/analog-validated-forms-v010.md)).
+
 #### Consumer-owned Angular DI (experimental, Node only)
 
 Strata does not create an Angular injector or automatically connect to Analog's SSR or
