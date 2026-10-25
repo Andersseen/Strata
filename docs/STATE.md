@@ -1,5 +1,24 @@
 # Current implementation audit
 
+## Analog validated URL-encoded forms for 0.10.0 (feature branch)
+
+On branch `feat/analog-validated-forms-v010`, work began from synchronized `main`
+`68e4a5135964e3ea6f8f86ef216baa969fe4e429` (`@strata-sc/analog` 0.9.0). The additive
+`request.readValidatedForm(schema)` API validates `application/x-www-form-urlencoded` with Standard Schema v1,
+inferred outputs and transformations. It reads at most 1 MiB, caps nonempty form fields at 10,000, rejects
+malformed percent/UTF-8 encoding and unsupported media/charset with safe existing 400/413/415 envelopes, and
+uses request-local reader ownership so raw-first reads cannot bypass bounds or JSON/form readers reinterpret
+one another. Repeated values preserve order; nested path syntax is literal. Unit tests pass (241), release-gate
+decision tests pass (17), and the real fixture passes Node production, Vite dev and local workerd with 24-request
+overlap. The packed consumer and full local CI matrix pass. Hosted CI, live workflow-run transition and deployed
+qualification remain open. One Analog-only 0.10.0 Changeset is present. See the [evidence report](research/analog-validated-forms-v010.md).
+
+The same branch fixes issue #117 in a separate release workflow change: publishing now waits for the exact
+main push's successful `Verify`, checks that `main` still points to that SHA, and rechecks immediately before
+Changesets. The unit decision matrix passes, but hosted workflow-run transitions are not yet verified; issue
+#117 stays open until merge and live-transition inspection. At the starting SHA, GitHub Release and npm both
+confirm Analog 0.9.0 was published (release run `40120642476`).
+
 ## Analog header validation for 0.9.0 (feature branch)
 
 On branch `feat/analog-header-validation-v09`, work began from synchronized `main` (`769899c`). `request.validateHeaders(schema)`

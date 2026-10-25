@@ -21,6 +21,12 @@ Upstream constraints and source links are in [RESEARCH](RESEARCH.md). A supporte
 all these layers together, the Strata candidate digest and the fixture lockfile. Individual compatible
 ranges do not establish that their cross-product is supported.
 
+The Analog 0.10.0 candidate adds `readValidatedForm()` without changing the dependency tuple or adding a
+runtime peer. Its local Node production, Vite dev and local workerd checks use the locked Analog 2.7.2 /
+Nitro 2.13.4 / H3 1.15.11 tuple and Wrangler 4.135.0. This remains fixture evidence, not a production
+support matrix or a deployed Cloudflare claim; the packed npm consumer passes, while hosted CI is pending
+([report](research/analog-validated-forms-v010.md)).
+
 Server Component boundary protocol v1 and v2 remain experimental, even when the package manifest
 supports the listed Angular, TypeScript and Vite peer ranges. V1 carries flat primitives; v2 carries
 bounded nested JSON data. The documented Node and local workerd rehearsals are evidence for those

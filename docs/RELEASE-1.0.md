@@ -6,6 +6,19 @@ workerd and packed-consumer fixture evidence; this does not certify M3 or
 Strata 1.0. See
 [the validation evidence](research/analog-input-validation.md).
 
+The 0.10.0 candidate adds bounded, opt-in URL-encoded form validation. Its unit
+suite, real Node production, Analog dev, local workerd fixture and packed consumer
+pass; hosted CI and deployed qualification remain open. Its 1 MiB byte limit
+and 10,000-field cap, strict malformed-encoding response and body-reader
+ownership do not provide CSRF protection. See
+[the form evidence](research/analog-validated-forms-v010.md).
+
+The same candidate replaces Release's push-to-main trigger with an exact-CI
+`workflow_run` gate for issue #117. This is not a release-safety closure until
+the merged workflow has been observed handling the hosted success, failure,
+cancelled, pending and stale-main transitions; see the verification evidence
+and remaining live checks in the [form report](research/analog-validated-forms-v010.md).
+
 Analog's opt-in request guards are also experimental. They delegate identity
 verification and authorization to the application and do not qualify
 production authentication, tenant isolation, CSRF handling or real application

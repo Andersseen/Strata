@@ -146,6 +146,10 @@ jobs:
       - name: Analog header validation (Node + dev + workerd)
         run: pnpm test:analog-headers
 
+      # Opt-in URL-encoded form validation, bounded byte reads, cleanup and observation on each runtime.
+      - name: Analog validated forms (Node + dev + workerd)
+        run: pnpm test:analog-forms
+
       # Failure-only: an intermittent SSR failure (HTTP 200 with an empty page, `JIT compiler unavailable`)
       # leaves no trace on the runner. Keep the server logs and the built server output so the next
       # occurrence can be diagnosed. Never runs on success and changes no result.

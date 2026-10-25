@@ -229,6 +229,13 @@ try {
     status: 200,
     body: { count: 12 },
   });
+  const validatedForm = await fetch(`http://127.0.0.1:${port}/api/validated/form`, {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: "quantity=12",
+  });
+  assert.equal(validatedForm.status, 200);
+  assert.deepEqual(await validatedForm.json(), { quantity: 12 });
   const invalidValidated = await fetch(`http://127.0.0.1:${port}/api/validated`, {
     method: "POST",
     headers: { "content-type": "application/json" },

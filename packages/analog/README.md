@@ -122,8 +122,9 @@ run through the same request-scoped invocation. Handlers receive a
 readers (`readJson()`, `readText()`, `readBody()`).
 
 Validation is opt-in through `validateParams(schema)`, `validateQuery(schema)`,
-`validateHeaders(schema)` and `readValidatedJson(schema)`. These accept Standard Schema v1 schemas and
-return the schema's inferred output type, including transformations. Validators
+`validateHeaders(schema)`, `readValidatedJson(schema)` and
+`readValidatedForm(schema)`. These accept Standard Schema v1 schemas and return
+the schema's inferred output type, including transformations. Validators
 may run synchronously or asynchronously. Zod, Valibot and other conforming
 libraries work; Analog has no runtime dependency on a schema library.
 
@@ -157,20 +158,42 @@ and does not trust `forwarded` or `x-forwarded-*`. A schema that reads
 application, which can still read the native `request.headers`.
 
 `readValidatedJson` accepts `application/json` and `application/*+json`, with
-UTF-8 (or no declared charset). The default maximum is 1 MiB of consumed body
-bytes. Call it before any raw body reader so Analog can enforce the bound on
-the original body. After it runs, raw readers can reuse that request's text.
-Calling a raw reader first and then `readValidatedJson` is a configuration
-error because the bytes may already have been consumed without a bound. Empty
-JSON bodies validate as `undefined`.
+UTF-8 (or no declared charset). `readValidatedForm` accepts only
+`application/x-www-form-urlencoded`; multipart uploads are not supported. Both
+validated body methods default to a 1 MiB maximum measured from consumed bytes,
+not `Content-Length` or JavaScript string length. Form input accepts no charset
+declaration or one UTF-8 declaration (`utf-8` / `utf8`, case-insensitive,
+optionally quoted); unsupported, malformed or duplicate charset declarations
+answer 415. Empty JSON validates as `undefined`; an empty form validates as an
+empty record.
+
+Form schemas receive `Readonly<Record<string, string | readonly string[]>>`,
+with the same repeated-value convention as query validation: one occurrence is
+a string, repeated occurrences are an ordered array, and a missing key is
+absent. `+` and `%20` decode to space, `%2B` to a literal plus, and encoded
+delimiters such as `%26` and `%3D` remain inside their key or value. The first
+literal `=` separates a key from a value. Empty keys and values are retained;
+empty segments from consecutive `&` characters are ignored. UTF-8, including
+encoded NUL, is decoded without numeric or boolean coercion. Bracket and dotted
+names remain literal keys. Malformed percent escapes, invalid percent-encoded
+UTF-8, and invalid raw UTF-8 answer 400. A validated form is limited to 10,000
+non-empty fields; exceeding that limit answers 413 to bound parser amplification.
+
+Call either validated body method before any raw body reader so Analog can
+enforce the bound on the original body. A raw reader first makes a later
+validated read a configuration error. After a successful validated read, raw
+readers reuse its bounded text. Repeated and concurrent calls to the same
+validated method share one request-local read; JSON and form validation cannot
+reinterpret one another's body. The raw readers themselves remain unchanged and
+unbounded.
 
 Expected input failures return safe JSON with `Cache-Control: no-store`:
 
-| Status | Error                    | Trigger                                |
-| ------ | ------------------------ | -------------------------------------- |
-| 400    | `invalid_request`        | malformed JSON or schema issues        |
-| 413    | `payload_too_large`      | body exceeds 1 MiB                     |
-| 415    | `unsupported_media_type` | unsupported JSON media type or charset |
+| Status | Error                    | Trigger                                          |
+| ------ | ------------------------ | ------------------------------------------------ |
+| 400    | `invalid_request`        | malformed JSON/form encoding or schema issues    |
+| 413    | `payload_too_large`      | body exceeds 1 MiB or form exceeds 10,000 fields |
+| 415    | `unsupported_media_type` | unsupported JSON/form media type or charset      |
 
 Responses include a stable `source` (`params`, `query`, `headers` or `body`) and never
 include schema issue messages or request values. A validator that throws or
@@ -178,8 +201,11 @@ rejects is an application failure, not a 400. A malformed Standard Schema
 contract is a configuration error. Validation failures still run cleanup;
 cleanup failures retain precedence and are not converted to input responses.
 
-`readJson<T>()` remains unchecked. Validation is opt-in. It does not provide
-authentication or authorization; guards and interceptors remain future work.
+`readJson<T>()` remains unchecked. Validation is opt-in and does not validate
+unrelated routes. It does not provide authentication, authorization or CSRF
+protection. State-changing form endpoints need a consumer-owned CSRF or origin
+policy that fits the application's authentication model; never trust a form
+field such as `userId`, `tenant`, `role` or `principal` as authenticated identity.
 Unexpected SSR failures are outside this input contract. M3 and Strata 1.0
 remain unqualified.
 

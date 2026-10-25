@@ -150,9 +150,14 @@ Broader M3 adoption and lifecycle gates remain open; see the
   Standard Schema input set (lowercase string snapshot, native duplicate combination, safe `source: "headers"` 400, no
   authentication claim) ([report](research/analog-header-validation-v09.md)). Request validation is therefore no longer
   open work; M3 is not marked complete.
+- Capability in the 0.10.0 candidate: opt-in `readValidatedForm(schema)` adds bounded Standard Schema v1 validation for
+  URL-encoded forms. It preserves ordered repeated values and literal keys, rejects malformed percent/UTF-8 input,
+  limits bodies to 1 MiB and fields to 10,000, and shares request-local body ownership with validated JSON. Local
+  unit, real Node/dev/workerd fixture and packed-consumer checks pass; hosted CI evidence is pending
+  ([report](research/analog-validated-forms-v010.md)). This does not complete M3.
 - Remaining M3 work: close metadata/member/registration contracts;
-  compare request-input APIs before selecting one; define params/query/body/headers and Standard
-  Schema validation; safe errors; Angular providers/lifetimes; guards and interceptors with explicit
+  settle params/query/body/headers and Standard Schema contracts with external consumers; qualify safe errors;
+  Angular providers/lifetimes; guards and interceptors with explicit
   order, cancellation and logging; stabilize consumer compilation and Analog integration.
 - Gate: core/adapter contracts, installed consumers, Analog SSR and existing server functions remain
   compatible; concurrent request isolation and error/authorization tests pass on Node and Workers.

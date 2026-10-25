@@ -73,6 +73,9 @@ export interface StrataAnalogRequest {
   readValidatedJson: <Schema extends StandardSchemaV1>(
     schema: Schema,
   ) => Promise<StandardSchemaV1.InferOutput<Schema>>;
+  readValidatedForm: <Schema extends StandardSchemaV1>(
+    schema: Schema,
+  ) => Promise<StandardSchemaV1.InferOutput<Schema>>;
 }
 
 /** Stable description of the registered route being evaluated by a guard. */
@@ -1060,12 +1063,17 @@ function createStrataAnalogRequest(event: NitroEvent): StrataAnalogRequest {
   const url = getEventUrl(event);
   const headers = getEventHeaders(event);
   let textBody: Promise<string> | undefined;
-  let rawReadStarted = false;
+  let bodyReader: "raw" | "validated-json" | "validated-form" | undefined;
   let validatedText: Promise<string> | undefined;
 
   const readText = async (): Promise<string> => {
-    rawReadStarted = true;
-    textBody ??= readEventText(event);
+    bodyReader ??= "raw";
+    if (bodyReader === "raw") {
+      textBody ??= readEventText(event);
+    } else {
+      validatedText ??= readEventTextBounded(event, MAX_VALIDATED_JSON_BYTES);
+      textBody ??= validatedText;
+    }
 
     return textBody;
   };
@@ -1102,16 +1110,23 @@ function createStrataAnalogRequest(event: NitroEvent): StrataAnalogRequest {
   const validateHeaders = <Schema extends StandardSchemaV1>(schema: Schema) =>
     validateSchema(schema, snapshotHeaders(headers), "headers");
   const readValidatedJson = async <Schema extends StandardSchemaV1>(schema: Schema) => {
-    if (rawReadStarted) {
+    if (bodyReader === "raw") {
       throw new StrataAnalogConfigurationError(
         "readValidatedJson() must be the first body reader on a request so its byte limit can be enforced.",
       );
     }
+    if (bodyReader === "validated-form") {
+      throw new StrataAnalogConfigurationError(
+        "readValidatedJson() cannot follow readValidatedForm() on the same request.",
+      );
+    }
+    bodyReader = "validated-json";
 
     const contentType = headers.get("content-type") ?? "";
     if (!isJsonMediaType(contentType)) throw new StrataAnalogInputError("body", 415);
     if (hasUnsupportedCharset(contentType)) throw new StrataAnalogInputError("body", 415);
     validatedText ??= readEventTextBounded(event, MAX_VALIDATED_JSON_BYTES);
+    textBody ??= validatedText;
     const text = await validatedText;
     let value: unknown;
     try {
@@ -1119,7 +1134,29 @@ function createStrataAnalogRequest(event: NitroEvent): StrataAnalogRequest {
     } catch {
       throw new StrataAnalogInputError("body", 400);
     }
-    textBody ??= Promise.resolve(text);
+    return validateSchema(schema, value, "body");
+  };
+  const readValidatedForm = async <Schema extends StandardSchemaV1>(schema: Schema) => {
+    if (bodyReader === "raw") {
+      throw new StrataAnalogConfigurationError(
+        "readValidatedForm() must be the first body reader on a request so its byte limit can be enforced.",
+      );
+    }
+    if (bodyReader === "validated-json") {
+      throw new StrataAnalogConfigurationError(
+        "readValidatedForm() cannot follow readValidatedJson() on the same request.",
+      );
+    }
+    bodyReader = "validated-form";
+
+    const contentType = headers.get("content-type") ?? "";
+    if (!isFormMediaType(contentType) || hasUnsupportedFormCharset(contentType)) {
+      throw new StrataAnalogInputError("body", 415);
+    }
+    validatedText ??= readEventTextBounded(event, MAX_VALIDATED_JSON_BYTES);
+    textBody ??= validatedText;
+    const text = await validatedText;
+    const value = parseValidatedForm(text);
     return validateSchema(schema, value, "body");
   };
 
@@ -1138,6 +1175,7 @@ function createStrataAnalogRequest(event: NitroEvent): StrataAnalogRequest {
     validateQuery,
     validateHeaders,
     readValidatedJson,
+    readValidatedForm,
   });
 }
 
@@ -1259,6 +1297,7 @@ async function readEventText(event: NitroEvent): Promise<string> {
 }
 
 const MAX_VALIDATED_JSON_BYTES = 1024 * 1024;
+const MAX_VALIDATED_FORM_FIELDS = 10_000;
 
 async function validateSchema<Schema extends StandardSchemaV1>(
   schema: Schema,
@@ -1341,6 +1380,63 @@ function isJsonMediaType(contentType: string): boolean {
     normalized === "application/json" ||
     /^application\/[!#$%&'*+.^_`|~0-9a-z-]+\+json$/.test(normalized)
   );
+}
+
+function isFormMediaType(contentType: string): boolean {
+  const [mediaType] = contentType.split(";", 1);
+  return (mediaType?.trim().toLowerCase() ?? "") === "application/x-www-form-urlencoded";
+}
+
+function hasUnsupportedFormCharset(contentType: string): boolean {
+  const parameters = contentType.split(";").slice(1);
+  let charsetSeen = false;
+  for (const parameter of parameters) {
+    const trimmed = parameter.trim();
+    if (!/^charset(?:\s*=|\s*$)/i.test(trimmed)) continue;
+    if (charsetSeen) return true;
+    charsetSeen = true;
+    const match = /^charset\s*=\s*(?:"([^"]+)"|([!#$%&'*+.^_`|~0-9a-z-]+))$/i.exec(trimmed);
+    const value = (match?.[1] ?? match?.[2])?.toLowerCase();
+    if (value !== "utf-8" && value !== "utf8") return true;
+  }
+  return false;
+}
+
+function parseValidatedForm(text: string): Record<string, StrataAnalogQueryValue> {
+  let fieldCount = 0;
+  for (let start = 0; start < text.length;) {
+    const separator = text.indexOf("&", start);
+    const end = separator === -1 ? text.length : separator;
+    if (end > start) fieldCount += 1;
+    if (fieldCount > MAX_VALIDATED_FORM_FIELDS) throw new StrataAnalogInputError("body", 413);
+    start = end + 1;
+  }
+
+  // Check encoded components before URLSearchParams: its forgiving decoder
+  // replaces malformed escapes and invalid UTF-8 with U+FFFD.
+  for (let start = 0; start < text.length;) {
+    const fieldEnd = text.indexOf("&", start);
+    const end = fieldEnd === -1 ? text.length : fieldEnd;
+    if (end === start) {
+      start = end + 1;
+      continue;
+    }
+    const separator = text.indexOf("=", start);
+    const valueStart = separator === -1 || separator >= end ? end : separator + 1;
+    try {
+      decodeURIComponent(
+        text
+          .slice(start, separator === -1 || separator >= end ? end : separator)
+          .replaceAll("+", "%20"),
+      );
+      decodeURIComponent(text.slice(valueStart, end).replaceAll("+", "%20"));
+    } catch {
+      throw new StrataAnalogInputError("body", 400);
+    }
+    start = end + 1;
+  }
+
+  return parseQuery(new URLSearchParams(text));
 }
 
 function hasUnsupportedCharset(contentType: string): boolean {

@@ -1,5 +1,13 @@
 # Technical risk register
 
+Current branch update (2026-10-25): issue #117's release gate is implemented in the working branch using the
+`workflow_run` event, exact source-run `Verify` job inspection, current-main freshness checks and a just-in-time
+recheck before Changesets. The isolated decision matrix passes locally. The workflow has not yet run after merge,
+so missed/pending/cancelled hosted transitions and the full publication path remain unverified; do not close #117
+until hosted evidence confirms the gate. The 0.10.0 form API also passed Node/dev/local-workerd fixture and
+packed-consumer checks, while hosted CI and deployed checks are pending. See
+[Analog validated forms](research/analog-validated-forms-v010.md).
+
 Evidence note (2026-10-23, 0.8.0 branch): deployment version skew for Server Components is detected and
 classified, not eliminated. With the opt-in `buildId` a document and a script of two real builds are refused
 as `build-mismatch` before any island exists (Node and local workerd, packed consumer); scripts built before the
