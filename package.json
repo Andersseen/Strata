@@ -69,6 +69,7 @@
     "test:full-stack-cloudflare-concurrency": "node --experimental-strip-types tools/server-components/cloudflare-concurrency.ts",
     "test:full-stack-deployed-cloudflare": "node --experimental-strip-types tools/server-components/full-stack-deployed-cloudflare.ts",
     "test:server-component-deployment-skew": "node --experimental-strip-types tools/server-components/deployment-skew.ts",
+    "test:server-component-optimized-deps": "node --experimental-strip-types tools/server-components/optimized-deps.ts",
     "test:server-component-package-consumer": "node --experimental-strip-types tools/server-components/package-consumer.ts",
     "test:server-component-registry-consumer": "node --experimental-strip-types tools/server-components/registry-consumer.ts",
     "test:server-components:cloudflare": "node --experimental-strip-types tools/server-components/cloudflare.ts",

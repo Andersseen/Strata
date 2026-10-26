@@ -190,6 +190,12 @@ tsconfig paths, index files, aliased re-export chains, package modules that asse
 importer-aware diagnostics; it does not add package crawling, SPA subtree navigation or streaming
 ([report](research/server-component-graph-security-v06.md)).
 
+The optimizer firewall increment (0.9) closes a reproduced `vite` dev bypass: Vite 8 pre-bundles dependencies with
+Rolldown, so a package module that asserts server-only, or a barrel or dynamic import reaching it, was served to the
+browser. The plugin now fails the optimizer run through the public `optimizeDeps.rolldownOptions.plugins` seam and
+keeps `[strata]` dev errors free of source; it adds no option, no package crawl and no claim for unmarked packages
+([report](research/server-component-optimized-dependency-firewall-v09.md)).
+
 The production SSR integrity increment (0.7) turns an intermittent SSR failure into a build-time error: a
 reproduced Analog multi-environment compilation race is serialized by the plugin and a post-transform gate
 fails builds that contain uncompiled Angular classes or unlinked partial declarations; qualification suites

@@ -49,6 +49,8 @@ Server-only module resolution (0.6 candidate) adds no peer range. It reads Vite'
 `typescript` peer (5.9 or 6.x, `ts.resolveModuleName` in bundler mode); it does not touch Angular
 private APIs. The packed consumer checks the declarations under TypeScript 6.0.3 and 5.9.2 with
 `strict` and `skipLibCheck: false`. See [the report](research/server-component-graph-security-v06.md).
+The dependency-optimizer firewall (0.9) relies on `optimizeDeps.rolldownOptions.plugins` and Vite's public dev error
+middleware chain, verified on Vite 8.3.0 with Rolldown 1.2.8 ([report](research/server-component-optimized-dependency-firewall-v09.md)).
 
 The optional `@strata-sc/server-components/navigation` entry adds no new peer range: it uses the
 public `Router`, `UrlSerializer`, `ActivatedRoute`, `Location` and `DOCUMENT` APIs of the same

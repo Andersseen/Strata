@@ -9,7 +9,14 @@ import {
 } from "node:fs";
 import { dirname, join, resolve, sep } from "node:path";
 
-import type { DevEnvironment, EnvironmentModuleNode, Plugin, Rollup, ViteDevServer } from "vite";
+import type {
+  Connect,
+  DevEnvironment,
+  EnvironmentModuleNode,
+  Plugin,
+  Rollup,
+  ViteDevServer,
+} from "vite";
 
 type PluginContext = Rollup.PluginContext;
 
@@ -35,6 +42,7 @@ import type {
   ServerComponentGraph,
 } from "./graph.js";
 import { stripQuery } from "./module-id.js";
+import { serverOnlyOptimizerPlugin } from "./optimizer.js";
 import { createModuleResolver, findTsconfig } from "./resolve.js";
 import type { ViteAlias } from "./resolve.js";
 import { SERVER_ONLY_SPECIFIER } from "./server-only.js";
@@ -426,7 +434,15 @@ export function strataServerComponents(options: ServerComponentsOptions): Plugin
         ...(buildId === undefined
           ? {}
           : { define: { [BUILD_ID_DEFINE]: JSON.stringify(buildId) } }),
-        optimizeDeps: { include: linked },
+        // The optimizer resolves a dependency's internal imports itself, so the
+        // server-only assertion inside a pre-bundled package is enforced by a
+        // plugin in the optimizer's own (public) plugin list.
+        optimizeDeps: {
+          include: linked,
+          ...(enabled
+            ? { rolldownOptions: { plugins: [serverOnlyOptimizerPlugin(context)] } }
+            : {}),
+        },
         ssr: { noExternal: [RUNTIME_PACKAGE, ...clientComponents.map((entry) => entry.module)] },
       };
     },
@@ -445,6 +461,15 @@ export function strataServerComponents(options: ServerComponentsOptions): Plugin
 
     configureServer(server) {
       devServer = server;
+
+      // Registered after Vite's own middlewares, ahead of its error handler.
+      return () => {
+        const sanitize: Connect.ErrorHandleFunction = (error, _request, _response, next) => {
+          next(redactedStrataError(error));
+        };
+
+        server.middlewares.use(sanitize);
+      };
     },
 
     buildStart() {
@@ -728,6 +753,24 @@ function importersOf(
 
     return importers ? [...importers].flatMap((node) => (node.id ? [node.id] : [])) : [];
   }
+}
+
+/**
+ * Vite's dev error payload (the HTTP 500 page and the overlay message) carries
+ * the failing module's code frame and complete source. When the failing module
+ * is a server-only package module, that is the forbidden source, delivered to
+ * the browser. A `[strata]` diagnostic therefore reaches the payload as its
+ * message alone: no frame, location, plugin code or stack.
+ */
+function redactedStrataError(error: unknown): unknown {
+  if (!(error instanceof Error) || !error.message.startsWith("[strata]")) return error;
+
+  const carrier = error as Error & Record<string, unknown>;
+
+  for (const key of ["frame", "pluginCode", "loc", "id"]) delete carrier[key];
+  carrier.stack = error.message;
+
+  return error;
 }
 
 function isInside(dir: string, path: string): boolean {

@@ -1,0 +1,31 @@
+{
+  "name": "@acme/server-kit",
+  "version": "1.0.0",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./index.js",
+    "./format": "./format.js",
+    "./secret": "./secret.js",
+    "./barrel": "./barrel.js",
+    "./safe-barrel": "./safe-barrel.js",
+    "./chain": "./chain.js",
+    "./types": {
+      "types": "./types.d.ts",
+      "default": "./types.js"
+    },
+    "./lazy": "./lazy.js",
+    "./cond": {
+      "browser": "./cond.browser.js",
+      "node": "./cond.node.js",
+      "default": "./cond.browser.js"
+    },
+    "./package.json": "./package.json",
+    "./broken": "./broken.js"
+  },
+  "files": [
+    "*.js",
+    "*.d.ts",
+    "internal"
+  ]
+}

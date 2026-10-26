@@ -81,6 +81,17 @@ Angular injector that outlives the handler. See the [evidence report](research/a
 Experimental fixture evidence: not hosted-CI qualified when written, not deployed, not production adoption, and
 not M3 or Strata 1.0 certification.
 
+## Server-only firewall vs the dependency optimizer (0.9 candidate)
+
+From `main` `481976818675519015edddd209b7bd3c4fc3c83d`. A bypass was reproduced against the installed Vite 8.3.0
+(Rolldown 1.2.8) dev server: package modules asserting server-only, barrels re-exporting them and dynamic imports of
+them were served pre-bundled. `strataServerComponents` now adds a plugin to `optimizeDeps.rolldownOptions.plugins` that
+fails the optimizer run (no chunk) and a Connect error middleware that strips frame/source/stack from `[strata]` dev
+errors. No new public option. Locally integrated and packed-consumer qualified through
+`pnpm test:server-component-optimized-deps`; unit tested; not hosted-CI qualified, not deployed, not production adopted.
+The merged release authorizer was found rejecting its own genuine CI run (path spelling) and received a minimal fix
+with tests, issue #117 stays open until a hosted run proves it. See the [report](research/server-component-optimized-dependency-firewall-v09.md).
+
 ## Server Components SSR integrity for 0.7.0 (merged in #118, released as 0.7.0 in #119)
 
 On branch `feat/server-components-ssr-integrity-v07`, work began from synchronized `main`

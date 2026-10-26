@@ -46,6 +46,26 @@ describe("release eligibility", () => {
     });
   });
 
+  it.each([".github/workflows/ci.yml", ".github/workflows/ci.yml@refs/heads/main"])(
+    "accepts the CI workflow path GitHub reports for main (%s)",
+    async (path) => {
+      const { event, api } = fixture({ path });
+      await expect(verifyReleaseRun(event, repositoryName, api)).resolves.toMatchObject({
+        eligible: true,
+      });
+    },
+  );
+
+  it.each([".github/workflows/other.yml", ".github/workflows/ci.yml@refs/heads/feature", "ci.yml"])(
+    "rejects another workflow file or ref (%s)",
+    async (path) => {
+      const { event, api } = fixture({ path });
+      await expect(verifyReleaseRun(event, repositoryName, api)).resolves.toMatchObject({
+        eligible: false,
+      });
+    },
+  );
+
   it.each([
     ["failed Verify", { job: { conclusion: "failure", status: "completed" } }, "blocked"],
     ["cancelled Verify", { job: { conclusion: "cancelled", status: "completed" } }, "blocked"],
