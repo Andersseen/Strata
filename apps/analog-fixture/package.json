@@ -13,7 +13,7 @@
     "preview": "node dist/analog/server/index.mjs"
   },
   "dependencies": {
-    "@analogjs/content": "^2.7.2",
+    "@analogjs/content": "^2.9.2",
     "@analogjs/router": "^2.8.1",
     "@angular/common": "^22.2.3",
     "@angular/compiler": "^22.2.3",
