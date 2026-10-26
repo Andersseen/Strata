@@ -1,5 +1,11 @@
 # @strata-sc/analog
 
+## 0.10.0
+
+### Minor Changes
+
+- 1bd573a: Add opt-in `request.readValidatedForm(schema)` for bounded Standard Schema v1 validation of URL-encoded request bodies.
+
 ## 0.9.0
 
 ### Minor Changes
