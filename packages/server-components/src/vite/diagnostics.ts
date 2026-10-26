@@ -12,7 +12,8 @@ import type { ServerOnlyModule } from "./server-only.js";
 export type BrowserForbidden =
   | { readonly kind: "server-component"; readonly file: string }
   | { readonly kind: "server-only"; readonly module: ServerOnlyModule }
-  | { readonly kind: "server-only-specifier" };
+  | { readonly kind: "server-only-specifier" }
+  | { readonly kind: "server-only-optimized" };
 
 export interface BrowserGraphContext {
   readonly root: string;
@@ -66,6 +67,8 @@ function reasonOf(forbidden: BrowserForbidden, context: BrowserGraphContext): st
       return "it declares a @ServerComponent() class. The browser graph may only contain its generated surrogate, and this path bypassed that replacement.";
     case "server-only-specifier":
       return `the importer asserts server-only, but the pre-scan of sourceDir did not register it (it lives outside sourceDir, for example in an installed or linked package, or the import is not the plain side-effect form \`${ASSERTION}\`). A package is not exempt from the server-only contract because it is listed in clientComponents or installed from npm.`;
+    case "server-only-optimized":
+      return `it declares \`${ASSERTION}\` and is part of a dependency the dev server pre-bundles for the browser (optimizeDeps). It is reached from a browser-visible import, directly, through a package re-export or through a dynamic import. Dependency pre-bundling collapses a package's internal imports, so only the importers the optimizer reports are listed and the app import that started the chain may be unavailable.`;
     case "server-only": {
       const { module } = forbidden;
 
@@ -86,6 +89,7 @@ function adviceOf(forbidden: BrowserForbidden): string {
   switch (forbidden.kind) {
     case "server-component":
       return "Import the Server Component only through Angular component imports, so its module resolves to the surrogate, and do not reach it through a glob import or a query.";
+    case "server-only-optimized":
     case "server-only-specifier":
       return "Move the module behind the Server Component boundary, or into sourceDir so the assertion is checked at its own import site. A package that must run in the browser cannot import the server-only entry: remove that import from its browser entry points.";
     case "server-only":
@@ -113,7 +117,7 @@ export function browserGraphError(
 
   return [
     `[strata] ${title}: ${display(id, context)}`,
-    `Imported from: ${importer ? display(importer, context) : "unavailable (the bundler did not report an importer for this module, e.g. it was reached through a glob import)"}`,
+    `Imported from: ${importer ? display(importer, context) : forbidden.kind === "server-only-optimized" ? "none known (it is an entry the dependency optimizer pre-bundles: a browser-visible import resolved to it directly)" : "unavailable (the bundler did not report an importer for this module, e.g. it was reached through a glob import)"}`,
     `Reason: ${reasonOf(forbidden, context)}`,
     adviceOf(forbidden),
     ...(chain.length > 1

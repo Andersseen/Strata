@@ -137,6 +137,14 @@ fixture package in the restricted environment. No app AOT or runtime claim is ma
 rerun after the fixture update to the repository's actual locked tuple. Details:
 [package-island report](research/server-component-package-islands.md).
 
+Server-only vs the dependency optimizer (0.9; [report](research/server-component-optimized-dependency-firewall-v09.md)):
+`optimizer.test.ts` covers the Rolldown plugin (no assertion, assertion, importer chain, cycles, sanitized paths,
+no state across runs) and `plugin.test.ts` the config seam; `pnpm test:server-component-optimized-deps` packs a fixture
+package and the plugin, installs them with npm outside the repository and drives real Vite dev servers (cold, warm,
+force, HTML-entry scan, `include`, `exclude`, linked package) and `vite build` / `--ssr` builds, asserting the Strata
+diagnostic, the absence of private markers in bodies, error payloads, assets and source maps, and a positive control that
+the markers exist and are served with the firewall off.
+
 Server-only graph security (0.6 candidate; [report](research/server-component-graph-security-v06.md)):
 `resolve.test.ts` covers module identity (relative, index, `.js`, Vite string/RegExp aliases, tsconfig
 paths, packages never resolved) and alias-aware taint with cycles; the plugin tests cover the client

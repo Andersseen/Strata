@@ -1,0 +1,1 @@
+export const PUBLIC_ROOT = "STRATA_FIXTURE_PUBLIC_ROOT";

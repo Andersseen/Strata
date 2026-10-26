@@ -109,8 +109,11 @@ compatibility matrix; do not check it based on intent or a demonstration.
       and a package module that asserts server-only fails the client build, with the importer and
       import chain the bundler knows (0.6 candidate,
       [report](research/server-component-graph-security-v06.md)); package re-exports are not
-      crawled, a package that leaks without asserting is not detected, and dev pre-bundled chunks
-      hide a package's internal importer; local Node and workerd only.
+      crawled, a package that leaks without asserting is not detected; in dev, pre-bundled package
+      modules that assert are refused by the optimizer firewall (0.9 candidate,
+      [report](research/server-component-optimized-dependency-firewall-v09.md)) but the importer above an optimizer entry is unavailable, a warm cache
+      survives an in-place edit, and a failed first optimizer run ends `vite` dev; local Node and
+      workerd only.
 - [ ] Normal interactive Angular descendants are shipped and hydrated without shipping the server
       parent; DOM reuse and exactly-once events are asserted.
 - [ ] Initial SSR, direct URL loading and server-side service access work with request isolation.

@@ -22,6 +22,9 @@ import { SERVER_ONLY_SPECIFIER } from "./server-only.js";
  * production builds are exercised by `pnpm test:server-component-server-only`.
  */
 
+const OPTIMIZER_FIREWALL = {
+  plugins: [expect.objectContaining({ name: "strata:server-only-optimizer" })],
+};
 const MARK = `import "${SERVER_ONLY_SPECIFIER}";`;
 const SOURCES: Record<string, string> = {
   "repository.ts": `${MARK}\nimport { format } from "./shared-format";\nexport class Repository {}`,
@@ -110,7 +113,10 @@ describe("config", () => {
     expect(
       (instance.config as Hook).call({}, {}, { command: "build", mode: "production" }),
     ).toEqual({
-      optimizeDeps: { include: ["@strata-sc/server-components"] },
+      optimizeDeps: {
+        include: ["@strata-sc/server-components"],
+        rolldownOptions: OPTIMIZER_FIREWALL,
+      },
       ssr: { noExternal: ["@strata-sc/server-components"] },
     });
   });
@@ -157,6 +163,7 @@ describe("config", () => {
     ).toEqual({
       optimizeDeps: {
         include: ["@strata-sc/server-components", "@strata-sc/server-components/navigation"],
+        rolldownOptions: OPTIMIZER_FIREWALL,
       },
       ssr: { noExternal: ["@strata-sc/server-components"] },
     });
@@ -181,9 +188,27 @@ describe("config", () => {
     ).toEqual({
       optimizeDeps: {
         include: ["@strata-sc/server-components", "@acme/angular-widgets"],
+        rolldownOptions: OPTIMIZER_FIREWALL,
       },
       ssr: { noExternal: ["@strata-sc/server-components", "@acme/angular-widgets"] },
     });
+  });
+
+  it("installs the optimizer firewall only while enabled", () => {
+    const configure = (enabled: boolean) =>
+      (
+        strataServerComponents({
+          root,
+          sourceDir: "src/app",
+          generatedDir: "src/generated",
+          enabled,
+        }).config as Hook
+      ).call({}, {}, { command: "serve", mode: "development" }) as {
+        optimizeDeps: { rolldownOptions?: unknown };
+      };
+
+    expect(configure(true).optimizeDeps.rolldownOptions).toEqual(OPTIMIZER_FIREWALL);
+    expect(configure(false).optimizeDeps.rolldownOptions).toBeUndefined();
   });
 
   it("rejects malformed package registrations before graph generation", () => {

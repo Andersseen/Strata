@@ -801,9 +801,19 @@ A package is never trusted by name. If an installed or linked package module (a 
 subpath, a barrel) imports `@strata-sc/server-components/server-only`, the client build fails when
 that import is resolved, whether or not the package appears in `clientComponents`: the registry
 authorizes an Angular component reference, not a server-only dependency. A browser-safe package root
-or subpath builds and ships normally. Under the dev server's pre-bundled dependencies the importer
-inside a package is collapsed into a chunk, so the diagnostic there can name the package module but
-not its internal importer.
+or subpath builds and ships normally. The `vite` dev server pre-bundles dependencies with Rolldown
+before the module graph sees them; the plugin therefore also registers a plugin in
+`optimizeDeps.rolldownOptions.plugins` that fails the optimizer run when a pre-bundled package module
+asserts server-only, directly, through a package barrel or through a dynamic import. No chunk is
+produced and the diagnostic names the module and the importers the optimizer reports; the app import
+that started the chain is not recoverable under optimization and the message says so. A dependency
+scanned or `include`d at startup that reaches the assertion ends the `vite` dev process with that
+diagnostic (Vite 8.3.0 does not catch the failed first optimizer run); one found later answers 504.
+One refused entry fails its whole optimizer batch. A `[strata]` dev error reaches the browser as its
+message only: no code frame, source or stack. The optimizer cache is keyed by the lockfile, not by
+package contents: after adding the assertion to an installed package in place, restart `vite` with
+`--force`. Packages that leak without asserting remain undetected
+([report](../../docs/research/server-component-optimized-dependency-firewall-v09.md)).
 
 Recipe (server-only repository → Server Component → public DTO → island): see
 [Server-only recipe](#server-only-recipe).

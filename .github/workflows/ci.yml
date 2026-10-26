@@ -69,6 +69,12 @@ jobs:
       - name: Server-only modules (build-graph firewall)
         run: pnpm test:server-component-server-only
 
+      # Packed, externally installed npm packages through Vite's dependency optimizer and production
+      # builds: server-only package modules, barrels and dynamic imports are refused with the Strata
+      # diagnostic and never served; private markers are scanned in assets and source maps.
+      - name: Server-only modules vs the dependency optimizer (installed packages)
+        run: pnpm test:server-component-optimized-deps
+
       # The REAL Analog/Vite dev server in Chromium: server-owned edits regenerate the graph and reload
       # the document once, client-owned edits do not, a module that starts asserting server-only is
       # refused live. Restores every edited file.

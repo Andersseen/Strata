@@ -6,3 +6,5 @@ pnpm-lock.yaml
 # Vendored by `skills add`; reinstalling replaces them, so never reformat.
 .agents/skills/entwine-*
 .claude/skills/entwine-*
+# Deliberately invalid module of the optimizer-firewall fixture package.
+tests/server-component-optimized-deps/kit/broken.js

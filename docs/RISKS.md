@@ -26,7 +26,10 @@ source-owned Angular class or an unlinked partial declaration. Residual risk: th
 naturally outside CI and the CI failures were not captured with build output, so attribution is by matching
 signature, and the gate covers modules that pass through Vite, not packages Nitro traces by itself. The
 general limitation remains: an unexpected Angular render error still returns HTTP 200 and Strata has no
-supported way to change that. Separately, `release.yml` publishes on every push to `main` and is not gated on
+supported way to change that. A dev-only bypass of the server-only assertion through Vite 8's dependency optimizer
+was reproduced and closed in 0.9 (marked package modules, barrels and dynamic imports are refused; unmarked packages
+are still not detected; a warm optimizer cache survives an in-place edit that adds the assertion; a failed first
+optimizer run ends `vite` dev, see [the evidence](research/server-component-optimized-dependency-firewall-v09.md)). Separately, `release.yml` publishes on every push to `main` and is not gated on
 the aggregate CI `Verify` result of the same SHA: a release-safety issue deliberately kept out of this change.
 See [the evidence](research/server-component-ssr-integrity-v07.md).
 

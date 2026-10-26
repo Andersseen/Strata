@@ -220,7 +220,8 @@ the exact configuration is in the
   index files, re-export chains, query imports and package modules that assert it. A package listed
   in `clientComponents` is not exempt
   ([details](../packages/server-components/README.md#server-only-modules),
-  [report](research/server-component-graph-security-v06.md)).
+  [report](research/server-component-graph-security-v06.md)). In `vite` dev the same assertion is enforced
+  inside Vite's dependency optimizer (0.9, [report](research/server-component-optimized-dependency-firewall-v09.md))
 - A standalone Angular component from an installed library may be an island only when its selector,
   bare package entry point and named export are explicitly declared in `clientComponents` and that
   same export is imported into the Server Component. The feature is experimental and scoped to the
