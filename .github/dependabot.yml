@@ -6,8 +6,21 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     groups:
+      # The Angular compiler, compiler-cli and runtime packages must move together: a lone bump of
+      # @angular/compiler breaks the AOT build against an older compiler-cli.
+      angular:
+        patterns:
+          - "@angular/*"
       development-dependencies:
         dependency-type: development
+        exclude-patterns:
+          - "@angular/*"
+    ignore:
+      # TypeScript 7 ships without the JavaScript Compiler API that the Strata plugin (peer
+      # typescript ^5.9 || ^6), unplugin-dts and typescript-eslint need.
+      - dependency-name: typescript
+        update-types:
+          - version-update:semver-major
 
   - package-ecosystem: github-actions
     directory: /
