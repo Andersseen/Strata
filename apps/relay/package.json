@@ -31,7 +31,7 @@
     "@strata-sc/core": "workspace:*",
     "@strata-sc/server-components": "workspace:*",
     "@tailwindcss/vite": "4.3.3",
-    "@voltui/components": "1.0.1",
+    "@voltui/components": "1.3.3",
     "lumen-icons": "0.2.0",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0"

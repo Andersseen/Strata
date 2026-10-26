@@ -177,8 +177,8 @@ importers:
         specifier: 4.3.3
         version: 4.3.3(vite@8.3.0(@types/node@22.20.3)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.0)(terser@5.51.2)(yaml@2.9.1))
       '@voltui/components':
-        specifier: 1.0.1
-        version: 1.0.1(b1640ed01ac8881ba1c9020560002076)
+        specifier: 1.3.3
+        version: 1.3.3(f83d835ada758d9bc409d52bedbb985b)
       lumen-icons:
         specifier: 0.2.0
         version: 0.2.0(@angular/common@22.2.3(@angular/core@22.2.3(@angular/compiler@22.2.3)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.3(@angular/compiler@22.2.3)(rxjs@7.8.2))
@@ -265,8 +265,8 @@ importers:
         specifier: 4.3.3
         version: 4.3.3(vite@8.3.0(@types/node@22.20.3)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.0)(terser@5.51.2)(yaml@2.9.1))
       '@voltui/components':
-        specifier: 1.0.1
-        version: 1.0.1(b1640ed01ac8881ba1c9020560002076)
+        specifier: 1.3.3
+        version: 1.3.3(f83d835ada758d9bc409d52bedbb985b)
       angular-movement:
         specifier: 0.8.0
         version: 0.8.0(@angular/common@22.2.3(@angular/core@22.2.3(@angular/compiler@22.2.3)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.3(@angular/compiler@22.2.3)(rxjs@7.8.2))
@@ -2331,10 +2331,10 @@ packages:
     resolution: {integrity: sha512-7FNeNl8NCE7aINx7WXiKQrPYZWC/hvrTsmk6zmxbI7LTXE7hVek/n8AfVgpe2y82zl3w0HvCHN0bVKMBoJcC0w==}
     engines: {node: '>= 10.0.0'}
 
-  '@phenomnomnominal/tsquery@6.1.3':
-    resolution: {integrity: sha512-CEqpJ872StsxRmwv9ePCZ4BCisrJSlREUC5XxIRYxhvODt4aQoJFFmjTgaP6meyKiiXxxN/VWPZ58j4yHXRkmw==}
+  '@phenomnomnominal/tsquery@6.2.0':
+    resolution: {integrity: sha512-Vo9nkhfZxDB/sBiqIY3pjDC4mOSyure+AFlEW5hcy/tRE82MqCXjRN4InnVNMldinRt0dLYqg4HAU2XPq5e1LA==}
     peerDependencies:
-      typescript: ^3 || ^4 || ^5
+      typescript: '>3.0.0'
 
   '@pkgjs/parseargs@0.11.0':
     resolution: {integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==}
@@ -3281,12 +3281,14 @@ packages:
   '@volar/typescript@2.4.28':
     resolution: {integrity: sha512-Ja6yvWrbis2QtN4ClAKreeUZPVYMARDYZl9LMEv1iQ1QdepB6wn0jTRxA9MftYmYa4DQ4k/DaSZpFPUfxl8giw==}
 
-  '@voltui/components@1.0.1':
-    resolution: {integrity: sha512-/yTCyqLF+C9Wtj93Nae3p4f6glayaJs0BBvNDKtso06NoyyvowYP5owkRfcCT+j3TaJAesHTqxEcaPp5XRx9hw==}
+  '@voltui/components@1.3.3':
+    resolution: {integrity: sha512-8CQl1e0t82ClIMu3BP0l9Dcmp0N7v8zOCPuKR7MFnQxEkXg49Z3x3HEf+LkQaBrQJiZjd0OrG0VhJkofPwvMlA==}
     peerDependencies:
-      '@angular/common': ^21.2.0
-      '@angular/core': ^21.2.0
-      '@angular/forms': ^21.2.0
+      '@angular/cdk': ^21.2.0 || ^22.0.0
+      '@angular/common': ^21.2.0 || ^22.0.0
+      '@angular/core': ^21.2.0 || ^22.0.0
+      '@angular/forms': ^21.2.0 || ^22.0.0
+      '@angular/router': ^21.2.0 || ^22.0.0
 
   abbrev@3.0.1:
     resolution: {integrity: sha512-AO2ac6pjRB3SJmGJo+v5/aK6Omggp6fsLrs6wN9bd35ulu4cCwaAU9+7ZhXjeqHVkaHThLuzH0nZr0YpCDhygg==}
@@ -4720,17 +4722,20 @@ packages:
   natural-compare@1.4.0:
     resolution: {integrity: sha512-OWND8ei3VtNC9h7V60qff3SVobHr996CTwgxubgyQYEpg290h9J0buyECNNJexkFm5sOajh5G116RYA1c8ZMSw==}
 
-  ng-primitives@0.110.2:
-    resolution: {integrity: sha512-p/xm9n5Y0ZThf+7tBH0WKZv0kf+1IZU3Kjf7fASFAhgR/3nld5+Vsex37xTWB5zy6jSK6rbUhRJT3WqU9izlEg==}
+  ng-primitives@0.131.3:
+    resolution: {integrity: sha512-9HqcXYFlT+yEkuBLmByOf7moxSobEgABVGYcHrqiyapnL7qZ7RpA8N6kn1a/yOiVdtk/nNiQJcyowmzfClKc/Q==}
     peerDependencies:
-      '@angular/cdk': '>=19.0.0'
-      '@angular/common': '>=19.0.0'
-      '@angular/core': '>=19.0.0'
-      '@angular/forms': '>=19.0.0'
+      '@angular/cdk': ^21.0.0 || ^22.0.0
+      '@angular/common': ^21.0.0 || ^22.0.0
+      '@angular/core': ^21.0.0 || ^22.0.0
+      '@angular/forms': ^21.0.0 || ^22.0.0
       '@floating-ui/dom': '>=1.6.0'
+      date-fns: '*'
       luxon: '*'
       rxjs: '>=6.6.0'
     peerDependenciesMeta:
+      date-fns:
+        optional: true
       luxon:
         optional: true
 
@@ -7625,7 +7630,7 @@ snapshots:
       '@parcel/watcher-win32-x64': 2.6.0
     optional: true
 
-  '@phenomnomnominal/tsquery@6.1.3(typescript@6.0.3)':
+  '@phenomnomnominal/tsquery@6.2.0(typescript@6.0.3)':
     dependencies:
       '@types/esquery': 1.5.4
       esquery: 1.7.0
@@ -8323,19 +8328,21 @@ snapshots:
       path-browserify: 1.0.1
       vscode-uri: 3.2.0
 
-  '@voltui/components@1.0.1(b1640ed01ac8881ba1c9020560002076)':
+  '@voltui/components@1.3.3(f83d835ada758d9bc409d52bedbb985b)':
     dependencies:
+      '@angular/cdk': 22.2.3(@angular/common@22.2.3(@angular/core@22.2.3(@angular/compiler@22.2.3)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.3(@angular/compiler@22.2.3)(rxjs@7.8.2))(@angular/forms@22.2.3(@angular/common@22.2.3(@angular/core@22.2.3(@angular/compiler@22.2.3)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.3(@angular/compiler@22.2.3)(rxjs@7.8.2))(@angular/platform-browser@22.2.3(@angular/common@22.2.3(@angular/core@22.2.3(@angular/compiler@22.2.3)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.3(@angular/compiler@22.2.3)(rxjs@7.8.2)))(rxjs@7.8.2))(@angular/platform-browser@22.2.3(@angular/common@22.2.3(@angular/core@22.2.3(@angular/compiler@22.2.3)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.3(@angular/compiler@22.2.3)(rxjs@7.8.2)))(rxjs@7.8.2)
       '@angular/common': 22.2.3(@angular/core@22.2.3(@angular/compiler@22.2.3)(rxjs@7.8.2))(rxjs@7.8.2)
       '@angular/core': 22.2.3(@angular/compiler@22.2.3)(rxjs@7.8.2)
       '@angular/forms': 22.2.3(@angular/common@22.2.3(@angular/core@22.2.3(@angular/compiler@22.2.3)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.3(@angular/compiler@22.2.3)(rxjs@7.8.2))(@angular/platform-browser@22.2.3(@angular/common@22.2.3(@angular/core@22.2.3(@angular/compiler@22.2.3)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.3(@angular/compiler@22.2.3)(rxjs@7.8.2)))(rxjs@7.8.2)
+      '@angular/router': 22.2.3(@angular/common@22.2.3(@angular/core@22.2.3(@angular/compiler@22.2.3)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.3(@angular/compiler@22.2.3)(rxjs@7.8.2))(@angular/platform-browser@22.2.3(@angular/common@22.2.3(@angular/core@22.2.3(@angular/compiler@22.2.3)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.3(@angular/compiler@22.2.3)(rxjs@7.8.2)))(rxjs@7.8.2)
       '@floating-ui/dom': 1.8.0
       class-variance-authority: 0.7.1
       clsx: 2.1.1
-      ng-primitives: 0.110.2(ec1457b6fdabf6d73c88d389d721e7e4)
+      ng-primitives: 0.131.3(ec1457b6fdabf6d73c88d389d721e7e4)
       tailwind-merge: 3.7.0
       tslib: 2.8.1
     transitivePeerDependencies:
-      - '@angular/cdk'
+      - date-fns
       - luxon
       - rxjs
       - typescript
@@ -9738,14 +9745,14 @@ snapshots:
 
   natural-compare@1.4.0: {}
 
-  ng-primitives@0.110.2(ec1457b6fdabf6d73c88d389d721e7e4):
+  ng-primitives@0.131.3(ec1457b6fdabf6d73c88d389d721e7e4):
     dependencies:
       '@angular/cdk': 22.2.3(@angular/common@22.2.3(@angular/core@22.2.3(@angular/compiler@22.2.3)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.3(@angular/compiler@22.2.3)(rxjs@7.8.2))(@angular/forms@22.2.3(@angular/common@22.2.3(@angular/core@22.2.3(@angular/compiler@22.2.3)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.3(@angular/compiler@22.2.3)(rxjs@7.8.2))(@angular/platform-browser@22.2.3(@angular/common@22.2.3(@angular/core@22.2.3(@angular/compiler@22.2.3)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.3(@angular/compiler@22.2.3)(rxjs@7.8.2)))(rxjs@7.8.2))(@angular/platform-browser@22.2.3(@angular/common@22.2.3(@angular/core@22.2.3(@angular/compiler@22.2.3)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.3(@angular/compiler@22.2.3)(rxjs@7.8.2)))(rxjs@7.8.2)
       '@angular/common': 22.2.3(@angular/core@22.2.3(@angular/compiler@22.2.3)(rxjs@7.8.2))(rxjs@7.8.2)
       '@angular/core': 22.2.3(@angular/compiler@22.2.3)(rxjs@7.8.2)
       '@angular/forms': 22.2.3(@angular/common@22.2.3(@angular/core@22.2.3(@angular/compiler@22.2.3)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.3(@angular/compiler@22.2.3)(rxjs@7.8.2))(@angular/platform-browser@22.2.3(@angular/common@22.2.3(@angular/core@22.2.3(@angular/compiler@22.2.3)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.3(@angular/compiler@22.2.3)(rxjs@7.8.2)))(rxjs@7.8.2)
       '@floating-ui/dom': 1.8.0
-      '@phenomnomnominal/tsquery': 6.1.3(typescript@6.0.3)
+      '@phenomnomnominal/tsquery': 6.2.0(typescript@6.0.3)
       rxjs: 7.8.2
       tslib: 2.8.1
     transitivePeerDependencies:
