@@ -23,7 +23,7 @@
   "dependencies": {
     "@analogjs/content": "^2.7.2",
     "@analogjs/router": "^2.8.1",
-    "@angular/cdk": "22.2.3",
+    "@angular/cdk": "22.2.4",
     "@angular/common": "^22.2.3",
     "@angular/compiler": "^22.2.3",
     "@angular/core": "^22.2.3",
@@ -46,7 +46,7 @@
   "devDependencies": {
     "@analogjs/platform": "^2.7.2",
     "@analogjs/vite-plugin-angular": "^2.7.2",
-    "@angular/build": "^22.0.0",
+    "@angular/build": "^22.2.4",
     "@angular/compiler-cli": "^22.2.3",
     "@angular/platform-browser-dynamic": "^22.2.3",
     "@playwright/test": "1.62.1",
