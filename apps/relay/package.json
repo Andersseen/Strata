@@ -17,7 +17,7 @@
     "verify:server-components": "node --experimental-strip-types ../../tools/server-components/relay.ts"
   },
   "dependencies": {
-    "@analogjs/content": "^2.7.2",
+    "@analogjs/content": "^2.9.2",
     "@analogjs/router": "^2.8.1",
     "@angular/cdk": "22.2.3",
     "@angular/common": "^22.2.3",
