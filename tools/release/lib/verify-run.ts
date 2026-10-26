@@ -16,6 +16,13 @@ export interface ReleaseRunDecision {
 }
 
 /** Fail closed unless a completed main push has its own successful Verify and is still main. */
+/**
+ * GitHub reports the workflow file of a push run on the default branch as
+ * `.github/workflows/ci.yml`; a ref suffix appears for other refs. Both spellings
+ * of main are accepted, any other file or ref is not.
+ */
+const CI_WORKFLOW_PATH = /^\.github\/workflows\/ci\.yml(@(refs\/heads\/)?main)?$/;
+
 export async function verifyReleaseRun(
   event: ReleaseRunEvent,
   repositoryName: string,
@@ -30,7 +37,7 @@ export async function verifyReleaseRun(
   if (!run || run.event !== "push" || run.head_branch !== "main") {
     return blocked("source run is not a push to main");
   }
-  if (run.name !== "CI" || run.path !== ".github/workflows/ci.yml@main") {
+  if (run.name !== "CI" || !CI_WORKFLOW_PATH.test(String(run.path))) {
     return blocked("source run is not the repository CI workflow");
   }
   if (run.status !== "completed" || run.conclusion !== "success") {
