@@ -11,3 +11,9 @@ export { StrataBoundaryError, StrataBuildMismatchError } from "./boundary-protoc
 export type { BoundaryFailureCategory, BuildRecoveryOutcome } from "./boundary-protocol.js";
 export { provideSkewRecovery } from "./skew-recovery.js";
 export type { BuildMismatch, SkewRecoveryOptions } from "./skew-recovery.js";
+export { provideStrataHydrationObserver } from "./hydration-observer.js";
+export type {
+  StrataHydrationObservation,
+  StrataHydrationObserver,
+  StrataHydrationOutcome,
+} from "./hydration-observer.js";

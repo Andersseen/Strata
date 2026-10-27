@@ -1173,6 +1173,32 @@ try {
   nodeOk.push(assessProduct("Node SSR", response, sanitize(node.output())));
 
   const observation = await observeBrowser(`${node.baseUrl}/product`);
+  check(
+    "packed runtime emits one frozen, safe committed-host event",
+    observation.hydrationObservations.length === 1 &&
+      observation.hydrationObservationsFrozen &&
+      observation.hydrationObservations[0]?.hostSelector === "product-details" &&
+      observation.hydrationObservations[0]?.outcome === "committed" &&
+      observation.hydrationObservations[0]?.discoveredBoundaries ===
+        observation.hydrationObservations[0]?.committedBoundaries &&
+      Number.isFinite(observation.hydrationObservations[0]?.elapsedMs) &&
+      !JSON.stringify(observation.hydrationObservations).includes("STRATA_OBSERVER_PRIVATE_CANARY"),
+    JSON.stringify(observation.hydrationObservations),
+  );
+  const isolatedObserver = await observeBrowser(`${node.baseUrl}/product?observer=reject`);
+  check(
+    "packed runtime consumes a rejected observer Promise without changing hydration or ErrorHandler",
+    isolatedObserver.hydrationObservations.length === 1 &&
+      isolatedObserver.hydrationObservationsFrozen &&
+      isolatedObserver.hydrationObservations[0]?.outcome === "committed" &&
+      isolatedObserver.countAfterClick === "Count: 1" &&
+      isolatedObserver.errors.length === 0,
+    JSON.stringify({
+      events: isolatedObserver.hydrationObservations,
+      count: isolatedObserver.countAfterClick,
+      errors: isolatedObserver.errors,
+    }),
+  );
 
   nodeOk.push(
     check(

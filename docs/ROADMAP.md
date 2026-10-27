@@ -208,6 +208,11 @@ refusal before islands exist, and an opt-in bounded document reload. It does not
 stability, router subtree navigation, streaming, a deployed qualification and production adoption remain open
 ([report](research/server-component-deployment-skew-v08.md)).
 
+The 0.10 candidate adds an opt-in browser observer for one terminal result per Strata host transaction.
+It reports commit, preflight refusal or rollback-complete commit failure without taking over Angular's
+`ErrorHandler` or `@defer` scheduler. The implementation does not complete M4; Node, dev, workerd, packed
+consumer, and hosted CI evidence must be recorded separately ([report](research/server-component-hydration-observability-v010.md)).
+
 - Capability: strict server-only UI composes Angular interactive descendants under a defined initial
   SSR and navigation strategy.
 - Hypothesis: the PoC remains correct across navigation, nested boundaries, errors and optimization.

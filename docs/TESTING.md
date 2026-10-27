@@ -182,6 +182,10 @@ hydration:
   the recorded NO-GO), and island teardown through fixture-owned probes.
 - `pnpm test:server-components:cloudflare`: the same contract, including the document fallback,
   on local workerd via Wrangler.
+- `pnpm test:server-components` and `pnpm test:server-component-failures`: the opt-in terminal host
+  event on the Analog fixture, including successful hosts, preflight refusal, rollback-complete commit
+  failure, original `ErrorHandler` delivery, and healthy siblings. These are local fixture checks and
+  do not qualify deployed delivery.
 - `pnpm test:server-component-ssr-response`: the consumer-owned expected-service recovery contract
   on Nitro node-server and local Wrangler/workerd. It checks 200 success, 503/no-store generic
   recovery, 400 invalid-context fallback, response/body confidentiality, overlap isolation and

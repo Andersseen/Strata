@@ -227,6 +227,12 @@ declare const document: {
 declare const window: {
   __STRATA_DEFER_PROBE__?: Record<string, number>;
   __STRATA_ISLAND_PROBE__?: { created: number; destroyed: number };
+  __STRATA_HYDRATION_OBSERVATIONS__?: readonly {
+    hostSelector: string;
+    outcome: string;
+    discoveredBoundaries: number;
+    committedBoundaries: number;
+  }[];
   __strataDeferNodes?: Record<string, DomNode | null>;
 };
 
@@ -243,6 +249,7 @@ interface PageState {
   readonly probe: Record<string, number>;
   readonly islandsCreated: number;
   readonly hydratedIslands: readonly string[];
+  readonly hydrationObservationCount: number;
   /** Elements still carrying `ngh` (not hydrated by Angular). */
   readonly ngh: readonly string[];
   /** Elements still carrying `ngb` (inside a dehydrated defer block). */
@@ -328,6 +335,7 @@ async function openDeferPage(
           hydratedIslands: Array.from(document.querySelectorAll("[data-strata-hydrated]")).map(
             (element) => element.localName,
           ),
+          hydrationObservationCount: window.__STRATA_HYDRATION_OBSERVATIONS__?.length ?? 0,
           ngh: Array.from(document.querySelectorAll("[ngh]")).map((element) => element.localName),
           ngb: Array.from(document.querySelectorAll("[ngb]")).map((element) => element.localName),
           expanded: document.querySelector("defer-interaction-widget output")?.textContent ?? null,
@@ -381,7 +389,9 @@ async function checkPositive(browser: Browser, baseUrl: string, runtime: string)
       check("Layer 1 (Strata): both island roots hydrate", islandsHydrated),
       check(
         "StrataIslandHost created exactly two islands, each panel constructed once",
-        before.islandsCreated === 2 && before.probe["panel"] === 2,
+        before.islandsCreated === 2 &&
+          before.probe["panel"] === 2 &&
+          before.hydrationObservationCount === 1,
         describeState(before),
       ),
       check(
@@ -476,7 +486,10 @@ async function checkPositive(browser: Browser, baseUrl: string, runtime: string)
           session.loaded(DEFER_MARKERS.viewportWidget).length === 0,
         JSON.stringify(afterSecondClick.probe),
       ),
-      check("no island was created again", afterSecondClick.islandsCreated === 2),
+      check(
+        "no island or Strata host observation was created again by Angular defer hydration",
+        afterSecondClick.islandsCreated === 2 && afterSecondClick.hydrationObservationCount === 1,
+      ),
     ]);
 
     // hydrate on viewport: below the fold until scrolled.
@@ -542,7 +555,8 @@ async function checkPositive(browser: Browser, baseUrl: string, runtime: string)
         final.probe["interactionWidget"] === 1 &&
           final.probe["viewportWidget"] === 1 &&
           final.probe["panel"] === 2 &&
-          final.islandsCreated === 2,
+          final.islandsCreated === 2 &&
+          final.hydrationObservationCount === 1,
         describeState(final),
       ),
     ]);
