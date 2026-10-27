@@ -95,7 +95,7 @@ Deferred blocks remain unsupported in server-owned templates.
 | Unit tested               | Provider scope, no-observer path, frozen shape, sync throw, rejected Promise and thenable (354 pass). |
 | Locally integrated        | Node, Analog live dev, workerd, failure/recovery, deployment-skew and `@defer` suites passed.         |
 | Packed-consumer qualified | Packed tarball install, TS 5.9/6, Node production, external dev and Cloudflare/workerd passed.        |
-| Hosted-CI qualified       | Not established; GitHub Actions run access was unavailable during this pass.                          |
+| Hosted-CI qualified       | PR #143 CI is running; no main-push release-gate transition is established by this PR run.            |
 | Deployed qualified        | Not run; no real deployment was authorized.                                                           |
 | Production adopted        | Unknown / not evidenced.                                                                              |
 
@@ -104,8 +104,9 @@ One Node fixture observation reported 1.10 ms for one host attempt, including bo
 preflight and commit. This is one noisy sample, not a comparative overhead benchmark. The disabled
 path skips event allocation and clock reads; its comparative cost has not been measured. Full workspace
 build, typecheck and tests passed; the performance-tools subset passed 163 checks with loopback access.
-Repository-wide lint still reports unsafe typing diagnostics in existing `apps/relay` files; the full
-lint command has not produced a clean result for this branch.
+A full lint run completed with zero errors and four import-order warnings. Two warnings were in changed
+files and have been corrected; a final full lint rerun is still pending. One existing warning remains in
+`tools/analog/observability.ts`.
 
 ## Release safety and remaining limits
 
@@ -114,9 +115,9 @@ any version or publish action. `verify-run.ts` requires a completed successful C
 a single successful aggregate `Verify` job, and that main still points at that exact SHA. The helper
 tests cover successful, failed, cancelled, pending, missing/duplicate Verify and GitHub's reported
 workflow path. Issue [#117](https://github.com/Andersseen/Strata/issues/117) remains open. Recent hosted
-runs and live pending/failure/cancelled/stale-main transitions could not be inspected through the
-available GitHub Actions API in this environment; do not claim release workflow qualification or
-close the issue based on the helper tests alone. No package was published.
+the current PR CI runs are available and in progress, but main-push release runs and live
+pending/failure/cancelled/stale-main transitions are not established by this PR. Do not claim release
+workflow qualification or close the issue based on helper tests or PR checks alone. No package was published.
 
 This feature does not complete M3, M4, M5 or Strata 1.0. Browser Router subtree navigation, protocol
 stability, deployed qualification, full supported-version matrix, production application adoption and
