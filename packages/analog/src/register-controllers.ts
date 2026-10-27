@@ -465,6 +465,25 @@ function planRegistration(
   const state = routerStates.get(router);
   const registered = state?.routes;
   const planned = new Map<RouteKey, PlannedRoute>();
+  const routeShapes = new Map<
+    string,
+    { owner: string; path: string; method: HttpMethod; previous: boolean }
+  >();
+
+  for (const route of registered?.values() ?? []) {
+    const segments = compilePattern(route.path);
+    if (!segments) continue;
+    const shape = shapeOf(segments);
+    const known = routeShapes.get(shape);
+    if (!known) {
+      routeShapes.set(shape, {
+        owner: route.owner,
+        path: route.path,
+        method: route.method,
+        previous: true,
+      });
+    }
+  }
 
   for (const controllerClass of controllers) {
     const definition =
@@ -494,6 +513,32 @@ function planRegistration(
           `Duplicate Strata route "${key}": "${owner}" conflicts with "${registeredOwner ?? plannedOwner}", ${where}. ` +
             "Each HTTP method and final path may be registered by only one Strata route per router.",
         );
+      }
+
+      const segments = compilePattern(path);
+      if (segments) {
+        const shape = shapeOf(segments);
+        const equivalent = routeShapes.get(shape);
+
+        // Nitro/H3 shares the parameter name stored for a structural path
+        // across methods. The same template is safe for multiple methods, but
+        // a different parameter name can be delivered to every method based
+        // on which template was registered first.
+        if (equivalent && equivalent.path !== path) {
+          const where = equivalent.previous
+            ? "against a previously registered Strata route on this router"
+            : "within the current registerControllers() batch";
+          throw new StrataAnalogConfigurationError(
+            `Ambiguous Strata routes: ${route.method} ${path} (${owner}) conflicts with ` +
+              `${equivalent.method} ${equivalent.path} (${equivalent.owner}), ${where}. ` +
+              "Parameter names do not create distinct Nitro routes and Nitro shares parameter metadata across HTTP methods. " +
+              "Change a static path segment to give the routes different structural paths.",
+          );
+        }
+
+        if (!equivalent) {
+          routeShapes.set(shape, { owner, path, method: route.method, previous: false });
+        }
       }
 
       planned.set(key, {
@@ -529,8 +574,9 @@ function planRegistration(
 /**
  * Checks the owned prefixes against the router's existing state and every
  * Strata route below them: the boundary can only answer 404/405 for paths it
- * can match exactly like Nitro does, so unsupported patterns, ambiguous
- * parameter names and shape collisions are rejected here, before any mutation.
+ * can match exactly like Nitro does, so unsupported patterns are rejected
+ * here. Strata-to-Strata shape ambiguity is checked once in registration
+ * planning, regardless of boundary ownership.
  */
 function planBoundary(
   state: RouterState | undefined,
@@ -597,17 +643,7 @@ function planBoundary(
     }
 
     const shapeKey = `${route.method} ${shapeOf(segments)}`;
-    const other = shapes.get(shapeKey);
-
-    if (other) {
-      throw new StrataAnalogConfigurationError(
-        `Ambiguous Strata routes below an owned API prefix: "${route.owner}" (${route.method} ${route.path}) ` +
-          `and "${other.owner}" (${route.method} ${other.path}) differ only in parameter names, so Nitro ` +
-          "would serve them from one route entry.",
-      );
-    }
-
-    shapes.set(shapeKey, { owner: route.owner, path: route.path });
+    if (!shapes.has(shapeKey)) shapes.set(shapeKey, { owner: route.owner, path: route.path });
   }
 
   const declared = [

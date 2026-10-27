@@ -87,6 +87,15 @@ Verified behaviour (Analog 2.7.2, Nitro 2.13.4; see the
   The Cloudflare run of that DI experiment was a no-go
   ([report](research/server-component-cloudflare-poc.md)).
 
+Registration preflight compares normalized final route shapes made of static and whole named
+parameter segments. Same-method routes that differ only by parameter names fail before Nitro's
+router is touched. Nitro/H3 v1 shares parameter metadata across methods, so two methods may use the
+same exact template, but different templates with the same shape are rejected. Static routes remain
+distinct from parameter routes. Unsupported Nitro pattern forms outside an API boundary keep Nitro's
+existing behavior; only exact method/path duplicates are checked for those patterns. Strata cannot
+see native Nitro registrations or Analog-generated routes, so undeclared native collisions are not
+validated. See the [registration integrity evidence](research/analog-registration-integrity-v011.md).
+
 For the source-level examples, including the factory and cleanup, see the
 [repository README](../README.md#analog).
 

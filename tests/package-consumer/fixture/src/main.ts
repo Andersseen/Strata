@@ -27,7 +27,10 @@ import {
 import { BaseController, DecoratedChild, UndecoratedChild } from "./inheritance.controller.js";
 import { DuplicateCreateController, ItemsController } from "./items.controller.js";
 import { PostsController, registerPosts } from "./posts.controller.js";
-import { UnregisteredController } from "./registration.controller.js";
+import {
+  EquivalentParameterController,
+  UnregisteredController,
+} from "./registration.controller.js";
 import { ValidatedController } from "./validated.controller.js";
 import {
   observed,
@@ -169,6 +172,14 @@ assert.throws(
   () => registerControllers(router, [UnregisteredController, PostsController]),
   isDuplicateError,
 );
+assert.throws(
+  () => registerControllers(router, [UnregisteredController, EquivalentParameterController]),
+  (error: unknown) =>
+    error instanceof StrataAnalogConfigurationError &&
+    error.message.includes("EquivalentParameterController.find") &&
+    error.message.includes("PostsController.findOne") &&
+    error.message.includes("previously registered Strata route on this router"),
+);
 
 const app = createApp();
 app.use(router);
@@ -176,6 +187,8 @@ app.use(router);
 const server = createServer(toNodeListener(app));
 await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
 const { port } = server.address() as AddressInfo;
+
+assert.equal((await fetch(`http://127.0.0.1:${port}/api/unregistered`)).status, 404);
 
 async function send(
   method: string,

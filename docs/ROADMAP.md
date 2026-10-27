@@ -155,6 +155,10 @@ Broader M3 adoption and lifecycle gates remain open; see the
   limits bodies to 1 MiB and fields to 10,000, and shares request-local body ownership with validated JSON. Local
   unit, real Node/dev/workerd fixture and packed-consumer checks pass; hosted CI evidence is pending
   ([report](research/analog-validated-forms-v010.md)). This does not complete M3.
+- Capability in the 0.11.0 candidate: registration preflight rejects equivalent static/named-parameter
+  route templates across Strata-owned registrations, including when Nitro shares parameter names
+  across HTTP methods. This does not inspect native routes, model unsupported Nitro syntax, or complete
+  M3 ([report](research/analog-registration-integrity-v011.md)).
 - Remaining M3 work: close metadata/member/registration contracts;
   settle params/query/body/headers and Standard Schema contracts with external consumers; qualify safe errors;
   Angular providers/lifetimes; guards and interceptors with explicit

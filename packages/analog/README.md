@@ -668,6 +668,18 @@ Declaring Analog's own `/_analog` prefix is unsupported.
 - Two Strata routes with the same HTTP method and final path (for example
   `GET /api/users`) on one router are a configuration error, whether they come
   from one controller, two controllers or two calls.
+- Static and named-parameter routes are compared by their normalized final
+  path shape. Same-method routes such as `GET /products/:id` and
+  `GET /products/:slug` fail preflight. Nitro/H3 v1 also shares parameter-name
+  metadata across methods, so different templates with the same shape fail
+  even across methods. The exact same template remains valid for multiple
+  methods; static routes such as `/products/new` remain distinct from
+  `/products/:id`.
+- Shape checks cover only static segments and whole named-parameter segments,
+  matching the API boundary grammar. Outside an `apiBoundary`, unsupported
+  Nitro patterns retain Nitro behavior and only exact method/path duplicates
+  are checked. Native Nitro routes remain outside Strata's ownership; declare
+  native routes in `apiBoundary.nativeRoutes` for boundary validation.
 - Repeated calls on one router are supported for non-overlapping routes, and
   the same controllers can be registered on different routers.
 - Duplicate detection covers Strata registrations on the same router only; it
