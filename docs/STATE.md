@@ -14,8 +14,8 @@ templates remain valid across methods. Unsupported Nitro syntax outside the boun
 unchecked except for exact method/path duplicates; native registrations remain invisible to Strata.
 The Analog suite passes (247 tests); full local build/lint/type/test/format and the runtime, packed
 consumer, Server Components regression and E2E matrices passed. Startup registration timings and
-unrun/hosted evidence are recorded in the report. Hosted CI and deployed qualification are not yet
-available for this branch. See the
+unrun/hosted evidence are recorded in the report. PR #145's hosted Verify passed; deploy remained
+skipped and no deployed qualification was performed. See the
 [candidate report](research/analog-registration-integrity-v011.md).
 
 ## Server Components hydration observations (0.10.0 candidate)
