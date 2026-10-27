@@ -8,6 +8,11 @@ How Strata's controller packages and Server Components attach to the runtimes yo
 Everything here is experimental. Behaviour claims are limited to what the linked evidence shows;
 unsupported items are called out explicitly. The package READMEs hold the full API reference.
 
+Server Component applications may opt into `provideStrataHydrationObserver()` for a privacy-safe
+terminal event per host transaction. The application owns any telemetry transport. It complements
+the existing Angular `ErrorHandler` and `provideSkewRecovery()` and does not observe later Angular
+runtime errors or deferred child hydration; see the [0.10 candidate evidence](research/server-component-hydration-observability-v010.md).
+
 ## Controllers
 
 `@strata-sc/core` exports `Controller`, the route decorators `Get`, `Post`, `Put`, `Patch` and

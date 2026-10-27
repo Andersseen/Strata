@@ -1,5 +1,15 @@
 # Current implementation audit
 
+## Server Components hydration observations (0.10.0 candidate)
+
+From synchronized main `efd14e2d1375e1762846c3ee6ab6bb49d5440609` (`@strata-sc/server-components` 0.9.0).
+The browser runtime now supports an optional, application-injector `provideStrataHydrationObserver()` callback.
+It emits one immutable terminal host event after a successful all-boundary commit, a preflight refusal, or a
+commit failure after rollback. It does not replace Angular `ErrorHandler`, alter skew recovery, include boundary
+values or observe later Angular behavior. Unit coverage and the local qualification matrix are recorded in the
+[evidence report](research/server-component-hydration-observability-v010.md); unrun and hosted evidence must
+remain explicitly marked there. M4 and Strata 1.0 remain open.
+
 ## Analog validated URL-encoded forms for 0.10.0 (feature branch)
 
 On branch `feat/analog-validated-forms-v010`, work began from synchronized `main`

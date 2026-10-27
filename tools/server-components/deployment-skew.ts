@@ -88,6 +88,15 @@ interface Observed {
     message: string;
   }[];
   readonly mismatches: readonly { browserBuildId: string; serverBuildId: string }[];
+  readonly hydrationObservations: readonly {
+    hostSelector: string;
+    outcome: string;
+    discoveredBoundaries: number;
+    committedBoundaries: number;
+    failureCategory?: string;
+    buildMismatch: boolean;
+    recoveryOutcome?: string;
+  }[];
   readonly record: string | null;
   readonly sameNodes: boolean;
   readonly messages: readonly string[];
@@ -106,6 +115,7 @@ const OBSERVE = `(() => {
     hydrated: document.querySelectorAll("[data-strata-hydrated]").length,
     errors: window.__strataErrors ?? [],
     mismatches: window.__strataMismatches ?? [],
+    hydrationObservations: window.__strataHydrationObservations ?? [],
     record,
     sameNodes: nodes.length > 0 && nodes.length === now.length && nodes.every((n, i) => n === now[i] && n.isConnected),
     messages: hosts.map(text),
@@ -487,6 +497,16 @@ try {
           seen.errors.length === 1 &&
           classified(seen.errors[0], browserId, serverId),
         JSON.stringify(seen.errors),
+      );
+      check(
+        "confirmed mismatch emits one classified preflight observation with recovery outcome",
+        seen.hydrationObservations.length === 1 &&
+          seen.hydrationObservations[0]?.outcome === "preflight-refused" &&
+          seen.hydrationObservations[0]?.failureCategory === "build-mismatch" &&
+          seen.hydrationObservations[0]?.buildMismatch === true &&
+          seen.hydrationObservations[0]?.recoveryOutcome === "disabled" &&
+          seen.hydrationObservations[0]?.committedBoundaries === 0,
+        JSON.stringify(seen.hydrationObservations),
       );
       check(
         "the consumer callback received the two public build ids",

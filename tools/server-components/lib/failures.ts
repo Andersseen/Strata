@@ -65,6 +65,15 @@ declare const window: {
     destroyed: Record<string, number>;
   };
   __STRATA_ERROR_PROBE__?: string[];
+  __STRATA_HYDRATION_OBSERVATIONS__?: readonly {
+    hostSelector: string;
+    outcome: string;
+    discoveredBoundaries: number;
+    committedBoundaries: number;
+    failureCategory?: string;
+    buildMismatch: boolean;
+    elapsedMs: number;
+  }[];
   __STRATA_ISLAND_PROBE__?: { created: number; destroyed: number; views(): number };
   __strataFailureNodes?: readonly CapturedNode[];
   __strataSentinel?: string;
@@ -224,6 +233,7 @@ interface State {
   readonly destroyed: Record<string, number>;
   readonly views: number;
   readonly errors: readonly string[];
+  readonly observations: NonNullable<typeof window.__STRATA_HYDRATION_OBSERVATIONS__>;
 }
 
 const readState = (page: Page): Promise<State> =>
@@ -239,6 +249,7 @@ const readState = (page: Page): Promise<State> =>
     destroyed: { ...window.__STRATA_FAILURE_PROBE__?.destroyed },
     views: window.__STRATA_ISLAND_PROBE__?.views() ?? -1,
     errors: [...(window.__STRATA_ERROR_PROBE__ ?? [])],
+    observations: [...(window.__STRATA_HYDRATION_OBSERVATIONS__ ?? [])],
   }));
 
 const island = (key: string): string => {
@@ -362,7 +373,33 @@ export async function checkHealthyBaseline(
         check(
           "all nine islands hydrate (3 + 3 + 3) and each was constructed once",
           hydratedIs(state, { A: 3, B: 3, C: 3 }) &&
-            KEYS.every((key) => state.constructed[key] === 1),
+            KEYS.every((key) => state.constructed[key] === 1) &&
+            state.observations.length === 3 &&
+            state.observations.every(
+              (event) =>
+                event.outcome === "committed" &&
+                event.discoveredBoundaries === 3 &&
+                event.committedBoundaries === 3 &&
+                Number.isFinite(event.elapsedMs),
+            ) &&
+            state.observations.every((event) =>
+              Object.keys(event).every((key) =>
+                [
+                  "hostSelector",
+                  "outcome",
+                  "discoveredBoundaries",
+                  "committedBoundaries",
+                  "failureCategory",
+                  "buildMismatch",
+                  "recoveryOutcome",
+                  "elapsedMs",
+                ].includes(key),
+              ),
+            ) &&
+            !JSON.stringify(state.observations).includes(
+              "STRATA_DATA_SECRET_CANARY_8E41B7D2A6F9",
+            ) &&
+            !JSON.stringify(state.observations).includes("STRATA_SERVER_ONLY_CANARY_7F3D9A41C2E5"),
           JSON.stringify(state),
         ),
         check(
@@ -789,6 +826,21 @@ export async function checkPreflightIsolation(
           JSON.stringify(state.errors),
         ),
         check(
+          "one terminal event per host: B refused before creation; A and C committed",
+          state.observations.length === 3 &&
+            state.observations.filter((event) => event.outcome === "preflight-refused").length ===
+              1 &&
+            state.observations.filter((event) => event.outcome === "committed").length === 2 &&
+            state.observations.some(
+              (event) =>
+                event.outcome === "preflight-refused" &&
+                event.discoveredBoundaries === 3 &&
+                event.committedBoundaries === 0 &&
+                !!event.failureCategory,
+            ),
+          JSON.stringify(state.observations),
+        ),
+        check(
           "diagnostic is data-safe: no props value or payload fragment in any error",
           tamperCase.never.every(
             (part) => ![...state.errors, ...session.console].some((entry) => entry.includes(part)),
@@ -990,6 +1042,20 @@ export async function checkCommitFailure(
             state.errors[0]?.startsWith("Error:") === true &&
             state.errors[0].includes(commit.message),
           JSON.stringify(state.errors),
+        ),
+        check(
+          "one rollback-complete commit-failed event for B; sibling hosts still committed",
+          state.observations.length === 3 &&
+            state.observations.filter((event) => event.outcome === "commit-failed").length === 1 &&
+            state.observations.filter((event) => event.outcome === "committed").length === 2 &&
+            state.observations.some(
+              (event) =>
+                event.outcome === "commit-failed" &&
+                event.discoveredBoundaries === 3 &&
+                event.committedBoundaries === 0 &&
+                event.failureCategory === undefined,
+            ),
+          JSON.stringify(state.observations),
         ),
         check(
           "handled, not unhandled: one console.error, no page error",

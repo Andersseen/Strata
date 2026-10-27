@@ -141,6 +141,15 @@ export interface BrowserObservation {
   readonly variantButtonSurvivedKeyboard: boolean;
   readonly buttonSurvivedClick: boolean;
   readonly errors: readonly string[];
+  readonly hydrationObservations: readonly {
+    readonly hostSelector: string;
+    readonly outcome: string;
+    readonly discoveredBoundaries: number;
+    readonly committedBoundaries: number;
+    readonly buildMismatch: boolean;
+    readonly elapsedMs: number;
+  }[];
+  readonly hydrationObservationsFrozen: boolean;
   /** Every script the page actually loaded, with its body, for a runtime graph scan. */
   readonly scripts: readonly { readonly url: string; readonly body: string }[];
 }
@@ -172,6 +181,7 @@ declare const document: {
 declare const window: {
   __strataSsrNodes?: SsrNodes;
   __STRATA_ISLAND_PROBE__?: { created: number; destroyed: number };
+  __STRATA_HYDRATION_OBSERVATIONS__?: BrowserObservation["hydrationObservations"];
 };
 
 /**
@@ -383,6 +393,11 @@ export async function observeBrowser(url: string): Promise<BrowserObservation> {
     const buttonSurvivedClick = await page.evaluate(
       () => window.__strataSsrNodes?.button === document.querySelector("add-to-cart button"),
     );
+    const observationSnapshot = await page.evaluate(() => {
+      const events = window.__STRATA_HYDRATION_OBSERVATIONS__ ?? [];
+
+      return { events, frozen: events.every((event) => Object.isFrozen(event)) };
+    });
 
     passed = true;
 
@@ -412,6 +427,8 @@ export async function observeBrowser(url: string): Promise<BrowserObservation> {
       variantButtonSurvivedKeyboard,
       buttonSurvivedClick,
       errors,
+      hydrationObservations: observationSnapshot.events,
+      hydrationObservationsFrozen: observationSnapshot.frozen,
       scripts,
     };
   } finally {

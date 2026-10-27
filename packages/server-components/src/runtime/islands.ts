@@ -13,8 +13,13 @@ import {
 } from "@angular/core";
 import type { ComponentRef, Provider, Type } from "@angular/core";
 
-import { BOUNDARY_HYDRATED_ATTRIBUTE, StrataBuildMismatchError } from "./boundary-protocol.js";
+import {
+  BOUNDARY_HYDRATED_ATTRIBUTE,
+  StrataBoundaryError,
+  StrataBuildMismatchError,
+} from "./boundary-protocol.js";
 import { STRATA_BUILD_ID } from "./build-token.js";
+import { STRATA_HYDRATION_OBSERVER, notifyStrataHydrationObserver } from "./hydration-observer.js";
 import { BOUNDARY_HOST_SELECTOR, planClientBoundaries } from "./hydration-plan.js";
 import type { ClientReference, PlannedClientBoundary } from "./hydration-plan.js";
 import { SkewRecovery } from "./skew-recovery.js";
@@ -86,10 +91,20 @@ export class StrataIslandHost {
     const references = clientReferences(inject(CLIENT_REFERENCES));
     const buildId = inject(STRATA_BUILD_ID);
     const recovery = inject(SkewRecovery);
+    const observer = inject(STRATA_HYDRATION_OBSERVER, { optional: true });
     const appRef = inject(ApplicationRef);
     const environmentInjector = inject(EnvironmentInjector);
     const elementInjector = inject(Injector);
     const islands: ComponentRef<unknown>[] = [];
+    let destroyed = false;
+
+    const now = (): number => host.ownerDocument.defaultView?.performance.now() ?? 0;
+
+    const destroyRef = inject(DestroyRef);
+    destroyRef.onDestroy(() => {
+      destroyed = true;
+      for (const island of islands.splice(0)) island.destroy();
+    });
 
     const commit = (plan: readonly PlannedClientBoundary<HTMLElement>[]): void => {
       const created: ComponentRef<unknown>[] = [];
@@ -125,18 +140,59 @@ export class StrataIslandHost {
     };
 
     afterNextRender(() => {
+      if (destroyed) return;
+      const startedAt = observer ? now() : 0;
+      const boundaries = discoverBoundaries(host);
+      let plan: readonly PlannedClientBoundary<HTMLElement>[];
       try {
-        commit(planClientBoundaries(host.localName, discoverBoundaries(host), references, buildId));
+        plan = planClientBoundaries(host.localName, boundaries, references, buildId);
       } catch (error) {
+        const refusal = error instanceof StrataBoundaryError;
+        let mismatch: StrataBuildMismatchError | undefined;
         // Only a confirmed build mismatch is a candidate for recovery, and the
         // error is rethrown either way: the ErrorHandler still sees it.
-        if (error instanceof StrataBuildMismatchError) recovery.handle(error);
+        if (error instanceof StrataBuildMismatchError) {
+          mismatch = error;
+          recovery.handle(error);
+        }
+        if (observer)
+          notifyStrataHydrationObserver(observer, {
+            hostSelector: host.localName,
+            outcome: refusal ? "preflight-refused" : "commit-failed",
+            discoveredBoundaries: boundaries.length,
+            committedBoundaries: 0,
+            ...(refusal ? { failureCategory: error.category } : {}),
+            buildMismatch: mismatch !== undefined,
+            ...(mismatch ? { recoveryOutcome: mismatch.recovery } : {}),
+            elapsedMs: Math.max(0, now() - startedAt),
+          });
         throw error;
       }
-    });
 
-    inject(DestroyRef).onDestroy(() => {
-      for (const island of islands.splice(0)) island.destroy();
+      try {
+        commit(plan);
+      } catch (error) {
+        if (observer)
+          notifyStrataHydrationObserver(observer, {
+            hostSelector: host.localName,
+            outcome: "commit-failed",
+            discoveredBoundaries: boundaries.length,
+            committedBoundaries: 0,
+            buildMismatch: false,
+            elapsedMs: Math.max(0, now() - startedAt),
+          });
+        throw error;
+      }
+
+      if (observer)
+        notifyStrataHydrationObserver(observer, {
+          hostSelector: host.localName,
+          outcome: "committed",
+          discoveredBoundaries: boundaries.length,
+          committedBoundaries: boundaries.length,
+          buildMismatch: false,
+          elapsedMs: Math.max(0, now() - startedAt),
+        });
     });
   }
 }

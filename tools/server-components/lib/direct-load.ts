@@ -1,5 +1,6 @@
-import { httpGet } from "../../analog/lib/process.ts";
+import { chromium } from "playwright";
 
+import { httpGet } from "../../analog/lib/process.ts";
 import { observeBrowser } from "./browser.ts";
 import type { BrowserObservation } from "./browser.ts";
 import { MARKERS, SERVER_ONLY, check, section } from "./harness.ts";
@@ -107,6 +108,9 @@ export async function checkDirectLoad(
   section(`${runtime}: Chromium via Playwright — hydration and interaction`);
 
   const seen = await observeBrowser(`${baseUrl}${route}`);
+  console.log(
+    `Strata host observation timing (${runtime}, attempt ms): ${seen.hydrationObservations.map((event) => event.elapsedMs).join(", ")}`,
+  );
 
   const hydration = [
     check("before scripts: SSR shows Product 42", seen.beforeScripts.productVisible),
@@ -134,6 +138,16 @@ export async function checkDirectLoad(
       "StrataIslandHost created exactly one island (no duplicate island)",
       seen.islandsCreated === 1 && seen.hydratedIslands === 1,
       `${seen.islandsCreated} created, ${seen.hydratedIslands} hydrated`,
+    ),
+    check(
+      "one committed host observation reports the single island",
+      seen.hydrationObservations.length === 1 &&
+        seen.hydrationObservations[0]?.hostSelector === "product-details" &&
+        seen.hydrationObservations[0]?.outcome === "committed" &&
+        seen.hydrationObservations[0]?.discoveredBoundaries === 1 &&
+        seen.hydrationObservations[0]?.committedBoundaries === 1 &&
+        Number.isFinite(seen.hydrationObservations[0]?.elapsedMs),
+      JSON.stringify(seen.hydrationObservations),
     ),
     check("Product 42 visible", seen.productVisible),
     check(
@@ -183,7 +197,65 @@ export async function checkDirectLoad(
     ),
   ].every(Boolean);
 
+  const emptyHost = await checkEmptyHostObservation(baseUrl, runtime);
+
   console.log(`loaded scripts: ${loaded.join(", ")}`);
 
-  return { ssr, hydration, interaction, runtimeGraph, browser: seen };
+  return { ssr, hydration: hydration && emptyHost, interaction, runtimeGraph, browser: seen };
+}
+
+async function checkEmptyHostObservation(baseUrl: string, runtime: string): Promise<boolean> {
+  const response = await httpGet(`${baseUrl}/server-component-empty`);
+  const html = response.body;
+  const browser = await chromium.launch();
+  const page = await browser.newPage();
+
+  try {
+    const serverOk =
+      response.status === 200 &&
+      html.includes("<strata-empty-host") &&
+      html.includes("Empty client boundary host");
+    check(`${runtime}: empty surrogate is present in SSR HTML`, serverOk);
+    await page.goto(`${baseUrl}/server-component-empty`, { waitUntil: "domcontentloaded" });
+    const event = await page
+      .waitForFunction(
+        () =>
+          (
+            globalThis as unknown as {
+              __STRATA_HYDRATION_OBSERVATIONS__?: readonly {
+                hostSelector: string;
+                outcome: string;
+                discoveredBoundaries: number;
+                committedBoundaries: number;
+              }[];
+            }
+          ).__STRATA_HYDRATION_OBSERVATIONS__?.[0],
+        undefined,
+        { timeout: 15_000 },
+      )
+      .then(
+        (handle) =>
+          handle.jsonValue() as Promise<{
+            hostSelector: string;
+            outcome: string;
+            discoveredBoundaries: number;
+            committedBoundaries: number;
+          }>,
+      );
+    const valid =
+      serverOk &&
+      event.hostSelector === "strata-empty-host" &&
+      event.outcome === "committed" &&
+      event.discoveredBoundaries === 0 &&
+      event.committedBoundaries === 0;
+
+    return check(
+      `${runtime}: empty host reports one committed zero-boundary transaction`,
+      valid,
+      JSON.stringify(event),
+    );
+  } finally {
+    await page.close();
+    await browser.close();
+  }
 }

@@ -32,6 +32,12 @@ supports the listed Angular, TypeScript and Vite peer ranges. V1 carries flat pr
 bounded nested JSON data. The documented Node and local workerd rehearsals are evidence for those
 specific fixture tuples, not a production support matrix or a 1.0 guarantee.
 
+The 0.10.0 candidate's optional host observation provider adds no peer range. Its event is browser-side
+and uses the application's Angular injector. Qualification remains tied to the lockfile tuple and the
+specific Node, Analog dev, local workerd, and packed-consumer evidence in the
+[observation report](research/server-component-hydration-observability-v010.md); it does not establish
+a broader compatibility matrix.
+
 External Angular package islands add no new peer range. The fixture is intended to use the actual
 locked tuple (core/compiler 22.1.7, common 22.2.3, platform-browser 22.2.3, platform-server 22.2.2,
 router 22.2.2, Analog Router 2.8.1, Vite 8.3.0 and TypeScript 6.0.3, with a 5.9.2 declaration

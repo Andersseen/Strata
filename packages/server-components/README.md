@@ -981,7 +981,34 @@ hands it to the application's `ErrorHandler` exactly once and does not rethrow (
 handler logs it; it is neither silent nor an unhandled rejection or `window` error). An `ErrorHandler`
 that itself throws is your decision.
 
-**Retry.** None. Hydration is attempted once per host lifecycle: no timer, observer, reload or retry.
+**Optional host observations.** An application can observe the terminal result of each host transaction
+without replacing `ErrorHandler`:
+
+```ts
+import { provideStrataHydrationObserver } from "@strata-sc/server-components";
+
+providers: [
+  provideStrataHydrationObserver((event) => {
+    if (event.outcome === "committed") console.info("Server Component committed", event);
+    else console.warn("Server Component hydration refused", event);
+  }),
+];
+```
+
+The frozen event contains the public host selector, `committed` / `preflight-refused` /
+`commit-failed`, discovered and committed boundary counts, an optional existing boundary category,
+confirmed build-mismatch and recovery facts, and `elapsedMs`. Time covers Strata's boundary scan,
+preflight and component commit (including rollback on failure); it is not network latency or a claim
+that later change detection or Angular `@defer` has completed. Empty hosts report `committed` with
+zero counts. A destroyed host whose scheduled attempt has not started reports nothing. Callback throws,
+rejected promises and rejected thenables are consumed; notifications are synchronous and never awaited.
+The event contains no props, URL, request data, DOM reference or exception. A reload begun by
+`provideSkewRecovery({ reload: true })` can navigate before an observer's side effects complete, so
+external delivery is not guaranteed. This observes only Strata's host commit transaction.
+
+**Retry.** None. Hydration is attempted once per host lifecycle: no timer or retry. The optional
+observation callback does not reschedule hydration. Destroying the host after a failure is safe and
+reports nothing more. A new document is a new lifecycle with one fresh attempt.
 Destroying the host after a failure is safe and reports nothing more. A new document is a new lifecycle
 with one fresh attempt.
 

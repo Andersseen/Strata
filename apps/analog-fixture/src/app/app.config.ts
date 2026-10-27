@@ -4,6 +4,7 @@ import { provideClientHydration } from "@angular/platform-browser";
 
 import {
   provideErrorProbe,
+  provideHydrationObservationProbe,
   provideIslandProbe,
   provideNavigationProbe,
 } from "../probes/server-components/probe";
@@ -15,5 +16,6 @@ export const appConfig: ApplicationConfig = {
     provideNavigationProbe(),
     provideIslandProbe(),
     provideErrorProbe(),
+    provideHydrationObservationProbe(),
   ],
 };

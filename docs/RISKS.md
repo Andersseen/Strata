@@ -1,10 +1,13 @@
 # Technical risk register
 
-Current branch update (2026-10-25): issue #117's release gate is implemented in the working branch using the
-`workflow_run` event, exact source-run `Verify` job inspection, current-main freshness checks and a just-in-time
-recheck before Changesets. The isolated decision matrix passes locally. The workflow has not yet run after merge,
-so missed/pending/cancelled hosted transitions and the full publication path remain unverified; do not close #117
-until hosted evidence confirms the gate. The 0.10.0 form API also passed Node/dev/local-workerd fixture and
+Current state (2026-10-27): main `efd14e2d` contains the exact-SHA `workflow_run` release gate for issue #117.
+The verifier requires a successful aggregate `Verify` for the same completed main push and rechecks the current
+main SHA before Changesets. Hosted workflow runs and pending/failure/cancelled/stale-main transitions could not
+be inspected in this pass, so issue #117 stays open. The 0.10.0 Server Components observer reports only Strata's
+per-host transaction; it is not Angular health monitoring. Evidence levels and local / packed / hosted / deployed
+limits are in the [candidate report](research/server-component-hydration-observability-v010.md).
+
+The 0.10.0 form API also passed Node/dev/local-workerd fixture and
 packed-consumer checks, while hosted CI and deployed checks are pending. See
 [Analog validated forms](research/analog-validated-forms-v010.md).
 
@@ -29,8 +32,7 @@ general limitation remains: an unexpected Angular render error still returns HTT
 supported way to change that. A dev-only bypass of the server-only assertion through Vite 8's dependency optimizer
 was reproduced and closed in 0.9 (marked package modules, barrels and dynamic imports are refused; unmarked packages
 are still not detected; a warm optimizer cache survives an in-place edit that adds the assertion; a failed first
-optimizer run ends `vite` dev, see [the evidence](research/server-component-optimized-dependency-firewall-v09.md)). Separately, `release.yml` publishes on every push to `main` and is not gated on
-the aggregate CI `Verify` result of the same SHA: a release-safety issue deliberately kept out of this change.
+optimizer run ends `vite` dev, see [the evidence](research/server-component-optimized-dependency-firewall-v09.md)). Separately, issue #117 identified publishing before aggregate CI verification. Main now has the exact-SHA `workflow_run` gate; hosted transition evidence remains open as recorded above.
 See [the evidence](research/server-component-ssr-integrity-v07.md).
 
 Evidence note (2026-10-23, Analog 0.7.0 candidate): `streamResponse()` closes the gap between the controller

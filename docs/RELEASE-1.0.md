@@ -40,6 +40,11 @@ The 0.8.0 candidate adds an opt-in Server Components build identity and bounded 
 behavior" item below stays open: protocol stability and a deployed qualification are not shown. M4 and M5 are not
 marked complete.
 
+The 0.10.0 Server Components candidate adds `provideStrataHydrationObserver()` for an immutable, privacy-safe
+terminal observation of Strata's per-host commit attempt. Evidence levels and remaining qualification gaps are
+recorded in the [candidate report](research/server-component-hydration-observability-v010.md). This does not
+complete M4 or Strata 1.0 and does not monitor Angular after the host transaction.
+
 The 0.8.0 candidate adds an opt-in `onRequestSettled` request observation (safe route/outcome/cleanup/duration
 facts, exactly once after cleanup, streams at a supported terminal outcome, isolated from the response).
 Implemented, unit tested, locally integrated (Node, dev, local workerd) and packed-consumer qualified; not

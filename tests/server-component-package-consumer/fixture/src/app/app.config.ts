@@ -2,8 +2,8 @@ import { provideFileRouter } from "@analogjs/router";
 import { ErrorHandler } from "@angular/core";
 import type { ApplicationConfig } from "@angular/core";
 import { provideClientHydration } from "@angular/platform-browser";
-import { provideSkewRecovery } from "@strata-sc/server-components";
-import type { StrataBoundaryError } from "@strata-sc/server-components";
+import { provideSkewRecovery, provideStrataHydrationObserver } from "@strata-sc/server-components";
+import type { StrataBoundaryError, StrataHydrationObservation } from "@strata-sc/server-components";
 
 // Qualification hook only: `?recovery=reload` opts a document in to the documented
 // bounded reload (README "Deployment compatibility"); without it a build mismatch is
@@ -11,6 +11,8 @@ import type { StrataBoundaryError } from "@strata-sc/server-components";
 const reload =
   typeof location !== "undefined" &&
   new URLSearchParams(location.search).get("recovery") === "reload";
+const observerMode =
+  typeof location !== "undefined" ? new URLSearchParams(location.search).get("observer") : null;
 
 interface MismatchRecord {
   readonly browserBuildId: string;
@@ -53,6 +55,16 @@ export const appConfig: ApplicationConfig = {
 
         (bag.__strataMismatches ??= []).push(mismatch);
       },
+    }),
+    provideStrataHydrationObserver((observation: StrataHydrationObservation) => {
+      const bag = globalThis as {
+        __STRATA_HYDRATION_OBSERVATIONS__?: StrataHydrationObservation[];
+      };
+
+      (bag.__STRATA_HYDRATION_OBSERVATIONS__ ??= []).push(observation);
+      if (observerMode === "throw") throw new Error("STRATA_OBSERVER_PRIVATE_CANARY");
+      if (observerMode === "reject")
+        return Promise.reject(new Error("STRATA_OBSERVER_PRIVATE_CANARY"));
     }),
   ],
 };

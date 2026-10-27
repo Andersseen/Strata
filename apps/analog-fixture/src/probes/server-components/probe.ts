@@ -14,6 +14,7 @@ import {
   NavigationStart,
   Router,
 } from "@angular/router";
+import { provideStrataHydrationObserver } from "@strata-sc/server-components";
 
 /**
  * Fixture-only evidence for `pnpm test:server-component-navigation`
@@ -110,4 +111,15 @@ export function provideErrorProbe(): Provider {
       })();
     },
   };
+}
+
+/** Fixture-only snapshot of Strata's host transaction notifications. */
+export function provideHydrationObservationProbe(): Provider {
+  return provideStrataHydrationObserver((observation) => {
+    const scope = globalThis as {
+      __STRATA_HYDRATION_OBSERVATIONS__?: unknown[];
+    };
+
+    (scope.__STRATA_HYDRATION_OBSERVATIONS__ ??= []).push(observation);
+  });
 }

@@ -141,9 +141,13 @@ const SCENARIOS: readonly Scenario[] = [
 // Environment: packed packages installed outside the repository
 
 const work = mkdtempSync(join(tmpdir(), "strata-optimized-deps-"));
-const env = { ...process.env, NPM_CONFIG_USERCONFIG: join(work, ".npmrc") };
+const env = { ...process.env };
 
 for (const key of Object.keys(env)) if (/^(npm_|pnpm_)/i.test(key)) delete env[key];
+// Keep npm's cache isolated too: the default user cache may not be writable in
+// CI or managed workspaces, and the firewall test needs no shared cache state.
+env.NPM_CONFIG_USERCONFIG = join(work, ".npmrc");
+env.NPM_CONFIG_CACHE = join(work, "npm-cache");
 
 const npm = (cwd: string, ...args: string[]): string =>
   execFileSync("npm", args, { cwd, env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
