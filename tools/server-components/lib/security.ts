@@ -73,6 +73,7 @@ export interface RuntimeTarget {
 const FIXTURE_PROBES: ReadonlySet<string> = new Set([
   "__STRATA_ISLAND_PROBE__",
   "__STRATA_ROUTER_PROBE__",
+  "__STRATA_HYDRATION_OBSERVATIONS__",
 ]);
 
 /** Absolute paths a public response must never print. */

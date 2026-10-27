@@ -115,7 +115,7 @@ const OBSERVE = `(() => {
     hydrated: document.querySelectorAll("[data-strata-hydrated]").length,
     errors: window.__strataErrors ?? [],
     mismatches: window.__strataMismatches ?? [],
-    hydrationObservations: window.__strataHydrationObservations ?? [],
+    hydrationObservations: window.__STRATA_HYDRATION_OBSERVATIONS__ ?? [],
     record,
     sameNodes: nodes.length > 0 && nodes.length === now.length && nodes.every((n, i) => n === now[i] && n.isConnected),
     messages: hosts.map(text),
