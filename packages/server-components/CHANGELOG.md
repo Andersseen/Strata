@@ -1,5 +1,11 @@
 # @strata-sc/server-components
 
+## 0.10.0
+
+### Minor Changes
+
+- 9544e7a: Add an opt-in, privacy-safe observer for per-host client island commit outcomes.
+
 ## 0.9.0
 
 ### Minor Changes
