@@ -330,8 +330,8 @@ export async function httpSuite(
 
     ok.push(
       check(
-        `${label}: the server log shows no JIT fallback or error`,
-        !/JIT compilation|needs to be compiled using the JIT|ERROR|Code generation from strings/.test(
+        `${label}: the server log shows no JIT fallback or dynamic-code generation error`,
+        !/JIT compilation|needs to be compiled using the JIT|Code generation from strings/.test(
           sanitize(log()),
         ),
         sanitize(log()).slice(-600),

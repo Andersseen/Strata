@@ -17,6 +17,11 @@ locally exercised versions, researched candidates and qualified release combinat
 | Cloudflare      | Analog controller HTTP contract passes on local Pages/workerd with Nitro cloudflare-pages; no deployment     | Pin workerd/Wrangler, compatibility date, flags and Nitro preset. Local workerd HTTP evidence does not qualify a deployment. `Request.signal` is available in native Workers only with `enable_request_signal`, but the pinned Nitro adapter does not expose it to Strata. |
 | Browser         | No browser tests                                                                                             | Adopt the selected Angular version's browser policy and record tested browser versions in M4/M5.                                                                                                                                                                           |
 
+The 0.11.0 Server Components candidate introduces per-host browser budgets of 128 owned boundaries
+and 1 MiB aggregate serialized payload UTF-8. They do not alter protocol v1/v2 or server writer
+limits. These candidate limits are not yet qualified across the compatibility matrix; see the
+[hydration budget evidence](research/server-component-hydration-budgets-v011.md).
+
 Upstream constraints and source links are in [RESEARCH](RESEARCH.md). A supported tuple must include
 all these layers together, the Strata candidate digest and the fixture lockfile. Individual compatible
 ranges do not establish that their cross-product is supported.

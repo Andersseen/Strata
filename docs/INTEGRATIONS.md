@@ -223,6 +223,11 @@ the exact configuration is in the
 
 ### Client boundaries and hydration
 
+The 0.11.0 candidate caps each browser host transaction at 128 owned boundaries and 1 MiB of
+aggregate serialized payload UTF-8. These budgets run before Angular island creation and are
+independent per Server Component host. They do not limit server rendering or the HTTP response size.
+See the [hydration budget candidate report](research/server-component-hydration-budgets-v011.md).
+
 - Only an element marked `[strataClient]` hydrates. Its props are explicit public data: primitives,
   dense arrays and plain objects, recursively validated on the server and browser. Flat primitive
   payloads use protocol v1; structured payloads use protocol v2. Limits are 8 nested levels, 512

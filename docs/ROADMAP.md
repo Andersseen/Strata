@@ -172,6 +172,10 @@ Broader M3 adoption and lifecycle gates remain open; see the
 
 ## M4 — Server Components with a production rendering contract
 
+The 0.11.0 candidate adds per-host browser preflight budgets (128 owned boundaries and 1 MiB of
+serialized payload UTF-8). This is an incremental bound on hydration work, not completion of M4; see
+the [candidate evidence](research/server-component-hydration-budgets-v011.md).
+
 **Status:** planned; depends on M2 component feasibility and M3 request/security contracts.
 
 The 0.3.0 candidate advances one bounded part of this milestone: structured client-boundary data

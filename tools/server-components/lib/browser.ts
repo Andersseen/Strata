@@ -146,6 +146,7 @@ export interface BrowserObservation {
     readonly outcome: string;
     readonly discoveredBoundaries: number;
     readonly committedBoundaries: number;
+    readonly failureCategory?: string;
     readonly buildMismatch: boolean;
     readonly elapsedMs: number;
   }[];
@@ -190,7 +191,10 @@ declare const window: {
  * boundary to hydrate, and clicks. Proves hydration by DOM identity rather than
  * by text alone, which a client re-render would also satisfy.
  */
-export async function observeBrowser(url: string): Promise<BrowserObservation> {
+export async function observeBrowser(
+  url: string,
+  rewriteDocument?: (html: string) => string,
+): Promise<BrowserObservation> {
   const browser = await chromium.launch();
   const { page, diagnostics, finish } = await openDiagnosedPage(browser, "hydration");
   let passed = false;
@@ -214,6 +218,14 @@ export async function observeBrowser(url: string): Promise<BrowserObservation> {
         scripts.push({ url: response.url(), body: await response.text().catch(() => "") });
       }
     });
+
+    if (rewriteDocument) {
+      await page.route(url, async (route) => {
+        const response = await route.fetch();
+
+        await route.fulfill({ response, body: rewriteDocument(await response.text()) });
+      });
+    }
 
     await page.route("**/*.js", async (route) => {
       await scriptsReleased;
@@ -348,7 +360,7 @@ export async function observeBrowser(url: string): Promise<BrowserObservation> {
 
     const hasStructuredVariant =
       (await page.locator('add-to-cart [data-variant="white"]').count()) > 0;
-    if (hasStructuredVariant) {
+    if (hasStructuredVariant && hydratedWithinTimeout) {
       await page.locator('add-to-cart [data-variant="white"]').press("Enter");
       await page.waitForFunction(
         () => document.querySelector("add-to-cart #stock")?.textContent === "In stock: 5",
@@ -356,7 +368,7 @@ export async function observeBrowser(url: string): Promise<BrowserObservation> {
     }
     const hasPackageVariant =
       (await page.locator('#package-picker-primary [data-package-variant="white"]').count()) > 0;
-    if (hasPackageVariant) {
+    if (hasPackageVariant && hydratedWithinTimeout) {
       await page.locator('#package-picker-primary [data-package-variant="white"]').press("Enter");
       await page.waitForFunction(
         () =>

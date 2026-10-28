@@ -1,5 +1,17 @@
 # Current implementation audit
 
+## Server Components bounded hydration preflight for 0.11.0 candidate
+
+From synchronized `main` SHA `b69e2eec5bf0ba39f322e03143978ab892fba8a2`, on
+`feat/server-components-hydration-budgets-v011`. Candidate browser-side budgets are 128 owned
+client boundaries and 1 MiB aggregate serialized payload UTF-8 bytes per Server Component host,
+alongside the existing 64 KiB individual payload limit. The preflight retains all-or-nothing
+hydration and uses the `resource-limit` error category. Package unit tests, Node production/Chromium,
+local workerd/Chromium and the packed consumer pass for the candidate. The regular Analog dev suite
+passes but does not yet exercise an over-budget host; performance series and hosted CI are pending.
+This is not M4 or 1.0 certification. See the
+[candidate evidence report](research/server-component-hydration-budgets-v011.md).
+
 ## Analog route registration integrity for 0.11.0 candidate
 
 From synchronized `main` `7ac01d44f7c4f20f0817dca661cad135ed956f44` (`@strata-sc/analog` 0.10.0),
