@@ -9,47 +9,35 @@ import {
   afterNextRender,
   createComponent,
   inject,
-  reflectComponentType,
 } from "@angular/core";
-import type { ComponentRef, Provider, Type } from "@angular/core";
+import type { ComponentRef, Provider } from "@angular/core";
 
 import {
   BOUNDARY_HYDRATED_ATTRIBUTE,
   StrataBoundaryError,
   StrataBuildMismatchError,
 } from "./boundary-protocol.js";
+import { buildClientReferenceRegistry } from "./client-references.js";
+import type { ClientReferenceInput } from "./client-references.js";
 import { STRATA_BUILD_ID } from "./build-token.js";
 import { STRATA_HYDRATION_OBSERVER, notifyStrataHydrationObserver } from "./hydration-observer.js";
 import { BOUNDARY_HOST_SELECTOR, planClientBoundaries } from "./hydration-plan.js";
-import type { ClientReference, PlannedClientBoundary } from "./hydration-plan.js";
+import type { PlannedClientBoundary } from "./hydration-plan.js";
 import { SkewRecovery } from "./skew-recovery.js";
 
 /** The interactive components a server component may render, by selector. */
-const CLIENT_REFERENCES = new InjectionToken<readonly Type<unknown>[]>("STRATA_CLIENT_REFERENCES");
+const CLIENT_REFERENCES = new InjectionToken<readonly ClientReferenceInput[]>(
+  "STRATA_CLIENT_REFERENCES",
+);
 
-export function provideClientReferences(references: readonly Type<unknown>[]): Provider {
+/**
+ * Provides the client components of one Server Component host. Each entry is a
+ * component type, or `{ type, expectedSelector }` as generated surrogates emit
+ * it so the runtime can check the component's real Angular selector against
+ * the one the build authorized.
+ */
+export function provideClientReferences(references: readonly ClientReferenceInput[]): Provider {
   return { provide: CLIENT_REFERENCES, useValue: references };
-}
-
-function clientReferences(types: readonly Type<unknown>[]): Map<string, ClientReference> {
-  return new Map(
-    types.flatMap((type) => {
-      const mirror = reflectComponentType(type);
-
-      return mirror
-        ? [
-            [
-              mirror.selector,
-              {
-                type,
-                selector: mirror.selector,
-                inputs: new Map(mirror.inputs.map((i) => [i.propName, i.templateName])),
-              },
-            ] as const,
-          ]
-        : [];
-    }),
-  );
 }
 
 /** Boundary hosts under `host`, in document order, minus those nested in another boundary. */
@@ -88,7 +76,7 @@ function discoverBoundaries(host: HTMLElement): HTMLElement[] {
 export class StrataIslandHost {
   constructor() {
     const host = inject(ElementRef).nativeElement as HTMLElement;
-    const references = clientReferences(inject(CLIENT_REFERENCES));
+    const registry = buildClientReferenceRegistry(inject(CLIENT_REFERENCES));
     const buildId = inject(STRATA_BUILD_ID);
     const recovery = inject(SkewRecovery);
     const observer = inject(STRATA_HYDRATION_OBSERVER, { optional: true });
@@ -145,7 +133,13 @@ export class StrataIslandHost {
       const boundaries = discoverBoundaries(host);
       let plan: readonly PlannedClientBoundary<HTMLElement>[];
       try {
-        plan = planClientBoundaries(host.localName, boundaries, references, buildId);
+        plan = planClientBoundaries(
+          host.localName,
+          boundaries,
+          registry.references,
+          buildId,
+          registry.problem,
+        );
       } catch (error) {
         const refusal = error instanceof StrataBoundaryError;
         let mismatch: StrataBuildMismatchError | undefined;

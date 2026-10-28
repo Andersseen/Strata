@@ -596,7 +596,7 @@ A boundary validation failure throws one `StrataBoundaryError` naming the bounda
 the reason, before any `ComponentRef` exists. That covers version skew, invalid JSON, a missing
 protocol or props attribute, a reserved key, an unsupported value, an unknown input and a selector
 mismatch. A host budget refusal uses category `resource-limit` and reports the applicable safe limit;
-it does not include props or trigger build-skew recovery. In either case, the server-rendered DOM
+it does not include props or trigger build-skew recovery. A reference failure (category `reference`) also covers a client reference that is not an Angular component, one whose actual selector differs from the selector the build authorized, and two distinct components claiming one selector; generated surrogates supply `{ type, expectedSelector }` to `provideClientReferences`, and plain arrays of component types remain valid. In every case, the server-rendered DOM
 stays in place, inert. There is no client-side re-render, CSR fallback or reload. A reload strategy
 is not defined yet. The original error reaches the application's `ErrorHandler` once; see
 [Failure and recovery](#failure-and-recovery).

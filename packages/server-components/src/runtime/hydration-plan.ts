@@ -60,6 +60,7 @@ function checkBoundary(
   host: BoundaryHost,
   references: ReadonlyMap<string, ClientReference>,
   browserBuildId: string | undefined,
+  registryProblem?: string,
 ): Refusal | PlannedClientBoundary<BoundaryHost> {
   const selector = host.getAttribute(BOUNDARY_CLIENT_ATTRIBUTE);
 
@@ -94,6 +95,10 @@ function checkBoundary(
   if (identity.kind === "malformed") {
     return refuse(`${BOUNDARY_BUILD_ATTRIBUTE} is not a valid build identity.`, "build-identity");
   }
+
+  // After the build identity (a confirmed mismatch outranks it) and before any
+  // lookup: an untrustworthy registry authorizes nothing.
+  if (registryProblem !== undefined) return refuse(registryProblem, "reference");
 
   const reference = references.get(selector);
 
@@ -141,6 +146,7 @@ export function planClientBoundaries<H extends BoundaryHost>(
   hosts: readonly H[],
   references: ReadonlyMap<string, ClientReference>,
   browserBuildId?: string,
+  registryProblem?: string,
 ): PlannedClientBoundary<H>[] {
   if (hosts.length > MAX_CLIENT_BOUNDARIES_PER_HOST) {
     throw resourceLimit(
@@ -162,7 +168,7 @@ export function planClientBoundaries<H extends BoundaryHost>(
   }
 
   return hosts.map((host, index) => {
-    const checked = checkBoundary(host, references, browserBuildId);
+    const checked = checkBoundary(host, references, browserBuildId, registryProblem);
 
     if ("problem" in checked) {
       const message =

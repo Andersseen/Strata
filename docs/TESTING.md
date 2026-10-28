@@ -9,6 +9,11 @@ The Server Components hydration-budget candidate adds exact/over-limit preflight
 Chromium and packed-consumer qualification remains pending until recorded in the
 [candidate evidence report](research/server-component-hydration-budgets-v011.md).
 
+The 0.12.0 reference-integrity candidate adds package unit tests that use real Angular component
+metadata (valid, duplicate selector, directive, plain class, selector mismatch) and surrogate
+descriptor assertions; integration and packed-consumer status is recorded in the
+[candidate report](research/server-component-reference-integrity-v012.md).
+
 Analog request guards and HTTP interceptors extend `pnpm test:analog` and the Analog package unit
 suite. The current feature-branch report records the execution contract and
 passing Node/workerd and packed-consumer evidence; hosted CI is pending:

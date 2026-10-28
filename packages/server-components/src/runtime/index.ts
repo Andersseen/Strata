@@ -6,6 +6,7 @@ export type {
   ClientBoundaryProps,
   ClientBoundaryValue,
 } from "./client-boundary.js";
+export type { ClientReferenceDescriptor, ClientReferenceInput } from "./client-references.js";
 export { StrataIslandHost, provideClientReferences } from "./islands.js";
 export { StrataBoundaryError, StrataBuildMismatchError } from "./boundary-protocol.js";
 export {

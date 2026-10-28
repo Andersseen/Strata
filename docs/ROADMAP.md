@@ -172,6 +172,11 @@ Broader M3 adoption and lifecycle gates remain open; see the
 
 ## M4 — Server Components with a production rendering contract
 
+The 0.12.0 candidate validates client reference identity at runtime (expected versus actual
+Angular selector, conflicting selector ownership) inside the existing host preflight. It is an
+incremental integrity check, not completion of M4; see the
+[candidate evidence](research/server-component-reference-integrity-v012.md).
+
 The 0.11.0 candidate adds per-host browser preflight budgets (128 owned boundaries and 1 MiB of
 serialized payload UTF-8). This is an incremental bound on hydration work, not completion of M4; see
 the [candidate evidence](research/server-component-hydration-budgets-v011.md).

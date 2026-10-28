@@ -1,5 +1,17 @@
 # Current implementation audit
 
+## Server Components client reference identity for 0.12.0 candidate
+
+From synchronized `main` SHA `02b06a17dbd5e9221bf02367beadabfbf84e54ee`, on
+`feat/server-components-client-reference-integrity-v012`. The Vite analyzer already rejected
+ambiguous selectors at build time; the candidate closes the remaining runtime gap. Generated
+surrogates now pass `{ type, expectedSelector }` to `provideClientReferences`, and the host checks the
+real Angular component selector (public `reflectComponentType`), rejects two distinct components
+claiming one selector (previously the last silently won) and rejects non-components, as a
+`reference` failure inside the existing all-or-nothing preflight. Evidence levels are recorded in the
+[candidate report](research/server-component-reference-integrity-v012.md). This is not M4 or 1.0
+certification.
+
 ## Server Components bounded hydration preflight for 0.11.0 candidate
 
 From synchronized `main` SHA `b69e2eec5bf0ba39f322e03143978ab892fba8a2`, on

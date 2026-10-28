@@ -228,6 +228,11 @@ aggregate serialized payload UTF-8. These budgets run before Angular island crea
 independent per Server Component host. They do not limit server rendering or the HTTP response size.
 See the [hydration budget candidate report](research/server-component-hydration-budgets-v011.md).
 
+The 0.12.0 candidate checks, per host and after the budgets and build identity, that each client
+reference is an Angular component whose selector matches the one authorized at build time and that no
+two distinct components share a selector. A failure is a `reference` refusal. See the
+[reference integrity report](research/server-component-reference-integrity-v012.md).
+
 - Only an element marked `[strataClient]` hydrates. Its props are explicit public data: primitives,
   dense arrays and plain objects, recursively validated on the server and browser. Flat primitive
   payloads use protocol v1; structured payloads use protocol v2. Limits are 8 nested levels, 512

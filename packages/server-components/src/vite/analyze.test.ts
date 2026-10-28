@@ -69,6 +69,7 @@ describe("analyzeServerComponent", () => {
           kind: "local",
           name: "QuantityPicker",
           module: "/app/src/app/orders/quantity-picker.component",
+          selector: "quantity-picker",
         },
       ],
       serverOwnedFiles: [
@@ -113,6 +114,7 @@ describe("analyzeServerComponent", () => {
         kind: "local",
         name: "QuantityPicker",
         module: "/app/src/app/orders/quantity-picker.component",
+        selector: "quantity-picker",
       },
     ]);
   });
@@ -128,6 +130,7 @@ describe("analyzeServerComponent", () => {
         kind: "local",
         name: "QuantityPicker",
         module: "/app/src/app/orders/quantity-picker.component",
+        selector: "quantity-picker",
       },
     ]);
   });
@@ -171,6 +174,7 @@ describe("analyzeServerComponent", () => {
         kind: "package",
         name: "ProductPickerComponent",
         module: "@acme/angular-widgets",
+        selector: "acme-product-picker",
       },
     ]);
   });
