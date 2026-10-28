@@ -123,7 +123,9 @@ export class PackageRoot {}`;
     expect(output).toContain(
       'import { ProductPickerComponent } from "@strata-test/angular-widgets";',
     );
-    expect(output).toContain("provideClientReferences([ProductPickerComponent])");
+    expect(output).toContain(
+      'provideClientReferences([{ type: ProductPickerComponent, expectedSelector: "acme-product-picker" }])',
+    );
     expect(output).not.toContain('from "./package-root"');
   });
 });

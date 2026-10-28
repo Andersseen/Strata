@@ -67,7 +67,7 @@ ${imports}
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: "",
   hostDirectives: [StrataIslandHost],
-  providers: [provideClientReferences([${references.map((ref) => ref.local).join(", ")}])],
+  providers: [provideClientReferences([${references.map((ref) => `{ type: ${ref.local}, expectedSelector: ${JSON.stringify(ref.selector)} }`).join(", ")}])],
 })
 export class ${module.className} {}
 `;

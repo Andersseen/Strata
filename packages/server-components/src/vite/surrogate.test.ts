@@ -13,6 +13,7 @@ const surrogate = renderSurrogate(
         kind: "local",
         name: "QuantityPicker",
         module: "/app/src/app/orders/quantity-picker.component",
+        selector: "quantity-picker",
       },
     ],
     serverOwnedFiles: ["/app/src/app/orders/order-summary.component.ts"],
@@ -38,7 +39,9 @@ describe("renderSurrogate", () => {
     expect(surrogate).toContain(
       'import { QuantityPicker } from "../../../app/orders/quantity-picker.component";',
     );
-    expect(surrogate).toContain("providers: [provideClientReferences([QuantityPicker])],");
+    expect(surrogate).toContain(
+      'providers: [provideClientReferences([{ type: QuantityPicker, expectedSelector: "quantity-picker" }])],',
+    );
   });
 
   it("preserves an external package specifier in the generated surrogate", () => {
@@ -49,7 +52,12 @@ describe("renderSurrogate", () => {
         className: "ProductsComponent",
         selector: "products-page",
         clientReferences: [
-          { kind: "package", name: "ProductPickerComponent", module: "@acme/angular-widgets" },
+          {
+            kind: "package",
+            name: "ProductPickerComponent",
+            module: "@acme/angular-widgets",
+            selector: "acme-product-picker",
+          },
         ],
         serverOwnedFiles: ["/app/src/app/products.server-component.ts"],
       },
@@ -57,7 +65,9 @@ describe("renderSurrogate", () => {
     );
 
     expect(output).toContain('import { ProductPickerComponent } from "@acme/angular-widgets";');
-    expect(output).toContain("provideClientReferences([ProductPickerComponent])");
+    expect(output).toContain(
+      'provideClientReferences([{ type: ProductPickerComponent, expectedSelector: "acme-product-picker" }])',
+    );
   });
 
   it("imports nothing else: no implementation, no server-only module", () => {

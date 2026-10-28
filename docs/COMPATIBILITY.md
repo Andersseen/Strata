@@ -22,6 +22,12 @@ and 1 MiB aggregate serialized payload UTF-8. They do not alter protocol v1/v2 o
 limits. These candidate limits are not yet qualified across the compatibility matrix; see the
 [hydration budget evidence](research/server-component-hydration-budgets-v011.md).
 
+The 0.12.0 candidate widens `provideClientReferences` additively: entries may be component types
+(unchanged) or `{ type, expectedSelector }`. Hand-written arrays of types keep working, with the
+runtime checks that need no descriptor (component metadata present, no selector conflict). It uses
+only public Angular `reflectComponentType`; see the
+[reference integrity report](research/server-component-reference-integrity-v012.md).
+
 Upstream constraints and source links are in [RESEARCH](RESEARCH.md). A supported tuple must include
 all these layers together, the Strata candidate digest and the fixture lockfile. Individual compatible
 ranges do not establish that their cross-product is supported.

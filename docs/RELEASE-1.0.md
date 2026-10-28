@@ -106,6 +106,10 @@ not close the M4 gate. Runtime and packed-consumer evidence is tracked in the
 [candidate report](research/server-component-hydration-budgets-v011.md); no M4/1.0 certification is
 claimed from this change.
 
+The 0.12.0 candidate adds runtime client reference identity validation (expected versus actual
+selector, conflicting selector ownership). It narrows an M4 integrity gap and does not close M4;
+see the [candidate report](research/server-component-reference-integrity-v012.md).
+
 - [ ] Actual server/client graph split, including compiled implementation/template code.
 - [ ] Server implementation excluded from every browser chunk, asset and public source map.
 - [ ] Server-only dependencies excluded transitively; direct, re-exported and dynamic illegal

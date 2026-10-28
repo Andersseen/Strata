@@ -109,7 +109,9 @@ describe("Server Component composition: transitive client-boundary discovery", (
     ).toEqual({
       className: "OrderPage",
       selector: "order-page",
-      clientReferences: [{ kind: "local", name: "ClientA", module: `${DIR}/client-a` }],
+      clientReferences: [
+        { kind: "local", name: "ClientA", module: `${DIR}/client-a`, selector: "client-a" },
+      ],
       serverOwnedFiles: [`${DIR}/page.ts`],
     });
   });
@@ -128,7 +130,9 @@ describe("Server Component composition: transitive client-boundary discovery", (
           ],
         ),
       })?.clientReferences,
-    ).toEqual([{ kind: "local", name: "ClientA", module: `${DIR}/client-a` }]);
+    ).toEqual([
+      { kind: "local", name: "ClientA", module: `${DIR}/client-a`, selector: "client-a" },
+    ]);
   });
 
   it("walks server child → grandchild → great-grandchild to the boundary", () => {
@@ -167,7 +171,9 @@ describe("Server Component composition: transitive client-boundary discovery", (
     expect(analyze(files, `${DIR}/nested.ts`)).toEqual({
       className: "NestedServer",
       selector: "nested-server",
-      clientReferences: [{ kind: "local", name: "ClientB", module: `${DIR}/client-b` }],
+      clientReferences: [
+        { kind: "local", name: "ClientB", module: `${DIR}/client-b`, selector: "client-b" },
+      ],
       serverOwnedFiles: [`${DIR}/nested.ts`],
     });
   });
@@ -200,8 +206,8 @@ describe("Server Component composition: transitive client-boundary discovery", (
         ),
       })?.clientReferences,
     ).toEqual([
-      { kind: "local", name: "ClientA", module: `${DIR}/client-a` },
-      { kind: "local", name: "ClientB", module: `${DIR}/client-b` },
+      { kind: "local", name: "ClientA", module: `${DIR}/client-a`, selector: "client-a" },
+      { kind: "local", name: "ClientB", module: `${DIR}/client-b`, selector: "client-b" },
     ]);
   });
 
@@ -264,7 +270,9 @@ describe("Server Component composition: transitive client-boundary discovery", (
     expect(
       analyzeServerComponent(`${DIR}/page.ts`, readFile(`${DIR}/page.ts`), readFile)
         ?.clientReferences,
-    ).toEqual([{ kind: "local", name: "ClientA", module: `${DIR}/client-a` }]);
+    ).toEqual([
+      { kind: "local", name: "ClientA", module: `${DIR}/client-a`, selector: "client-a" },
+    ]);
     expect(reads.some((path) => path.includes("voltui"))).toBe(false);
   });
 
@@ -311,7 +319,9 @@ describe("Server Component composition: transitive client-boundary discovery", (
     for (const entry of [`${DIR}/one.ts`, `${DIR}/two.ts`]) {
       expect(
         analyzeServerComponent(entry, readFile(entry), readFile, cache)?.clientReferences,
-      ).toEqual([{ kind: "local", name: "ClientA", module: `${DIR}/client-a` }]);
+      ).toEqual([
+        { kind: "local", name: "ClientA", module: `${DIR}/client-a`, selector: "client-a" },
+      ]);
     }
 
     expect(reads.filter((path) => path.endsWith("/shared.ts"))).toHaveLength(1);
@@ -775,7 +785,9 @@ describe("Server Component composition: surrogates", () => {
       'import { StrataIslandHost, provideClientReferences } from "@strata-sc/server-components";',
       'import { ClientA } from "../../../app/orders/client-a";',
     ]);
-    expect(surrogate).toContain("providers: [provideClientReferences([ClientA])],");
+    expect(surrogate).toContain(
+      'providers: [provideClientReferences([{ type: ClientA, expectedSelector: "client-a" }])],',
+    );
     expect(surrogate).not.toMatch(/ServerChild|server-child/);
   });
 
@@ -791,7 +803,9 @@ describe("Server Component composition: surrogates", () => {
     });
 
     expect(surrogate).toContain('import { ClientB } from "../../../app/orders/client-b";');
-    expect(surrogate).toContain("providers: [provideClientReferences([ClientB])],");
+    expect(surrogate).toContain(
+      'providers: [provideClientReferences([{ type: ClientB, expectedSelector: "client-b" }])],',
+    );
     expect(surrogate).not.toMatch(/NestedServer|nested/);
   });
 
@@ -810,7 +824,9 @@ describe("Server Component composition: surrogates", () => {
     });
 
     expect(surrogate.match(/import \{ ClientA \}/g)).toHaveLength(1);
-    expect(surrogate).toContain("providers: [provideClientReferences([ClientA])],");
+    expect(surrogate).toContain(
+      'providers: [provideClientReferences([{ type: ClientA, expectedSelector: "client-a" }])],',
+    );
   });
 
   it("aliases two client components that share a class name", () => {
@@ -832,7 +848,9 @@ describe("Server Component composition: surrogates", () => {
     expect(surrogate).toContain(
       'import { ClientA as ClientA$2 } from "../../../app/orders/other/client-a";',
     );
-    expect(surrogate).toContain("providers: [provideClientReferences([ClientA, ClientA$2])],");
+    expect(surrogate).toContain(
+      'providers: [provideClientReferences([{ type: ClientA, expectedSelector: "client-a" }, { type: ClientA$2, expectedSelector: "other-client" }])],',
+    );
   });
 
   describe("server-owned files", () => {

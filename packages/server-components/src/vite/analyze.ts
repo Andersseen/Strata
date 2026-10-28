@@ -33,6 +33,8 @@ export interface ClientReference {
   readonly name: string;
   /** Absolute path of the app module declaring the component, without extension. */
   readonly module: string;
+  /** The element selector the server-owned template marked, validated at build time. */
+  readonly selector: string;
 }
 
 export interface PackageClientReference {
@@ -40,6 +42,8 @@ export interface PackageClientReference {
   readonly name: string;
   /** Bare package specifier, preserved for Vite and Angular AOT resolution. */
   readonly module: string;
+  /** The element selector the server-owned template marked, validated at build time. */
+  readonly selector: string;
 }
 
 export type ResolvedClientReference = ClientReference | PackageClientReference;
@@ -859,7 +863,12 @@ export function analyzeServerComponent(
   return {
     className: root.className,
     selector: root.selector,
-    clientReferences: found.map(({ kind, name, module: path }) => ({ kind, name, module: path })),
+    clientReferences: found.map(({ kind, name, module: path, selector }) => ({
+      kind,
+      name,
+      module: path,
+      selector,
+    })),
     serverOwnedFiles: [...(cache.owned.get(root.key) ?? [])].sort(),
   };
 }
