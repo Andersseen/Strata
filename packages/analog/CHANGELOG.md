@@ -1,5 +1,11 @@
 # @strata-sc/analog
 
+## 0.11.0
+
+### Minor Changes
+
+- 814998e: Reject ambiguous Strata route templates during router registration preflight, including parameter-name conflicts that Nitro shares across HTTP methods.
+
 ## 0.10.0
 
 ### Minor Changes
