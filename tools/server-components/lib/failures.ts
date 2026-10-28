@@ -259,11 +259,17 @@ const island = (key: string): string => {
 };
 
 const outputText = (page: Page, key: string): Promise<string | null> =>
-  page.locator(`${island(key)} output`).textContent();
+  page
+    .locator(`${island(key)} output`)
+    .first()
+    .textContent();
 
 /** One real click, then long enough for a duplicate effect to show; returns the island's output. */
 async function pressOnce(page: Page, key: string): Promise<string | null> {
-  await page.locator(`${island(key)} button`).click();
+  await page
+    .locator(`${island(key)} button`)
+    .first()
+    .click();
   await page.waitForTimeout(600);
 
   return outputText(page, key);
@@ -888,9 +894,10 @@ export async function checkPreflightIsolation(
           identity && (await outputText(page, "B:2")) === "Presses: 0",
         ),
         check(
-          "ErrorHandler received exactly one error: a StrataBoundaryError naming the boundary, host and reason",
+          "ErrorHandler received exactly one data-safe StrataBoundaryError naming the host and refusal reason",
           state.errors.length === 1 &&
             reported.length === 1 &&
+            reported[0]?.includes("<failure-host>") === true &&
             tamperCase.reports.every((part) => reported[0]?.includes(part)),
           JSON.stringify(state.errors),
         ),
