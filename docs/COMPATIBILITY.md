@@ -195,3 +195,13 @@ shares one Angular plugin between concurrently built environments; another Analo
 (the packed consumer's adversarial schedule is the control). Node and local workerd are held to the same
 contract; JIT-mode production builds are outside it. See
 [the report](research/server-component-ssr-integrity-v07.md).
+
+# Analog 0.11.0 route registration candidate
+
+The candidate rejects Strata-owned routes whose normalized final paths share a supported static/named-parameter
+shape but differ in template, regardless of method. Nitro 2.13.4 / H3 1.15.11 reuses parameter-name metadata
+across methods, so `GET /x/:id` and `POST /x/:slug` are ambiguous too. Identical templates across methods,
+static routes beside parameter routes, and unsupported Nitro patterns outside `apiBoundary` remain allowed.
+Native Nitro routes are not discoverable by Strata and remain outside this guarantee; consumers can declare
+native route metadata to `apiBoundary` where its contract applies. See the
+[registration integrity evidence](research/analog-registration-integrity-v011.md).

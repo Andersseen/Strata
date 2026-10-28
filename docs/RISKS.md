@@ -1,9 +1,9 @@
 # Technical risk register
 
-Current state (2026-10-27): main `efd14e2d` contains the exact-SHA `workflow_run` release gate for issue #117.
+Current state (2026-10-27): synchronized main `7ac01d44` contains the exact-SHA `workflow_run` release gate for issue #117.
 The verifier requires a successful aggregate `Verify` for the same completed main push and rechecks the current
-main SHA before Changesets. Hosted workflow runs and pending/failure/cancelled/stale-main transitions could not
-be inspected in this pass, so issue #117 stays open. The 0.10.0 Server Components observer reports only Strata's
+main SHA before Changesets. The workflow and authorizer code are present, but hosted transition evidence is not
+recorded; issue #117 remains open. The 0.10.0 Server Components observer reports only Strata's
 per-host transaction; it is not Angular health monitoring. Evidence levels and local / packed / hosted / deployed
 limits are in the [candidate report](research/server-component-hydration-observability-v010.md).
 
@@ -265,3 +265,5 @@ Each implementing PR identifies relevant IDs and attaches its evidence. Mark a r
 resolved” if only a development, local, Node or synthetic path passed. A changed compiler, runtime
 tuple or protocol reopens affected proofs. Move closed details into the responsible spec/report and
 keep this register concise; do not turn uncertainty into an accepted ADR.
+
+Evidence note (2026-10-27, Analog 0.11.0 candidate): Nitro 2.13.4 / H3 1.15.11 shares named-parameter metadata between structurally identical routes, including across HTTP methods. The candidate rejects these collisions among Strata-owned supported static/named-parameter paths during registration preflight. Wildcards and other unsupported path syntax outside `apiBoundary` remain outside shape detection; native route collisions are unknowable unless declared to the boundary. Configuration rejection is atomic, but rollback from an arbitrary `router.add()` failure is not guaranteed. Local runtime and packed-consumer suites passed; PR #145's hosted Verify passed, but deploy was skipped and no deployed qualification occurred. See [registration integrity evidence](research/analog-registration-integrity-v011.md).

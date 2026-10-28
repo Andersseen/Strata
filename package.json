@@ -54,6 +54,7 @@
     "test:analog-headers": "node --experimental-strip-types tools/analog/headers.ts",
     "test:analog-forms": "node --experimental-strip-types tools/analog/forms.ts",
     "test:analog-observability": "node --experimental-strip-types tools/analog/observability.ts",
+    "test:analog-registration-performance": "node --experimental-strip-types tools/analog/registration-performance.ts",
     "test:server-components": "node --experimental-strip-types tools/server-components/run.ts",
     "test:server-component-navigation": "node --experimental-strip-types tools/server-components/navigation.ts",
     "test:server-component-defer": "node --experimental-strip-types tools/server-components/defer.ts",

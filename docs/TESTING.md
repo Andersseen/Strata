@@ -251,6 +251,12 @@ fixtures with import-chain diagnostics, renamed/barrel/dynamic imports) are stil
 
 ## HTTP and DI
 
+The Analog registration integrity suite uses the locked H3 v1 router to assert same-method and
+cross-method parameter ownership, controller/call order, boundary timing, router isolation and
+preflight atomicity. Unsupported path syntax outside an owned API boundary retains Nitro behavior.
+The 0.11.0 candidate report records real-router baseline outcomes and the separately qualified Node,
+dev, workerd, packed-consumer and performance checks; those checks remain pending until actually run.
+
 Unit tests establish path normalization, metadata ownership/immutability, allowed method shapes and
 input/validation behavior. H3 integration must exercise actual HTTP semantics: method/path matching,
 params, status/headers, repeated cookies, `Response`, supported streams, errors and cancellation.
@@ -375,3 +381,10 @@ child and server-only repository agreement across 24 overlapping requests in
 both orders, fresh sequential contexts, invalid identity inputs, repository
 failure/recovery, Node and local workerd. A rejected fixture identity must render
 only the empty safe state; it must never select another actor's data.
+
+The Analog 0.11.0 route-integrity candidate adds a real H3 v1 reproduction and startup benchmark to the
+registration contract. Unit tests cover both registration orders, same and different methods, batches,
+router isolation, static/parameter coexistence and atomic failed preflight. `pnpm test:analog-registration-performance`
+measures 1/100/400 route registration; no request-time shape scan is added. Local Node/dev/workerd and packed
+consumer evidence is in [the candidate report](research/analog-registration-integrity-v011.md). Hosted CI and
+deployed qualification remain separate gates.

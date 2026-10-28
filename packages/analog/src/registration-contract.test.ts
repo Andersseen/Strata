@@ -36,7 +36,8 @@ function createNitroLikeApp() {
 
   return {
     router,
-    request: (path: string) => handle(new Request(`http://localhost${path}`)),
+    request: (path: string, method = "GET") =>
+      handle(new Request(`http://localhost${path}`, { method })),
   };
 }
 
@@ -451,5 +452,162 @@ describe("registerControllers — route identity is HTTP method + final path", (
       duplicateError("PATCH /resource"),
     );
     expect(invalid.added).toEqual([]);
+  });
+});
+
+describe("registerControllers — Nitro structural route integrity", () => {
+  @Controller("/products")
+  class ByIdController {
+    @Get("/:id")
+    read(request: { readonly params: Readonly<Record<string, string>> }) {
+      return { owner: "id", params: request.params };
+    }
+  }
+
+  @Controller("/products")
+  class BySlugController {
+    @Get("/:slug")
+    read() {}
+  }
+
+  @Controller("/products")
+  class BySlugPostController {
+    @Post("/:slug")
+    create() {}
+  }
+
+  it("rejects same-method parameter shapes in either controller order before add()", () => {
+    for (const controllers of [
+      [ByIdController, BySlugController],
+      [BySlugController, ByIdController],
+    ]) {
+      const { router, added } = createRecordingRouter();
+      expect(() => registerControllers(router, controllers)).toThrow(
+        StrataAnalogConfigurationError,
+      );
+      expect(() => registerControllers(router, controllers)).toThrow(
+        /GET \/products\/:.*By.*Controller\.read.*conflicts with GET \/products\/:.*By.*Controller\.read.*current registerControllers\(\) batch/,
+      );
+      expect(added).toEqual([]);
+    }
+  });
+
+  it("rejects equivalent shapes across calls, with and without an API boundary", () => {
+    for (const [first, second] of [
+      [ByIdController, BySlugController],
+      [BySlugController, ByIdController],
+    ] as const) {
+      for (const useBoundary of [false, true]) {
+        const { router, added } = createRecordingRouter();
+        const options = useBoundary ? { apiBoundary: { prefixes: ["/products"] } } : undefined;
+        registerControllers(router, [first], options);
+        const committedBeforeConflict = added.slice();
+
+        expect(() => registerControllers(router, [second])).toThrow(StrataAnalogConfigurationError);
+        expect(() => registerControllers(router, [second])).toThrow(
+          /By.*Controller\.read\).*conflicts with .*By.*Controller\.read\).*against a previously registered Strata route on this router/,
+        );
+        expect(added).toEqual(committedBeforeConflict);
+      }
+    }
+  });
+
+  it("rejects equivalent templates across methods because Nitro shares parameter names", () => {
+    for (const [first, second] of [
+      [ByIdController, BySlugPostController],
+      [BySlugPostController, ByIdController],
+    ] as const) {
+      const { router, added } = createRecordingRouter();
+      registerControllers(router, [first]);
+
+      expect(() => registerControllers(router, [second])).toThrow(StrataAnalogConfigurationError);
+      expect(() => registerControllers(router, [second])).toThrow(
+        /Nitro shares parameter metadata across HTTP methods/,
+      );
+      expect(added).toHaveLength(1);
+    }
+  });
+
+  it("keeps a rejected batch atomic and leaves router instances independent", async () => {
+    @Controller("/products")
+    class StaticAfterFailureController {
+      @Get("/new")
+      create() {
+        return { owner: "new" };
+      }
+    }
+
+    const first = createNitroLikeApp();
+    first.router.get(
+      "/products/native",
+      defineEventHandler(() => ({ source: "native" })),
+    );
+    registerControllers(first.router, [ByIdController]);
+
+    expect(() => registerControllers(first.router, [BySlugController])).toThrow(
+      StrataAnalogConfigurationError,
+    );
+    expect(() =>
+      registerControllers(first.router, [BySlugController, StaticAfterFailureController]),
+    ).toThrow(StrataAnalogConfigurationError);
+
+    registerControllers(first.router, [StaticAfterFailureController]);
+    expect(await (await first.request("/products/42")).json()).toEqual({
+      owner: "id",
+      params: { id: "42" },
+    });
+    expect(await (await first.request("/products/new")).json()).toEqual({ owner: "new" });
+    expect(await (await first.request("/products/native")).json()).toEqual({ source: "native" });
+
+    const second = createRecordingRouter();
+    registerControllers(second.router, [BySlugController]);
+    expect(second.added).toEqual(["GET /products/:slug"]);
+  });
+
+  it("allows one exact template on different methods and distinct static/parameter routes", async () => {
+    @Controller("/products")
+    class ExactPostController {
+      @Post("/:id")
+      create(request: { readonly params: Readonly<Record<string, string>> }) {
+        return { owner: "post", params: request.params };
+      }
+    }
+
+    @Controller("/products")
+    class StaticController {
+      @Get("/new")
+      create() {
+        return { owner: "new" };
+      }
+    }
+
+    const { router, request } = createNitroLikeApp();
+    expect(() =>
+      registerControllers(router, [ByIdController, ExactPostController, StaticController]),
+    ).not.toThrow();
+
+    expect(await (await request("/products/new")).json()).toEqual({ owner: "new" });
+    expect(await (await request("/products/42")).json()).toEqual({
+      owner: "id",
+      params: { id: "42" },
+    });
+    expect(await (await request("/products/42", "POST")).json()).toEqual({
+      owner: "post",
+      params: { id: "42" },
+    });
+  });
+
+  it("preserves native Nitro ownership and does not compare unsupported route syntax", async () => {
+    @Controller("/files")
+    class WildcardController {
+      @Get("/**")
+      all() {
+        return { owner: "wildcard" };
+      }
+    }
+
+    const { router, request } = createNitroLikeApp();
+    expect(() => registerControllers(router, [WildcardController])).not.toThrow();
+    expect(await (await request("/files/a/b")).json()).toEqual({ owner: "wildcard" });
   });
 });

@@ -10,3 +10,11 @@ export class UnregisteredController {
     return { route: "unregistered" };
   }
 }
+
+@Controller("/api/posts")
+export class EquivalentParameterController {
+  @Get("/:slug")
+  find() {
+    return { route: "equivalent-parameter" };
+  }
+}

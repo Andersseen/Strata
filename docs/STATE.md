@@ -1,5 +1,23 @@
 # Current implementation audit
 
+## Analog route registration integrity for 0.11.0 candidate
+
+From synchronized `main` `7ac01d44f7c4f20f0817dca661cad135ed956f44` (`@strata-sc/analog` 0.10.0),
+branch `feat/analog-route-registration-integrity-v011`. Against the locked H3 1.15.11 / Nitro 2.13.4
+router, real parameter-shape collisions are order-dependent: same-method registrations with
+`/products/:id` and `/products/:slug` both succeed, and the first registered template supplies the
+handler and parameter name. Nitro also shares the parameter-name metadata across methods; GET
+`/:id` plus POST `/:slug` delivers whichever parameter name was registered first to both handlers.
+Analog registration planning now rejects differing templates with an equivalent supported shape
+across the router's Strata-owned routes, independent of method, batch and `apiBoundary`. Identical
+templates remain valid across methods. Unsupported Nitro syntax outside the boundary remains
+unchecked except for exact method/path duplicates; native registrations remain invisible to Strata.
+The Analog suite passes (247 tests); full local build/lint/type/test/format and the runtime, packed
+consumer, Server Components regression and E2E matrices passed. Startup registration timings and
+unrun/hosted evidence are recorded in the report. PR #145's hosted Verify passed; deploy remained
+skipped and no deployed qualification was performed. See the
+[candidate report](research/analog-registration-integrity-v011.md).
+
 ## Server Components hydration observations (0.10.0 candidate)
 
 From synchronized main `efd14e2d1375e1762846c3ee6ab6bb49d5440609` (`@strata-sc/server-components` 0.9.0).

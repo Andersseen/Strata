@@ -13,6 +13,11 @@ and 10,000-field cap, strict malformed-encoding response and body-reader
 ownership do not provide CSRF protection. See
 [the form evidence](research/analog-validated-forms-v010.md).
 
+The 0.11.0 Analog candidate adds configuration-preflight protection for Strata-owned equivalent
+route templates on Nitro/H3 v1. It does not detect undeclared native route collisions, roll back
+arbitrary `router.add()` failures, or cover Nitro syntax outside the supported shape grammar. This
+candidate alone does not close M3; see [the registration integrity evidence](research/analog-registration-integrity-v011.md).
+
 The same candidate replaces Release's push-to-main trigger with an exact-CI
 `workflow_run` gate for issue #117. This is not a release-safety closure until
 the merged workflow has been observed handling the hosted success, failure,
