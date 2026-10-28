@@ -1,5 +1,11 @@
 # @strata-sc/server-components
 
+## 0.11.0
+
+### Minor Changes
+
+- 4094f6d: Bound browser hydration preflight work per Server Component host to 128 owned client boundaries and 1 MiB of aggregate serialized payload bytes.
+
 ## 0.10.0
 
 ### Minor Changes
