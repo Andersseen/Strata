@@ -24,6 +24,10 @@ export const MAX_BOUNDARY_NODES = 512;
 export const MAX_BOUNDARY_ARRAY_LENGTH = 128;
 /** At most this many UTF-8 bytes of serialized JSON per boundary (64 KiB). */
 export const MAX_BOUNDARY_PAYLOAD_BYTES = 64 * 1024;
+/** Maximum owned client boundaries preflighted and committed by one host. */
+export const MAX_CLIENT_BOUNDARIES_PER_HOST = 128;
+/** Maximum combined UTF-8 size of owned serialized payload attributes per host. */
+export const MAX_CLIENT_BOUNDARY_PAYLOAD_BYTES_PER_HOST = 1024 * 1024;
 
 export const ALLOWED_BOUNDARY_VALUES =
   "string | finite number | boolean | null | dense arrays | plain objects";
@@ -51,7 +55,8 @@ export type BoundaryFailureCategory =
   | "reference"
   | "inputs"
   | "build-identity"
-  | "build-mismatch";
+  | "build-mismatch"
+  | "resource-limit";
 
 export class StrataBoundaryError extends Error {
   override readonly name: string = "StrataBoundaryError";
@@ -102,6 +107,26 @@ function utf8Length(text: string): number {
   return text.length > MAX_BOUNDARY_PAYLOAD_BYTES
     ? text.length
     : new TextEncoder().encode(text).length;
+}
+
+/** Counts UTF-8 bytes without creating an encoded copy of the payload. */
+export function boundaryPayloadUtf8Bytes(text: string): number {
+  let bytes = 0;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const unit = text.charCodeAt(index);
+    if (unit <= 0x7f) bytes += 1;
+    else if (unit <= 0x7ff) bytes += 2;
+    else if (unit >= 0xd800 && unit <= 0xdbff && index + 1 < text.length) {
+      const next = text.charCodeAt(index + 1);
+      if (next >= 0xdc00 && next <= 0xdfff) {
+        bytes += 4;
+        index += 1;
+      } else bytes += 3;
+    } else bytes += 3;
+  }
+
+  return bytes;
 }
 
 const sizeProblem = (bytes: number): string =>

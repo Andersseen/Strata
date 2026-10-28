@@ -4,8 +4,11 @@ import {
   BOUNDARY_CLIENT_ATTRIBUTE,
   BOUNDARY_PROPS_ATTRIBUTE,
   BOUNDARY_PROTOCOL_ATTRIBUTE,
+  MAX_CLIENT_BOUNDARIES_PER_HOST,
+  MAX_CLIENT_BOUNDARY_PAYLOAD_BYTES_PER_HOST,
   StrataBoundaryError,
   StrataBuildMismatchError,
+  boundaryPayloadUtf8Bytes,
   parseBoundaryAttributes,
 } from "./boundary-protocol.js";
 import type { BoundaryEntries, BoundaryFailureCategory } from "./boundary-protocol.js";
@@ -139,6 +142,25 @@ export function planClientBoundaries<H extends BoundaryHost>(
   references: ReadonlyMap<string, ClientReference>,
   browserBuildId?: string,
 ): PlannedClientBoundary<H>[] {
+  if (hosts.length > MAX_CLIENT_BOUNDARIES_PER_HOST) {
+    throw resourceLimit(
+      owner,
+      `the client boundary count exceeds the per-host limit of ${MAX_CLIENT_BOUNDARIES_PER_HOST}.`,
+    );
+  }
+
+  let payloadBytes = 0;
+  for (const host of hosts) {
+    const payload = host.getAttribute(BOUNDARY_PROPS_ATTRIBUTE);
+    if (payload !== null) payloadBytes += boundaryPayloadUtf8Bytes(payload);
+    if (payloadBytes > MAX_CLIENT_BOUNDARY_PAYLOAD_BYTES_PER_HOST) {
+      throw resourceLimit(
+        owner,
+        `the aggregate serialized boundary payload exceeds the per-host limit of ${MAX_CLIENT_BOUNDARY_PAYLOAD_BYTES_PER_HOST} UTF-8 bytes.`,
+      );
+    }
+  }
+
   return hosts.map((host, index) => {
     const checked = checkBoundary(host, references, browserBuildId);
 
@@ -154,4 +176,11 @@ export function planClientBoundaries<H extends BoundaryHost>(
 
     return { ...checked, host };
   });
+}
+
+function resourceLimit(owner: string, detail: string): StrataBoundaryError {
+  return new StrataBoundaryError(
+    `[strata] Cannot hydrate client boundaries in <${owner}>: ${detail} No client boundary in <${owner}> was hydrated; its server-rendered DOM is left in place.`,
+    "resource-limit",
+  );
 }

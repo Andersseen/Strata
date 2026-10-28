@@ -4,6 +4,11 @@ Tests should prove observable contracts and failure boundaries. The existing sui
 [STATE](STATE.md). The M1 packed-consumer tooling now exists and has executed; later milestone
 requirements below remain future evidence.
 
+The Server Components hydration-budget candidate adds exact/over-limit preflight tests for the
+128-boundary and 1 MiB UTF-8 per-host limits. Its Node production, Analog dev, local workerd,
+Chromium and packed-consumer qualification remains pending until recorded in the
+[candidate evidence report](research/server-component-hydration-budgets-v011.md).
+
 Analog request guards and HTTP interceptors extend `pnpm test:analog` and the Analog package unit
 suite. The current feature-branch report records the execution contract and
 passing Node/workerd and packed-consumer evidence; hosted CI is pending:

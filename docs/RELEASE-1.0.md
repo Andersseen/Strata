@@ -100,6 +100,12 @@ compatibility matrix; do not check it based on intent or a demonstration.
 
 ## Server Components
 
+The 0.11.0 candidate adds bounded browser hydration preflight (128 owned client boundaries and
+1 MiB aggregate serialized payload UTF-8 per host). This is an incremental defensive bound and does
+not close the M4 gate. Runtime and packed-consumer evidence is tracked in the
+[candidate report](research/server-component-hydration-budgets-v011.md); no M4/1.0 certification is
+claimed from this change.
+
 - [ ] Actual server/client graph split, including compiled implementation/template code.
 - [ ] Server implementation excluded from every browser chunk, asset and public source map.
 - [ ] Server-only dependencies excluded transitively; direct, re-exported and dynamic illegal

@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { StrataBoundaryError, StrataBuildMismatchError } from "./boundary-protocol.js";
+import {
+  MAX_CLIENT_BOUNDARIES_PER_HOST,
+  MAX_CLIENT_BOUNDARY_PAYLOAD_BYTES_PER_HOST,
+  StrataBoundaryError,
+  StrataBuildMismatchError,
+  boundaryPayloadUtf8Bytes,
+} from "./boundary-protocol.js";
 import { BOUNDARY_HOST_SELECTOR, planClientBoundaries } from "./hydration-plan.js";
 import type { BoundaryHost, ClientReference } from "./hydration-plan.js";
 
@@ -210,6 +216,85 @@ describe("planClientBoundaries", () => {
 
   it("plans nothing for no boundaries", () => {
     expect(plan([])).toEqual([]);
+  });
+
+  it("accepts the exact per-host boundary count and refuses one above it", () => {
+    expect(
+      plan(Array.from({ length: MAX_CLIENT_BOUNDARIES_PER_HOST }, () => valid())),
+    ).toHaveLength(MAX_CLIENT_BOUNDARIES_PER_HOST);
+
+    const failure = planFailure(
+      Array.from({ length: MAX_CLIENT_BOUNDARIES_PER_HOST + 1 }, () => valid()),
+    );
+    expect(failure).toBeInstanceOf(StrataBoundaryError);
+    expect(failure?.category).toBe("resource-limit");
+    expect(failure?.message).toContain(`limit of ${MAX_CLIENT_BOUNDARIES_PER_HOST}`);
+  });
+
+  it.each([0, 1, 8, 32, 64, 128])("plans %i individually valid boundaries", (count) => {
+    expect(plan(Array.from({ length: count }, () => valid()))).toHaveLength(count);
+  });
+
+  it("refuses the 256-boundary aggregate that the baseline planner accepted", () => {
+    const failure = planFailure(Array.from({ length: 256 }, () => valid()));
+
+    expect(failure?.category).toBe("resource-limit");
+  });
+
+  it("classifies an over-budget host as a resource refusal before build-skew recovery", () => {
+    for (const serverBuild of ["a1", "b2"]) {
+      const hosts = Array.from({ length: MAX_CLIENT_BOUNDARIES_PER_HOST + 1 }, () =>
+        stamped(serverBuild),
+      );
+      const failure = planFailure(hosts, "a1");
+
+      expect(failure).toBeInstanceOf(StrataBoundaryError);
+      expect(failure).not.toBeInstanceOf(StrataBuildMismatchError);
+      expect(failure?.category).toBe("resource-limit");
+    }
+  });
+
+  it("accounts UTF-8 payload bytes exactly, without counting missing attributes", () => {
+    expect(boundaryPayloadUtf8Bytes("")).toBe(0);
+    expect(boundaryPayloadUtf8Bytes("plain ASCII")).toBe(11);
+    expect(boundaryPayloadUtf8Bytes("é")).toBe(2);
+    expect(boundaryPayloadUtf8Bytes("🙂")).toBe(4);
+    expect(boundaryPayloadUtf8Bytes('\\"\\n')).toBe(4);
+
+    const missing = boundary("relay-triage", "{}", { "data-strata-props": undefined });
+    expect(() => planClientBoundaries("relay-digest", [missing], references)).toThrow(
+      /data-strata-props is missing/,
+    );
+  });
+
+  it("accepts the exact aggregate byte limit and refuses one byte above it", () => {
+    const payload = (length: number) =>
+      `{"incidentId":"${"x".repeat(length - '{"incidentId":""}'.length)}"}`;
+    const sized = (serialized: string) =>
+      new FakeHost("relay-triage", {
+        "data-strata-client": "relay-triage",
+        "data-strata-protocol": "1",
+        "data-strata-props": serialized,
+      });
+    const full = payload(64 * 1024);
+    expect(boundaryPayloadUtf8Bytes(full)).toBe(64 * 1024);
+    expect(plan(Array.from({ length: 16 }, () => sized(full)))).toHaveLength(
+      MAX_CLIENT_BOUNDARY_PAYLOAD_BYTES_PER_HOST / (64 * 1024),
+    );
+
+    const exactWithoutOne = Array.from({ length: 15 }, () => sized(full));
+    exactWithoutOne.push(sized(payload(64 * 1024 - 16)));
+    exactWithoutOne.push(sized(payload(17)));
+    const total = exactWithoutOne.reduce(
+      (sum, host) => sum + boundaryPayloadUtf8Bytes(host.getAttribute("data-strata-props")!),
+      0,
+    );
+    expect(total).toBe(MAX_CLIENT_BOUNDARY_PAYLOAD_BYTES_PER_HOST + 1);
+
+    const failure = planFailure(exactWithoutOne);
+    expect(failure?.category).toBe("resource-limit");
+    expect(failure?.message).toContain(`${MAX_CLIENT_BOUNDARY_PAYLOAD_BYTES_PER_HOST} UTF-8 bytes`);
+    expect(failure?.message).not.toContain("incidentId");
   });
 });
 

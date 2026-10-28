@@ -728,9 +728,76 @@ interface PreflightCase {
   readonly reports: readonly string[];
   /** Substrings no diagnostic may contain (data safety). */
   readonly never: readonly string[];
+  readonly discoveredBoundaries?: number;
+  readonly failureCategory?: string;
 }
 
 const PREFLIGHT_CASES: readonly PreflightCase[] = [
+  {
+    name: "host B exceeds the 1 MiB aggregate serialized-payload budget by one UTF-8 byte",
+    tamper: (html) => {
+      const start = html.indexOf('<failure-host data-host="B"');
+      const next = html.indexOf("<failure-host", start + 1);
+      const end = next < 0 ? html.length : next;
+      const slice = html.slice(start, end);
+      const source = slice.match(/<failure-island data-island="1"[\s\S]*?<\/failure-island>/)?.[0];
+
+      if (start < 0 || !source) throw new Error("tamper: no complete boundary in host B");
+
+      const base = JSON.stringify({ label: "", start: 0 });
+      const canary = "STRATA_BUDGET_PRIVATE_CANARY_91D6E42A";
+      const canaryPayload = JSON.stringify({ label: canary, start: 0 });
+      const blocks = Array.from({ length: 17 }, (_, index) => {
+        const payloadBytes =
+          index < 15
+            ? 65_536
+            : index === 15
+              ? 65_536 - canaryPayload.length + 1
+              : canaryPayload.length;
+        const value =
+          index === 16
+            ? canaryPayload
+            : JSON.stringify({ label: "x".repeat(payloadBytes - base.length), start: 0 });
+        const escaped = value.replaceAll('"', "&quot;");
+
+        return source
+          .replace('data-island="1"', `data-island="${index + 1}"`)
+          .replace(/data-strata-props="[^"]*"/, `data-strata-props="${escaped}"`);
+      });
+      const clean = slice.replace(
+        /<failure-island data-island="[123]"[\s\S]*?<\/failure-island>/g,
+        "",
+      );
+      const expanded = clean.replace("</failure-host>", `${blocks.join("")}</failure-host>`);
+
+      return html.slice(0, start) + expanded + html.slice(end);
+    },
+    reports: [
+      "aggregate serialized boundary payload exceeds the per-host limit of 1048576 UTF-8 bytes",
+    ],
+    never: ["STRATA_BUDGET_PRIVATE_CANARY_91D6E42A"],
+    discoveredBoundaries: 17,
+    failureCategory: "resource-limit",
+  },
+  {
+    name: "host B exceeds the 128 owned-boundary budget (host A and C remain valid)",
+    tamper: (html) => {
+      const start = html.indexOf('<failure-host data-host="B"');
+      const next = html.indexOf("<failure-host", start + 1);
+      const end = next < 0 ? html.length : next;
+      const slice = html.slice(start, end);
+      const block = slice.match(/<failure-island data-island="1"[\s\S]*?<\/failure-island>/)?.[0];
+
+      if (start < 0 || !block) throw new Error("tamper: no complete boundary in host B");
+
+      const expanded = slice.replace("</failure-host>", `${block.repeat(126)}</failure-host>`);
+      return html.slice(0, start) + expanded + html.slice(end);
+    },
+    reports: ["client boundary count exceeds the per-host limit of 128"],
+    never: [],
+    discoveredBoundaries: 129,
+    failureCategory: "resource-limit",
+  },
   {
     name: 'protocol mismatch: host B boundary 2 has data-strata-protocol="999" (1 and 3 valid)',
     tamper: (html) =>
@@ -779,6 +846,7 @@ const PREFLIGHT_CASES: readonly PreflightCase[] = [
 export async function checkPreflightIsolation(
   target: RuntimeTarget,
   browser: Browser,
+  healthyViews: number,
 ): Promise<boolean> {
   const results: boolean[] = [];
 
@@ -811,7 +879,8 @@ export async function checkPreflightIsolation(
           "host B entirely inert (0 of 3 hydrated, none constructed, even the valid boundaries); A and C hydrated (3 + 3)",
           hydratedIs(state, { A: 3, B: 0, C: 3 }) &&
             sumOf(state.constructed, keysOf("B")) === 0 &&
-            sumOf(state.constructed, [...keysOf("A"), ...keysOf("C")]) === 6,
+            sumOf(state.constructed, [...keysOf("A"), ...keysOf("C")]) === 6 &&
+            state.views === healthyViews - 3,
           JSON.stringify(state),
         ),
         check(
@@ -834,16 +903,21 @@ export async function checkPreflightIsolation(
             state.observations.some(
               (event) =>
                 event.outcome === "preflight-refused" &&
-                event.discoveredBoundaries === 3 &&
+                event.discoveredBoundaries === (tamperCase.discoveredBoundaries ?? 3) &&
                 event.committedBoundaries === 0 &&
-                !!event.failureCategory,
+                (tamperCase.failureCategory
+                  ? event.failureCategory === tamperCase.failureCategory
+                  : !!event.failureCategory),
             ),
           JSON.stringify(state.observations),
         ),
         check(
           "diagnostic is data-safe: no props value or payload fragment in any error",
           tamperCase.never.every(
-            (part) => ![...state.errors, ...session.console].some((entry) => entry.includes(part)),
+            (part) =>
+              ![...state.errors, ...session.console, JSON.stringify(state.observations)].some(
+                (entry) => entry.includes(part),
+              ),
           ) && !state.errors.some((entry) => entry.includes("label")),
         ),
         check(
@@ -938,6 +1012,60 @@ export async function checkPreflightIsolation(
     } finally {
       await again.page.close();
     }
+  }
+
+  section(`${target.name}: nested boundary markers remain owned by their outer island`);
+  const nestedNodeCount = 1;
+  const nestedTamper = (html: string): string => {
+    const start = html.indexOf('<failure-host data-host="B"');
+    const next = html.indexOf("<failure-host", start + 1);
+    const end = next < 0 ? html.length : next;
+    const slice = html.slice(start, end);
+    const nestedButton =
+      '<button data-strata-client="nested-unowned" data-strata-protocol="1" data-strata-props="{}"';
+
+    if (start < 0 || !slice.includes("<button"))
+      throw new Error("tamper: no nested button in host B");
+
+    const expanded = slice.replace("<button", nestedButton);
+    return html.slice(0, start) + expanded + html.slice(end);
+  };
+  const nestedNodes = hostNodes("B");
+  const nestedSession = await openSession(browser, `${target.baseUrl}${FAILURES_ROUTE}`, {
+    tamper: nestedTamper,
+    capture: nestedNodes,
+  });
+
+  try {
+    await settle(nestedSession.page);
+
+    const state = await readState(nestedSession.page);
+    const identity = await sameNodes(nestedSession.page, nestedNodes);
+    const b = await pressOnce(nestedSession.page, "B:1");
+    const a = await pressOnce(nestedSession.page, "A:2");
+    const c = await pressOnce(nestedSession.page, "C:3");
+    const hostObservation = state.observations.find(
+      (event) => event.hostSelector === "failure-host",
+    );
+
+    results.push(
+      check(
+        `the ${nestedNodeCount} descendant attribute markers do not consume the host boundary budget`,
+        state.errors.length === 0 &&
+          hydratedIs(state, { A: 3, B: 3, C: 3 }) &&
+          state.views === healthyViews &&
+          hostObservation?.discoveredBoundaries === 3 &&
+          hostObservation.committedBoundaries === 3,
+        JSON.stringify(state),
+      ),
+      check("nested-boundary SSR nodes and enclosing island nodes stay in place", identity),
+      check(
+        "the enclosing island and both sibling hosts remain interactive",
+        [b, a, c].every((x) => x === "Presses: 1"),
+      ),
+    );
+  } finally {
+    await nestedSession.page.close();
   }
 
   return all(results);

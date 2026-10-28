@@ -99,6 +99,19 @@ const angularWidgetsSource = join(
 const kitSource = join(repoRoot, "tests", "server-component-package-consumer", "kit");
 const packageDir = join(repoRoot, "packages", "server-components");
 const PACKAGE = "@strata-sc/server-components";
+
+function overLimitBoundaryHost(html: string): string {
+  const start = html.indexOf("<product-details");
+  const end = html.indexOf("</product-details>", start);
+  const slice = html.slice(start, end);
+  const boundary = slice.match(/<legacy-counter[^>]*>[\s\S]*?<\/legacy-counter>/)?.[0];
+
+  if (start < 0 || end < 0 || !boundary) {
+    throw new Error("packed budget fixture has no complete legacy-counter boundary");
+  }
+
+  return html.slice(0, end) + boundary.repeat(125) + html.slice(end);
+}
 const WIDGETS_PACKAGE = "@strata-test/angular-widgets";
 /** A plain ESM package with a browser-safe root and subpath and a server-only subpath and barrel. */
 const KIT_PACKAGE = "@strata-test/kit";
@@ -1199,6 +1212,35 @@ try {
       errors: isolatedObserver.errors,
     }),
   );
+  const packedBudgetRefusal = await observeBrowser(
+    `${node.baseUrl}/product`,
+    overLimitBoundaryHost,
+  );
+  const packedBudgetEvent = packedBudgetRefusal.hydrationObservations[0];
+  check(
+    "installed tarball refuses 129 owned boundaries before creation, preserves SSR and reports one safe refusal",
+    packedBudgetRefusal.hydrationObservations.length === 1 &&
+      packedBudgetEvent?.outcome === "preflight-refused" &&
+      packedBudgetEvent.failureCategory === "resource-limit" &&
+      packedBudgetEvent.discoveredBoundaries === 129 &&
+      packedBudgetEvent.committedBoundaries === 0 &&
+      packedBudgetRefusal.errors.length === 1 &&
+      packedBudgetRefusal.errors[0]?.includes("StrataBoundaryError") === true &&
+      packedBudgetRefusal.islandsCreated === 0 &&
+      packedBudgetRefusal.hydratedIslands === 0 &&
+      !packedBudgetRefusal.beforeScripts.childMarkedHydrated &&
+      Object.values(packedBudgetRefusal.sameNodes).every(Boolean) &&
+      packedBudgetRefusal.countAfterClick === "Count: 0" &&
+      !JSON.stringify(packedBudgetRefusal.hydrationObservations).includes("data-strata-props"),
+    JSON.stringify({
+      event: packedBudgetEvent,
+      errors: packedBudgetRefusal.errors,
+      created: packedBudgetRefusal.islandsCreated,
+      hydrated: packedBudgetRefusal.hydratedIslands,
+      sameNodes: packedBudgetRefusal.sameNodes,
+      count: packedBudgetRefusal.countAfterClick,
+    }),
+  );
 
   nodeOk.push(
     check(
@@ -2238,8 +2280,35 @@ import type { ProductRepository as RepositoryType } from "@app/product/types-bar
   cfOk.push(assessProduct("workerd SSR", cfResponse, sanitize(wrangler.output())));
 
   const cfBrowser = await observeBrowser(`${wrangler.baseUrl}/product`);
+  const packedWorkerdBudgetRefusal = await observeBrowser(
+    `${wrangler.baseUrl}/product`,
+    overLimitBoundaryHost,
+  );
+  const packedWorkerdBudgetEvent = packedWorkerdBudgetRefusal.hydrationObservations[0];
 
   cfOk.push(
+    check(
+      "workerd: installed tarball refuses 129 boundaries atomically with one safe event and intact SSR",
+      packedWorkerdBudgetRefusal.hydrationObservations.length === 1 &&
+        packedWorkerdBudgetEvent?.outcome === "preflight-refused" &&
+        packedWorkerdBudgetEvent.failureCategory === "resource-limit" &&
+        packedWorkerdBudgetEvent.discoveredBoundaries === 129 &&
+        packedWorkerdBudgetEvent.committedBoundaries === 0 &&
+        packedWorkerdBudgetRefusal.errors.length === 1 &&
+        packedWorkerdBudgetRefusal.errors[0]?.includes("StrataBoundaryError") === true &&
+        packedWorkerdBudgetRefusal.islandsCreated === 0 &&
+        packedWorkerdBudgetRefusal.hydratedIslands === 0 &&
+        Object.values(packedWorkerdBudgetRefusal.sameNodes).every(Boolean) &&
+        packedWorkerdBudgetRefusal.countAfterClick === "Count: 0",
+      JSON.stringify({
+        event: packedWorkerdBudgetEvent,
+        errors: packedWorkerdBudgetRefusal.errors,
+        created: packedWorkerdBudgetRefusal.islandsCreated,
+        hydrated: packedWorkerdBudgetRefusal.hydratedIslands,
+        sameNodes: packedWorkerdBudgetRefusal.sameNodes,
+        count: packedWorkerdBudgetRefusal.countAfterClick,
+      }),
+    ),
     check(
       "workerd: the island hydrates by DOM identity",
       cfBrowser.hydratedWithinTimeout &&

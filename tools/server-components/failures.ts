@@ -59,6 +59,7 @@ try {
     verdict["Node C preflight failure and sibling-host isolation"] = await checkPreflightIsolation(
       nodeTarget,
       browser,
+      healthy.views,
     );
     verdict["Node D hydration commit failure and rollback"] = await checkCommitFailure(
       nodeTarget,
@@ -117,7 +118,7 @@ build("Cloudflare", { BUILD_PRESET: "cloudflare-pages" }, stop);
         browser,
       );
       verdict["workerd C preflight failure and sibling-host isolation"] =
-        await checkPreflightIsolation(workerTarget, browser);
+        await checkPreflightIsolation(workerTarget, browser, healthy.views);
       verdict["workerd F document navigation, Back and re-entry"] = await checkDocumentNavigation(
         workerTarget,
         browser,
