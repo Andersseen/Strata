@@ -84,45 +84,47 @@ collected; no performance claim is made.
 
 ## Check results and outstanding evidence
 
-| Check                                                                             | Result                                                                            |
-| --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| `pnpm install --frozen-lockfile`                                                  | PASS                                                                              |
-| `pnpm build`                                                                      | PASS                                                                              |
-| `pnpm lint`                                                                       | PASS; three pre-existing warnings, zero errors                                    |
-| `pnpm typecheck`                                                                  | PASS                                                                              |
-| `pnpm test`                                                                       | PASS; package, release and performance-tool suites                                |
-| `pnpm format:check`                                                               | PASS                                                                              |
-| `pnpm test:server-components`                                                     | PASS; Node production/Chromium graph and hydration                                |
-| `pnpm test:server-component-security`                                             | PASS; Node and local workerd canaries and positive controls                       |
-| `pnpm test:server-component-dev`                                                  | PASS; Analog/Vite Chromium HMR and graph regeneration                             |
-| `pnpm test:server-component-optimized-deps`                                       | PASS; cold/warm/force/include/exclude/linked/production/cache mutation            |
-| `pnpm test:server-component-failures`                                             | PASS on Nitro Node and local workerd; includes the new Chromium reference refusal |
-| `pnpm test:server-component-package-consumer`                                     | PASS; installed package matrix as described above                                 |
-| `pnpm test:server-component-navigation`                                           | PASS; Router navigation remains classified NO-GO                                  |
-| `pnpm test:server-component-defer`                                                | PASS                                                                              |
-| `pnpm test:server-component-server-only`                                          | PASS                                                                              |
-| `pnpm test:server-component-request-context`                                      | PASS on Node and workerd                                                          |
-| `pnpm test:server-component-authorization`                                        | PASS on Node and workerd                                                          |
-| `pnpm test:server-component-ssr-response`                                         | PASS on Node and workerd                                                          |
-| `pnpm test:server-component-deployment-skew`                                      | PASS; mismatch recovery remains separate from reference/protocol errors           |
-| `pnpm test:server-components:cloudflare`                                          | PASS; local Pages/workerd + Chromium; known JIT and Router limits retained        |
-| `pnpm test:analog` and `pnpm test:analog-streaming`                               | PASS; 114 checks and streaming matrix                                             |
-| Analog observability, headers, forms, registration performance                    | PASS; registration 1/100/400 routes: 0.055/0.430/2.036 ms                         |
-| `pnpm test:full-stack-package-consumer` and `pnpm test:analog-packed-di-consumer` | PASS; packed Node/workerd consumer matrix                                         |
-| `pnpm test:full-stack-deployed-cloudflare`                                        | PASS; local workerd rehearsal only; no real deployment                            |
-| `pnpm www:build:cloudflare`                                                       | PASS                                                                              |
-| `pnpm relay:test:e2e`                                                             | PASS; 6 tests                                                                     |
-| `pnpm www:test:e2e`                                                               | BLOCKED by an existing listener on port 3000; default run reused unrelated page   |
-| `pnpm changeset status`                                                           | PASS; no package version bumps                                                    |
-| `pnpm release:packages:dry-run`                                                   | PASS; versions already on registry; npm auth check warned E401                    |
-| `pnpm release:sync-dist-tags:dry-run`                                             | PASS; reported current `next` tag targets                                         |
-| Hosted CI and repository-pinned Entwine validations                               | NOT RUN                                                                           |
-| registry/preflight performance and bundle measurements                            | NOT RUN                                                                           |
-| deployed qualification                                                            | NOT RUN                                                                           |
-| Hosted GitHub Actions for this branch                                             | NOT RUN; no PR has been opened                                                    |
+| Check                                                                             | Result                                                                                 |
+| --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `pnpm install --frozen-lockfile`                                                  | PASS                                                                                   |
+| `pnpm build`                                                                      | PASS                                                                                   |
+| `pnpm lint`                                                                       | PASS; three pre-existing warnings, zero errors                                         |
+| `pnpm typecheck`                                                                  | PASS                                                                                   |
+| `pnpm test`                                                                       | PASS; package, release and performance-tool suites                                     |
+| `pnpm format:check`                                                               | PASS                                                                                   |
+| `pnpm test:server-components`                                                     | PASS; Node production/Chromium graph and hydration                                     |
+| `pnpm test:server-component-security`                                             | PASS; Node and local workerd canaries and positive controls                            |
+| `pnpm test:server-component-dev`                                                  | PASS; Analog/Vite Chromium HMR and graph regeneration                                  |
+| `pnpm test:server-component-optimized-deps`                                       | PASS; cold/warm/force/include/exclude/linked/production/cache mutation                 |
+| `pnpm test:server-component-failures`                                             | PASS on Nitro Node and local workerd; includes the new Chromium reference refusal      |
+| `pnpm test:server-component-package-consumer`                                     | PASS; installed package matrix as described above                                      |
+| `pnpm test:server-component-navigation`                                           | PASS; Router navigation remains classified NO-GO                                       |
+| `pnpm test:server-component-defer`                                                | PASS                                                                                   |
+| `pnpm test:server-component-server-only`                                          | PASS                                                                                   |
+| `pnpm test:server-component-request-context`                                      | PASS on Node and workerd                                                               |
+| `pnpm test:server-component-authorization`                                        | PASS on Node and workerd                                                               |
+| `pnpm test:server-component-ssr-response`                                         | PASS on Node and workerd                                                               |
+| `pnpm test:server-component-deployment-skew`                                      | PASS; mismatch recovery remains separate from reference/protocol errors                |
+| `pnpm test:server-components:cloudflare`                                          | PASS; local Pages/workerd + Chromium; known JIT and Router limits retained             |
+| `pnpm test:analog` and `pnpm test:analog-streaming`                               | PASS; 114 checks and streaming matrix                                                  |
+| Analog observability, headers, forms, registration performance                    | PASS; registration 1/100/400 routes: 0.055/0.430/2.036 ms                              |
+| `pnpm test:full-stack-package-consumer` and `pnpm test:analog-packed-di-consumer` | PASS; packed Node/workerd consumer matrix                                              |
+| `pnpm test:full-stack-deployed-cloudflare`                                        | PASS; local workerd rehearsal only; no real deployment                                 |
+| `pnpm www:build:cloudflare`                                                       | PASS                                                                                   |
+| `pnpm test:www:server-components`                                                 | PASS; Node + local workerd, each with 2 Chromium tests                                 |
+| `pnpm test:relay:server-components`                                               | PASS; Node with 6 Chromium tests                                                       |
+| `pnpm relay:test:e2e`                                                             | PASS; 6 tests                                                                          |
+| standalone `CI=1 pnpm www:test:e2e`                                               | NOT REPRODUCIBLE LOCALLY; sandbox bind denied, approved retry found port 3000 occupied |
+| `pnpm changeset status`                                                           | PASS; no package version bumps                                                         |
+| `pnpm release:packages:dry-run`                                                   | PASS; versions already on registry; npm auth check warned E401                         |
+| `pnpm release:sync-dist-tags:dry-run`                                             | PASS; reported current `next` tag targets                                              |
+| Hosted CI and repository-pinned Entwine validations                               | NOT RUN                                                                                |
+| registry/preflight performance and bundle measurements                            | NOT RUN                                                                                |
+| deployed qualification                                                            | NOT RUN                                                                                |
+| Hosted GitHub Actions for this branch                                             | PENDING; PR #153 opened, run lookup and combined status currently return no checks     |
 
 The `origin/main` remote-tracking ref was already at the starting SHA. A pruning fetch completed
 before branch creation. No hosted run was available through the connected run lookup for that SHA.
-There are no open PRs returned by the connected GitHub search. Issue [#117](https://github.com/Andersseen/Strata/issues/117)
+PR [#153](https://github.com/Andersseen/Strata/pull/153) is open with hosted checks pending. Issue [#117](https://github.com/Andersseen/Strata/issues/117)
 is still open; it concerns exact-SHA release workflow transition evidence and is outside this
 qualification. No M3, M4, M5, 1.0, hosted-CI, deployed or production-adoption completion is claimed.
