@@ -22,8 +22,58 @@ export interface ClientReferenceRegistry {
   readonly problem?: string;
 }
 
-const isDescriptor = (input: ClientReferenceInput): input is ClientReferenceDescriptor =>
-  typeof input === "object" && input !== null;
+/** The custom-element contract the build enforces on `clientComponents` selectors. */
+const CUSTOM_ELEMENT_SELECTOR = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)+$/;
+
+type ReadInput =
+  | { readonly ok: true; readonly type: unknown; readonly expected: string | undefined }
+  | { readonly ok: false; readonly problem: string };
+
+/**
+ * Reads a reference without invoking consumer code: a descriptor must carry
+ * `type` and `expectedSelector` as own data properties, so no getter, inherited
+ * accessor, `toString` or `valueOf` of the consumer runs. A Proxy that throws
+ * on inspection is a malformed reference, not an exception.
+ */
+function readInput(input: unknown, position: string): ReadInput {
+  try {
+    if (typeof input === "function") return { ok: true, type: input, expected: undefined };
+    if (typeof input !== "object" || input === null) {
+      return {
+        ok: false,
+        problem: `${position} is not an Angular component (no component metadata).`,
+      };
+    }
+
+    const type = Object.getOwnPropertyDescriptor(input, "type");
+    const expected = Object.getOwnPropertyDescriptor(input, "expectedSelector");
+
+    if (!type || !("value" in type) || !expected || !("value" in expected)) {
+      return {
+        ok: false,
+        problem: `${position} is not a valid descriptor: "type" and "expectedSelector" must be own data properties.`,
+      };
+    }
+    if (typeof expected.value !== "string" || !CUSTOM_ELEMENT_SELECTOR.test(expected.value)) {
+      return {
+        ok: false,
+        problem: `${position} has an invalid expectedSelector: it must be a custom-element name such as "order-details".`,
+      };
+    }
+    return { ok: true, type: type.value, expected: expected.value };
+  } catch {
+    return { ok: false, problem: `${position} could not be inspected safely.` };
+  }
+}
+
+/** Angular reflection can throw on corrupt metadata; that is a reference problem, not a crash. */
+function reflect(type: unknown): ReturnType<typeof reflectComponentType> | "unreadable" {
+  try {
+    return typeof type === "function" ? reflectComponentType(type as Type<unknown>) : null;
+  } catch {
+    return "unreadable";
+  }
+}
 
 /**
  * One pass over the host's references with Angular's public
@@ -37,24 +87,45 @@ export function buildClientReferenceRegistry(
   const references = new Map<string, ClientReference>();
   let problem: string | undefined;
 
-  inputs.forEach((input, index) => {
-    if (problem !== undefined) return;
+  if (!Array.isArray(inputs)) {
+    return { references, problem: "the client references of this host are not an array." };
+  }
 
-    const descriptor = isDescriptor(input);
-    const type = descriptor ? input.type : input;
-    const expected = descriptor ? input.expectedSelector : undefined;
+  for (let index = 0; index < inputs.length && problem === undefined; index++) {
+    let input: unknown;
+
+    try {
+      input = inputs[index];
+    } catch {
+      problem = `client reference ${index + 1} of ${inputs.length} could not be read.`;
+      break;
+    }
+
     const position = `client reference ${index + 1} of ${inputs.length}`;
-    const mirror = typeof type === "function" ? reflectComponentType(type) : null;
+    const read = readInput(input, position);
 
+    if (!read.ok) {
+      problem = read.problem;
+      continue;
+    }
+
+    const type = read.type as Type<unknown>;
+    const expected = read.expected;
+    const mirror = reflect(type);
+
+    if (mirror === "unreadable") {
+      problem = `${position} has component metadata that could not be read.`;
+      continue;
+    }
     if (!mirror) {
       problem = `${position} is not an Angular component (no component metadata).`;
-      return;
+      continue;
     }
-    if (expected !== undefined && typeof expected === "string" && mirror.selector !== expected) {
+    if (expected !== undefined && mirror.selector !== expected) {
       problem =
         `${position} is registered for <${expected}> but its component declares selector "${mirror.selector}". ` +
         `Correct the clientComponents registry or the import.`;
-      return;
+      continue;
     }
 
     const existing = references.get(mirror.selector);
@@ -66,14 +137,14 @@ export function buildClientReferenceRegistry(
           `two different components declare selector "${mirror.selector}" (${position}). ` +
           `Correct the clientComponents registry or the import.`;
       }
-      return;
+      continue;
     }
     references.set(mirror.selector, {
       type,
       selector: mirror.selector,
       inputs: new Map(mirror.inputs.map((i) => [i.propName, i.templateName])),
     });
-  });
+  }
 
   return problem === undefined ? { references } : { references, problem };
 }
