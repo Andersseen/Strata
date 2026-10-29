@@ -177,6 +177,13 @@ Angular selector, conflicting selector ownership) inside the existing host prefl
 incremental integrity check, not completion of M4; see the
 [candidate evidence](research/server-component-reference-integrity-v012.md).
 
+The 0.13.0 test-only qualification adds a real Chromium unknown-reference refusal on Node and local
+workerd, and reruns the installed 0.13.0 package consumer. It demonstrates host-local atomic refusal,
+ErrorHandler/observer delivery, DOM identity and sibling interaction for that selector case. It does
+not qualify malformed descriptors in a browser, the installed-package reference-negative matrix,
+warm Vite optimizer cache transitions, or a deployment; M4 remains open. See the
+[browser integrity report](research/server-component-browser-integrity-v014.md).
+
 The 0.11.0 candidate adds per-host browser preflight budgets (128 owned boundaries and 1 MiB of
 serialized payload UTF-8). This is an incremental bound on hydration work, not completion of M4; see
 the [candidate evidence](research/server-component-hydration-budgets-v011.md).

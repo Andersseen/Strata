@@ -12,6 +12,18 @@ claiming one selector (previously the last silently won) and rejects non-compone
 [candidate report](research/server-component-reference-integrity-v012.md). This is not M4 or 1.0
 certification.
 
+## Browser reference refusal integration (0.13.0; test-only)
+
+From `origin/main` SHA `7c6942f5b458335d57265c527b3195362814d300`. The existing failure harness now
+mutates one SSR boundary selector before Chromium scripts execute, exercising the real
+`StrataIslandHost` unknown-reference preflight. On Node and local workerd it reports one classified
+`reference` error and one terminal observation, leaves all boundaries in that host uncreated with
+the original DOM nodes, and preserves healthy sibling interaction. The packed 0.13.0 consumer
+positive matrix and its existing budget refusal pass. Malformed generated descriptors remain
+unit-only; installed-package selector-negative cases, the Vite optimizer cache matrix, performance
+series, the full local CI matrix and hosted CI remain unqualified. This is test-only: an empty Changeset
+records no package bump, and there is no 0.14.0 version claim. See [the qualification report](research/server-component-browser-integrity-v014.md).
+
 ## Server Components bounded hydration preflight for 0.11.0 candidate
 
 From synchronized `main` SHA `b69e2eec5bf0ba39f322e03143978ab892fba8a2`, on

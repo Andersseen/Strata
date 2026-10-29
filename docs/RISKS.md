@@ -7,6 +7,14 @@ recorded; issue #117 remains open. The 0.10.0 Server Components observer reports
 per-host transaction; it is not Angular health monitoring. Evidence levels and local / packed / hosted / deployed
 limits are in the [candidate report](research/server-component-hydration-observability-v010.md).
 
+Browser reference integrity follow-up (2026-10-29, test-only): the real runtime preflight for an
+unregistered boundary selector is exercised in Chromium on Node and local workerd, including
+atomic host refusal, exact ErrorHandler/observer delivery, SSR node identity and sibling isolation.
+This does not exercise malformed generated descriptors in-browser or installed-package selector
+conflicts. The old optimizer-cache observation from the 0.12.0 report was not reproduced here; a
+cold/warm cache and package-upgrade comparison remains open. No registry timing or bundle-size
+measurements were collected. See [the report](research/server-component-browser-integrity-v014.md).
+
 The 0.10.0 form API also passed Node/dev/local-workerd fixture and
 packed-consumer checks, while hosted CI and deployed checks are pending. See
 [Analog validated forms](research/analog-validated-forms-v010.md).

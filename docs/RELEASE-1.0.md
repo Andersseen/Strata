@@ -110,6 +110,13 @@ The 0.12.0 candidate adds runtime client reference identity validation (expected
 selector, conflicting selector ownership). It narrows an M4 integrity gap and does not close M4;
 see the [candidate report](research/server-component-reference-integrity-v012.md).
 
+The 0.13.0 test-only follow-up qualifies an unknown client-reference selector refusal in real
+Chromium on Nitro Node and local workerd and reruns the packed 0.13.0 consumer. It does not qualify
+malformed descriptors in-browser, installed-package selector conflicts, warm optimizer cache
+transitions, performance or deployment. It adds no production API or version bump and does not
+complete M4, M5 or Strata 1.0; see the
+[browser integrity report](research/server-component-browser-integrity-v014.md).
+
 - [ ] Actual server/client graph split, including compiled implementation/template code.
 - [ ] Server implementation excluded from every browser chunk, asset and public source map.
 - [ ] Server-only dependencies excluded transitively; direct, re-exported and dynamic illegal
