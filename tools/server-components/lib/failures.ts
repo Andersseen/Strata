@@ -255,7 +255,7 @@ const readState = (page: Page): Promise<State> =>
 const island = (key: string): string => {
   const [host, number] = key.split(":");
 
-  return `failure-host[data-host="${host}"] failure-island[data-island="${number}"]`;
+  return `failure-host[data-host="${host}"] :is(failure-island, missing-island)[data-island="${number}"]`;
 };
 
 const outputText = (page: Page, key: string): Promise<string | null> =>
@@ -727,6 +727,25 @@ function tamperBoundary(
   return html.slice(0, start) + slice.replace(tag, edit(tag)) + html.slice(end);
 }
 
+/** Renames one SSR island element while retaining its Angular SSR attributes and children. */
+function renameBoundary(html: string, host: string, n: number, selector: string): string {
+  const start = html.indexOf(`<failure-host data-host="${host}"`);
+  const next = html.indexOf("<failure-host", start + 1);
+  const end = next < 0 ? html.length : next;
+  const slice = html.slice(start, end);
+  const boundary = slice.match(
+    new RegExp(`<failure-island data-island="${n}"[^>]*>[\\s\\S]*?<\\/failure-island>`),
+  )?.[0];
+
+  if (start < 0 || !boundary) throw new Error(`rename: no complete boundary ${n} in host ${host}`);
+
+  return (
+    html.slice(0, start) +
+    slice.replace(boundary, boundary.replaceAll("failure-island", selector)) +
+    html.slice(end)
+  );
+}
+
 interface PreflightCase {
   readonly name: string;
   readonly tamper: (html: string) => string;
@@ -817,6 +836,13 @@ const PREFLIGHT_CASES: readonly PreflightCase[] = [
     never: [],
   },
   {
+    name: "reference mismatch: host B boundary 2 names an unregistered client selector (1 and 3 valid)",
+    tamper: (html) => renameBoundary(html, "B", 2, "missing-island"),
+    reports: ["(boundary 2 of 3 in <failure-host>)", "no client reference has this selector"],
+    never: [],
+    failureCategory: "reference",
+  },
+  {
     name: "malformed props: host B boundary 2 has invalid JSON (1 and 3 valid)",
     tamper: (html) =>
       tamperBoundary(html, "B", 2, (tag) =>
@@ -890,8 +916,11 @@ export async function checkPreflightIsolation(
           JSON.stringify(state),
         ),
         check(
-          "host B's SSR DOM remains: same nodes, same positions, text visible",
-          identity && (await outputText(page, "B:2")) === "Presses: 0",
+          "host B's SSR DOM remains: same nodes, same positions, visible text, no hydrated marker",
+          identity &&
+            (await outputText(page, "B:2")) === "Presses: 0" &&
+            (await page.locator('failure-host[data-host="B"] [data-strata-hydrated]').count()) ===
+              0,
         ),
         check(
           "ErrorHandler received exactly one data-safe StrataBoundaryError naming the host and refusal reason",
@@ -912,6 +941,7 @@ export async function checkPreflightIsolation(
                 event.outcome === "preflight-refused" &&
                 event.discoveredBoundaries === (tamperCase.discoveredBoundaries ?? 3) &&
                 event.committedBoundaries === 0 &&
+                event.buildMismatch === false &&
                 (tamperCase.failureCategory
                   ? event.failureCategory === tamperCase.failureCategory
                   : !!event.failureCategory),

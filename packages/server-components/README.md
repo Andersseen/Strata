@@ -991,6 +991,12 @@ hands it to the application's `ErrorHandler` exactly once and does not rethrow (
 handler logs it; it is neither silent nor an unhandled rejection or `window` error). An `ErrorHandler`
 that itself throws is your decision.
 
+The 0.13.0 browser qualification adds a real unknown-reference refusal through the existing preflight
+on Chromium with Nitro Node and local workerd. It confirms one `reference` error and observer event,
+no island creation, preserved SSR nodes and interactive sibling hosts. This is fixture evidence for
+that negative case, not a browser compatibility guarantee or a completed M4 qualification; details
+and remaining gaps are in the [browser integrity report](../../docs/research/server-component-browser-integrity-v014.md).
+
 **Optional host observations.** An application can observe the terminal result of each host transaction
 without replacing `ErrorHandler`:
 
