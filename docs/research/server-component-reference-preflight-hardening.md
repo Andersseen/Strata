@@ -19,20 +19,20 @@ non-component fails the whole host as a `reference` preflight refusal before any
 Real Angular metadata (`@angular/compiler`, JIT) plus minimal synthetic descriptors, against the
 unmodified `buildClientReferenceRegistry`:
 
-| Case                                          | Baseline                           |
-| --------------------------------------------- | ---------------------------------- |
-| A. throwing `type` getter                     | **threw** out of the constructor   |
-| B. throwing `expectedSelector` getter         | **threw**                          |
-| C. `expectedSelector` a number                | **bypassed** (check skipped)       |
-| D. `expectedSelector` null                    | **bypassed**                       |
-| missing `expectedSelector` key / object value | **bypassed**                       |
-| E. empty string                               | refused (as a mismatch)            |
-| F. malformed selector                         | refused (as a mismatch)            |
-| G. Angular reflection that throws (Proxy)     | **threw**                          |
-| H. valid reference after an invalid one       | invalid one bypassed, no problem   |
-| I. valid component, different actual selector | refused                            |
-| J. two components, one selector               | refused                            |
-| inherited accessors on a descriptor           | **read** (consumer getters ran)    |
+| Case                                          | Baseline                         |
+| --------------------------------------------- | -------------------------------- |
+| A. throwing `type` getter                     | **threw** out of the constructor |
+| B. throwing `expectedSelector` getter         | **threw**                        |
+| C. `expectedSelector` a number                | **bypassed** (check skipped)     |
+| D. `expectedSelector` null                    | **bypassed**                     |
+| missing `expectedSelector` key / object value | **bypassed**                     |
+| E. empty string                               | refused (as a mismatch)          |
+| F. malformed selector                         | refused (as a mismatch)          |
+| G. Angular reflection that throws (Proxy)     | **threw**                        |
+| H. valid reference after an invalid one       | invalid one bypassed, no problem |
+| I. valid component, different actual selector | refused                          |
+| J. two components, one selector               | refused                          |
+| inherited accessors on a descriptor           | **read** (consumer getters ran)  |
 
 The constructor calls the builder outside the `afterNextRender` preflight, so the thrown cases
 escaped the established `reference` contract (and ran during construction). Case G was reproduced
