@@ -19,9 +19,10 @@ mutates one SSR boundary selector before Chromium scripts execute, exercising th
 `StrataIslandHost` unknown-reference preflight. On Node and local workerd it reports one classified
 `reference` error and one terminal observation, leaves all boundaries in that host uncreated with
 the original DOM nodes, and preserves healthy sibling interaction. The packed 0.13.0 consumer
-positive matrix and its existing budget refusal pass. Malformed generated descriptors remain
-unit-only; installed-package selector-negative cases, the Vite optimizer cache matrix, performance
-series, the full local CI matrix and hosted CI remain unqualified. This is test-only: an empty Changeset
+positive matrix and its existing budget refusal pass. A follow-up browser test injects an accessor-shaped `expectedSelector` descriptor for host B and proves
+`StrataIslandHost` refuses it without invoking the throwing getter, on Node and local workerd. This is a
+controlled runtime fixture; malformed generated descriptors remain unit-only. Installed-package
+selector-negative cases and performance series remain unqualified. This is test-only: an empty Changeset
 records no package bump, and there is no 0.14.0 version claim. See [the qualification report](research/server-component-browser-integrity-v014.md).
 
 ## Server Components bounded hydration preflight for 0.11.0 candidate

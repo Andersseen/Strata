@@ -118,13 +118,19 @@ collected; no performance claim is made.
 | `pnpm changeset status`                                                           | PASS; no package version bumps                                                         |
 | `pnpm release:packages:dry-run`                                                   | PASS; versions already on registry; npm auth check warned E401                         |
 | `pnpm release:sync-dist-tags:dry-run`                                             | PASS; reported current `next` tag targets                                              |
-| Hosted CI and repository-pinned Entwine validations                               | NOT RUN                                                                                |
+| Hosted CI and repository-pinned Entwine validations                               | PASS on PR #153 merge SHA; follow-up PR checks pending                                 |
 | registry/preflight performance and bundle measurements                            | NOT RUN                                                                                |
 | deployed qualification                                                            | NOT RUN                                                                                |
-| Hosted GitHub Actions for this branch                                             | PENDING; PR #153 opened, run lookup and combined status currently return no checks     |
+| Hosted GitHub Actions for the original increment                                  | PASS; PR #153 Verify and all required jobs succeeded before merge                      |
 
-The `origin/main` remote-tracking ref was already at the starting SHA. A pruning fetch completed
-before branch creation. No hosted run was available through the connected run lookup for that SHA.
-PR [#153](https://github.com/Andersseen/Strata/pull/153) is open with hosted checks pending. Issue [#117](https://github.com/Andersseen/Strata/issues/117)
+The original increment PR [#153](https://github.com/Andersseen/Strata/pull/153) was merged after its required jobs and aggregate Verify passed; its merge commit is `0fc8487e3d926600371e9b0f76e9630b1405815a`. The follow-up below is based on current main SHA `919994f1dba052be6d05085ceb04a69ba4f6ec2f`; its hosted checks are tracked by its own PR. Issue [#117](https://github.com/Andersseen/Strata/issues/117)
 is still open; it concerns exact-SHA release workflow transition evidence and is outside this
 qualification. No M3, M4, M5, 1.0, hosted-CI, deployed or production-adoption completion is claimed.
+
+## Follow-up: hostile descriptor accessor in a real browser
+
+On 2026-10-30, from current `origin/main` SHA `919994f1dba052be6d05085ceb04a69ba4f6ec2f`, the same failure harness gained a controlled browser-only registry mutation. Before scripts execute, the harness wraps `Object.getOwnPropertyDescriptor` for the generated `failure-island` descriptor on host B and presents its `expectedSelector` property as a throwing accessor descriptor. The callback restores the native method immediately after the targeted inspection, counts the two matching host registrations, and records whether the accessor body was invoked. No component source, Vite analyzer, generated production code or runtime implementation is modified.
+
+Nitro Node and local Wrangler Pages/workerd Chromium runs both pass. Each records exactly one `StrataBoundaryError` with category `reference`, one `preflight-refused` event with zero committed boundaries and `buildMismatch: false`, no component construction or hydration for B, preserved SSR node identity, working A/C siblings, no page error or unhandled rejection, no retry, and a fresh healthy document lifecycle on re-entry. The accessor body throws a canary if invoked; the test verifies zero invocations and excludes the canary from diagnostics.
+
+**Evidence level:** LOCALLY INTEGRATED (Node + Chromium, workerd + Chromium). This qualifies the runtime's safe rejection of an accessor-shaped descriptor in-browser; it does not prove Vite or Angular can emit malformed descriptors, and it does not replace compiler/analyzer negatives or the installed-package negative matrix. Hosted CI for the follow-up remains pending until the PR run completes.

@@ -77,6 +77,9 @@ declare const window: {
   __STRATA_ISLAND_PROBE__?: { created: number; destroyed: number; views(): number };
   __strataFailureNodes?: readonly CapturedNode[];
   __strataSentinel?: string;
+  name: string;
+  __strataFailureGetterCalls?: number;
+  __strataDescriptorAccesses?: number;
   __strataPageshows?: boolean[];
   addEventListener(type: "pageshow", listener: (event: { persisted: boolean }) => void): void;
 };
@@ -755,6 +758,8 @@ interface PreflightCase {
   readonly never: readonly string[];
   readonly discoveredBoundaries?: number;
   readonly failureCategory?: string;
+  readonly init?: () => void;
+  readonly accessorWasNotInvoked?: boolean;
 }
 
 const PREFLIGHT_CASES: readonly PreflightCase[] = [
@@ -843,6 +848,57 @@ const PREFLIGHT_CASES: readonly PreflightCase[] = [
     failureCategory: "reference",
   },
   {
+    name: "reference registry: throwing expectedSelector accessor is rejected without invocation",
+    tamper: (html) => html,
+    init: () => {
+      if (window.name === "strata-reference-accessor-case-armed") return;
+
+      window.name = "strata-reference-accessor-case-armed";
+      window.__strataFailureGetterCalls = 0;
+      window.__strataDescriptorAccesses = 0;
+      const object = Object as {
+        getOwnPropertyDescriptor(
+          target: object,
+          property: PropertyKey,
+        ): PropertyDescriptor | undefined;
+      };
+      const original = object.getOwnPropertyDescriptor.bind(object);
+
+      object.getOwnPropertyDescriptor = (target, property) => {
+        if (property === "expectedSelector") {
+          const type = Reflect.getOwnPropertyDescriptor(target, "type");
+          const selector = Reflect.getOwnPropertyDescriptor(target, "expectedSelector");
+
+          if (typeof type?.value === "function" && selector?.value === "failure-island") {
+            window.__strataDescriptorAccesses = (window.__strataDescriptorAccesses ?? 0) + 1;
+          }
+
+          if (
+            typeof type?.value === "function" &&
+            selector?.value === "failure-island" &&
+            window.__strataDescriptorAccesses === 2
+          ) {
+            object.getOwnPropertyDescriptor = original;
+            return {
+              configurable: true,
+              enumerable: true,
+              get() {
+                window.__strataFailureGetterCalls = (window.__strataFailureGetterCalls ?? 0) + 1;
+                throw new Error("STRATA_REFERENCE_ACCESSOR_CANARY");
+              },
+            };
+          }
+        }
+
+        return Reflect.getOwnPropertyDescriptor(target, property);
+      };
+    },
+    reports: ["client reference 1 of 1", "not a valid descriptor"],
+    never: ["STRATA_REFERENCE_ACCESSOR_CANARY"],
+    failureCategory: "reference",
+    accessorWasNotInvoked: true,
+  },
+  {
     name: "malformed props: host B boundary 2 has invalid JSON (1 and 3 valid)",
     tamper: (html) =>
       tamperBoundary(html, "B", 2, (tag) =>
@@ -888,6 +944,7 @@ export async function checkPreflightIsolation(
     const nodes = hostNodes("B");
     const session = await openSession(browser, `${target.baseUrl}${FAILURES_ROUTE}`, {
       tamper: tamperCase.tamper,
+      ...(tamperCase.init ? { init: tamperCase.init } : {}),
       capture: nodes,
     });
     const { page } = session;
@@ -957,6 +1014,18 @@ export async function checkPreflightIsolation(
               ),
           ) && !state.errors.some((entry) => entry.includes("label")),
         ),
+        ...(tamperCase.accessorWasNotInvoked
+          ? [
+              check(
+                "hostile descriptor accessor is rejected without being invoked",
+                (await page.evaluate(
+                  () =>
+                    window.__strataFailureGetterCalls === 0 &&
+                    window.__strataDescriptorAccesses === 2,
+                )) === true,
+              ),
+            ]
+          : []),
         check(
           "handled, not unhandled: one console.error (Angular's ErrorHandler), no page error, no unhandled rejection",
           session.console.length === 1 &&
@@ -1032,6 +1101,7 @@ export async function checkPreflightIsolation(
     // A new document is a new lifecycle: one fresh attempt, one report, nothing carried over.
     const again = await openSession(browser, `${target.baseUrl}${FAILURES_ROUTE}`, {
       tamper: tamperCase.tamper,
+      ...(tamperCase.init ? { init: tamperCase.init } : {}),
     });
 
     try {
