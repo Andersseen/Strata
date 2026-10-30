@@ -60,6 +60,12 @@ combined with `", "` and per-line fidelity is only available from `request.heade
 `cookie` or `x-forwarded-*` validates shape, not identity. Release risk remains: #117 (publish not gated on `Verify`) let
 Release succeed on `769899c` while CI failed. See [the evidence](research/analog-header-validation-v09.md).
 
+Evidence note (2026-10-30): the Analog 0.12.0 candidate adds opt-in `requestCorrelation`. The id is random and
+operational: it must not be treated as a session, tenant or authorization value, and Strata never puts it in a
+response. Exposing it, or logging it next to personal data, is application policy. It correlates one Strata
+invocation only; it is not distributed tracing and does not cover client disconnect. Overhead was measured locally
+(about +0.8 us per request). See [the evidence](research/analog-request-correlation-v012.md).
+
 Evidence note (2026-10-24): the Analog 0.8.0 candidate adds `onRequestSettled`. A stream the transport never
 reads or cancels, and a client that disconnects while a finite producer keeps running, are not reported until (and
 unless) the body ends: Strata adds no timeout and does not claim a disconnect event. A broken observer is silent

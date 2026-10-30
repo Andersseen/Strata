@@ -63,6 +63,12 @@ export interface StrataAnalogRequestObservation {
    * observed lifetime of the body.
    */
   readonly elapsedMs: number;
+  /**
+   * Only present when `requestCorrelation` is enabled: the same random
+   * identifier as `request.correlationId` for this invocation. Not an identity
+   * or authorization value.
+   */
+  readonly correlationId?: string;
 }
 
 /**
@@ -101,12 +107,18 @@ function isThenable(value: unknown): value is PromiseLike<unknown> {
 export class InvocationObservation {
   readonly #route: StrataAnalogRouteInfo;
   readonly #observer: StrataAnalogRequestObserver;
+  readonly #correlationId: string | undefined;
   readonly #startedAt = now();
   #invokedAt: number | undefined;
   #phase: "guards" | "execution" = "guards";
   #emitted = false;
 
-  constructor(route: StrataAnalogRouteInfo, observer: StrataAnalogRequestObserver) {
+  constructor(
+    route: StrataAnalogRouteInfo,
+    observer: StrataAnalogRequestObserver,
+    correlationId?: string,
+  ) {
+    this.#correlationId = correlationId;
     this.#route = route;
     this.#observer = observer;
   }
@@ -173,6 +185,7 @@ export class InvocationObservation {
       cleanup,
       invocationMs: (this.#invokedAt ?? finishedAt) - this.#startedAt,
       elapsedMs: finishedAt - this.#startedAt,
+      ...(this.#correlationId === undefined ? {} : { correlationId: this.#correlationId }),
     });
 
     try {

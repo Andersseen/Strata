@@ -9,6 +9,12 @@ import {
   streamingGuard,
   streamingInterceptor,
 } from "../strata/streaming.controller";
+import {
+  CorrelatedController,
+  CorrelatedLogController,
+  recordCorrelated,
+  stage,
+} from "../strata/correlated.controller";
 import { lifecycleStats } from "../strata/lifecycle-stats";
 import { ProductsController } from "../strata/products.controller";
 import { QualificationController } from "../strata/qualification.controller";
@@ -66,4 +72,33 @@ export default defineNitroPlugin((nitroApp) => {
     guards: [streamingGuard],
     interceptors: [streamingInterceptor],
   });
+  // Opt-in request correlation (docs/research/analog-request-correlation-v012.md).
+  registerControllers(nitroApp.router, [CorrelatedController], {
+    requestCorrelation: true,
+    guards: [
+      ({ request }) => {
+        stage("guard", request);
+        return request.url.searchParams.has("deny")
+          ? { allow: false, status: 403 }
+          : { allow: true };
+      },
+    ],
+    interceptors: [
+      async ({ request }, next) => {
+        stage("interceptor", request);
+        return next();
+      },
+    ],
+    controllerFactory(Controller, { request, onCleanup }) {
+      stage("factory", request);
+      onCleanup(() => {
+        stage("cleanup", request);
+      });
+      return new Controller();
+    },
+    onRequestSettled(observation) {
+      recordCorrelated({ kind: "observation", observation });
+    },
+  });
+  registerControllers(nitroApp.router, [CorrelatedLogController]);
 });

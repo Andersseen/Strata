@@ -146,6 +146,10 @@ Broader M3 adoption and lifecycle gates remain open; see the
   supported terminal outcome), synchronous and isolated from the response, with no request or error data. It is
   not an observability SDK; client disconnect and the API boundary's own answers stay unobserved
   ([report](research/analog-request-observability-v08.md)). M3 is not marked complete.
+- Capability delivered in the 0.12.0 candidate: opt-in `requestCorrelation` (a random per-invocation id on
+  `request.correlationId` and the `onRequestSettled` observation; no tracing, no propagation, no response header,
+  not an identity). Local and packed-consumer evidence only ([report](research/analog-request-correlation-v012.md)).
+  M3 is not marked complete.
 - Capability delivered in the 0.9.0 candidate: opt-in `validateHeaders(schema)` completes the params/query/headers/body
   Standard Schema input set (lowercase string snapshot, native duplicate combination, safe `source: "headers"` 400, no
   authentication claim) ([report](research/analog-header-validation-v09.md)). Request validation is therefore no longer

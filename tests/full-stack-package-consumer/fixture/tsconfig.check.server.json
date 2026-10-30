@@ -14,6 +14,7 @@
     "src/check/controller-declarations.ts",
     "src/check/http-contract-example.ts",
     "src/check/api-boundary-example.ts",
-    "src/check/stream-example.ts"
+    "src/check/stream-example.ts",
+    "src/check/correlation-example.ts"
   ]
 }
