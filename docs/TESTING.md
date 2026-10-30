@@ -306,6 +306,15 @@ cleanup-first observations, cleanup failure, native Nitro coexistence and no aut
 `packages/analog/src/register-controllers.test.ts`; the packed-consumer qualification must compile and run the
 installed tarball before release.
 
+`pnpm test:analog-correlation` ([evidence](research/analog-request-correlation-v012.md)) drives the real fixture
+on the Node production server, the Vite dev server and local workerd: one id shared by guard, interceptor,
+factory, handler (across an `await`), cleanup and observer; 24 overlapping requests with distinct synthetic
+identities; denial, rejected input, unexpected error and stream; no id in any response; canary absence; native
+routes and `serverFn` unchanged. `STRATA_CORRELATION_RUNTIMES=node,dev,workerd` selects runtimes. The same probe
+runs against the installed tarballs in `test:full-stack-package-consumer`, and
+`pnpm test:analog-correlation-performance` compares enabled and disabled (relative, same machine). Unit coverage is
+`packages/analog/src/request-correlation.test.ts`.
+
 `pnpm test:analog-observability` ([evidence](research/analog-request-observability-v08.md)) drives the real
 fixture with a consumer-owned structured logger on the Node production server, the Vite dev server and local
 workerd, and verifies the observer's records through an unobserved route, independently of the HTTP response:

@@ -11,6 +11,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { observeCorrelation } from "../analog/lib/correlation.ts";
 import { listFiles } from "../analog/lib/scan.ts";
 import { observeStreaming } from "../analog/lib/streaming.ts";
 import { run } from "../consumer/lib/exec.ts";
@@ -250,6 +251,7 @@ try {
     "src/check/http-contract-example.ts",
     "src/check/api-boundary-example.ts",
     "src/check/stream-example.ts",
+    "src/check/correlation-example.ts",
   ]) {
     cpSync(join(consumerDir, file), join(ts59Dir, file));
   }
@@ -434,11 +436,20 @@ try {
     return passed;
   });
 
+  const nodeCorrelation: boolean[] = [];
+
+  await observeCorrelation(node.baseUrl, "node", (name, passed, detail) => {
+    nodeCorrelation.push(check(name, passed, detail));
+
+    return passed;
+  });
+
   await node.stop();
   servers.length = 0;
 
   const nodeAll = [
     ...nodeStreaming,
+    ...nodeCorrelation,
     ...nodeHttp.controller,
     ...nodeHttp.serverComponents,
     ...nodeIsland.ok,
@@ -609,8 +620,17 @@ try {
     return passed;
   });
 
+  const cfCorrelation: boolean[] = [];
+
+  await observeCorrelation(wrangler.baseUrl, "workerd", (name, passed, detail) => {
+    cfCorrelation.push(check(name, passed, detail));
+
+    return passed;
+  });
+
   cfOk.push(
     ...cfStreaming,
+    ...cfCorrelation,
     ...cfHttp.controller,
     ...cfHttp.serverComponents,
     ...cfIsland.ok,

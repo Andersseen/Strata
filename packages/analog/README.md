@@ -554,6 +554,55 @@ log secrets it obtains elsewhere.
 Analog server functions and the API boundary's own 404/405/`OPTIONS` answers are
 not observed (observing boundary decisions would need its own contract).
 
+## Correlating a request: `requestCorrelation`
+
+Opt-in (default `false`). When enabled, Strata generates **one** random identifier
+(`globalThis.crypto.randomUUID()`) for each matched Strata controller invocation
+and carries it on the explicit request object, so it survives `await` without
+`AsyncLocalStorage` or any global registry:
+
+- `request.correlationId` is set before the first guard runs, and is the same value
+  in guards, interceptors, the controller factory and the handler;
+- the `onRequestSettled` observation has the identical `correlationId`.
+
+```ts
+registerControllers(nitroApp.router, [UsersController], {
+  requestCorrelation: true,
+  guards: [({ request }) => (log(request.correlationId, "guard"), { allow: true })],
+  onRequestSettled(o) {
+    console.log(JSON.stringify({ id: o.correlationId, route: o.route.path, outcome: o.outcome }));
+  },
+});
+```
+
+The identifier is random: it is never taken from a header, cookie, query value or
+body (a client-sent `x-request-id` is ignored), and holds no user, tenant, route
+parameter, credential or timestamp. Disabled, nothing is generated and neither
+`request.correlationId` nor the observation field exists, so the observation keeps
+its previous exact shape. Status, error handling, cleanup order, `AggregateError`
+precedence and stream ownership are unchanged: for an owned `streamResponse()` the
+id stays on the observation until the body completes, fails or is cancelled.
+
+It is for operational correlation only, **not** a session, tenant, CSRF or
+authorization value, and Strata does not set any response header or add it to a
+body. Exposing it is your policy, for example:
+
+```ts
+interceptors: [
+  async ({ request }, next) => {
+    const result = await next();
+    return result instanceof Response && request.correlationId
+      ? new Response(result.body, {
+          status: result.status,
+          headers: { ...Object.fromEntries(result.headers), "x-request-id": request.correlationId },
+        })
+      : result;
+  },
+],
+```
+
+It does not provide distributed tracing or propagation across services.
+
 ## API boundary: 404, 405, HEAD and OPTIONS
 
 By default `registerControllers()` only adds routes to Nitro's router, so a

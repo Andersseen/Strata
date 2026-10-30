@@ -53,6 +53,8 @@
     "test:analog-streaming": "node --experimental-strip-types tools/analog/streaming.ts",
     "test:analog-headers": "node --experimental-strip-types tools/analog/headers.ts",
     "test:analog-forms": "node --experimental-strip-types tools/analog/forms.ts",
+    "test:analog-correlation": "node --experimental-strip-types tools/analog/correlation.ts",
+    "test:analog-correlation-performance": "node --expose-gc --experimental-strip-types tools/analog/correlation-performance.ts",
     "test:analog-observability": "node --experimental-strip-types tools/analog/observability.ts",
     "test:analog-registration-performance": "node --experimental-strip-types tools/analog/registration-performance.ts",
     "test:server-components": "node --experimental-strip-types tools/server-components/run.ts",

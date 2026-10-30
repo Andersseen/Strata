@@ -147,6 +147,11 @@ jobs:
       - name: Analog request observability (Node + dev + workerd)
         run: pnpm test:analog-observability
 
+      # `requestCorrelation`: one id shared by guard, interceptor, factory, handler and observer, with
+      # 24 overlapping requests isolated and nothing added to a response, on Node, dev and local workerd.
+      - name: Analog request correlation (Node + dev + workerd)
+        run: pnpm test:analog-correlation
+
       # `validateHeaders`: safe 400 with source "headers", cleanup-first, observed as input-rejected,
       # isolated under overlap, on Node, the Vite dev server and local workerd.
       - name: Analog header validation (Node + dev + workerd)

@@ -162,6 +162,13 @@ disconnect to the body. Cloudflare Workers advance the clock only across I/O. Qu
 [report](research/analog-request-observability-v08.md) (Nitro Node, Vite dev, local workerd; not a deployed Pages
 project).
 
+## Request correlation assumptions
+
+`requestCorrelation` uses `globalThis.crypto.randomUUID()`, present on the pinned Node and workerd runtimes, and
+adds no dependency or Nitro/H3 type. It is request-local (no `AsyncLocalStorage`). Qualified on the tuple of the
+[report](research/analog-request-correlation-v012.md) (Nitro Node, Vite dev, local workerd, packed consumer with
+TypeScript 6.0.3 and 5.9.2); not a deployed Pages project. `serverFn` on workerd stays NO-GO (Angular JIT).
+
 `validateHeaders` (0.9 candidate) reads the same normalized `Headers` on Nitro Node, Vite dev and local workerd: lowercase
 names, duplicates combined with `", "`. Qualified locally on that tuple, not on a deployed Pages project
 ([report](research/analog-header-validation-v09.md)).

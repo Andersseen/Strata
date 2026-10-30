@@ -109,6 +109,19 @@ qualified when written, not deployed, no production adoption, observation overhe
 publish-before-CI issue #117 is untouched. See the
 [evidence report](research/analog-request-observability-v08.md).
 
+## Analog request correlation for 0.12.0 (feature branch)
+
+On branch `feat/analog-request-correlation-v012`, work began from synchronized `main`
+`0fc8487e3d926600371e9b0f76e9630b1405815a` (@strata-sc/analog 0.11.0). `registerControllers()` gains the opt-in
+`requestCorrelation: true`: one random `crypto.randomUUID()` per Strata-owned invocation, available as
+`request.correlationId` before guards run and identical on the `onRequestSettled` observation (also for streams,
+until their body settles). Disabled by default, in which case nothing is generated and the observation keeps its
+exact previous shape. Never derived from request data, never added to a response, not an identity or authorization
+value. Unit tested (24 tests), locally integrated (Node production, Analog dev, local workerd, 24 overlapping
+requests) and packed-consumer qualified (TypeScript 6.0.3 and 5.9.2, real Nitro and Wrangler). Measured overhead
+about +0.8 us per request and +104 B gzip. Not deployed, no production adoption; hosted-CI evidence is recorded
+separately. See the [evidence report](research/analog-request-correlation-v012.md).
+
 ## Server Components deployment skew for 0.8.0 (feature branch)
 
 On branch `feat/server-components-deployment-skew-v08`, work began from synchronized `main`
