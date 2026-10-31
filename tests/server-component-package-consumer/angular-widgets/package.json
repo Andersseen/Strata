@@ -15,6 +15,14 @@
     "./leaky": {
       "types": "./dist/fesm2022/leaky.d.ts",
       "default": "./dist/fesm2022/leaky.js"
+    },
+    "./negatives": {
+      "types": "./dist/fesm2022/negatives.d.ts",
+      "default": "./dist/fesm2022/negatives.js"
+    },
+    "./second": {
+      "types": "./dist/fesm2022/second.d.ts",
+      "default": "./dist/fesm2022/second.js"
     }
   },
   "peerDependencies": {

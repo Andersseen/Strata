@@ -54,6 +54,16 @@ function readInput(input: unknown, position: string): ReadInput {
         problem: `${position} is not a valid descriptor: "type" and "expectedSelector" must be own data properties.`,
       };
     }
+    // Strata emits exactly these two keys. Anything else is not a generated descriptor, and no
+    // extra key is read or named.
+    const keys = Reflect.ownKeys(input);
+
+    if (keys.length !== 2) {
+      return {
+        ok: false,
+        problem: `${position} is not a valid descriptor: only "type" and "expectedSelector" are allowed.`,
+      };
+    }
     if (typeof expected.value !== "string" || !CUSTOM_ELEMENT_SELECTOR.test(expected.value)) {
       return {
         ok: false,

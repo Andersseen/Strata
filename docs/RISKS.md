@@ -7,6 +7,14 @@ recorded; issue #117 remains open. The 0.10.0 Server Components observer reports
 per-host transaction; it is not Angular health monitoring. Evidence levels and local / packed / hosted / deployed
 limits are in the [candidate report](research/server-component-hydration-observability-v010.md).
 
+Installed-island qualification (feature branch): the installed-package reference matrices that the next paragraph
+lists as open now exist for a private test library (build-time and browser-time, Node and local workerd,
+including descriptors with hostile accessors and extra fields), as do upgrade/downgrade and clean/warm cache
+characterization and a measured cost series; see the [installed-island report](research/server-component-installed-island-qualification.md). Residual risks: only a
+test library was installed; a directive registered as a component is caught only in the browser; Vite's
+optimizer does not watch an in-place edit of `node_modules` (upstream, unsupported); no hosted-CI, deployed or
+production evidence.
+
 Browser reference integrity follow-up (2026-10-29, test-only): the real runtime preflight for an
 unregistered boundary selector is exercised in Chromium on Node and local workerd, including
 atomic host refusal, exact ErrorHandler/observer delivery, SSR node identity and sibling isolation.

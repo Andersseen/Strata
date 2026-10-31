@@ -116,6 +116,10 @@ The 0.12.0 candidate adds runtime client reference identity validation (expected
 selector, conflicting selector ownership). It narrows an M4 integrity gap and does not close M4;
 see the [candidate report](research/server-component-reference-integrity-v012.md).
 
+The installed-island slice adds locally packed-consumer-qualified installed-package reference, upgrade and
+confidentiality evidence and a measured cost series ([installed-island report](research/server-component-installed-island-qualification.md)). It does not provide hosted CI,
+deployed, third-party-library or production-adoption evidence, and does not complete M4 or Strata 1.0.
+
 The 0.13.0 test-only follow-up qualifies an unknown client-reference selector refusal in real
 Chromium on Nitro Node and local workerd and reruns the packed 0.13.0 consumer. It does not qualify
 malformed descriptors in-browser, installed-package selector conflicts, warm optimizer cache

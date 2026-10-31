@@ -74,6 +74,8 @@
     "test:server-component-deployment-skew": "node --experimental-strip-types tools/server-components/deployment-skew.ts",
     "test:server-component-optimized-deps": "node --experimental-strip-types tools/server-components/optimized-deps.ts",
     "test:server-component-package-consumer": "node --experimental-strip-types tools/server-components/package-consumer.ts",
+    "test:server-component-installed-island": "node --experimental-strip-types tools/server-components/installed-island.ts",
+    "test:server-component-installed-island-performance": "node --experimental-strip-types tools/server-components/installed-island-performance.ts",
     "test:server-component-registry-consumer": "node --experimental-strip-types tools/server-components/registry-consumer.ts",
     "test:server-components:cloudflare": "node --experimental-strip-types tools/server-components/cloudflare.ts",
     "test:server-components:deployed-cloudflare": "node --experimental-strip-types tools/server-components/deployed-cloudflare.ts",

@@ -154,6 +154,36 @@ describe("buildClientReferenceRegistry malformed descriptors (fail closed)", () 
     expect(problem).not.toContain(CANARY);
   });
 
+  it.each([
+    ["a data property", { type: ProductPicker, expectedSelector: "product-picker", extra: 1 }],
+    [
+      "a throwing accessor",
+      {
+        type: ProductPicker,
+        expectedSelector: "product-picker",
+        get extra(): never {
+          throw new Error(CANARY);
+        },
+      },
+    ],
+    [
+      "a symbol key",
+      { type: ProductPicker, expectedSelector: "product-picker", [Symbol("extra")]: 1 },
+    ],
+    [
+      "a non-enumerable property",
+      Object.defineProperty({ type: ProductPicker, expectedSelector: "product-picker" }, "extra", {
+        value: 1,
+      }),
+    ],
+  ])("K: a descriptor with an unexpected %s is refused without reading it", (_label, input) => {
+    const problem = problemOf(input);
+
+    expect(problem).toMatch(/client reference 1 of 1 is not a valid descriptor/);
+    expect(problem).not.toContain(CANARY);
+    expect(problem).not.toContain("extra");
+  });
+
   it("G: Angular reflection that throws becomes a reference problem", () => {
     const hostile = new Proxy(class {}, {
       get() {

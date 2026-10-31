@@ -157,6 +157,14 @@ Packages are not crawled, and an unmarked package component remains outside the 
 contract. The package must be safe for both server rendering and the browser. In dev, edits to an
 installed package require restarting Vite; package source files are not watched.
 
+A hand-written `provideClientReferences` descriptor must own exactly `type` and `expectedSelector`; any other
+own key (data property, accessor, symbol or non-enumerable) refuses the host as a `reference` failure, without
+reading it. Registering a directive or a non-component fails the build where Angular can see it (a mismatched
+selector, a plain class, two components on one selector); a registered directive builds and is refused when the
+browser reflects it. After upgrading an installed package, rebuild; in dev, restart Vite (clean the cache or run
+`vite --force` if you edited an installed file in place). See the
+[installed-island qualification](../../docs/research/server-component-installed-island-qualification.md).
+
 This package-reference path is experimental and qualified only for the dependency tuple and package
 shape listed under [Compatibility](#compatibility). It does not promise support for arbitrary Angular
 libraries or export-condition layouts.

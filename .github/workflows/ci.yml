@@ -200,6 +200,11 @@ jobs:
       - name: Server Component packed-package consumer (outside the workspace)
         run: pnpm test:server-component-package-consumer
 
+      # An INSTALLED Angular library (npm tarball, two versions) as Strata client islands: build-time and
+      # browser-time reference matrices on Nitro Node and local workerd, package upgrade and cache behaviour.
+      - name: Server Component installed-island qualification
+        run: pnpm test:server-component-installed-island
+
       # Two independently built releases of the packed consumer (identity A, identity B, and one without),
       # a document of one served with the script of another, on Nitro Node and LOCAL workerd (not a deployed
       # Pages project): build-mismatch classification, bounded opt-in reload, rollback, confidentiality.
