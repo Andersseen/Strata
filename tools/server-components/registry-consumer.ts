@@ -192,6 +192,11 @@ try {
   ])
     cpSync(join(registryV1Fixtures, source), join(consumerDir, "src", "app", destination));
 
+  // The installed-island qualification's second Server Component and page need the private test library,
+  // which this gate does not install.
+  for (const extra of ["product/stock-panel.server-component.ts", "pages/mixed.page.ts"])
+    rmSync(join(consumerDir, "src", "app", extra), { force: true });
+
   const manifestPath = join(consumerDir, "package.json");
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as {
     dependencies: Record<string, string>;
