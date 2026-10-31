@@ -367,8 +367,9 @@ try {
         [VITE_CONFIG]: register("acme-plain-thing", "/negatives", "PlainClass"),
         [PRODUCT]: importNegatives(["PlainClass"], "acme-plain-thing"),
       },
+      // Either diagnostic is a closed build; which plugin reports first is not deterministic.
       fails:
-        /Component imports must be standalone components, directives, pipes, or must be NgModules/,
+        /Component imports must be standalone components, directives, pipes, or must be NgModules|\[strata\] AOT integrity/,
     },
     {
       label: "D: a non-class export is registered as a component",

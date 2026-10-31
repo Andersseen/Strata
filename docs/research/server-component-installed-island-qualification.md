@@ -69,17 +69,17 @@ Fixtures and tools (no package behavior):
 
 Build time (the compiler fails closed where the reference is statically visible; nothing is weakened):
 
-| Case                                                      | Build outcome                                                   | Source of the diagnostic        |
-| --------------------------------------------------------- | --------------------------------------------------------------- | ------------------------------- |
-| B: registered export declares another selector            | **fails**: `Can't bind to 'productView'… 'acme-product-picker'` | Angular AOT (NG8002)            |
-| C: two components claim one selector in one template      | **fails**: `Multiple components match node with tagname …`      | Angular AOT                     |
-| C: two registry entries claim one selector                | **fails**: `[strata] duplicate client component selector …`     | Strata, at plugin configuration |
-| D: plain class registered                                 | **fails**: `Component imports must be standalone …`             | Angular AOT                     |
-| D: non-class export registered                            | **fails** (`[strata] AOT integrity` or a type error)            | Strata / TypeScript             |
-| D: registered export that does not exist                  | **fails**                                                       | Strata AOT integrity / bundler  |
-| Unregistered package component used with `[strataClient]` | **fails**: `<…> is marked [strataClient] … but no import …`     | Strata analyzer                 |
-| E: **directive** registered as a client component         | **builds**                                                      | none — see below                |
-| K: repeated references to one valid component             | builds, hydrates                                                | —                               |
+| Case                                                      | Build outcome                                                                                                            | Source of the diagnostic        |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------- |
+| B: registered export declares another selector            | **fails**: `Can't bind to 'productView'… 'acme-product-picker'`                                                          | Angular AOT (NG8002)            |
+| C: two components claim one selector in one template      | **fails**: `Multiple components match node with tagname …`                                                               | Angular AOT                     |
+| C: two registry entries claim one selector                | **fails**: `[strata] duplicate client component selector …`                                                              | Strata, at plugin configuration |
+| D: plain class registered                                 | **fails**: `Component imports must be standalone …` or `[strata] AOT integrity` (the first reporter varies between runs) | Angular AOT or Strata           |
+| D: non-class export registered                            | **fails** (`[strata] AOT integrity` or a type error)                                                                     | Strata / TypeScript             |
+| D: registered export that does not exist                  | **fails**                                                                                                                | Strata AOT integrity / bundler  |
+| Unregistered package component used with `[strataClient]` | **fails**: `<…> is marked [strataClient] … but no import …`                                                              | Strata analyzer                 |
+| E: **directive** registered as a client component         | **builds**                                                                                                               | none — see below                |
+| K: repeated references to one valid component             | builds, hydrates                                                                                                         | —                               |
 
 Case E is the one reproduced gap in static visibility: Angular accepts a directive whose selector matches the
 element and Strata does not read package sources, so the build cannot know. It is therefore enforced in the
