@@ -54,6 +54,11 @@ export default defineConfig(() => ({
           module: "@strata-test/angular-widgets",
           exportName: "ProductPickerComponent",
         },
+        {
+          selector: "acme-stock-badge",
+          module: "@strata-test/angular-widgets/second",
+          exportName: "StockBadgeComponent",
+        },
       ],
     }),
     analog(),

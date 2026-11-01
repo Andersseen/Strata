@@ -14,6 +14,14 @@ metadata (valid, duplicate selector, directive, plain class, selector mismatch) 
 descriptor assertions; integration and packed-consumer status is recorded in the
 [candidate report](research/server-component-reference-integrity-v012.md).
 
+`pnpm test:server-component-installed-island` (a step of the `consumers` CI job) packs Strata and two versions of
+the private Angular library, installs them with npm outside the workspace and runs: the linker/AOT proof, the
+canary confidentiality scan with a negative control, the browser-time reference matrix on Node and local workerd
+(`/mixed`, two Server Components), the build-time reference matrix, and the upgrade/downgrade and cache series.
+`pnpm test:server-component-installed-island-performance` is manual and never gates on a time. Set
+`STRATA_INSTALLED_WORKDIR` to reuse a prepared workspace during development (not for qualification). See the
+[installed-island report](research/server-component-installed-island-qualification.md).
+
 The 0.13.0 test-only browser follow-up adds an unknown-reference selector refusal to the existing
 failure harness and passes it on Chromium with Nitro Node and local workerd. Assertions include one
 ErrorHandler delivery, one `reference` terminal observer event with zero commits and no skew,

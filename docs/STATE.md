@@ -12,6 +12,20 @@ claiming one selector (previously the last silently won) and rejects non-compone
 [candidate report](research/server-component-reference-integrity-v012.md). This is not M4 or 1.0
 certification.
 
+## Installed Angular package islands, production qualification slice (feature branch; pending hosted CI)
+
+From `origin/main` SHA `4baa004fa92b78e725f0ae340c2f39c4af054bcc`. A real, separately partial-compiled
+Angular library (two npm tarballs, v1 and v2) is installed with npm beside the real Strata tarball into a
+consumer outside the workspace and used as client islands in two different Server Components on one page.
+**PACKED-CONSUMER QUALIFIED locally** on Nitro Node, local workerd and Chromium: Angular linker proof, a
+build-time negative matrix, a browser-time reference matrix (host-atomic refusal, ErrorHandler/observer
+exactly once, SSR DOM identity, healthy sibling host, no reload), package upgrade/downgrade and
+clean/warm/`--force` Vite cache characterization, canary confidentiality with a scanner control, and a measured
+cost series. One package behavior changed: a client-reference descriptor with any key besides `type` and
+`expectedSelector` is now refused (`reference`); a minor Changeset records it. A directive registered as a
+component builds and is refused only in the browser. Not hosted-CI qualified, deployed or production adopted;
+M4 and Strata 1.0 remain open. See the [installed-island report](research/server-component-installed-island-qualification.md).
+
 ## Browser reference refusal integration (0.13.0; test-only)
 
 From `origin/main` SHA `7c6942f5b458335d57265c527b3195362814d300`. The existing failure harness now

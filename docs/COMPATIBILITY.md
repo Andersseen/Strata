@@ -28,6 +28,12 @@ runtime checks that need no descriptor (component metadata present, no selector 
 only public Angular `reflectComponentType`; see the
 [reference integrity report](research/server-component-reference-integrity-v012.md).
 
+The installed-island qualification slice (feature branch) exercises one private, partial-compiled Angular
+library (two versions) installed from npm tarballs on the existing tuple (Angular 22.2.3, Vite 8.3.0, TypeScript
+6.0.3, Nitro Node and local workerd). It qualifies only that package shape (standalone components with public
+inputs from an APF FESM entry with partial declarations, registered explicitly) and adds no peer range. An
+arbitrary npm Angular component is not claimed as supported. See the [installed-island report](research/server-component-installed-island-qualification.md).
+
 The 0.13.0 test-only follow-up (with an empty Changeset and no version bump) exercises one actual browser `reference` refusal (an unregistered
 boundary selector) on Node and local workerd, plus the existing packed consumer. It makes no new
 Angular, Vite, browser or deployment support claim. Descriptor negatives and installed-package

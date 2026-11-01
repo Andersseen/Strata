@@ -188,6 +188,11 @@ not qualify malformed descriptors in a browser, the installed-package reference-
 warm Vite optimizer cache transitions, or a deployment; M4 remains open. See the
 [browser integrity report](research/server-component-browser-integrity-v014.md).
 
+The installed-island qualification slice (feature branch) adds the installed-package build-time and
+browser-time reference matrices, package upgrade and cache characterization, confidentiality canaries and
+measurements described in the [installed-island report](research/server-component-installed-island-qualification.md). It is PACKED-CONSUMER QUALIFIED locally only: hosted CI,
+a deployed run, third-party libraries and production adoption are not claimed, and M4 remains open.
+
 The 0.11.0 candidate adds per-host browser preflight budgets (128 owned boundaries and 1 MiB of
 serialized payload UTF-8). This is an incremental bound on hydration work, not completion of M4; see
 the [candidate evidence](research/server-component-hydration-budgets-v011.md).
