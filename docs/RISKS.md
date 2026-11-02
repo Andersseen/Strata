@@ -1,5 +1,8 @@
 # Technical risk register
 
+Release reliability (2026-11-02): a green Release run once left server-components 0.14.0 unpublished because empty
+Changesets stop `changesets/action` from publishing. The workflow now classifies release state and verifies the registry
+afterwards; this is unit-qualified, not hosted-observed. See [the report](research/release-pipeline-reliability.md).
 Current state (2026-10-27): synchronized main `7ac01d44` contains the exact-SHA `workflow_run` release gate for issue #117.
 The verifier requires a successful aggregate `Verify` for the same completed main push and rechecks the current
 main SHA before Changesets. The workflow and authorizer code are present, but hosted transition evidence is not

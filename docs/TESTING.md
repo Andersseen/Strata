@@ -276,6 +276,9 @@ hydration:
   Node and local workerd. A version that is not on npm exits 3 (NOT AVAILABLE), a dist-tag or range exits 2.
   `pnpm test:full-stack-registry-deployed-cloudflare` is the registry variant of the deployed runner; the manual
   workflow takes `source=registry`. Manual/hosted only: it depends on the network and on already
+  `pnpm test:release` also runs the release-state classifier, registry reader and publication-verification cases
+  (empty-only Changesets, partial release, 404 vs registry errors, dependency mismatch, no-op publish); see
+  [the report](research/release-pipeline-reliability.md).
   published versions. Pure selection and lock-verifier negative controls run in `pnpm test:release`.
   See [the report](research/full-stack-registry-qualification.md).
 - `pnpm test:full-stack-registry-upgrade-rollback`: two published tuples installed from npm into two external

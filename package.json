@@ -94,6 +94,8 @@
     "changeset": "changeset",
     "release:packages": "node --experimental-strip-types tools/release/publish-packages.ts",
     "release:packages:dry-run": "node --experimental-strip-types tools/release/publish-packages.ts --dry-run",
+    "release:state": "node --experimental-strip-types tools/release/release-state.ts classify",
+    "release:verify": "node --experimental-strip-types tools/release/release-state.ts verify",
     "release:sync-dist-tags": "node --experimental-strip-types tools/release/sync-dist-tags.ts",
     "release:sync-dist-tags:dry-run": "node --experimental-strip-types tools/release/sync-dist-tags.ts --dry-run"
   },
