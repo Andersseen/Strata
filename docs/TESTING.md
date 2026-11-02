@@ -268,6 +268,16 @@ hydration:
   NO-GO (see the deployment record). A third dispatch of the corrective branch passed
   ([run 38741663534](https://github.com/Andersseen/Strata/actions/runs/38741663534)). See
   [the report](research/full-stack-deployed-cloudflare.md).
+- `pnpm test:full-stack-registry-consumer`: the same external consumer and verifier as
+  `test:full-stack-package-consumer`, but `@strata-sc/core`, `analog` and `server-components` come from
+  https://registry.npmjs.org at exact versions (`STRATA_REGISTRY_CORE_VERSION`, `..._ANALOG_VERSION`,
+  `..._SERVER_COMPONENTS_VERSION`; default the manifests). It checks registry integrity, lock resolution,
+  byte identity with the downloaded tarball, single copies and no workspace/`file:` substitution, then
+  Node and local workerd. A version that is not on npm exits 3 (NOT AVAILABLE), a dist-tag or range exits 2.
+  `pnpm test:full-stack-registry-deployed-cloudflare` is the registry variant of the deployed runner; the manual
+  workflow takes `source=registry`. Manual/hosted only: it depends on the network and on already
+  published versions. Pure selection and lock-verifier negative controls run in `pnpm test:release`.
+  See [the report](research/full-stack-registry-qualification.md).
 - `pnpm test:full-stack-cloudflare-concurrency` is a read-only, bounded (at most 1500 requests per URL)
   controller concurrency diagnostic with correlation ids, response classification and fault-injection
   negative controls; set `STRATA_FULLSTACK_DEPLOYED_URL` to include an existing isolated-project deployment.

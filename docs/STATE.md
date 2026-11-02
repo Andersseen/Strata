@@ -1,5 +1,19 @@
 # Current implementation audit
 
+## Full-stack published-registry qualification (feature branch; pending hosted CI)
+
+From `e2734b191208a979ef89c94b08ce1971cb5551db`, `pnpm test:full-stack-registry-consumer` installs
+`@strata-sc/core@0.2.2`, `@strata-sc/analog@0.12.0` and `@strata-sc/server-components@0.13.0` from npm at
+exact versions into the external full-stack fixture and runs the shared Node production and local
+workerd verifier: **PUBLISHED-REGISTRY QUALIFIED** for that tuple (359 checks; lock, integrity,
+byte-identity and single-copy checks; TypeScript 6.0.3 and 5.9.2). The existing manual workflow, dispatched
+with `source=registry` ([run 41409890385](https://github.com/Andersseen/Strata/actions/runs/41409890385)),
+deployed that tuple to the isolated `strata-fullstack-qualification` project and the public-URL verifier
+passed, concurrency included (829 requests, 0 anomalies): **DEPLOYED QUALIFIED** for the tuple and the
+synthetic fixture. A missing version exits 3, NOT AVAILABLE, never GO. The source-packed gates are unchanged
+and still pass. The historical Cloudflare concurrency anomaly is still unexplained. Not production adopted;
+M4, M5 and 1.0 stay open. See the [report](research/full-stack-registry-qualification.md).
+
 ## Server Components client reference identity for 0.12.0 candidate
 
 From synchronized `main` SHA `02b06a17dbd5e9221bf02367beadabfbf84e54ee`, on
