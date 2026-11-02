@@ -125,6 +125,15 @@ Changesets. The unit decision matrix passes, but hosted workflow-run transitions
 #117 stays open until merge and live-transition inspection. At the starting SHA, GitHub Release and npm both
 confirm Analog 0.9.0 was published (release run `40120642476`).
 
+## Release pipeline reliability (feature branch)
+
+On `fix/release-pipeline-reliability` (from `6beb420`), Release runs `41425569177` and `41440296534` were green yet
+server-components 0.14.0 was never published: `changesets/action` skips publishing when only empty Changesets remain.
+Release now classifies state from Changesets and npm (`VERSION_REQUIRED`/`PUBLISH_REQUIRED`/`ALREADY_PUBLISHED`/`BLOCKED`),
+and a post-release registry verification fails any run that leaves a manifest version unpublished. Unit-qualified
+only; hosted transitions and the 0.14.0 publication are unobserved and #117 stays open. See the
+[report](research/release-pipeline-reliability.md).
+
 ## Analog header validation for 0.9.0 (feature branch)
 
 On branch `feat/analog-header-validation-v09`, work began from synchronized `main` (`769899c`). `request.validateHeaders(schema)`

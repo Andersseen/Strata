@@ -7,7 +7,11 @@ name: Release
 # - If there are pending changesets, it opens/updates a "Version Packages" PR
 #   that bumps versions (patch/minor/major, as declared in each changeset) and
 #   writes the CHANGELOGs.
-# - If there are none (e.g. that version PR was just merged), it publishes every
+# - The release state is classified first (tools/release/release-state.ts):
+#   VERSION_REQUIRED (nonempty changesets), PUBLISH_REQUIRED, ALREADY_PUBLISHED
+#   or BLOCKED (unreadable registry, bad dependency versions; fails the run).
+#   Empty changesets never suppress publishing.
+# - On PUBLISH_REQUIRED (e.g. that version PR was just merged), it publishes every
 #   non-private package whose version is not on npm yet, with npm provenance,
 #   and creates the git tags and GitHub Releases. Stable versions go to the
 #   `latest` dist-tag; prereleases (Changesets pre mode, `changeset pre enter
@@ -87,32 +91,29 @@ jobs:
       - name: Build
         run: pnpm build
 
+      # Read-only decision from the Changesets and the npm registry (never from
+      # changesets/action's hasChangesets: empty-only Changesets make it report
+      # true, skip publishing and still succeed). A BLOCKED state, including
+      # an unreadable registry, fails here. PUBLISH_REQUIRED drops the empty
+      # Changesets from this ephemeral checkout so the action runs its publish
+      # script; nothing is committed.
+      - name: Classify release state
+        id: state
+        run: node --experimental-strip-types tools/release/release-state.ts classify --prepare
+
       # Close the window in which a queued release can become stale while its
       # dependencies are installing and building. Verify again immediately
-      # before Changesets decides between a Version Packages PR and publishing.
+      # before the one step that can version or publish.
       - name: Recheck exact main CI result before release action
+        if: steps.state.outputs.state == 'VERSION_REQUIRED' || steps.state.outputs.state == 'PUBLISH_REQUIRED'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: node --experimental-strip-types tools/release/authorize.ts
 
-      # changesets/action's `publishedPackages` output is not reliably populated
-      # (changesets 3 prints no "New tag:" lines), so the post-publish gate is
-      # keyed on the registry instead: this version is not on npm before the
-      # publish step runs.
-      - name: Detect unpublished @strata-sc/server-components version
-        id: pre
-        run: |
-          VERSION=$(node -p "require('./packages/server-components/package.json').version")
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          if npm view "@strata-sc/server-components@$VERSION" version >/dev/null 2>&1; then
-            echo "unpublished=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "unpublished=true" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Version PR or publish to npm
         id: changesets
+        if: steps.state.outputs.state == 'VERSION_REQUIRED' || steps.state.outputs.state == 'PUBLISH_REQUIRED'
         uses: changesets/action@v2
         with:
           commit-message: "chore(release): version packages"
@@ -123,24 +124,34 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: "true"
 
+      # Realign dist-tags (idempotent; also repairs off-policy history), then
+      # require the registry to hold every public package at its manifest
+      # version. A skipped or no-op publish cannot pass this.
       - name: Align npm dist-tags
-        if: steps.changesets.outputs.hasChangesets == 'false'
+        if: steps.state.outputs.state == 'PUBLISH_REQUIRED' || steps.state.outputs.state == 'ALREADY_PUBLISHED'
         run: pnpm release:sync-dist-tags
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      # Post-publish gate: only when this run actually published
+      - name: Verify npm registry, tags and GitHub Releases
+        if: steps.state.outputs.state == 'PUBLISH_REQUIRED' || steps.state.outputs.state == 'ALREADY_PUBLISHED'
+        run: node --experimental-strip-types tools/release/release-state.ts verify --published=${{ steps.state.outputs.unpublished }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+
+      # Post-publish gate: only when this run had to publish
       # @strata-sc/server-components. Installs that exact version from
       # registry.npmjs.org into a fresh temp app and verifies dist-tags, integrity,
       # build, SSR, hydration and the server-only firewall. A failure fails the
       # workflow visibly; it never unpublishes, moves a dist-tag or republishes.
-      # Remediation is a human decision.
+      # Remediation is a human decision. Kept separate from the registry check above.
       - name: Setup Playwright browser (registry consumer)
-        if: steps.pre.outputs.unpublished == 'true' && steps.changesets.outputs.hasChangesets == 'false'
+        if: steps.state.outputs.state == 'PUBLISH_REQUIRED' && steps.state.outputs.server-components-unpublished == 'true'
         run: pnpm --filter @strata-sc/www exec playwright install --with-deps chromium
 
       - name: Verify @strata-sc/server-components from the npm registry
-        if: steps.pre.outputs.unpublished == 'true' && steps.changesets.outputs.hasChangesets == 'false'
+        if: steps.state.outputs.state == 'PUBLISH_REQUIRED' && steps.state.outputs.server-components-unpublished == 'true'
         run: pnpm test:server-component-registry-consumer
         env:
-          STRATA_SC_REGISTRY_VERSION: ${{ steps.pre.outputs.version }}
+          STRATA_SC_REGISTRY_VERSION: ${{ steps.state.outputs.server-components-version }}

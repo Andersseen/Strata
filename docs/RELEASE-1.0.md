@@ -18,6 +18,9 @@ route templates on Nitro/H3 v1. It does not detect undeclared native route colli
 arbitrary `router.add()` failures, or cover Nitro syntax outside the supported shape grammar. This
 candidate alone does not close M3; see [the registration integrity evidence](research/analog-registration-integrity-v011.md).
 
+Separately, empty Changesets must not suppress publishing; the release state classifier and post-release registry
+verification address this (unit-qualified only, see [the report](research/release-pipeline-reliability.md)).
+
 The same candidate replaces Release's push-to-main trigger with an exact-CI
 `workflow_run` gate for issue #117. This is not a release-safety closure until
 the merged workflow has been observed handling the hosted success, failure,
