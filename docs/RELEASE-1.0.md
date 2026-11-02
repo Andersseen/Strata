@@ -240,6 +240,11 @@ complete M4, M5 or Strata 1.0; see the
   - Partial evidence only (2026-10-16): [bundle-size and warm HTTP/SSR baseline](research/full-stack-performance-baseline.md) on Node and local workerd. Cold start, Worker memory, cancellation/cleanup and deployed latency are NOT MEASURED; budgets are unenforced proposals. **Not closed.**
   - Scaling evidence (2026-10-16): [one versus three distinct islands](research/full-stack-performance-scaling.md) on local and GitHub-hosted runners; the Server Components browser overhead did not grow, the PR #86 candidate budgets are still unenforced proposals and the server budget lacks a controller/provider-count dimension. **Still not closed.**
 - [ ] Release/rollback procedure tested, including client assets from an older deployment.
+  - Partial evidence (2026-11-02): local upgrade/rollback between the published `server-components` 0.12.0 and
+    0.13.0 (with `core` 0.2.2, `analog` 0.12.0) passes on Node and local workerd, with genuine stale A/B assets in
+    both directions, bounded recovery and a healthy rolled-back page
+    ([report](research/full-stack-registry-upgrade-rollback.md)). Real deployed upgrade/rollback, other
+    versions and a real consumer are NOT RUN. **Not closed.**
 
 ## Quality and distribution
 
@@ -281,6 +286,7 @@ complete M4, M5 or Strata 1.0; see the
       [report](research/full-stack-registry-qualification.md)). That is one exact tuple on a synthetic fixture;
       the unticked criteria above stay unticked.
 - [ ] SemVer, prerelease handling, deprecation and migration policy documented; upgrades exercised.
+  - One local upgrade exercised (2026-11-02, see the rollback item above); the policy itself is not written.
 - [ ] Public documentation, examples, error diagnostics and native H3 escape-hatch guidance complete.
 - [ ] Architectural/security blockers in RISKS have evidence-backed dispositions; no unresolved
       requirement is relabeled unsupported merely to pass the release audit.

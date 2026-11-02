@@ -298,7 +298,7 @@ export async function httpSuite(
     ),
     check(
       `${label}: client boundary is protocol v1, ngh-annotated, props are exactly {"productId":"42"}`,
-      /<product-availability data-strata-client="product-availability" data-strata-protocol="1" data-strata-props="\{&quot;productId&quot;:&quot;42&quot;\}" ngh="\d+">/.test(
+      /<product-availability data-strata-client="product-availability" data-strata-protocol="1" data-strata-props="\{&quot;productId&quot;:&quot;42&quot;\}"(?: data-strata-build="[A-Za-z0-9._:+-]+")? ngh="\d+">/.test(
         html,
       ),
       html.match(/<product-availability[^>]*>/)?.[0] ?? "no boundary",

@@ -22,11 +22,25 @@ export default defineConfig(() => ({
   ssr: {
     noExternal: ["tslib"],
   },
+  // Upgrade/rollback qualification only (`pnpm test:full-stack-registry-upgrade-rollback`): a STABLE
+  // browser entry URL, so a document and a script of different builds can meet the way a CDN-fronted
+  // deployment lets them. Unset, the fixture's entry names are the stock hashed ones.
+  ...(process.env["STRATA_STABLE_ENTRY"]
+    ? {
+        environments: {
+          client: { build: { rollupOptions: { output: { entryFileNames: "assets/entry.js" } } } },
+        },
+      }
+    : {}),
   plugins: [
     strataServerComponents({
       root: import.meta.dirname,
       sourceDir: "src/app",
       generatedDir: "src/generated/server-components",
+      // Optional deployment identity (README "Deployment compatibility"). Unset, the fixture
+      // behaves exactly as it did before the option existed; the upgrade/rollback qualification
+      // sets one distinct application build id per release.
+      buildId: process.env["STRATA_BUILD_ID"],
     }),
     analog(),
   ],

@@ -3,7 +3,6 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
-  realpathSync,
   readFileSync,
   rmSync,
   writeFileSync,
@@ -18,6 +17,7 @@ import { run } from "../consumer/lib/exec.ts";
 import type { CommandResult } from "../consumer/lib/exec.ts";
 import { readManifest } from "../release/lib/packages.ts";
 
+import { tscDeclarations } from "./lib/full-stack-declarations.ts";
 import {
   FULL_STACK_MARKERS,
   FULL_STACK_SERVER_SOURCES,
@@ -25,12 +25,9 @@ import {
   SERVER_ONLY_MARKERS,
 } from "./lib/full-stack-fixture.ts";
 import {
-  ANALOG,
   Abort,
-  CORE,
   FULL_STACK_PACKAGES as PACKAGES,
   NOT_SOURCE,
-  SERVER_COMPONENTS,
   all,
   fixtureTemplate,
   installFullStackConsumer,
@@ -181,68 +178,7 @@ try {
   // ------------------------------------------------------------------------
   section("Declaration portability (TypeScript 6 and 5.9, skipLibCheck: false)");
 
-  const tscDeclarations = (dir: string, label: string): { ok: boolean; version: string } => {
-    const tsc = join(dir, "node_modules", "typescript", "bin", "tsc");
-    const version = installedVersion(dir, "typescript");
-    const configs = ["tsconfig.check.json", "tsconfig.check.server.json"];
-    const results = configs.map((config) =>
-      run(process.execPath, [tsc, "-p", config, "--listFiles", "--noEmit"], { cwd: dir, env }),
-    );
-    const lines = results.flatMap((r) =>
-      r.stdout
-        .split("\n")
-        .map((l) => l.trim())
-        .filter(Boolean),
-    );
-    const listed = lines.filter((l) => l.startsWith("/"));
-    const diagnostics = lines.filter((l) => /error TS\d+/.test(l));
-    const strata = listed.filter((file) => file.includes("/@strata-sc/"));
-    const fromRepo = listed.filter((file) =>
-      realpathSync(file).startsWith(realpathSync(repoRoot) + "/"),
-    );
-    const entries: [string, string][] = [
-      [CORE.name, "dist/index.d.ts"],
-      [ANALOG.name, "dist/index.d.ts"],
-      [SERVER_COMPONENTS.name, "dist/fesm2022/index.d.ts"],
-      [SERVER_COMPONENTS.name, "dist/vite/index.d.ts"],
-      [SERVER_COMPONENTS.name, "dist/server-only/index.d.ts"],
-      [SERVER_COMPONENTS.name, "dist/fesm2022/navigation/index.d.ts"],
-    ];
-
-    console.log(
-      `${label}: typescript@${version}, ${listed.length} files, ${strata.length} from the installed Strata packages, ${diagnostics.length} diagnostic(s)`,
-    );
-
-    return {
-      version,
-      ok: all([
-        check(
-          `${label}: both consumer projects (Angular decorators, standard-decorator controllers) — strict, skipLibCheck:false, Bundler — 0 diagnostics`,
-          results.every((r) => r.status === 0) && diagnostics.length === 0,
-          diagnostics.slice(0, 8).join("\n") || results.map((r) => r.stderr).join("\n"),
-        ),
-        check(
-          `${label}: every public entry's declaration (core, analog, server-components, /vite, /navigation, /server-only) is read from node_modules`,
-          entries.every(([name, file]) =>
-            strata.some((s) => s.endsWith(`/node_modules/${name}/${file}`)),
-          ) && strata.every((file) => file.includes("/node_modules/@strata-sc/")),
-          entries
-            .filter(
-              ([name, file]) => !strata.some((s) => s.endsWith(`/node_modules/${name}/${file}`)),
-            )
-            .map(([name, file]) => `${name}/${file}`)
-            .join(", "),
-        ),
-        check(
-          `${label}: no file resolves from the repository or from package src/`,
-          fromRepo.length === 0 && !listed.some((file) => /@strata-sc\/[^/]+\/src\//.test(file)),
-          fromRepo.join(", "),
-        ),
-      ]),
-    };
-  };
-
-  const ts6 = tscDeclarations(consumerDir, "TypeScript 6");
+  const ts6 = tscDeclarations(consumerDir, "TypeScript 6", env);
 
   check("TypeScript 6.0.3 is the declaration consumer", ts6.version === "6.0.3", ts6.version);
   verdict.declarations6 = ts6.ok && ts6.version === "6.0.3";
@@ -292,7 +228,7 @@ try {
     must(run("npm", installArgs, { cwd: ts59Dir, env }), "npm install (TypeScript 5.9 consumer)"),
   );
 
-  const ts59 = tscDeclarations(ts59Dir, "TypeScript 5.9");
+  const ts59 = tscDeclarations(ts59Dir, "TypeScript 5.9", env);
 
   check(
     `TypeScript ${TS59_VERSION} is the declaration consumer`,

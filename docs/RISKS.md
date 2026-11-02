@@ -147,6 +147,9 @@ Evidence note (2026-11-02), no disposition changed: the published tuple `core` 0
 ([41409890385](https://github.com/Andersseen/Strata/actions/runs/41409890385)) including 829 concurrent-matrix
 requests with no anomaly. The 2026-10-15 anomaly remains **unconfirmed** and is not explained by a clean run
 of a different candidate ([report](research/full-stack-registry-qualification.md)).
+The local upgrade/rollback qualification (2026-11-02) did not run on Cloudflare and neither confirms nor
+explains it ([report](research/full-stack-registry-upgrade-rollback.md)): the anomaly stays open, and a real
+deployed upgrade/rollback is a separate NOT RUN gap.
 
 Evidence note (2026-10-15, after two real dispatches), no disposition changed: the full-stack workflow ran
 twice against `strata-fullstack-qualification` and both runs are **NO-GO** (run 1 unreachable URL from the
