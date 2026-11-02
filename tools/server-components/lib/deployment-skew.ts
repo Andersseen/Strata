@@ -187,7 +187,8 @@ export interface DocumentRequest {
 export type Rewrite = (html: string) => string;
 
 export interface EdgeOptions {
-  readonly upstreams: Readonly<Record<Release, string>>;
+  /** Only the releases a scenario names need a server (the upgrade/rollback matrix has just `a` and `b`). */
+  readonly upstreams: Readonly<Partial<Record<Release, string>>>;
 }
 
 /**
@@ -239,6 +240,14 @@ export class Edge {
     );
   }
 
+  private upstream(release: Release): string {
+    const url = this.options.upstreams[release];
+
+    if (url === undefined) throw new Error(`the edge has no upstream for release ${release}`);
+
+    return url;
+  }
+
   /** Starts a scenario: forgets earlier requests and sets the plans, the rewrite and the splice. */
   scenario(
     plans: readonly Plan[],
@@ -270,7 +279,7 @@ export class Edge {
       this.current = plan;
       this.requests.push({ path: url, plan });
 
-      const upstream = await fetch(`${this.options.upstreams[plan.html]}${url}`, {
+      const upstream = await fetch(`${this.upstream(plan.html)}${url}`, {
         headers: { accept: "text/html" },
         redirect: "manual",
       });
@@ -294,7 +303,7 @@ export class Edge {
     const order: Release[] = assets === html ? [assets] : [assets, html];
 
     for (const release of order) {
-      const upstream = await fetch(`${this.options.upstreams[release]}${url}`, {
+      const upstream = await fetch(`${this.upstream(release)}${url}`, {
         headers: { accept: request.headers.accept ?? "*/*" },
         redirect: "manual",
       });
@@ -316,7 +325,7 @@ export class Edge {
   private async spliceHost(html: string, url: string): Promise<string> {
     const { host, from } = this.splice!;
     const foreign = await (
-      await fetch(`${this.options.upstreams[from]}${url}`, { headers: { accept: "text/html" } })
+      await fetch(`${this.upstream(from)}${url}`, { headers: { accept: "text/html" } })
     ).text();
     const own = hostRange(html, host);
     const other = hostRange(foreign, host);

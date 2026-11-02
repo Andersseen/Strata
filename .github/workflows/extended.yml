@@ -161,6 +161,25 @@ jobs:
       - name: Published package (no account, no secrets, no deployment)
         run: pnpm test:server-components:deployed-cloudflare
 
+  registry-upgrade-rollback:
+    name: Published A/B upgrade and rollback (Node + local workerd, no deployment)
+    if: github.event_name == 'schedule' || inputs.suite == 'all' || inputs.suite == 'registry'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup
+        with:
+          build: "false"
+          playwright: "true"
+
+      # Installs two exact published tuples from npm into two external consumers (override with
+      # STRATA_UPGRADE_{A,B}_{CORE,ANALOG,SERVER_COMPONENTS}_VERSION). No account, no secret, no deployment.
+      - name: Published A/B upgrade and rollback
+        run: pnpm test:full-stack-registry-upgrade-rollback
+
   types:
     name: Consumer type-closure experiment (SPEC-002)
     if: github.event_name == 'schedule' || inputs.suite == 'all' || inputs.suite == 'types'

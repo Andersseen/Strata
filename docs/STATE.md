@@ -1,5 +1,18 @@
 # Current implementation audit
 
+## Published-registry upgrade and rollback qualification (feature branch; pending hosted CI)
+
+From `d894d135c7231735e4454788fca096af64344da4`, `pnpm test:full-stack-registry-upgrade-rollback` installs two
+published tuples (`core` 0.2.2 + `analog` 0.12.0 + `server-components` **0.12.0** as A, **0.13.0** as B) into two
+external consumers, builds each independently with a distinct application build id, and drives genuine A/B
+artifacts through an edge in Chromium on Nitro Node and local workerd: both stale-asset mismatches are
+classified `build-mismatch` with no island instantiated, bounded recovery converges or fails closed, and the
+A → B → A tab sequence ends with a healthy rolled-back page (988 checks, 0 failing).
+**LOCAL UPGRADE/ROLLBACK QUALIFIED; REAL DEPLOYED UPGRADE/ROLLBACK: NOT RUN.** Fixture additions are opt-in
+(`STRATA_BUILD_ID`, `STRATA_STABLE_ENTRY`, `VITE_STRATA_UPGRADE_PROBES`); defaults and the existing gates are
+unchanged. One synthetic application and one three-file package delta; not production adopted; M4, M5 and 1.0
+stay open. See the [report](research/full-stack-registry-upgrade-rollback.md).
+
 ## Full-stack published-registry qualification (feature branch; pending hosted CI)
 
 From `e2734b191208a979ef89c94b08ce1971cb5551db`, `pnpm test:full-stack-registry-consumer` installs

@@ -70,6 +70,7 @@
     "test:full-stack-package-consumer": "node --experimental-strip-types tools/server-components/full-stack-consumer.ts",
     "test:analog-packed-di-consumer": "node --experimental-strip-types tools/server-components/packed-angular-di-consumer.ts",
     "test:full-stack-registry-consumer": "node --experimental-strip-types tools/server-components/full-stack-consumer.ts --registry",
+    "test:full-stack-registry-upgrade-rollback": "node --experimental-strip-types tools/server-components/registry-upgrade-rollback.ts",
     "test:full-stack-registry-deployed-cloudflare": "node --experimental-strip-types tools/server-components/full-stack-deployed-cloudflare.ts --registry",
     "test:full-stack-cloudflare-concurrency": "node --experimental-strip-types tools/server-components/cloudflare-concurrency.ts",
     "test:full-stack-deployed-cloudflare": "node --experimental-strip-types tools/server-components/full-stack-deployed-cloudflare.ts",

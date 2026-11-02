@@ -278,6 +278,15 @@ hydration:
   workflow takes `source=registry`. Manual/hosted only: it depends on the network and on already
   published versions. Pure selection and lock-verifier negative controls run in `pnpm test:release`.
   See [the report](research/full-stack-registry-qualification.md).
+- `pnpm test:full-stack-registry-upgrade-rollback`: two published tuples installed from npm into two external
+  consumers (A and B; `STRATA_UPGRADE_{A,B}_{CORE,ANALOG,SERVER_COMPONENTS}_VERSION`, default
+  `server-components` 0.12.0 → 0.13.0 on `core` 0.2.2 / `analog` 0.12.0), each built independently with its own
+  `STRATA_BUILD_ID`. Per runtime (`STRATA_UPGRADE_RUNTIMES`, default Node and local workerd): each release's full
+  full-stack contract, the two-build edge (matched, both mismatches, sibling hosts, converging and
+  non-converging recovery, an A → B → A tab with Back/Forward), negative controls, and a rollback that restarts
+  A's byte-identical artifact. Exit 3 means a version is not on npm. Manual/scheduled only (`extended.yml`
+  `registry` suite): network-dependent, and local workerd is not a deployment. Pair selection is unit tested in
+  `pnpm test:release`. See [the report](research/full-stack-registry-upgrade-rollback.md).
 - `pnpm test:full-stack-cloudflare-concurrency` is a read-only, bounded (at most 1500 requests per URL)
   controller concurrency diagnostic with correlation ids, response classification and fault-injection
   negative controls; set `STRATA_FULLSTACK_DEPLOYED_URL` to include an existing isolated-project deployment.

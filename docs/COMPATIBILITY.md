@@ -198,6 +198,12 @@ exact tuple, not a range or support matrix. Other versions are qualified by sett
 `STRATA_REGISTRY_*_VERSION`; an unpublished version is reported NOT AVAILABLE. See the
 [report](research/full-stack-registry-qualification.md).
 
+Version transition (2026-11-02): moving between the published `@strata-sc/server-components` 0.12.0 and 0.13.0
+(with `core` 0.2.2 and `analog` 0.12.0, same Angular/Analog/Nitro/Vite/TypeScript/Wrangler tuple) and back is
+qualified locally on Node and workerd, including documents and scripts of different releases meeting in the
+browser. It is one pair that differs by three files, not a compatibility range, and no real deployment was
+exercised ([report](research/full-stack-registry-upgrade-rollback.md)).
+
 ## Deployment scope
 
 Required qualification targets are a supported Node server and Cloudflare Workers execution through

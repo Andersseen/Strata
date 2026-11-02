@@ -267,6 +267,10 @@ consumer, and hosted CI evidence must be recorded separately ([report](research/
 - Evidence so far (2026-11-02): the published tuple `core` 0.2.2 + `analog` 0.12.0 + `server-components` 0.13.0
   is PUBLISHED-REGISTRY and DEPLOYED qualified on the synthetic full-stack fixture
   ([report](research/full-stack-registry-qualification.md)). It is one tuple and not a real consumer; M5 stays planned.
+- Evidence (2026-11-02): local upgrade/rollback between the published pairs `server-components` 0.12.0 → 0.13.0
+  (same `core` 0.2.2 and `analog` 0.12.0) is qualified on Node and local workerd, including stale-asset skew in
+  both directions and bounded recovery ([report](research/full-stack-registry-upgrade-rollback.md)). A real
+  deployed upgrade/rollback is NOT RUN; M5 stays planned.
 - Gate: every [1.0 exit criterion](RELEASE-1.0.md) has evidence for the same candidate and supported
   matrix; real consumer uses controllers/services and production Server Components, including the
   selected navigation path. Agree consumer-specific observation duration and service objectives
