@@ -188,6 +188,16 @@ consumer tuple Angular 22.2.3, Analog 2.7.2, Nitro 2.13.4, Vite 8.3.0, TypeScrip
 Pages run and CDN cache semantics are not qualified. See the
 [report](research/server-component-deployment-skew-v08.md).
 
+## Published-registry tuple (2026-11-02)
+
+Qualified from npm at exact versions on the synthetic full-stack fixture: `@strata-sc/core` 0.2.2,
+`@strata-sc/analog` 0.12.0, `@strata-sc/server-components` 0.13.0 with Angular 22.2.3, Analog platform 2.7.2,
+Nitro plugin 2.9.5 (nitropack 2.13.4), Vite 8.3.0, TypeScript 6.0.3 and 5.9.2 (declarations), Wrangler 4.135.0,
+Node 22: Nitro Node, local workerd and one isolated Cloudflare Pages deployment. This is an
+exact tuple, not a range or support matrix. Other versions are qualified by setting
+`STRATA_REGISTRY_*_VERSION`; an unpublished version is reported NOT AVAILABLE. See the
+[report](research/full-stack-registry-qualification.md).
+
 ## Deployment scope
 
 Required qualification targets are a supported Node server and Cloudflare Workers execution through

@@ -32,6 +32,7 @@ import {
   Abort,
   sanitize,
 } from "./lib/full-stack-install.ts";
+import { NotAvailable, installCandidate, registryMode } from "./lib/full-stack-registry-install.ts";
 import {
   awaitFullStackReady,
   concurrencySuite,
@@ -78,7 +79,9 @@ import { COMPATIBILITY_DATE } from "./lib/wrangler.ts";
  *   STRATA_FULLSTACK_DIAGNOSTICS_DIR    failure-only Chromium screenshots and traces
  *   STRATA_KEEP_CONSUMER=1              keep the temp app
  *
- * The candidate is SOURCE-PACKED: built from this checkout, not from the npm registry. It never
+ * The candidate is SOURCE-PACKED (built from this checkout) by default, or with `--registry` the
+ * PUBLISHED-REGISTRY tuple (exact versions via STRATA_REGISTRY_{CORE,ANALOG,SERVER_COMPONENTS}_VERSION,
+ * default the manifest versions) installed from npm; a version missing from npm exits 3, NOT AVAILABLE. It never
  * publishes, never touches npm dist-tags, `strata-www`, `strata-sc-qualification`, DNS, routes or bindings,
  * and never prints a credential.
  */
@@ -86,7 +89,8 @@ import { COMPATIBILITY_DATE } from "./lib/wrangler.ts";
 const TITLE = "full-stack deployed Cloudflare qualification";
 const PROJECT = "strata-fullstack-qualification";
 const WORKER_DIR = "analog/public/_worker.js";
-const CANDIDATE = "SOURCE-PACKED CANDIDATE";
+const REGISTRY = registryMode();
+const CANDIDATE = REGISTRY ? "PUBLISHED-REGISTRY CANDIDATE" : "SOURCE-PACKED CANDIDATE";
 
 /** A deployment is ready after this many correct answers in a row. */
 const READINESS = { attempts: 40, intervalMs: 2_000, httpConsecutive: 5, browserConsecutive: 3 };
@@ -138,6 +142,7 @@ const env = isolatedEnv(emptyNpmrc, emptyGlobalNpmrc);
 for (const name of ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_API_KEY"])
   delete env[name];
 
+let notAvailable: NotAvailable | undefined;
 const servers: RunningServer[] = [];
 const timings: string[] = [];
 const time = <T>(label: string, work: () => T): T => {
@@ -209,7 +214,7 @@ function writeEvidence(): void {
     const lines = [
       "### Full-stack Strata on Cloudflare Pages",
       "",
-      `- candidate: **${CANDIDATE}** (built from \`${evidence.checkoutSha.slice(0, 12)}\`; not a published release)`,
+      `- candidate: **${CANDIDATE}** (${REGISTRY ? "verifier and fixture from" : "built from"} \`${evidence.checkoutSha.slice(0, 12)}\`; ${REGISTRY ? "packages from the npm registry" : "not a published release"})`,
       ...Object.entries(evidence.verdicts).map(([name, verdict]) => `- ${name}: **${verdict}**`),
       ...(deployment
         ? [
@@ -300,30 +305,35 @@ async function main(): Promise<void> {
   writeFileSync(emptyGlobalNpmrc, "");
 
   // ------------------------------------------------------------------------
-  section(`PHASE 1 — LOCAL BUILD: ${CANDIDATE} (three packed packages, external install)`);
+  section(`PHASE 1 — LOCAL BUILD: ${CANDIDATE} (three packages, external install)`);
 
-  const install = installFullStackConsumer({ tmpRoot, consumerDir, env, time });
+  const install = installCandidate({ tmpRoot, consumerDir, env, time }, installFullStackConsumer);
 
   check(
     "the packed candidate installs externally (tarballs, lock, single copies, entry points)",
     install.ok,
   );
 
-  evidence.packages = {
-    packedFrom: `checkout ${evidence.checkoutSha}`,
-    notes: "pnpm pack of this checkout; NOT the npm registry packages",
-    ...Object.fromEntries(
-      install.manifests.map(({ pkg, manifest }) => [
-        pkg.name,
-        {
-          version: manifest.version,
-          tarball: install.tarballs.get(pkg.name)?.path.split("/").pop(),
-          sha256: install.tarballs.get(pkg.name)?.sha256,
-          integrity: install.tarballs.get(pkg.name)?.integrity,
-        },
-      ]),
-    ),
-  };
+  evidence.packages = install.evidence
+    ? {
+        source: "npm registry (exact published versions); nothing packed from this checkout",
+        ...install.evidence,
+      }
+    : {
+        packedFrom: `checkout ${evidence.checkoutSha}`,
+        notes: "pnpm pack of this checkout; NOT the npm registry packages",
+        ...Object.fromEntries(
+          install.manifests.map(({ pkg, manifest }) => [
+            pkg.name,
+            {
+              version: manifest.version,
+              tarball: install.tarballs.get(pkg.name)?.path.split("/").pop(),
+              sha256: install.tarballs.get(pkg.name)?.sha256,
+              integrity: install.tarballs.get(pkg.name)?.integrity,
+            },
+          ]),
+        ),
+      };
   evidence.installed = { ...install.tuple, node: process.version };
   console.log(`candidate: ${CANDIDATE}`);
   console.log(`packages: ${JSON.stringify(evidence.packages)}`);
@@ -522,7 +532,9 @@ async function main(): Promise<void> {
 
   const phase1 = failureCount();
 
-  evidence.verdicts["External source-packed consumer"] = install.ok ? "GO" : "NO-GO";
+  evidence.verdicts[
+    REGISTRY ? "External published-registry consumer" : "External source-packed consumer"
+  ] = install.ok ? "GO" : "NO-GO";
   evidence.verdicts["Full-stack Cloudflare build"] = phase1 === 0 ? "GO" : "NO-GO";
 
   // ------------------------------------------------------------------------
@@ -698,7 +710,9 @@ async function main(): Promise<void> {
 try {
   await main();
 } catch (error) {
-  if (!(error instanceof Abort)) {
+  if (error instanceof NotAvailable) {
+    notAvailable = error;
+  } else if (!(error instanceof Abort)) {
     check(
       "the qualification ran to completion",
       false,
@@ -710,6 +724,20 @@ try {
   console.log(`\ntimings: ${timings.join("; ")}`);
   if (env_("STRATA_KEEP_CONSUMER") === "1") console.log(`kept: ${tmpRoot}`);
   else rmSync(tmpRoot, { recursive: true, force: true });
+}
+
+if (notAvailable) {
+  evidence.verdicts["Published-registry tuple"] =
+    `NOT AVAILABLE (${notAvailable.missing.join(", ")})`;
+  evidence.verdicts["Real public Cloudflare deployment"] = "NOT RUN (selected versions not on npm)";
+  section("Verdicts");
+  for (const [name, verdict] of Object.entries(evidence.verdicts))
+    console.log(`${name}: ${verdict}`);
+  writeEvidence();
+  console.log(
+    `\nPUBLISHED-REGISTRY: NOT AVAILABLE — ${notAvailable.missing.join(", ")}. Not a runtime failure and not a GO; nothing was substituted or deployed.`,
+  );
+  process.exit(3);
 }
 
 if (requireDeployed && evidence.verdicts["Real public Cloudflare deployment"] !== "GO") {

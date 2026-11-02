@@ -275,6 +275,11 @@ complete M4, M5 or Strata 1.0; see the
       diagnostic branch ([38741663534](https://github.com/Andersseen/Strata/actions/runs/38741663534)) passed
       every check for that source-packed fixture; the anomaly's cause remains unconfirmed and a fixture
       pass does not close the criterion ([report](research/full-stack-cloudflare-concurrency.md)).
+      Published-registry check (2026-11-02): `core` 0.2.2, `analog` 0.12.0 and `server-components` 0.13.0
+      installed from npm pass the same fixture on Node, local workerd and the isolated Pages project
+      ([run 41409890385](https://github.com/Andersseen/Strata/actions/runs/41409890385),
+      [report](research/full-stack-registry-qualification.md)). That is one exact tuple on a synthetic fixture;
+      the unticked criteria above stay unticked.
 - [ ] SemVer, prerelease handling, deprecation and migration policy documented; upgrades exercised.
 - [ ] Public documentation, examples, error diagnostics and native H3 escape-hatch guidance complete.
 - [ ] Architectural/security blockers in RISKS have evidence-backed dispositions; no unresolved

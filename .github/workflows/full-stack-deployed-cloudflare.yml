@@ -17,8 +17,33 @@ name: Qualify Full-Stack Strata on Cloudflare
 # Uses the repository's existing CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID secrets (the ones
 # deploy-www in ci.yml uses). They are exposed to the one step that runs the qualification; the
 # runner removes them from every local build/test command and redacts them from anything printed.
+#
+# `source` selects the candidate. `packed` (the default, unchanged) is the source-packed candidate above.
+# `registry` installs @strata-sc/{core,analog,server-components} from npm at EXACT versions (empty inputs
+# default to the dispatched ref's manifest versions) and runs `test:full-stack-registry-deployed-cloudflare`;
+# a version that is not on npm exits 3, NOT AVAILABLE (not a runtime failure, not a GO, nothing substituted).
+# See docs/research/full-stack-registry-qualification.md.
 on:
   workflow_dispatch:
+    inputs:
+      source:
+        description: "Candidate: packed (this checkout, default) or registry (published npm versions)"
+        required: false
+        type: choice
+        options: [packed, registry]
+        default: packed
+      core_version:
+        description: "registry only: @strata-sc/core exact version (default: manifest)"
+        required: false
+        type: string
+      analog_version:
+        description: "registry only: @strata-sc/analog exact version (default: manifest)"
+        required: false
+        type: string
+      server_components_version:
+        description: "registry only: @strata-sc/server-components exact version (default: manifest)"
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -57,8 +82,16 @@ jobs:
       - name: Deploy to the isolated Pages project and qualify the public URL
         run: |
           test "$PAGES_PROJECT" = "strata-fullstack-qualification"
-          pnpm test:full-stack-deployed-cloudflare
+          if [ "$CANDIDATE_SOURCE" = "registry" ]; then
+            pnpm test:full-stack-registry-deployed-cloudflare
+          else
+            pnpm test:full-stack-deployed-cloudflare
+          fi
         env:
+          CANDIDATE_SOURCE: ${{ inputs.source }}
+          STRATA_REGISTRY_CORE_VERSION: ${{ inputs.core_version }}
+          STRATA_REGISTRY_ANALOG_VERSION: ${{ inputs.analog_version }}
+          STRATA_REGISTRY_SERVER_COMPONENTS_VERSION: ${{ inputs.server_components_version }}
           STRATA_FULLSTACK_DEPLOY: "1"
           STRATA_FULLSTACK_REQUIRE_DEPLOYED: "1"
           STRATA_FULLSTACK_PAGES_PROJECT: ${{ env.PAGES_PROJECT }}
