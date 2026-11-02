@@ -37,6 +37,7 @@ import {
   must,
   sanitize,
 } from "./lib/full-stack-install.ts";
+import { NotAvailable, installCandidate, registryMode } from "./lib/full-stack-registry-install.ts";
 import { routingBrowserSuite, routingSuite } from "./lib/full-stack-routing.ts";
 import { httpSuite, islandSuite, navigationSuite } from "./lib/full-stack-verify.ts";
 import { check, finish, repoRoot, section } from "./lib/harness.ts";
@@ -72,7 +73,10 @@ import { COMPATIBILITY_DATE } from "./lib/wrangler.ts";
  * command.
  */
 
-const TITLE = "full-stack packed-package consumer qualification";
+const REGISTRY = registryMode();
+const TITLE = REGISTRY
+  ? "full-stack PUBLISHED-REGISTRY consumer qualification"
+  : "full-stack packed-package consumer qualification";
 
 const TS59_VERSION = "5.9.2";
 
@@ -118,6 +122,7 @@ const emptyNpmrc = join(tmpRoot, "empty.npmrc");
 const emptyGlobalNpmrc = join(tmpRoot, "empty-global.npmrc");
 const env = isolatedEnv(emptyNpmrc, emptyGlobalNpmrc);
 
+let notAvailable: NotAvailable | undefined;
 let templateBefore: Snapshot | undefined;
 let pristine: Snapshot | undefined;
 
@@ -167,8 +172,8 @@ try {
 
   // ------------------------------------------------------------------------
 
-  const tool = installFullStackConsumer({ tmpRoot, consumerDir, env, time });
-  const { tarballs, installArgs, consumerManifest, manifests } = tool;
+  const tool = installCandidate({ tmpRoot, consumerDir, env, time }, installFullStackConsumer);
+  const { installArgs, consumerManifest, manifests } = tool;
 
   pristine = tool.pristine;
   verdict.install = tool.ok;
@@ -263,9 +268,7 @@ try {
         private: true,
         type: "module",
         dependencies: {
-          ...Object.fromEntries(
-            PACKAGES.map((p) => [p.name, `file:${tarballs.get(p.name)!.path}`]),
-          ),
+          ...Object.fromEntries(PACKAGES.map((p) => [p.name, tool.specs.get(p.name)!])),
           ...Object.fromEntries(
             [
               "@angular/core",
@@ -666,7 +669,9 @@ try {
     ),
   );
 } catch (error) {
-  if (!(error instanceof Abort)) {
+  if (error instanceof NotAvailable) {
+    notAvailable = error;
+  } else if (!(error instanceof Abort)) {
     check(
       "the qualification ran to completion",
       false,
@@ -685,8 +690,19 @@ try {
   }
 }
 
+if (notAvailable) {
+  console.log(`\nPUBLISHED-REGISTRY: NOT AVAILABLE — ${notAvailable.missing.join(", ")}`);
+  console.log(
+    "A selected version is not on the npm registry. This is not a runtime qualification failure and not a GO; nothing was substituted.",
+  );
+  process.exit(3);
+}
+
 section("Verdict");
-check("external packed-package installation", verdict.install);
+check(
+  `external ${REGISTRY ? "published-registry" : "packed-package"} installation`,
+  verdict.install,
+);
 check("declaration portability (TypeScript 5.9.2)", verdict.declarations59);
 check("declaration portability (TypeScript 6)", verdict.declarations6);
 check("Core + Analog controller integration (Node)", verdict.controllerIntegration);

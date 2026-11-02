@@ -106,6 +106,9 @@ export interface FullStackInstall {
   readonly installOk: boolean;
   /** Installed versions of the Angular/Analog/Nitro tuple, for evidence. */
   readonly tuple: Record<string, string>;
+  /** The dependency spec of each Strata package for any further install of the same candidate. */
+  readonly specs: ReadonlyMap<string, string>;
+  readonly source: "packed" | "registry";
 }
 
 export function installFullStackConsumer(context: {
@@ -328,6 +331,36 @@ export function installFullStackConsumer(context: {
     ),
   );
 
+  const tree = verifyInstalledTree({ consumerDir, env });
+
+  installOk.push(tree.ok);
+
+  return {
+    manifests,
+    tarballs,
+    consumerManifest,
+    installArgs,
+    pristine,
+    ok: all([...tarballOk, ...installOk]),
+    tarballOk: all(tarballOk),
+    installOk: all(installOk),
+    tuple: tree.tuple,
+    specs: new Map(PACKAGES.map((p) => [p.name, `file:${tarballs.get(p.name)!.path}`])),
+    source: "packed",
+  };
+}
+
+/**
+ * The identity checks both candidates share once npm has installed the three Strata packages:
+ * entry points, single copies, `npm ls` and the Angular/Analog/Nitro tuple.
+ */
+export function verifyInstalledTree(context: {
+  readonly consumerDir: string;
+  readonly env: NodeJS.ProcessEnv;
+}): { ok: boolean; tuple: Record<string, string> } {
+  const { consumerDir, env } = context;
+  const installOk: boolean[] = [];
+
   const specifiers = [
     CORE.name,
     ANALOG.name,
@@ -343,7 +376,7 @@ export function installFullStackConsumer(context: {
 
   installOk.push(
     check(
-      "all six public entry points resolve to the packed dist/ files under consumer/node_modules",
+      "all six public entry points resolve to the installed dist/ files under consumer/node_modules",
       specifiers.every((s) => {
         const url = resolved[s]!;
         const name = s.startsWith(SERVER_COMPONENTS.name) ? SERVER_COMPONENTS.name : s;
@@ -370,7 +403,7 @@ export function installFullStackConsumer(context: {
 
   installOk.push(
     check(
-      "@strata-sc/analog resolves @strata-sc/core to the single packed core (not a registry copy)",
+      "@strata-sc/analog resolves @strata-sc/core to the single installed core",
       fromAnalog[CORE.name] === resolved[CORE.name],
       `${fromAnalog[CORE.name]} vs ${resolved[CORE.name]}`,
     ),
@@ -443,15 +476,5 @@ export function installFullStackConsumer(context: {
     ].map((name) => [name, installedVersion(consumerDir, name)]),
   );
 
-  return {
-    manifests,
-    tarballs,
-    consumerManifest,
-    installArgs,
-    pristine,
-    ok: all([...tarballOk, ...installOk]),
-    tarballOk: all(tarballOk),
-    installOk: all(installOk),
-    tuple,
-  };
+  return { ok: all(installOk), tuple };
 }
