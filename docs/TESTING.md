@@ -151,7 +151,7 @@ click, no cross-island effect), boundary-identity and canary checks, and five mo
 <one report> <three report>` renders the scaling tables and refuses an incomparable pair (package versions, dependency tuple, Node/wrangler,
 compression, presets, arm definitions, an incomplete report or a failed arm); it applies no threshold. The manual workflow takes `islands:
 one | three | both`; `both` runs the two profiles in one job on one runner and uploads both reports, the comparison and a redacted environment file.
-Self-tests grew from 94 to 163 (`pnpm test:performance-tools`). See the [scaling report](research/full-stack-performance-scaling.md).
+Self-tests grew from 94 to 163 and then 172 (`pnpm test:performance-tools`; the 2026-11-02 dependency-tree regression added the Standard Schema, missing-dependency, altered-integrity, framework-duplication and fixture-pin cases, [report](research/full-stack-performance-dependency-regression.md)). The runner also rejects any third-party Strata dependency the shared fixture does not pin. See the [scaling report](research/full-stack-performance-scaling.md).
 
 ## Current Server Component evidence
 

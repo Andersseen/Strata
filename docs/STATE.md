@@ -1,5 +1,9 @@
 # Current implementation audit
 
+## Full-stack performance baseline repair (feature branch; pending hosted CI)
+
+From `f635237d7efcf93c9adcd707665f5227016aa887`, the scheduled Extended run [41440983466](https://github.com/Andersseen/Strata/actions/runs/41440983466) failed: `@strata-sc/analog` declares `@standard-schema/spec`, so arms B and D locked a package A and C lacked. The shared fixture now pins it, the runner fails fast on any unpinned third-party Strata dependency, tuple diagnostics name package, arms, values and reason, and three negative controls were added. Both island profiles passed locally on Node, workerd and Chromium with an identical 825-entry tree and a COMPARABLE verdict. **LOCAL BASELINE RESTORED; HOSTED EXTENDED RUN: NOT RUN.** No budget, threshold or 1.0 gate changed. See the [report](research/full-stack-performance-dependency-regression.md).
+
 ## Published-registry upgrade and rollback qualification (feature branch; pending hosted CI)
 
 From `d894d135c7231735e4454788fca096af64344da4`, `pnpm test:full-stack-registry-upgrade-rollback` installs two

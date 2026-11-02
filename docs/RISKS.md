@@ -129,7 +129,7 @@ auth, session, RBAC/ABAC or CSRF policy. Local runtime and packed-consumer
 evidence passes; hosted checks and production adoption remain unqualified. See
 [the guard report](research/analog-request-guards.md).
 
-Open as of 2026-09-17; R03, R04 and R13 updated 2026-09-24 with SPEC-003 evidence; R13 updated 2026-10-16 with the full-stack performance baseline and the one-versus-three-island scaling evidence. Astra owns architectural disposition; the agent executing the relevant spec
+Open as of 2026-09-17; R03, R04 and R13 updated 2026-09-24 with SPEC-003 evidence; R13 updated 2026-10-16 with the full-stack performance baseline and the one-versus-three-island scaling evidence; 2026-11-02 benchmark comparability repaired ([report](research/full-stack-performance-dependency-regression.md)), no budget or gate changed. Astra owns architectural disposition; the agent executing the relevant spec
 produces evidence. A risk closes only with a linked test/report on a pinned tuple. “Deadline” means
 the gate that cannot pass unresolved, not a calendar estimate. No risk below is closed by this audit.
 

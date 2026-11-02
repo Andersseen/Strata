@@ -226,7 +226,31 @@ export function lockTuple(packages: Readonly<Record<string, LockEntry>>): Record
   );
 }
 
-/** Differences between the arms' tuples; an arm may never be compared on another tuple. */
+const splitEntry = (value: string | undefined): { version: string; integrity: string } | null => {
+  if (value === undefined) return null;
+
+  const [version = "?", integrity = "-"] = value.split(" ");
+
+  return { version, integrity };
+};
+
+/** Why two arms' entries for one package path are not comparable. */
+function mismatchReason(a: string | undefined, b: string | undefined): string {
+  const left = splitEntry(a);
+  const right = splitEntry(b);
+
+  if (left === null) return "unexpected package: present only in the other arm";
+  if (right === null) return "missing package: absent from this arm";
+  if (left.version !== right.version) return "different resolved version";
+
+  return "same version, different integrity";
+}
+
+/**
+ * Differences between the arms' tuples; an arm may never be compared on another tuple. Each
+ * diagnostic names the package path, both arms, the expected and actual `version integrity`, and
+ * the reason the pair is not comparable.
+ */
 export function tupleMismatches(
   tuples: Readonly<Partial<Record<ArmId, Readonly<Record<string, string>>>>>,
 ): string[] {
@@ -244,12 +268,52 @@ export function tupleMismatches(
     for (const key of new Set([...Object.keys(reference), ...Object.keys(other)])) {
       if (reference[key] !== other[key])
         problems.push(
-          `${key}: arm ${first} ${reference[key] ?? "(absent)"} vs arm ${arm} ${other[key] ?? "(absent)"}`,
+          `${key}: expected (arm ${first}) ${reference[key] ?? "(absent)"} but arm ${arm} has ${other[key] ?? "(absent)"} - ${mismatchReason(reference[key], other[key])}`,
         );
     }
   }
 
   return problems;
+}
+
+/** Packages of which a second installed copy would make a framework comparison meaningless. */
+export const SINGLE_COPY_PACKAGES = ["@angular/core", "@angular/compiler", "typescript"] as const;
+
+/** Nested copies (`.../node_modules/<x>/node_modules/<framework>`) in one arm's tuple. */
+export function duplicatedFrameworkPackages(
+  arm: ArmId,
+  tuple: Readonly<Record<string, string>>,
+): string[] {
+  return Object.keys(tuple)
+    .filter((key) =>
+      SINGLE_COPY_PACKAGES.some(
+        (name) => key.endsWith(`/node_modules/${name}`) && key !== `node_modules/${name}`,
+      ),
+    )
+    .map((key) => `${key}: arm ${arm} installs a second copy of a framework package`);
+}
+
+/**
+ * Third-party packages that a Strata package declares as runtime dependencies, minus the Strata
+ * packages themselves. Each must be pinned by the shared fixture so every arm resolves it to one
+ * version; otherwise the arms that install the Strata package silently gain a package the others
+ * lack (the Standard Schema regression).
+ */
+export function unpinnedStrataDependencies(
+  strataManifests: Readonly<Record<string, Readonly<Record<string, string>>>>,
+  fixtureDependencies: Readonly<Record<string, string>>,
+): string[] {
+  return Object.entries(strataManifests).flatMap(([owner, dependencies]) =>
+    Object.entries(dependencies)
+      .filter(([name]) => !name.startsWith("@strata-sc/"))
+      .flatMap(([name, range]) =>
+        fixtureDependencies[name] === range
+          ? []
+          : [
+              `${name}: ${owner} declares ${range} but the shared fixture pins ${fixtureDependencies[name] ?? "(nothing)"}; arms with ${owner} would not share the dependency tree`,
+            ],
+      ),
+  );
 }
 
 // ---------------------------------------------------------------------------

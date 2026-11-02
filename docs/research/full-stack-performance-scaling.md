@@ -345,3 +345,5 @@ R13 is **not** closed by this measurement.
 - Recommended next increment: **cancellation and cleanup under production load** on Node and local workerd (client aborts,
   mid-stream disconnects and concurrent SSR plus controller traffic, with resource accounting), the remaining measurable
   piece of the open 1.0 resource item that does not require a Cloudflare deployment.
+
+> **Update 2026-11-02:** the scheduled hosted run began failing on a dependency-tree mismatch (`@standard-schema/spec`, added by `@strata-sc/analog`); the shared fixture now pins it. See the [regression report](full-stack-performance-dependency-regression.md). Historical values above are unchanged.

@@ -46,12 +46,14 @@ import {
   browserStrataProblems,
   canaryProblems,
   confidentialityProblems,
+  duplicatedFrameworkPackages,
   exactJsonProblems,
   hasStrataBoundary,
   islandsFor,
   lockTuple,
   ssrProblems,
   tupleMismatches,
+  unpinnedStrataDependencies,
 } from "./lib/contract.ts";
 import { entryScriptOf, measureBuild, scanMarkers, scanTargets } from "./lib/graph.ts";
 import type { BuildMeasurement, Preset } from "./lib/graph.ts";
@@ -1036,6 +1038,36 @@ async function negativeControls(states: ReadonlyMap<ArmId, ArmState>): Promise<N
     tupleMismatches({ A: skewed, B: armD.tuple }),
   );
 
+  // 7. The Standard Schema regression: a package an arm gains from a Strata dependency.
+  const withoutSpec = { ...armD.tuple };
+
+  delete withoutSpec["node_modules/@standard-schema/spec"];
+  record(
+    "missing-dependency",
+    "arm D lacks a package that arm A locks",
+    tupleMismatches({ A: armA.tuple, B: withoutSpec }),
+  );
+
+  // 8. The same version with different integrity.
+  const retagged = { ...armA.tuple };
+
+  retagged[victim] = `${(retagged[victim] ?? "").split(" ")[0]} sha512-tampered`;
+  record(
+    "altered-integrity",
+    "one locked package keeps its version but changes integrity",
+    tupleMismatches({ A: armA.tuple, B: retagged }),
+  );
+
+  // 9. A second copy of a framework package.
+  record(
+    "duplicated-framework",
+    "a nested second @angular/core",
+    duplicatedFrameworkPackages("D", {
+      ...armD.tuple,
+      "node_modules/x/node_modules/@angular/core": "22.1.7 sha512-a",
+    }),
+  );
+
   return controls;
 }
 
@@ -1047,6 +1079,31 @@ function git(...args: string[]): string {
 }
 
 async function main(): Promise<boolean> {
+  section("Shared fixture pins every third-party dependency of the Strata packages");
+
+  const fixtureManifest = JSON.parse(
+    readFileSync(join(template, "common", "package.json"), "utf8"),
+  ) as { dependencies: Record<string, string>; devDependencies: Record<string, string> };
+  const unpinned = unpinnedStrataDependencies(
+    Object.fromEntries(
+      ["core", "analog", "server-components"].map((name) => [
+        `@strata-sc/${name}`,
+        (
+          JSON.parse(readFileSync(join(repoRoot, "packages", name, "package.json"), "utf8")) as {
+            dependencies?: Record<string, string>;
+          }
+        ).dependencies ?? {},
+      ]),
+    ),
+    { ...fixtureManifest.devDependencies, ...fixtureManifest.dependencies },
+  );
+
+  check(
+    "every Strata runtime dependency is pinned identically by the shared fixture",
+    unpinned.length === 0,
+    unpinned.join("; "),
+  );
+
   const tarballs = packStrata();
   const states = new Map<ArmId, ArmState>();
 
@@ -1058,6 +1115,15 @@ async function main(): Promise<boolean> {
     Object.fromEntries(ARMS.map((spec) => [spec.id, states.get(spec.id)!.tuple])),
   );
 
+  check(
+    "no arm locks a second copy of a framework package",
+    ARMS.every(
+      (spec) => duplicatedFrameworkPackages(spec.id, states.get(spec.id)!.tuple).length === 0,
+    ),
+    ARMS.flatMap((spec) => duplicatedFrameworkPackages(spec.id, states.get(spec.id)!.tuple)).join(
+      "; ",
+    ),
+  );
   check(
     `all ${ARMS.length} arms lock the identical ${Object.keys(states.get("A")!.tuple).length} non-Strata package entries (versions and integrity)`,
     mismatches.length === 0,
