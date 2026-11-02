@@ -1,5 +1,11 @@
 # @strata-sc/server-components
 
+## 0.14.0
+
+### Minor Changes
+
+- 44434b7: Browser client-reference descriptors with any property other than `type` and `expectedSelector` are now refused as a `reference` failure before any boundary of the host is created, instead of being accepted silently. Generated surrogates are unaffected.
+
 ## 0.13.0
 
 ### Minor Changes
