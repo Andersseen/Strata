@@ -242,6 +242,7 @@ complete M4, M5 or Strata 1.0; see the
       service and bundle budgets pass on each claimed runtime.
   - Partial evidence only (2026-10-16): [bundle-size and warm HTTP/SSR baseline](research/full-stack-performance-baseline.md) on Node and local workerd. Cold start, Worker memory, cancellation/cleanup and deployed latency are NOT MEASURED; budgets are unenforced proposals. **Not closed.**
   - Scaling evidence (2026-10-16): [one versus three distinct islands](research/full-stack-performance-scaling.md) on local and GitHub-hosted runners; the Server Components browser overhead did not grow, the PR #86 candidate budgets are still unenforced proposals and the server budget lacks a controller/provider-count dimension. **Still not closed.**
+  - Benchmark repair (2026-11-02): the scheduled hosted baseline failed on a dependency-tree mismatch (`@standard-schema/spec`); the fixture and guard were fixed and both profiles re-run locally ([report](research/full-stack-performance-dependency-regression.md)). Hosted re-verification pending. **Still not closed.**
 - [ ] Release/rollback procedure tested, including client assets from an older deployment.
   - Partial evidence (2026-11-02): local upgrade/rollback between the published `server-components` 0.12.0 and
     0.13.0 (with `core` 0.2.2, `analog` 0.12.0) passes on Node and local workerd, with genuine stale A/B assets in

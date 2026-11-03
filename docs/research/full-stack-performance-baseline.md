@@ -284,3 +284,5 @@ install with `--legacy-peer-deps` (and no vitest), which is safe for them becaus
 
 Recommended next increment: a controlled, repeated measurement of these same budgets on the GitHub-hosted runner
 (and a scaling variant with several islands/controllers) to learn which candidate budgets are stable.
+
+> **Update 2026-11-02:** the scheduled hosted run began failing on a dependency-tree mismatch (`@standard-schema/spec`, added by `@strata-sc/analog`); the shared fixture now pins it. See the [regression report](full-stack-performance-dependency-regression.md). Historical values above are unchanged.

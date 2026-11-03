@@ -1,3 +1,7 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { describe, expect, it } from "vitest";
 
 import { ARMS } from "./arms.ts";
@@ -10,11 +14,13 @@ import {
   baselineIsolationProblems,
   browserStrataProblems,
   confidentialityProblems,
+  duplicatedFrameworkPackages,
   expectationsFor,
   lockTuple,
   ssrProblems,
   strataSpecifiersIn,
   tupleMismatches,
+  unpinnedStrataDependencies,
 } from "./contract.ts";
 
 const arm = (id: ArmId) => ARMS.find((candidate) => candidate.id === id)!;
@@ -212,6 +218,107 @@ describe("dependency tuple", () => {
 
   it("refuses to certify an empty comparison", () => {
     expect(tupleMismatches({})).toEqual(["no dependency tuple recorded"]);
+  });
+
+  const SPEC = "node_modules/@standard-schema/spec";
+  const base = lockTuple({
+    ...lock,
+    [SPEC]: { version: "1.1.0", integrity: "sha512-spec" },
+  });
+
+  it("rejects the Standard Schema case: a package only the Strata arms gained", () => {
+    const { [SPEC]: _gained, ...native } = base;
+    const [problem, ...others] = tupleMismatches({ A: native, B: base });
+
+    expect(others).toEqual([]);
+    expect(problem).toContain(SPEC);
+    expect(problem).toContain("arm A");
+    expect(problem).toContain("arm B");
+    expect(problem).toContain("1.1.0 sha512-spec");
+    expect(problem).toContain("unexpected package");
+  });
+
+  it("names the missing package", () => {
+    const { [SPEC]: _lost, ...without } = base;
+
+    expect(tupleMismatches({ A: base, B: without })[0]).toMatch(
+      /expected.*1\.1\.0.*missing package/,
+    );
+  });
+
+  it("names a deliberate version mismatch", () => {
+    expect(tupleMismatches({ A: base, B: { ...base, [SPEC]: "1.2.0 sha512-spec" } })[0]).toContain(
+      "different resolved version",
+    );
+  });
+
+  it("rejects a same-version package whose integrity was altered", () => {
+    const problems = tupleMismatches({ A: base, B: { ...base, [SPEC]: "1.1.0 sha512-evil" } });
+
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toContain("same version, different integrity");
+  });
+
+  it("accepts an identical non-Strata tuple once the shared fixture pins the extra package", () => {
+    expect(tupleMismatches({ A: base, B: { ...base }, C: { ...base }, D: { ...base } })).toEqual(
+      [],
+    );
+  });
+
+  it("rejects a second installed copy of a framework package", () => {
+    expect(duplicatedFrameworkPackages("B", base)).toEqual([]);
+    expect(
+      duplicatedFrameworkPackages("B", {
+        ...base,
+        "node_modules/x/node_modules/@angular/core": "22.1.7 sha512-a",
+      }),
+    ).toHaveLength(1);
+  });
+});
+
+describe("shared fixture pins Strata's third-party dependencies", () => {
+  const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+  const json = (path: string) =>
+    JSON.parse(readFileSync(join(root, path), "utf8")) as {
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+    };
+
+  it("reports the unpinned dependency that caused the regression", () => {
+    const problems = unpinnedStrataDependencies(
+      { "@strata-sc/analog": { "@standard-schema/spec": "1.1.0", "@strata-sc/core": "x" } },
+      { h3: "1.15.11" },
+    );
+
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toContain("@standard-schema/spec");
+    expect(problems[0]).toContain("(nothing)");
+  });
+
+  it("reports a pinned but different version", () => {
+    expect(
+      unpinnedStrataDependencies(
+        { "@strata-sc/analog": { "@standard-schema/spec": "1.2.0" } },
+        { "@standard-schema/spec": "1.1.0" },
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("holds for the real packages and the real fixture", () => {
+    const fixture = json("tests/full-stack-performance/fixture/common/package.json");
+    const manifests = Object.fromEntries(
+      ["core", "analog", "server-components"].map((name) => [
+        `@strata-sc/${name}`,
+        json(`packages/${name}/package.json`).dependencies ?? {},
+      ]),
+    );
+
+    expect(
+      unpinnedStrataDependencies(manifests, {
+        ...fixture.devDependencies,
+        ...fixture.dependencies,
+      }),
+    ).toEqual([]);
   });
 });
 
