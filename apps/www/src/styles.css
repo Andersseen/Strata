@@ -194,7 +194,8 @@ main:focus {
   color: var(--strata-muted);
 }
 .theme-toggle {
-  gap: 7px;
+  width: 36px;
+  height: 36px;
 }
 .hero-stage {
   position: relative;
@@ -1385,8 +1386,7 @@ h2 {
   .footer-columns {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
-  .github-link,
-  .theme-toggle span {
+  .github-link {
     display: none;
   }
   .install-chip {

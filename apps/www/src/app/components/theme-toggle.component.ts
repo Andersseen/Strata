@@ -13,7 +13,7 @@ import { ThemeService } from "../theme.service";
   template: `<button
     voltButton
     variant="outline"
-    size="sm"
+    size="icon"
     class="theme-toggle"
     type="button"
     moveWhileTap="press"
@@ -25,7 +25,6 @@ import { ThemeService } from "../theme.service";
     } @else {
       <lmn-sun [size]="16" move="icon-pulse" />
     }
-    <span>{{ theme.theme() === "dark" ? "Dark" : "Light" }}</span>
   </button>`,
 })
 export class ThemeToggleComponent {
