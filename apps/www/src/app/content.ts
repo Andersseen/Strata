@@ -100,3 +100,26 @@ getControllerDefinition(UsersController);
 //     { method: "DELETE", path: "/:id", handler: "remove" },
 //   ],
 // }`;
+
+export const INSTALL_EXAMPLE = `# Server Components (experimental, 0.x)
+pnpm add @strata-sc/server-components
+
+# Controllers for Analog / Nitro (0.x)
+pnpm add @strata-sc/core @strata-sc/analog`;
+
+export const VITE_CONFIG_EXAMPLE = `import analog from "@analogjs/platform";
+import { strataServerComponents } from "@strata-sc/server-components/vite";
+import { defineConfig } from "vite";
+
+export default defineConfig({
+  ssr: { noExternal: ["tslib"] },
+  plugins: [
+    // Before analog(): surrogates must exist when Analog reads its tsconfig.
+    strataServerComponents({
+      root: import.meta.dirname,
+      sourceDir: "src/app",
+      generatedDir: "src/generated/server-components", // gitignored
+    }),
+    analog(),
+  ],
+});`;

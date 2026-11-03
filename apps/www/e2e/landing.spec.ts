@@ -84,3 +84,25 @@ test("hydrates the Server Component's client island and nothing else", async ({ 
 
   expect(errors).toEqual([]);
 });
+
+test("offers a mobile menu, a copyable install command and the quick start", async ({ page }) => {
+  const errors = collectAngularErrors(page);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  await expect(page.locator("html")).toHaveAttribute("data-app-ready", "true");
+
+  await page.getByRole("button", { name: "Copy install command" }).click();
+  await expect(page.getByRole("button", { name: "Install command copied" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Open menu" }).click();
+  const menu = page.getByRole("dialog");
+  await expect(menu).toBeVisible();
+  await menu.getByRole("link", { name: "Quick start" }).click();
+  await expect(menu).toBeHidden();
+  await expect(
+    page.getByRole("heading", { name: /from install to first island in two files/i }),
+  ).toBeInViewport();
+
+  expect(errors).toEqual([]);
+});
