@@ -1,4 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject } from "@angular/core";
+import { VoltNativeButton } from "@voltui/components";
+import { MOVEMENT_DIRECTIVES } from "angular-movement";
 import { LmnMoonIcon } from "lumen-icons/moon";
 import { LmnSunIcon } from "lumen-icons/sun";
 
@@ -6,18 +8,22 @@ import { ThemeService } from "../theme.service";
 
 @Component({
   selector: "strata-theme-toggle",
-  imports: [LmnMoonIcon, LmnSunIcon],
+  imports: [...MOVEMENT_DIRECTIVES, LmnMoonIcon, LmnSunIcon, VoltNativeButton],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `<button
+    voltButton
+    variant="outline"
+    size="sm"
     class="theme-toggle"
     type="button"
+    moveWhileTap="press"
     (click)="theme.toggle()"
     [attr.aria-label]="label()"
   >
     @if (theme.theme() === "dark") {
-      <lmn-moon [size]="16" />
+      <lmn-moon [size]="16" move="icon-pulse" />
     } @else {
-      <lmn-sun [size]="16" />
+      <lmn-sun [size]="16" move="icon-pulse" />
     }
     <span>{{ theme.theme() === "dark" ? "Dark" : "Light" }}</span>
   </button>`,

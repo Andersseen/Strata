@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://strata-www.pages.dev/sitemap.xml

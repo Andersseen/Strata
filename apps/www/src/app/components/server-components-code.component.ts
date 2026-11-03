@@ -67,15 +67,15 @@ import { CodePanelComponent } from "./code-panel.component";
           <h3>Name what hydrates.</h3>
           <p>
             <code>[strataClient]</code> marks the child that ships. Its props cross as plain data:
-            strings, numbers, booleans and <code>null</code> in a flat object.
+            strings, numbers, booleans, <code>null</code>, arrays and plain objects.
           </p>
           <div class="note-rule"></div>
           <span class="note-number">03</span>
-          <h3>Experimental, on the <code>next</code> channel.</h3>
+          <h3>Experimental, and on npm today.</h3>
           <p>
-            <code>&#64;strata-sc/server-components&#64;next</code> is experimental (0.x): the API
-            may change before 1.0. It powers this page. Streaming SSR and Router navigation into a
-            new Server Component subtree are not supported.
+            <code>&#64;strata-sc/server-components</code> is experimental (0.x): the API may change
+            before 1.0. It powers this page. Streaming SSR and Router navigation into a new Server
+            Component subtree are not supported.
           </p>
         </volt-card-content></volt-card
       >

@@ -8,7 +8,7 @@ import { ServerComponentFactsRepository } from "./server-component-facts.reposit
 const SERVER_COMPONENT_MARKER = "STRATA_WWW_SERVER_COMPONENT_MARKER";
 
 /**
- * The landing's Server Component section, rendered by the private, experimental
+ * The landing's Server Component section, rendered by the experimental
  * @strata-sc/server-components package. In the browser graph the Vite plugin
  * replaces this module with a generated surrogate, so neither this class nor
  * ServerComponentFactsRepository (nor what that imports) ships. Only
@@ -120,8 +120,8 @@ const SERVER_COMPONENT_MARKER = "STRATA_WWW_SERVER_COMPONENT_MARKER";
     <div class="sc-notes">
       <p>
         <b>Experimental.</b> Dogfooded in this site and qualified on Node/Nitro and Cloudflare
-        workerd. Published on the experimental <code>next</code> channel as
-        <code>&#64;strata-sc/server-components&#64;next</code>; the API may change before 1.0.
+        workerd. Published on npm as <code>&#64;strata-sc/server-components</code> (0.x); the API
+        may change before 1.0.
       </p>
       <p>
         <b>Navigation.</b> Initial and document navigation are supported. Angular Router SPA

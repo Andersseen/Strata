@@ -9,9 +9,11 @@ import {
 import { VoltBadge, VoltSeparator } from "@voltui/components";
 
 import { ArchitectureSectionComponent } from "./components/architecture-section.component";
+import { BackToTopComponent } from "./components/back-to-top.component";
 import { ExamplesSectionComponent } from "./components/examples-section.component";
 import { FeatureSectionComponent } from "./components/feature-section.component";
 import { HeroComponent } from "./components/hero.component";
+import { QuickStartSectionComponent } from "./components/quick-start-section.component";
 import { ServerComponentsCodeComponent } from "./components/server-components-code.component";
 import { SiteFooterComponent } from "./components/site-footer.component";
 import { SiteHeaderComponent } from "./components/site-header.component";
@@ -27,14 +29,16 @@ import { ServerComponentsShowcaseComponent } from "./server-components/server-co
     ArchitectureSectionComponent,
     ServerComponentsShowcaseComponent,
     ServerComponentsCodeComponent,
+    QuickStartSectionComponent,
     SiteFooterComponent,
+    BackToTopComponent,
     VoltBadge,
     VoltSeparator,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `<div class="site-shell">
+  template: `<div class="site-shell" id="top">
     <strata-site-header />
-    <main id="top">
+    <main id="main" tabindex="-1">
       <strata-hero />
       <section class="proof-strip section-wrap" aria-label="Capabilities and stack">
         <div class="proof-group">
@@ -64,8 +68,10 @@ import { ServerComponentsShowcaseComponent } from "./server-components/server-co
       <strata-feature-section />
       <strata-examples-section />
       <strata-architecture-section />
-      <strata-site-footer />
+      <strata-quick-start-section />
     </main>
+    <strata-site-footer />
+    <strata-back-to-top />
   </div>`,
 })
 export class App {

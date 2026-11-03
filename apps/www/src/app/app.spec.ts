@@ -15,6 +15,9 @@ describe("App", () => {
     ).not.toBeNull();
     expect(screen.getByRole("heading", { name: /controllers for the http side/i })).not.toBeNull();
     expect(screen.getByRole("heading", { name: /native to the nitro seam/i })).not.toBeNull();
-    expect(screen.getByRole("button", { name: /view on github/i })).not.toBeNull();
+    expect(
+      screen.getByRole("heading", { name: /from install to first island in two files/i }),
+    ).not.toBeNull();
+    expect(screen.getByRole("link", { name: /view on github/i })).not.toBeNull();
   });
 });
