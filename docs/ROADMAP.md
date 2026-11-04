@@ -1,6 +1,6 @@
 # Roadmap to 1.0
 
-The cross-layer tenant authorization qualification is in progress on a feature branch. Its packed and exact published-registry consumers passed on Node, local workerd and Chromium. Explicit ownership/data-substitution controls, remaining graph/Extended workflow jobs and hosted CI remain open; this does not close M4 or M5. See the [authorization isolation report](research/full-stack-authorization-isolation.md).
+The cross-layer tenant authorization qualification is on an open feature PR. Its packed and exact published-registry consumers passed on Node, local workerd and Chromium; PR CI, documentation and registry verification workflows passed. Source-mutated ownership/data-substitution controls and separate Extended workflow runs remain open; this does not close M4 or M5. See the [authorization isolation report](research/full-stack-authorization-isolation.md).
 
 Baseline: [STATE](STATE.md). Milestones are capability gates, not calendar promises or mandatory
 version numbers. M1–M4 may produce experimental 0.x releases; M5 produces release candidates.

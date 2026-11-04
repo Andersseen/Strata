@@ -2,7 +2,7 @@
 
 ## Full-stack authorization isolation (qualification in progress)
 
-From fetched `origin/main` SHA `55be0abae0440c42b86f8a53a77638c582aa3ae7`, branch `test/full-stack-authorization-isolation`, the extended external consumer passed 402 packed checks and the exact published-registry tuple passed on Node, local workerd and Chromium. Strict TS 6/5.9 declarations and private-marker/credential scans pass. Artifact identities are in [the report](research/full-stack-authorization-isolation.md). Explicit broken-ownership/data-substitution controls, remaining graph/Extended workflow jobs and hosted CI remain open. This does not complete M4/M5 or establish production isolation.
+From fetched `origin/main` SHA `55be0abae0440c42b86f8a53a77638c582aa3ae7`, branch `test/full-stack-authorization-isolation`, the external consumer passed 402 packed checks and the exact published-registry tuple passed 395 checks on Node, local workerd and Chromium. Strict TS 6/5.9 declarations and private-marker/credential scans pass. PR #166 CI, Entwine docs and registry verification workflows passed. Artifact identities and limits are in [the report](research/full-stack-authorization-isolation.md). Source-mutated ownership/data-substitution controls and separate Extended workflow runs remain open. This does not complete M4/M5 or establish production isolation.
 
 ## Full-stack performance baseline repair (feature branch; pending hosted CI)
 
