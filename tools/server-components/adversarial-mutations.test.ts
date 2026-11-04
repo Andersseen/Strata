@@ -5,6 +5,7 @@ import { join } from "node:path";
 
 import { afterEach, describe, it } from "vitest";
 
+import { packageTreeValidationRoot } from "./lib/full-stack-install.ts";
 import {
   AUTHORIZATION_MUTATION,
   BROWSER_CONFIDENTIALITY_MUTATION,
@@ -30,6 +31,14 @@ afterEach(() => {
 });
 
 describe("adversarial source mutations", () => {
+  it("validates npm's file-tarball dependency tree at its retained install root", () => {
+    assert.equal(
+      packageTreeValidationRoot("/tmp/mutated/consumer", "/tmp/healthy-seed"),
+      "/tmp/healthy-seed/consumer",
+    );
+    assert.equal(packageTreeValidationRoot("/tmp/healthy/consumer"), "/tmp/healthy/consumer");
+  });
+
   it("changes exactly the intended source and produces distinct digests", () => {
     const digests = [
       AUTHORIZATION_MUTATION,

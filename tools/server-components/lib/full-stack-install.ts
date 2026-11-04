@@ -480,7 +480,12 @@ export function verifyInstalledTree(context: {
     ),
   );
 
-  const ls = run("npm", ["ls", "--all", "--json"], { cwd: consumerDir, env });
+  // Reused consumer copies have lock entries for tarballs at the retained seed
+  // path. Run npm's location-sensitive tree check at that original install root;
+  // the copied tree is independently checked above for package bytes, entry
+  // points, and dependency identity.
+  const npmLsRoot = packageTreeValidationRoot(consumerDir, env["STRATA_FULL_STACK_REUSE_ROOT"]);
+  const ls = run("npm", ["ls", "--all", "--json"], { cwd: npmLsRoot, env });
   const problems = (JSON.parse(ls.stdout || "{}") as { problems?: string[] }).problems ?? [];
   const problemName = (p: string): string => p.replace(/\s\/\S+$/, "");
 
@@ -534,4 +539,8 @@ export function verifyInstalledTree(context: {
   );
 
   return { ok: all(installOk), tuple };
+}
+
+export function packageTreeValidationRoot(consumerDir: string, reuseRoot?: string): string {
+  return reuseRoot ? join(reuseRoot, "consumer") : consumerDir;
 }

@@ -52,7 +52,7 @@ Final mutated-source digests: A `5a5e77b676fe0c0baed3580fd4ee005a1df7e1597206bdb
 | LOCAL WORKERD      | PASS — packed consumer, all three mutations, registry consumer, focused runtime suites                                 |
 | PACKED CONSUMER    | PASS — healthy external npm install and all three mutated source builds                                                |
 | PUBLISHED REGISTRY | PASS — exact published tuple, registry integrity and full consumer; registry mutation is not run                       |
-| HOSTED CI          | PR checks in progress; Extended weekly/manual suite not run locally                                                     |
+| HOSTED CI          | PR checks in progress; Extended weekly/manual suite not run locally                                                    |
 | DEPLOYED           | NOT RUN                                                                                                                |
 | REAL ADOPTION      | NOT RUN                                                                                                                |
 
