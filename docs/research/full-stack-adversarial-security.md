@@ -6,7 +6,7 @@
 
 - Starting main SHA: `475e36902afb5a751ab7d7124f37682d50c4f07a` (2026-11-04; PR #166).
 - Branch: `test/full-stack-adversarial-security`.
-- PR: pending creation.
+- PR: [#167](https://github.com/Andersseen/Strata/pull/167).
 - Packed tuple: `@strata-sc/core@0.2.2`, `@strata-sc/analog@0.12.0`, `@strata-sc/server-components@0.14.0`.
 - Published registry tuple: all exact versions and registry tarball integrity records verified from `registry.npmjs.org`; the runner never substitutes packed artifacts in registry mode.
 - Registry integrity: core `sha512-Xr6bMt7funa/RtMhr/BTLX548alI8w5/tq/4QIgvk4INEc4nED5CweQUeEujPU6o9/NcJ1XFtqcXPNGjohkHFA==`; analog `sha512-jHkt/GbJ3nMvzwuVzRnDYQ6dfTPpcEN7jm+qGADvP0whTKs56qT/QkR9lmJ9vnSfrxyNgmt8jIl2n963BjWAuA==`; server-components `sha512-GoaNuTU/cOJgVme9hyXziAjD7bmszRmxZUah8yaDUcrMv7T5Kw/qgH4IJSqILs6Q8Ng78VssKq5MXugQWkj7bw==`.
@@ -52,7 +52,7 @@ Final mutated-source digests: A `5a5e77b676fe0c0baed3580fd4ee005a1df7e1597206bdb
 | LOCAL WORKERD      | PASS — packed consumer, all three mutations, registry consumer, focused runtime suites                                 |
 | PACKED CONSUMER    | PASS — healthy external npm install and all three mutated source builds                                                |
 | PUBLISHED REGISTRY | PASS — exact published tuple, registry integrity and full consumer; registry mutation is not run                       |
-| HOSTED CI          | Pending PR creation and checks; Extended weekly/manual suite not run locally                                           |
+| HOSTED CI          | PR checks in progress; Extended weekly/manual suite not run locally                                                     |
 | DEPLOYED           | NOT RUN                                                                                                                |
 | REAL ADOPTION      | NOT RUN                                                                                                                |
 
