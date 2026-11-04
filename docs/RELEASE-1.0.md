@@ -1,5 +1,7 @@
 # Strata 1.0 exit criteria
 
+The full-stack authorization fixture has packed and published-registry Node/workerd/Chromium evidence, and PR #166 CI, documentation and registry verification workflows passed. Source-mutated ownership/data-substitution controls and separate Extended workflow runs remain open. It does not close the M4/M5 tenant-isolation gate or support a 1.0 claim. See [the report](research/full-stack-authorization-isolation.md).
+
 Analog's opt-in Standard Schema v1 input methods are additive experimental
 APIs. The bounded JSON and safe client-input response contract has local Node,
 workerd and packed-consumer fixture evidence; this does not certify M3 or

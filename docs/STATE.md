@@ -1,5 +1,9 @@
 # Current implementation audit
 
+## Full-stack authorization isolation (qualification in progress)
+
+From fetched `origin/main` SHA `55be0abae0440c42b86f8a53a77638c582aa3ae7`, branch `test/full-stack-authorization-isolation`, the external consumer passed 402 packed checks and the exact published-registry tuple passed 395 checks on Node, local workerd and Chromium. Strict TS 6/5.9 declarations and private-marker/credential scans pass. PR #166 CI, Entwine docs and registry verification workflows passed. Artifact identities and limits are in [the report](research/full-stack-authorization-isolation.md). Source-mutated ownership/data-substitution controls and separate Extended workflow runs remain open. This does not complete M4/M5 or establish production isolation.
+
 ## Full-stack performance baseline repair (feature branch; pending hosted CI)
 
 From `f635237d7efcf93c9adcd707665f5227016aa887`, the scheduled Extended run [41440983466](https://github.com/Andersseen/Strata/actions/runs/41440983466) failed: `@strata-sc/analog` declares `@standard-schema/spec`, so arms B and D locked a package A and C lacked. The shared fixture now pins it, the runner fails fast on any unpinned third-party Strata dependency, tuple diagnostics name package, arms, values and reason, and three negative controls were added. Both island profiles passed locally on Node, workerd and Chromium with an identical 825-entry tree and a COMPARABLE verdict. **LOCAL BASELINE RESTORED; HOSTED EXTENDED RUN: NOT RUN.** No budget, threshold or 1.0 gate changed. See the [report](research/full-stack-performance-dependency-regression.md).

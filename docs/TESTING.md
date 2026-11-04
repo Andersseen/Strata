@@ -1,5 +1,7 @@
 # Testing strategy and evidence
 
+The protected external full-stack tenant fixture passed its 402-check packed consumer and 395-check exact published-registry consumer on Nitro Node, local workerd and Chromium, including concurrency, status/cache, graph and credential/private-marker scans. PR #166 hosted CI, documentation and registry verification workflows passed. Source-mutated ownership-removal and tenant-substitution controls and separate Extended workflow runs remain open. See the [authorization report](research/full-stack-authorization-isolation.md).
+
 Tests should prove observable contracts and failure boundaries. The existing suite is summarized in
 [STATE](STATE.md). The M1 packed-consumer tooling now exists and has executed; later milestone
 requirements below remain future evidence.

@@ -1,5 +1,7 @@
 # Compatibility policy
 
+The full-stack authorization fixture's protected paths passed with the packed and exact published-registry tuples on Node, local workerd and Chromium. This adds no package support-matrix claim. See [the authorization report](research/full-stack-authorization-isolation.md).
+
 Policy date: 2026-09-17. There is **no production support matrix yet**. Distinguish manifest ranges,
 locally exercised versions, researched candidates and qualified release combinations.
 

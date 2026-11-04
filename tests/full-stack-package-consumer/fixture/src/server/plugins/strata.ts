@@ -23,6 +23,10 @@ import {
   GuardedProductsController,
   syntheticAuthorizationGuard,
 } from "../strata/guarded-products.controller";
+import {
+  ProtectedProductsController,
+  protectedControllerGuard,
+} from "../strata/protected.controller";
 
 const interceptController: StrataAnalogInterceptor = async (_context, next) => next();
 
@@ -55,6 +59,10 @@ export default defineNitroPlugin((nitroApp) => {
   });
   registerControllers(nitroApp.router, [GuardedProductsController], {
     guards: [syntheticAuthorizationGuard],
+    interceptors: [interceptController],
+  });
+  registerControllers(nitroApp.router, [ProtectedProductsController], {
+    guards: [protectedControllerGuard],
     interceptors: [interceptController],
   });
   registerControllers(nitroApp.router, [HttpContractController], {
