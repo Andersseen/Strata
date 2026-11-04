@@ -24,6 +24,25 @@ const sanitize = (text: string): string => stripVTControlCharacters(text);
 export const hasCanary = (text: string): string[] =>
   PRIVATE_CANARIES.filter((c) => text.includes(c));
 
+interface ProtectedReply {
+  readonly status: number;
+  readonly cache: string | null;
+  readonly body: string;
+}
+
+/** Contract predicate is kept explicit so deliberately broken transcripts exercise it. */
+export function protectedMatrixMatches(replies: readonly ProtectedReply[]): boolean {
+  return (
+    replies.map((reply) => reply.status).join(",") === "200,200,403,403,401,401,401,404,200" &&
+    replies.every((reply) => reply.cache === "no-store") &&
+    replies[0]!.body.includes("Alpha private catalog") &&
+    replies[1]!.body.includes("Beta private catalog") &&
+    replies
+      .slice(2, 8)
+      .every((reply) => !reply.body.includes("private catalog") && !hasCanary(reply.body).length)
+  );
+}
+
 export interface Reply {
   readonly status: number;
   readonly headers: Headers;
@@ -325,6 +344,159 @@ export async function httpSuite(
         hasCanary(missing.body).length === 0,
     ),
   );
+
+  const protectedMatrix = await Promise.all([
+    fetch(`${base}/api/protected/alpha/products/alpha-product`, {
+      headers: { cookie: "strata-test-credential=opaque-test-alpha" },
+    }),
+    fetch(`${base}/api/protected/beta/products/beta-product`, {
+      headers: { cookie: "strata-test-credential=opaque-test-beta" },
+    }),
+    fetch(`${base}/api/protected/beta/products/beta-product`, {
+      headers: { cookie: "strata-test-credential=opaque-test-alpha" },
+    }),
+    fetch(`${base}/api/protected/alpha/products/alpha-product`, {
+      headers: { cookie: "strata-test-credential=opaque-test-beta" },
+    }),
+    fetch(`${base}/api/protected/alpha/products/alpha-product`),
+    fetch(`${base}/api/protected/alpha/products/alpha-product`, {
+      headers: { cookie: "strata-test-credential=invalid" },
+    }),
+    fetch(`${base}/api/protected/alpha/products/alpha-product`, {
+      headers: {
+        cookie: "strata-test-credential=opaque-test-alpha; strata-test-credential=opaque-test-beta",
+      },
+    }),
+    fetch(`${base}/api/protected/alpha/products/no-such-resource`, {
+      headers: { cookie: "strata-test-credential=opaque-test-alpha" },
+    }),
+    fetch(`${base}/api/protected/beta/products/beta-product`, {
+      headers: { cookie: "strata-test-credential=opaque-test-beta" },
+    }),
+  ]);
+  const protectedResponses = await Promise.all(
+    protectedMatrix.map(async (response) => ({
+      status: response.status,
+      cache: response.headers.get("cache-control"),
+      body: await response.text(),
+    })),
+  );
+  ok.push(
+    check(
+      `${label}: protected controller enforces tenant ownership, rejects invalid/duplicate cookies, and returns safe 404`,
+      protectedMatrixMatches(protectedResponses) &&
+        protectedMatrix[0].headers.get("x-fixture-protected-read") === "1" &&
+        protectedMatrix[2].headers.get("x-fixture-protected-read") === null &&
+        protectedMatrix[4].headers.get("x-fixture-protected-read") === null &&
+        JSON.stringify(protectedResponses.map(({ status, cache }) => ({ status, cache }))),
+    ),
+    check(
+      `${label}: negative control: verifier rejects a cross-tenant 200 as if the ownership check were removed`,
+      !protectedMatrixMatches(
+        protectedResponses.map((reply, index) =>
+          index === 2
+            ? { ...reply, status: 200, body: '{"tenant":"beta","label":"Beta private catalog"}' }
+            : reply,
+        ),
+      ),
+    ),
+    check(
+      `${label}: negative control: verifier rejects beta data substituted into alpha's response`,
+      !protectedMatrixMatches(
+        protectedResponses.map((reply, index) =>
+          index === 0
+            ? { ...reply, body: '{"tenant":"beta","label":"Beta private catalog"}' }
+            : reply,
+        ),
+      ),
+    ),
+    check(
+      `${label}: negative control: the leak scanner detects an injected tenant-private marker`,
+      hasCanary(`<output>${FULL_STACK_MARKERS.alphaPrivate}</output>`).includes(
+        FULL_STACK_MARKERS.alphaPrivate,
+      ),
+    ),
+  );
+
+  const protectedDocuments = await Promise.all([
+    fetch(`${base}/protected/alpha`, {
+      headers: { cookie: "strata-test-credential=opaque-test-alpha" },
+    }),
+    fetch(`${base}/protected/beta`, {
+      headers: { cookie: "strata-test-credential=opaque-test-beta" },
+    }),
+    fetch(`${base}/protected/beta?tenant=alpha`, {
+      headers: { cookie: "strata-test-credential=opaque-test-alpha", "x-tenant": "beta" },
+    }),
+    fetch(`${base}/protected/alpha`),
+    fetch(`${base}/protected/unknown`, {
+      headers: { cookie: "strata-test-credential=opaque-test-alpha" },
+    }),
+  ]);
+  const protectedDocs = await Promise.all(
+    protectedDocuments.map(async (response) => ({
+      status: response.status,
+      cache: response.headers.get("cache-control"),
+      body: await response.text(),
+    })),
+  );
+  ok.push(
+    check(
+      `${label}: protected SSR uses the same cookie policy, sets no-store, denies before rendering, and omits denied islands`,
+      protectedDocs.map((r) => r.status).join(",") === "200,200,403,401,404" &&
+        protectedDocs.every((r) => r.cache === "no-store") &&
+        protectedDocs[0]!.body.includes("Alpha private catalog") &&
+        protectedDocs[0]!.body.includes('data-protected-reads="1"') &&
+        protectedDocs[0]!.body.includes("protected-tenant-island") &&
+        protectedDocs[1]!.body.includes("Beta private catalog") &&
+        !protectedDocs[2]!.body.includes("protected-tenant-island") &&
+        protectedDocs[2]!.body.includes('data-protected-reads="0"') &&
+        !protectedDocs[3]!.body.includes("protected-tenant-island") &&
+        protectedDocs.slice(2).every((r) => !hasCanary(r.body).length),
+      JSON.stringify(protectedDocs.map(({ status, cache }) => ({ status, cache }))),
+    ),
+  );
+
+  const overlapCases = Array.from({ length: 24 }, (_, index) => {
+    const tenant = index % 2 === 0 ? "alpha" : "beta";
+    const other = tenant === "alpha" ? "beta" : "alpha";
+    const mode = Math.floor(index / 2) % 4;
+    const target = mode === 1 ? other : tenant;
+    const cookie =
+      mode === 2
+        ? ""
+        : mode === 3
+          ? "strata-test-credential=broken"
+          : `strata-test-credential=opaque-test-${tenant}`;
+    const path = `/protected/${target}`;
+    return fetch(`${base}${path}?identity=${other}`, {
+      headers: { ...(cookie ? { cookie } : {}), "x-tenant": other },
+    }).then(async (response) => ({
+      status: response.status,
+      body: await response.text(),
+      cache: response.headers.get("cache-control"),
+    }));
+  });
+  const overlapReplies = await Promise.all(overlapCases);
+  ok.push(
+    check(
+      `${label}: 24 overlapping SSR requests keep request identity isolated across owners, denials and invalid credentials`,
+      overlapReplies.every((reply, index) => {
+        const tenant = index % 2 === 0 ? "alpha" : "beta";
+        const mode = Math.floor(index / 2) % 4;
+        const expected = mode === 0 ? 200 : mode === 1 ? 403 : 401;
+        return (
+          reply.status === expected &&
+          reply.cache === "no-store" &&
+          !hasCanary(reply.body).length &&
+          (expected === 200
+            ? reply.body.includes(`${tenant === "alpha" ? "Alpha" : "Beta"} private catalog`)
+            : !reply.body.includes("protected-tenant-island"))
+        );
+      }),
+      `statuses=${overlapReplies.map((reply) => reply.status).join(",")}`,
+    ),
+  );
   if (options.log) {
     const { log } = options;
 
@@ -490,6 +662,84 @@ export async function islandSuite(
       ),
     );
 
+    // HttpOnly synthetic credential: verify authorized SSR, island hydration and its
+    // same-origin API request, then a cross-tenant document denial and healthy recovery.
+    await page.context().addCookies([
+      {
+        name: "strata-test-credential",
+        value: "opaque-test-alpha",
+        url: base,
+        httpOnly: true,
+        sameSite: "Lax",
+      },
+    ]);
+    const alphaDocument = await page.goto(`${base}/protected/alpha`, { waitUntil: "load" });
+    await page.waitForSelector("protected-tenant-island[data-strata-hydrated]", {
+      timeout: 15_000,
+    });
+    const alphaApi = page.waitForResponse((response) =>
+      response.url().includes("/api/protected/alpha/products/alpha-product"),
+    );
+    await page.click("[data-protected-island]");
+    const alphaApiResponse = await alphaApi;
+    await page.waitForFunction(
+      "document.querySelector('[data-protected-api-result]')?.textContent === 'Alpha private catalog'",
+    );
+    const cookieHidden = await evaluate<boolean>(
+      page,
+      "!document.cookie.includes('opaque-test-alpha')",
+    );
+    const crossTenantApi = await evaluate<{ status: number; body: string }>(
+      page,
+      `fetch('/api/protected/beta/products/beta-product?tenant=alpha', { headers: { 'x-tenant': 'beta' } }).then(async (response) => ({ status: response.status, body: await response.text() }))`,
+    );
+    const deniedDocument = await page.goto(`${base}/protected/beta?tenant=alpha`, {
+      waitUntil: "load",
+    });
+    const deniedMarkup = await page.locator("body").innerText();
+    const deniedBoundary = await page.locator("protected-tenant-island").count();
+    await page.context().addCookies([
+      {
+        name: "strata-test-credential",
+        value: "opaque-test-beta",
+        url: base,
+        httpOnly: true,
+        sameSite: "Lax",
+      },
+    ]);
+    const betaDocument = await page.goto(`${base}/protected/beta`, { waitUntil: "load" });
+    await page.waitForSelector("protected-tenant-island[data-strata-hydrated]", {
+      timeout: 15_000,
+    });
+    const betaApi = page.waitForResponse((response) =>
+      response.url().includes("/api/protected/beta/products/beta-product"),
+    );
+    await page.click("[data-protected-island]");
+    const betaApiResponse = await betaApi;
+    await page.waitForFunction(
+      "document.querySelector('[data-protected-api-result]')?.textContent === 'Beta private catalog'",
+    );
+    ok.push(
+      check(
+        `${label}: HttpOnly alpha credential authorizes matching SSR and hydrated API request`,
+        alphaDocument?.status() === 200 && alphaApiResponse.status() === 200 && cookieHidden,
+      ),
+      check(
+        `${label}: alpha browser cannot fetch beta API data with query or identity-header spoofing`,
+        crossTenantApi.status === 403 && !crossTenantApi.body.includes("Beta private catalog"),
+      ),
+      check(
+        `${label}: alpha credential cannot open beta SSR even with query spoofing; denied document has no protected island`,
+        deniedDocument?.status() === 403 &&
+          deniedBoundary === 0 &&
+          deniedMarkup.includes("Access denied"),
+      ),
+      check(
+        `${label}: beta credential recovers after denial and authorizes beta SSR and hydrated API request`,
+        betaDocument?.status() === 200 && betaApiResponse.status() === 200,
+      ),
+    );
+
     // Confidentiality of everything the browser received or rendered.
     const outer = await evaluate<string>(page, "document.documentElement.outerHTML");
     const received = bodies.map((entry) => `${entry.url}\n${entry.body}`).join("\n");
@@ -518,8 +768,13 @@ export async function islandSuite(
             ),
       ),
       check(
-        `${label}: no console error/warning (no NG hydration, JIT or unlinked-partial message)`,
-        tracked.errors.length === 0,
+        `${label}: no unexpected console errors (only expected 403 responses from denial controls are reported by Chromium)`,
+        tracked.errors.filter(
+          (entry) =>
+            !/Failed to load resource: the server responded with a status of 403(?: \([^)]*\))?/.test(
+              entry,
+            ),
+        ).length === 0,
         tracked.errors.join(" | "),
       ),
       check(

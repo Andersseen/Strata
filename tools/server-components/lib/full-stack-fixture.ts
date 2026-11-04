@@ -13,6 +13,10 @@ export const FULL_STACK_MARKERS = {
   controller: "FULLSTACK_CONTROLLER_CATALOG_MARKER",
   /** The confidential supplier note the repository hashes; it is never rendered. */
   privateNote: "FULLSTACK_PRIVATE_SUPPLIER_CANARY_9f3c",
+  alphaPrivate: "ALPHA_CONFIDENTIAL_71c1",
+  betaPrivate: "BETA_CONFIDENTIAL_93d2",
+  alphaCredential: "opaque-test-alpha",
+  betaCredential: "opaque-test-beta",
   client: "FULLSTACK_CONSUMER_CLIENT_MARKER",
 } as const;
 
@@ -26,6 +30,10 @@ export const SERVER_ONLY_MARKERS = [
   FULL_STACK_MARKERS.implementation,
   FULL_STACK_MARKERS.controller,
   FULL_STACK_MARKERS.privateNote,
+  FULL_STACK_MARKERS.alphaPrivate,
+  FULL_STACK_MARKERS.betaPrivate,
+  FULL_STACK_MARKERS.alphaCredential,
+  FULL_STACK_MARKERS.betaCredential,
 ] as const;
 
 /** Values that must never reach HTML, props, API JSON, browser files or maps. */
@@ -39,6 +47,8 @@ export const FULL_STACK_SERVER_SOURCES = [
   "products.controller.ts",
   "qualification.controller.ts",
   "product-catalog.ts",
+  "tenant-authorization.ts",
+  "protected.controller.ts",
   "lifecycle-stats.ts",
   "streaming.controller.ts",
   "stream-barrier.ts",
