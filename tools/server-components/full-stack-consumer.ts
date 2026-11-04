@@ -1,5 +1,6 @@
 import {
   cpSync,
+  appendFileSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -8,7 +9,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 import { observeCorrelation } from "../analog/lib/correlation.ts";
 import { listFiles } from "../analog/lib/scan.ts";
@@ -30,9 +31,11 @@ import {
   NOT_SOURCE,
   all,
   fixtureTemplate,
+  copyInstalledTree,
   installFullStackConsumer,
   must,
   sanitize,
+  sha256,
 } from "./lib/full-stack-install.ts";
 import { NotAvailable, installCandidate, registryMode } from "./lib/full-stack-registry-install.ts";
 import { routingBrowserSuite, routingSuite } from "./lib/full-stack-routing.ts";
@@ -166,6 +169,19 @@ try {
   writeFileSync(emptyNpmrc, "");
   writeFileSync(emptyGlobalNpmrc, "");
   templateBefore = snapshotDir(fixtureTemplate, () => false);
+  if (
+    process.env["STRATA_ADVERSARIAL_SOURCE_PATH"] &&
+    process.env["STRATA_ADVERSARIAL_SOURCE_DIGEST"]
+  ) {
+    const sourcePath = join(fixtureTemplate, process.env["STRATA_ADVERSARIAL_SOURCE_PATH"]);
+    const digest = sha256(sourcePath);
+    check(
+      "adversarial production build is tied to the intended mutated source digest",
+      digest === process.env["STRATA_ADVERSARIAL_SOURCE_DIGEST"],
+      `${digest} expected ${process.env["STRATA_ADVERSARIAL_SOURCE_DIGEST"]}`,
+    );
+    console.log(`adversarial source digest: ${digest}`);
+  }
 
   // ------------------------------------------------------------------------
 
@@ -187,6 +203,14 @@ try {
   for (const file of [
     "tsconfig.check.json",
     "tsconfig.check.server.json",
+    "tsconfig.check.authorization-server.json",
+    "tsconfig.check.authorization-component.json",
+    "src/check/fetch-event.d.ts",
+    "src/server/strata/tenant-authorization.ts",
+    "src/server/strata/protected.controller.ts",
+    "src/server/routes/api/protected-read-count/[id].get.ts",
+    "src/app/products/protected.server-component.ts",
+    "src/app/products/protected-tenant-island.component.ts",
     "src/check/declarations.ts",
     "src/check/controller-declarations.ts",
     "src/check/http-contract-example.ts",
@@ -194,7 +218,9 @@ try {
     "src/check/stream-example.ts",
     "src/check/correlation-example.ts",
   ]) {
-    cpSync(join(consumerDir, file), join(ts59Dir, file));
+    const destination = join(ts59Dir, file);
+    mkdirSync(dirname(destination), { recursive: true });
+    cpSync(join(consumerDir, file), destination);
   }
   writeFileSync(
     join(ts59Dir, "package.json"),
@@ -207,11 +233,16 @@ try {
           ...Object.fromEntries(PACKAGES.map((p) => [p.name, tool.specs.get(p.name)!])),
           ...Object.fromEntries(
             [
+              "@analogjs/router",
               "@angular/core",
               "@angular/common",
               "@angular/compiler",
+              "@angular/platform-browser",
+              "@angular/platform-server",
               "@angular/router",
+              "h3",
               "rxjs",
+              "tslib",
             ].map((name) => [name, consumerManifest.dependencies[name]]),
           ),
           vite: consumerManifest.devDependencies["vite"],
@@ -224,9 +255,16 @@ try {
       2,
     )}\n`,
   );
-  time("npm install (TypeScript 5.9 consumer)", () =>
-    must(run("npm", installArgs, { cwd: ts59Dir, env }), "npm install (TypeScript 5.9 consumer)"),
-  );
+  if (process.env["STRATA_FULL_STACK_REUSE_ROOT"]) {
+    const seedTypeConsumer = join(process.env["STRATA_FULL_STACK_REUSE_ROOT"], "consumer-ts59");
+    cpSync(join(seedTypeConsumer, "package-lock.json"), join(ts59Dir, "package-lock.json"));
+    copyInstalledTree(join(seedTypeConsumer, "node_modules"), join(ts59Dir, "node_modules"));
+    console.log(`reused verified TypeScript 5.9 install from ${seedTypeConsumer}`);
+  } else {
+    time("npm install (TypeScript 5.9 consumer)", () =>
+      must(run("npm", installArgs, { cwd: ts59Dir, env }), "npm install (TypeScript 5.9 consumer)"),
+    );
+  }
 
   const ts59 = tscDeclarations(ts59Dir, "TypeScript 5.9", env);
 
@@ -621,6 +659,8 @@ try {
 
   if (process.env["STRATA_KEEP_CONSUMER"] === "1") {
     console.log(`kept: ${tmpRoot}`);
+    if (process.env["GITHUB_ENV"])
+      appendFileSync(process.env["GITHUB_ENV"], `STRATA_ADVERSARIAL_REUSE_ROOT=${tmpRoot}\n`);
   } else {
     rmSync(tmpRoot, { recursive: true, force: true });
   }

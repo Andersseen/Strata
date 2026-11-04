@@ -3,7 +3,6 @@ import type { StrataAnalogGuard, StrataAnalogRequest } from "@strata-sc/analog";
 
 import {
   authorize,
-  protectedReads,
   readProtectedResource,
   resolveTenant,
   requestedTenant,
@@ -19,7 +18,9 @@ export const protectedControllerGuard: StrataAnalogGuard = ({ request }) => {
   // Unknown and malformed resource selectors reach the safe handler 404 without a read.
   if (!owner || requested !== owner) return { allow: true };
   const status = authorize(resolveTenant(request.headers), owner);
-  return status === 200 ? { allow: true } : { allow: false, status };
+  if (status === 200) return { allow: true };
+  if (status === 401 || status === 403) return { allow: false, status };
+  return { allow: false, status: 403 };
 };
 
 @Controller("/api/protected/:tenant/products")
@@ -33,7 +34,10 @@ export class ProtectedProductsController {
         headers: { "cache-control": "no-store", "content-type": "application/json" },
       });
     }
-    const resource = readProtectedResource(id);
+    const resource = readProtectedResource(
+      id,
+      request.headers.get("x-fixture-read-observation") ?? undefined,
+    );
     // The guard guarantees the owner relationship before the private read.
     if (!resource)
       return new Response('{"error":"not_found"}', {
@@ -44,7 +48,7 @@ export class ProtectedProductsController {
       headers: {
         "cache-control": "no-store",
         "content-type": "application/json",
-        "x-fixture-protected-read": "1",
+        "x-fixture-protected-reads": "1",
       },
     });
   }

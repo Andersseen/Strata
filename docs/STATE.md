@@ -1,5 +1,9 @@
 # Current implementation audit
 
+## Adversarial full-stack security (local qualification complete; hosted PR checks pending)
+
+Starting from main `475e36902afb5a751ab7d7124f37682d50c4f07a`, this branch adds source-mutated production consumers for tenant-ownership removal, cross-tenant data substitution and browser-private-marker leakage. All three mutations passed through isolated fixture copies and the existing packed consumer; the exact published-registry tuple also passed. Hosted PR checks remain pending. See the [adversarial security report](research/full-stack-adversarial-security.md). No production isolation or M4/M5/1.0 qualification is claimed.
+
 ## Full-stack authorization isolation (qualification in progress)
 
 From fetched `origin/main` SHA `55be0abae0440c42b86f8a53a77638c582aa3ae7`, branch `test/full-stack-authorization-isolation`, the external consumer passed 402 packed checks and the exact published-registry tuple passed 395 checks on Node, local workerd and Chromium. Strict TS 6/5.9 declarations and private-marker/credential scans pass. PR #166 CI, Entwine docs and registry verification workflows passed. Artifact identities and limits are in [the report](research/full-stack-authorization-isolation.md). Source-mutated ownership/data-substitution controls and separate Extended workflow runs remain open. This does not complete M4/M5 or establish production isolation.

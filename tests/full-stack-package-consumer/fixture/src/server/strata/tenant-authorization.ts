@@ -33,10 +33,23 @@ const tenantForResource: Readonly<Record<string, Tenant>> = {
   "beta-product": "beta",
 };
 
+const protectedReads = new Map<string, number>();
+
+/** Test-only per-request read count; values contain no tenant or resource identity. */
+export function takeProtectedReads(observationId: string): number {
+  const reads = protectedReads.get(observationId) ?? 0;
+  protectedReads.delete(observationId);
+
+  return reads;
+}
+
 /** Authorization runs before this read function is called. */
-export function readProtectedResource(id: string) {
+export function readProtectedResource(id: string, observationId?: string) {
   const tenant = tenantForResource[id];
   if (!tenant) return null;
+  if (observationId) {
+    protectedReads.set(observationId, (protectedReads.get(observationId) ?? 0) + 1);
+  }
   return {
     tenant,
     label: tenant === "alpha" ? "Alpha private catalog" : "Beta private catalog",

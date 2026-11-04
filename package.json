@@ -68,6 +68,8 @@
     "test:server-component-ssr-response": "node --experimental-strip-types tools/server-components/ssr-response.ts",
     "test:server-component-dev": "node --experimental-strip-types tools/server-components/dev.ts",
     "test:full-stack-package-consumer": "node --experimental-strip-types tools/server-components/full-stack-consumer.ts",
+    "test:full-stack-adversarial-security": "node --experimental-strip-types tools/server-components/adversarial-security.ts",
+    "test:full-stack-adversarial-security:smoke": "node --experimental-strip-types tools/server-components/adversarial-security.ts --smoke",
     "test:analog-packed-di-consumer": "node --experimental-strip-types tools/server-components/packed-angular-di-consumer.ts",
     "test:full-stack-registry-consumer": "node --experimental-strip-types tools/server-components/full-stack-consumer.ts --registry",
     "test:full-stack-registry-upgrade-rollback": "node --experimental-strip-types tools/server-components/registry-upgrade-rollback.ts",

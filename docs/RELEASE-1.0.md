@@ -1,5 +1,7 @@
 # Strata 1.0 exit criteria
 
+The source-mutated authorization and confidentiality consumer qualification passed locally for packed and published-registry artifacts; hosted PR checks remain pending. This is test evidence only. It does not qualify production tenant isolation or close M4/M5/1.0 criteria.
+
 The full-stack authorization fixture has packed and published-registry Node/workerd/Chromium evidence, and PR #166 CI, documentation and registry verification workflows passed. Source-mutated ownership/data-substitution controls and separate Extended workflow runs remain open. It does not close the M4/M5 tenant-isolation gate or support a 1.0 claim. See [the report](research/full-stack-authorization-isolation.md).
 
 Analog's opt-in Standard Schema v1 input methods are additive experimental

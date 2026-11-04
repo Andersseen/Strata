@@ -1,13 +1,17 @@
 import { createHash } from "node:crypto";
 import {
   cpSync,
+  copyFileSync,
   existsSync,
+  linkSync,
   lstatSync,
   mkdirSync,
   readFileSync,
   readdirSync,
+  readlinkSync,
   realpathSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
@@ -43,7 +47,9 @@ import type { Snapshot } from "./package-consumer.ts";
  * three real packages, install ONLY those tarballs into a copy of
  * tests/full-stack-package-consumer/fixture outside the workspace, and prove the
  * tarball / lockfile / single-copy / entry-point identity. Used by
- * full-stack-consumer.ts and full-stack-deployed-cloudflare.ts.
+ * full-stack-consumer.ts and full-stack-deployed-cloudflare.ts. The adversarial
+ * runner may reuse one retained verified install across isolated source builds
+ * when the package tuple is unchanged.
  */
 
 export const FULL_STACK_PACKAGES: readonly PublishablePackage[] = REGISTRY_PACKAGES;
@@ -54,10 +60,30 @@ export const [CORE, ANALOG, SERVER_COMPONENTS] = FULL_STACK_PACKAGES as [
 ];
 const PACKAGES = FULL_STACK_PACKAGES;
 
-export const fixtureTemplate = join(repoRoot, "tests", "full-stack-package-consumer", "fixture");
+export const fixtureTemplate =
+  process.env.STRATA_FULL_STACK_FIXTURE ??
+  join(repoRoot, "tests", "full-stack-package-consumer", "fixture");
 
 export const sanitize = (text: string): string => stripVTControlCharacters(text);
 export const all = (results: readonly boolean[]): boolean => results.every(Boolean);
+
+/** Creates an independent package tree cheaply while preserving npm's internal symlinks. */
+export function copyInstalledTree(source: string, destination: string): void {
+  mkdirSync(destination, { recursive: true });
+  for (const entry of readdirSync(source, { withFileTypes: true })) {
+    const from = join(source, entry.name);
+    const to = join(destination, entry.name);
+    if (entry.isDirectory()) copyInstalledTree(from, to);
+    else if (entry.isSymbolicLink()) symlinkSync(readlinkSync(from), to);
+    else if (entry.isFile()) {
+      try {
+        linkSync(from, to);
+      } catch {
+        copyFileSync(from, to);
+      }
+    }
+  }
+}
 
 export class Abort extends Error {}
 
@@ -118,6 +144,7 @@ export function installFullStackConsumer(context: {
   readonly time: <T>(label: string, work: () => T) => T;
 }): FullStackInstall {
   const { tmpRoot, consumerDir, env, time } = context;
+  const reuseRoot = env["STRATA_FULL_STACK_REUSE_ROOT"];
 
   section("Release invariants: three registry-eligible packages, versions owned by Changesets");
 
@@ -142,28 +169,38 @@ export function installFullStackConsumer(context: {
   );
 
   // ------------------------------------------------------------------------
-  section("Build and pack the three real packages");
-
-  for (const pkg of PACKAGES)
-    rmSync(join(repoRoot, pkg.dir, "dist"), { recursive: true, force: true });
-  time("package builds", () =>
-    must(
-      run("pnpm", [...PACKAGES.flatMap(({ name }) => ["--filter", name]), "run", "build"], {
-        cwd: repoRoot,
-      }),
-      "pnpm build (core, analog, server-components)",
-    ),
+  section(
+    reuseRoot ? "Reuse the verified packed artifacts" : "Build and pack the three real packages",
   );
 
-  const tarballDir = join(tmpRoot, "tarballs");
+  if (!reuseRoot) {
+    for (const pkg of PACKAGES)
+      rmSync(join(repoRoot, pkg.dir, "dist"), { recursive: true, force: true });
+    time("package builds", () =>
+      must(
+        run("pnpm", [...PACKAGES.flatMap(({ name }) => ["--filter", name]), "run", "build"], {
+          cwd: repoRoot,
+        }),
+        "pnpm build (core, analog, server-components)",
+      ),
+    );
+  }
 
-  mkdirSync(tarballDir, { recursive: true });
+  const tarballDir = join(reuseRoot ?? tmpRoot, "tarballs");
+
+  if (!reuseRoot) mkdirSync(tarballDir, { recursive: true });
 
   const tarballs = new Map<string, { path: string; sha256: string; integrity: string }>();
   const tarballOk: boolean[] = [];
 
   for (const pkg of PACKAGES) {
-    const path = packPackage(repoRoot, pkg, tarballDir);
+    const path = reuseRoot
+      ? join(
+          tarballDir,
+          `${pkg.name.replace(/^@/, "").replace("/", "-")}-${manifests.find((entry) => entry.pkg === pkg)!.manifest.version}.tgz`,
+        )
+      : packPackage(repoRoot, pkg, tarballDir);
+    if (!existsSync(path)) throw new Error(`Verified packed artifact is missing: ${path}`);
     const inspection = inspectTarball(repoRoot, path);
     const extracted = readTarball(
       path,
@@ -215,6 +252,18 @@ export function installFullStackConsumer(context: {
     "the consumer lives outside the repository",
     !consumerDir.startsWith(repoRoot) && !realpathSync(tmpRoot).startsWith(realpathSync(repoRoot)),
   );
+  if (reuseRoot) {
+    const seedConsumer = join(reuseRoot, "consumer");
+    const seedTypeConsumer = join(reuseRoot, "consumer-ts59");
+    check(
+      "reused package and lockfile source is the retained external full-stack consumer",
+      existsSync(join(seedConsumer, "package-lock.json")) &&
+        existsSync(join(seedConsumer, "node_modules")) &&
+        existsSync(join(seedTypeConsumer, "node_modules")) &&
+        !realpathSync(seedConsumer).startsWith(realpathSync(repoRoot)),
+      reuseRoot,
+    );
+  }
   cpSync(fixtureTemplate, consumerDir, { recursive: true });
 
   const consumerManifestPath = join(consumerDir, "package.json");
@@ -244,12 +293,20 @@ export function installFullStackConsumer(context: {
 
   const installArgs = ["install", "--no-audit", "--no-fund", "--loglevel=error"];
 
-  console.log(
-    `install command: npm ${installArgs.join(" ")}  (cwd ${consumerDir}; empty user config; npm_*/pnpm_*/NODE_PATH/NODE_OPTIONS removed)`,
-  );
-  time("npm install (consumer)", () =>
-    must(run("npm", installArgs, { cwd: consumerDir, env }), "npm install"),
-  );
+  if (reuseRoot) {
+    const seedConsumer = join(reuseRoot, "consumer");
+    cpSync(join(seedConsumer, "package-lock.json"), join(consumerDir, "package-lock.json"));
+    // Use an independent tree so npm's copy, provenance and duplicate checks remain meaningful.
+    copyInstalledTree(join(seedConsumer, "node_modules"), join(consumerDir, "node_modules"));
+    console.log(`reused verified npm install and package-lock from ${seedConsumer}`);
+  } else {
+    console.log(
+      `install command: npm ${installArgs.join(" ")}  (cwd ${consumerDir}; empty user config; npm_*/pnpm_*/NODE_PATH/NODE_OPTIONS removed)`,
+    );
+    time("npm install (consumer)", () =>
+      must(run("npm", installArgs, { cwd: consumerDir, env }), "npm install"),
+    );
+  }
 
   const installOk: boolean[] = [];
   const lock = JSON.parse(readFileSync(join(consumerDir, "package-lock.json"), "utf8")) as {
@@ -275,9 +332,9 @@ export function installFullStackConsumer(context: {
 
     installOk.push(
       check(
-        `${pkg.name}: a real directory (no symlink, junction or portal) at version ${version}`,
+        `${pkg.name}: ${reuseRoot ? "a real package directory in the reused verified install" : "a real directory (no symlink, junction or portal)"} at version ${version}`,
         existsSync(join(installed, "package.json")) &&
-          !isSymlinkAnywhere(installed) &&
+          (reuseRoot ? !lstatSync(installed).isSymbolicLink() : !isSymlinkAnywhere(installed)) &&
           lstatSync(installed).isDirectory() &&
           installedVersion(consumerDir, pkg.name) === version,
       ),

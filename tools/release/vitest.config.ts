@@ -4,7 +4,7 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
-    include: ["tools/release/lib/*.test.ts"],
+    include: ["tools/release/lib/*.test.ts", "tools/server-components/*.test.ts"],
     root: fileURLToPath(new URL("../..", import.meta.url)),
   },
 });
