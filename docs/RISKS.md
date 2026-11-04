@@ -1,5 +1,7 @@
 # Technical risk register
 
+Adversarial source-mutation qualification passed locally on packed and published-registry consumers, including Node, workerd and Chromium. Hosted PR checks remain pending. This test evidence does not qualify production tenant isolation, deployed behavior or real adoption. See [full-stack adversarial security](research/full-stack-adversarial-security.md).
+
 Cross-layer authorization qualification (2026-11-04): protected cookie-based API and SSR fixture paths passed the packed and exact published-registry consumers on Node, local workerd and Chromium. PR #166 CI, Entwine docs and registry verification workflows passed. Source-mutated ownership/data-substitution controls and separate Extended workflow runs remain unverified. No production tenant-isolation or authentication claim is supported. See [the qualification report](research/full-stack-authorization-isolation.md).
 
 Release reliability (2026-11-02): a green Release run once left server-components 0.14.0 unpublished because empty

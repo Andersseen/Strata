@@ -1,5 +1,7 @@
 # Roadmap to 1.0
 
+The M4 adversarial follow-up's local packed and published-registry qualifications passed on `test/full-stack-adversarial-security`. Hosted PR checks remain pending. It replaces transcript-only negative controls with independently rebuilt source mutations through the existing packed consumer. See the [adversarial security report](research/full-stack-adversarial-security.md); M4 and M5 remain open.
+
 The cross-layer tenant authorization qualification is on an open feature PR. Its packed and exact published-registry consumers passed on Node, local workerd and Chromium; PR CI, documentation and registry verification workflows passed. Source-mutated ownership/data-substitution controls and separate Extended workflow runs remain open; this does not close M4 or M5. See the [authorization isolation report](research/full-stack-authorization-isolation.md).
 
 Baseline: [STATE](STATE.md). Milestones are capability gates, not calendar promises or mandatory

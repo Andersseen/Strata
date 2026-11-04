@@ -92,6 +92,7 @@ jobs:
           path: |
             ${{ runner.temp }}/strata-diagnostics
             apps/analog-fixture/dist
+            /tmp/strata-adversarial-security-*
             /tmp/strata-*-consumer-*/consumer/dist
           if-no-files-found: ignore
           retention-days: 7
@@ -216,6 +217,10 @@ jobs:
       - name: Full-stack packed-package consumer (core + analog + server-components)
         run: pnpm test:full-stack-package-consumer
 
+      # Real source mutation through the independently packed production consumer; smoke one fault per PR.
+      - name: Full-stack adversarial source-mutation smoke
+        run: pnpm test:full-stack-adversarial-security:smoke
+
       # Consumer-owned Angular DI over the same packed tarballs, isolated to Nitro Node.
       - name: Packed Angular DI consumer (Node only)
         run: pnpm test:analog-packed-di-consumer
@@ -243,6 +248,7 @@ jobs:
           path: |
             ${{ runner.temp }}/strata-diagnostics
             apps/analog-fixture/dist
+            /tmp/strata-adversarial-security-*
             /tmp/strata-*-consumer-*/consumer/dist
           if-no-files-found: ignore
           retention-days: 7

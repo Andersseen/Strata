@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "skipLibCheck": false,
+    "noEmit": true,
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM"],
+    "experimentalDecorators": false,
+    "types": ["node"]
+  },
+  "files": [
+    "src/check/fetch-event.d.ts",
+    "src/server/strata/tenant-authorization.ts",
+    "src/server/strata/protected.controller.ts",
+    "src/server/routes/api/protected-read-count/[id].get.ts"
+  ]
+}

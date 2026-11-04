@@ -19,7 +19,12 @@ export function tscDeclarations(
 ): { ok: boolean; version: string } {
   const tsc = join(dir, "node_modules", "typescript", "bin", "tsc");
   const version = installedVersion(dir, "typescript");
-  const configs = ["tsconfig.check.json", "tsconfig.check.server.json"];
+  const configs = [
+    "tsconfig.check.json",
+    "tsconfig.check.server.json",
+    "tsconfig.check.authorization-server.json",
+    "tsconfig.check.authorization-component.json",
+  ];
   const results = configs.map((config) =>
     run(process.execPath, [tsc, "-p", config, "--listFiles", "--noEmit"], { cwd: dir, env }),
   );
@@ -52,7 +57,7 @@ export function tscDeclarations(
     version,
     ok: all([
       check(
-        `${label}: both consumer projects (Angular decorators, standard-decorator controllers) — strict, skipLibCheck:false, Bundler — 0 diagnostics`,
+        `${label}: declaration examples plus actual authorization helper/controller/SSR source (separate Angular and standard decorator projects) — strict, skipLibCheck:false, Bundler — 0 diagnostics`,
         results.every((r) => r.status === 0) && diagnostics.length === 0,
         diagnostics.slice(0, 8).join("\n") || results.map((r) => r.stderr).join("\n"),
       ),

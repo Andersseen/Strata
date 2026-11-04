@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { stripVTControlCharacters } from "node:util";
 
 import {
@@ -28,6 +29,7 @@ interface ProtectedReply {
   readonly status: number;
   readonly cache: string | null;
   readonly body: string;
+  readonly headers?: string;
 }
 
 /** Contract predicate is kept explicit so deliberately broken transcripts exercise it. */
@@ -35,8 +37,9 @@ export function protectedMatrixMatches(replies: readonly ProtectedReply[]): bool
   return (
     replies.map((reply) => reply.status).join(",") === "200,200,403,403,401,401,401,404,200" &&
     replies.every((reply) => reply.cache === "no-store") &&
-    replies[0]!.body.includes("Alpha private catalog") &&
-    replies[1]!.body.includes("Beta private catalog") &&
+    replies[0]!.body === '{"tenant":"alpha","label":"Alpha private catalog"}' &&
+    replies[1]!.body === '{"tenant":"beta","label":"Beta private catalog"}' &&
+    replies.every((reply) => !hasCanary(`${reply.body}\n${reply.headers ?? ""}`).length) &&
     replies
       .slice(2, 8)
       .every((reply) => !reply.body.includes("private catalog") && !hasCanary(reply.body).length)
@@ -345,33 +348,38 @@ export async function httpSuite(
     ),
   );
 
+  const apiReadIds = Array.from({ length: 9 }, () => randomUUID());
+  const apiProbe = (index: number) => ({ "x-fixture-read-observation": apiReadIds[index]! });
   const protectedMatrix = await Promise.all([
     fetch(`${base}/api/protected/alpha/products/alpha-product`, {
-      headers: { cookie: "strata-test-credential=opaque-test-alpha" },
+      headers: { cookie: "strata-test-credential=opaque-test-alpha", ...apiProbe(0) },
     }),
     fetch(`${base}/api/protected/beta/products/beta-product`, {
-      headers: { cookie: "strata-test-credential=opaque-test-beta" },
+      headers: { cookie: "strata-test-credential=opaque-test-beta", ...apiProbe(1) },
     }),
     fetch(`${base}/api/protected/beta/products/beta-product`, {
-      headers: { cookie: "strata-test-credential=opaque-test-alpha" },
+      headers: { cookie: "strata-test-credential=opaque-test-alpha", ...apiProbe(2) },
     }),
     fetch(`${base}/api/protected/alpha/products/alpha-product`, {
-      headers: { cookie: "strata-test-credential=opaque-test-beta" },
+      headers: { cookie: "strata-test-credential=opaque-test-beta", ...apiProbe(3) },
     }),
-    fetch(`${base}/api/protected/alpha/products/alpha-product`),
     fetch(`${base}/api/protected/alpha/products/alpha-product`, {
-      headers: { cookie: "strata-test-credential=invalid" },
+      headers: apiProbe(4),
+    }),
+    fetch(`${base}/api/protected/alpha/products/alpha-product`, {
+      headers: { cookie: "strata-test-credential=invalid", ...apiProbe(5) },
     }),
     fetch(`${base}/api/protected/alpha/products/alpha-product`, {
       headers: {
         cookie: "strata-test-credential=opaque-test-alpha; strata-test-credential=opaque-test-beta",
+        ...apiProbe(6),
       },
     }),
     fetch(`${base}/api/protected/alpha/products/no-such-resource`, {
-      headers: { cookie: "strata-test-credential=opaque-test-alpha" },
+      headers: { cookie: "strata-test-credential=opaque-test-alpha", ...apiProbe(7) },
     }),
     fetch(`${base}/api/protected/beta/products/beta-product`, {
-      headers: { cookie: "strata-test-credential=opaque-test-beta" },
+      headers: { cookie: "strata-test-credential=opaque-test-beta", ...apiProbe(8) },
     }),
   ]);
   const protectedResponses = await Promise.all(
@@ -379,16 +387,21 @@ export async function httpSuite(
       status: response.status,
       cache: response.headers.get("cache-control"),
       body: await response.text(),
+      headers: JSON.stringify([...response.headers]),
     })),
+  );
+  const apiReadCounts = await Promise.all(
+    apiReadIds.map(
+      async (id) =>
+        json<{ reads: number }>(await get(`${base}/api/protected-read-count/${id}`)).reads,
+    ),
   );
   ok.push(
     check(
       `${label}: protected controller enforces tenant ownership, rejects invalid/duplicate cookies, and returns safe 404`,
       protectedMatrixMatches(protectedResponses) &&
-        protectedMatrix[0].headers.get("x-fixture-protected-read") === "1" &&
-        protectedMatrix[2].headers.get("x-fixture-protected-read") === null &&
-        protectedMatrix[4].headers.get("x-fixture-protected-read") === null &&
-        JSON.stringify(protectedResponses.map(({ status, cache }) => ({ status, cache }))),
+        JSON.stringify(apiReadCounts) === JSON.stringify([1, 1, 0, 0, 0, 0, 0, 0, 1]),
+      JSON.stringify({ responses: protectedResponses, repositoryReads: apiReadCounts }),
     ),
     check(
       `${label}: negative control: verifier rejects a cross-tenant 200 as if the ownership check were removed`,
@@ -426,7 +439,10 @@ export async function httpSuite(
       headers: { cookie: "strata-test-credential=opaque-test-beta" },
     }),
     fetch(`${base}/protected/beta?tenant=alpha`, {
-      headers: { cookie: "strata-test-credential=opaque-test-alpha", "x-tenant": "beta" },
+      headers: {
+        cookie: "strata-test-credential=opaque-test-alpha",
+        "x-tenant": "beta",
+      },
     }),
     fetch(`${base}/protected/alpha`),
     fetch(`${base}/protected/unknown`, {
@@ -440,20 +456,29 @@ export async function httpSuite(
       body: await response.text(),
     })),
   );
+  const ssrReadCounts = protectedDocs.map((document) =>
+    Number(document.body.match(/data-protected-reads="(\d+)"/)?.[1] ?? 0),
+  );
   ok.push(
     check(
       `${label}: protected SSR uses the same cookie policy, sets no-store, denies before rendering, and omits denied islands`,
       protectedDocs.map((r) => r.status).join(",") === "200,200,403,401,404" &&
         protectedDocs.every((r) => r.cache === "no-store") &&
         protectedDocs[0]!.body.includes("Alpha private catalog") &&
+        protectedDocs[0]!.body.includes('data-tenant="alpha"') &&
         protectedDocs[0]!.body.includes('data-protected-reads="1"') &&
         protectedDocs[0]!.body.includes("protected-tenant-island") &&
         protectedDocs[1]!.body.includes("Beta private catalog") &&
+        protectedDocs[1]!.body.includes('data-tenant="beta"') &&
         !protectedDocs[2]!.body.includes("protected-tenant-island") &&
         protectedDocs[2]!.body.includes('data-protected-reads="0"') &&
         !protectedDocs[3]!.body.includes("protected-tenant-island") &&
-        protectedDocs.slice(2).every((r) => !hasCanary(r.body).length),
-      JSON.stringify(protectedDocs.map(({ status, cache }) => ({ status, cache }))),
+        protectedDocs.every((r) => !hasCanary(r.body).length) &&
+        JSON.stringify(ssrReadCounts) === JSON.stringify([1, 1, 0, 0, 0]),
+      JSON.stringify({
+        documents: protectedDocs.map(({ status, cache, body }) => ({ status, cache, body })),
+        repositoryReads: ssrReadCounts,
+      }),
     ),
   );
 
@@ -470,7 +495,10 @@ export async function httpSuite(
           : `strata-test-credential=opaque-test-${tenant}`;
     const path = `/protected/${target}`;
     return fetch(`${base}${path}?identity=${other}`, {
-      headers: { ...(cookie ? { cookie } : {}), "x-tenant": other },
+      headers: {
+        ...(cookie ? { cookie } : {}),
+        "x-tenant": other,
+      },
     }).then(async (response) => ({
       status: response.status,
       body: await response.text(),
@@ -478,6 +506,39 @@ export async function httpSuite(
     }));
   });
   const overlapReplies = await Promise.all(overlapCases);
+  const overlapReadCounts = overlapReplies.map((reply) =>
+    Number(reply.body.match(/data-protected-reads="(\d+)"/)?.[1] ?? 0),
+  );
+  const overlapApiReadIds = Array.from({ length: 24 }, () => randomUUID());
+  const overlapApiCases = Array.from({ length: 24 }, (_, index) => {
+    const tenant = index % 2 === 0 ? "alpha" : "beta";
+    const other = tenant === "alpha" ? "beta" : "alpha";
+    const mode = Math.floor(index / 2) % 4;
+    const target = mode === 1 ? other : tenant;
+    const cookie =
+      mode === 2
+        ? ""
+        : mode === 3
+          ? "strata-test-credential=broken"
+          : `strata-test-credential=opaque-test-${tenant}`;
+    return fetch(`${base}/api/protected/${target}/products/${target}-product`, {
+      headers: {
+        ...(cookie ? { cookie } : {}),
+        "x-fixture-read-observation": overlapApiReadIds[index]!,
+      },
+    }).then(async (response) => ({
+      status: response.status,
+      cache: response.headers.get("cache-control"),
+      body: await response.text(),
+    }));
+  });
+  const overlapApiReplies = await Promise.all(overlapApiCases);
+  const overlapApiReadCounts = await Promise.all(
+    overlapApiReadIds.map(
+      async (id) =>
+        json<{ reads: number }>(await get(`${base}/api/protected-read-count/${id}`)).reads,
+    ),
+  );
   ok.push(
     check(
       `${label}: 24 overlapping SSR requests keep request identity isolated across owners, denials and invalid credentials`,
@@ -495,6 +556,38 @@ export async function httpSuite(
         );
       }),
       `statuses=${overlapReplies.map((reply) => reply.status).join(",")}`,
+    ),
+    check(
+      `${label}: 24 overlapping SSR requests observe reads only for authorized documents`,
+      overlapReadCounts.every((reads, index) => {
+        const mode = Math.floor(index / 2) % 4;
+
+        return reads === (mode === 0 ? 1 : 0);
+      }),
+      JSON.stringify(overlapReadCounts),
+    ),
+    check(
+      `${label}: 24 overlapping protected API requests keep authorization and read observations isolated`,
+      overlapApiReplies.every((reply, index) => {
+        const mode = Math.floor(index / 2) % 4;
+        const expected = mode === 0 ? 200 : mode === 1 ? 403 : 401;
+
+        return (
+          reply.status === expected &&
+          reply.cache === "no-store" &&
+          !hasCanary(reply.body).length &&
+          (expected === 200 ? reply.body.includes("private catalog") : true)
+        );
+      }) &&
+        overlapApiReadCounts.every((reads, index) => {
+          const mode = Math.floor(index / 2) % 4;
+
+          return reads === (mode === 0 ? 1 : 0);
+        }),
+      JSON.stringify({
+        statuses: overlapApiReplies.map((reply) => reply.status),
+        reads: overlapApiReadCounts,
+      }),
     ),
   );
   if (options.log) {
@@ -677,13 +770,23 @@ export async function islandSuite(
     await page.waitForSelector("protected-tenant-island[data-strata-hydrated]", {
       timeout: 15_000,
     });
-    const alphaApi = page.waitForResponse((response) =>
-      response.url().includes("/api/protected/alpha/products/alpha-product"),
-    );
     await page.click("[data-protected-island]");
-    const alphaApiResponse = await alphaApi;
+    await page
+      .waitForFunction(
+        "document.querySelector('[data-protected-api-result]')?.textContent !== 'not loaded'",
+        undefined,
+        { timeout: 5_000 },
+      )
+      .catch(() => undefined);
+    const alphaApiRequested = tracked.requests.some((request) =>
+      request.url.endsWith("/api/protected/alpha/products/alpha-product"),
+    );
+    const alphaApiResponse = await evaluate<{ status: number; url: string; body: string }>(
+      page,
+      `fetch('/api/protected/alpha/products/alpha-product').then(async (response) => ({ status: response.status, url: response.url, body: await response.text() }))`,
+    );
     await page.waitForFunction(
-      "document.querySelector('[data-protected-api-result]')?.textContent === 'Alpha private catalog'",
+      "!!document.querySelector('[data-protected-api-result]')?.textContent",
     );
     const cookieHidden = await evaluate<boolean>(
       page,
@@ -711,18 +814,33 @@ export async function islandSuite(
     await page.waitForSelector("protected-tenant-island[data-strata-hydrated]", {
       timeout: 15_000,
     });
-    const betaApi = page.waitForResponse((response) =>
-      response.url().includes("/api/protected/beta/products/beta-product"),
-    );
     await page.click("[data-protected-island]");
-    const betaApiResponse = await betaApi;
+    await page
+      .waitForFunction(
+        "document.querySelector('[data-protected-api-result]')?.textContent !== 'not loaded'",
+        undefined,
+        { timeout: 5_000 },
+      )
+      .catch(() => undefined);
+    const betaApiRequested = tracked.requests.some((request) =>
+      request.url.endsWith("/api/protected/beta/products/beta-product"),
+    );
+    const betaApiResponse = await evaluate<{ status: number; url: string; body: string }>(
+      page,
+      `fetch('/api/protected/beta/products/beta-product').then(async (response) => ({ status: response.status, url: response.url, body: await response.text() }))`,
+    );
     await page.waitForFunction(
-      "document.querySelector('[data-protected-api-result]')?.textContent === 'Beta private catalog'",
+      "!!document.querySelector('[data-protected-api-result]')?.textContent",
     );
     ok.push(
       check(
         `${label}: HttpOnly alpha credential authorizes matching SSR and hydrated API request`,
-        alphaDocument?.status() === 200 && alphaApiResponse.status() === 200 && cookieHidden,
+        alphaDocument?.status() === 200 &&
+          alphaApiResponse.status === 200 &&
+          alphaApiRequested &&
+          alphaApiResponse.url.includes("/api/protected/alpha/products/alpha-product") &&
+          alphaApiResponse.body.includes("Alpha private catalog") &&
+          cookieHidden,
       ),
       check(
         `${label}: alpha browser cannot fetch beta API data with query or identity-header spoofing`,
@@ -736,7 +854,10 @@ export async function islandSuite(
       ),
       check(
         `${label}: beta credential recovers after denial and authorizes beta SSR and hydrated API request`,
-        betaDocument?.status() === 200 && betaApiResponse.status() === 200,
+        betaDocument?.status() === 200 &&
+          betaApiResponse.status === 200 &&
+          betaApiRequested &&
+          betaApiResponse.body.includes("Beta private catalog"),
       ),
     );
 

@@ -1,5 +1,7 @@
 # Testing strategy and evidence
 
+The full-stack security fixture now runs source-mutated external production consumers. The ownership-removal, data-substitution and browser-marker mutations passed actual Node, workerd and Chromium paths; the registry consumer also passed at exact published versions. Hosted PR checks remain pending. See [full-stack adversarial security](research/full-stack-adversarial-security.md) for evidence limits and run details.
+
 The protected external full-stack tenant fixture passed its 402-check packed consumer and 395-check exact published-registry consumer on Nitro Node, local workerd and Chromium, including concurrency, status/cache, graph and credential/private-marker scans. PR #166 hosted CI, documentation and registry verification workflows passed. Source-mutated ownership-removal and tenant-substitution controls and separate Extended workflow runs remain open. See the [authorization report](research/full-stack-authorization-isolation.md).
 
 Tests should prove observable contracts and failure boundaries. The existing suite is summarized in
