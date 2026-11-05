@@ -4,8 +4,12 @@ name: Extended checks
 #   performance  four-arm full-stack bundle/latency baseline (docs/research/full-stack-performance-baseline.md),
 #                optionally also the three-island scaling profile on the SAME runner
 #                (docs/research/full-stack-performance-scaling.md)
+#   performance-scaling  the controller/provider scaling profile (three islands, eight controllers, mixed
+#                failure burst, cleanup and keep-alive-after-413 checks; docs/research/m5-production-qualification.md)
 #   registry     the PUBLISHED @strata-sc/server-components from npm, built for Cloudflare Pages, local workerd;
-#                the published core + analog + server-components full-stack tuple; A/B upgrade and rollback
+#                the published core + analog + server-components full-stack tuple (fresh install: ecosystem
+#                drift) and the committed FROZEN candidate (npm ci of tests/full-stack-candidate: reproduction);
+#                A/B upgrade and rollback with the local deployment rehearsal
 #   types        the H3 consumer type-closure experiment (SPEC-002; its expected verdict is "upstream-blocked")
 #   integrity    the packed Server Components consumer with many independent rebuilds, each followed by
 #                cold-start overlapping first requests (docs/research/server-component-ssr-integrity-v07.md)
@@ -25,7 +29,7 @@ on:
         description: Which suite to run
         type: choice
         default: all
-        options: [all, performance, registry, types, integrity, adversarial]
+        options: [all, performance, performance-scaling, registry, types, integrity, adversarial]
       islands:
         description: "Performance: island profile. one (default, the PR #86 baseline), three, or both (same job and runner, then a comparison)"
         type: choice
@@ -182,6 +186,54 @@ jobs:
           if-no-files-found: ignore
           retention-days: 30
 
+  # The controller/provider scaling profile: same four arms, plus eight controllers (or 32 equivalent
+  # native routes), a bounded mixed failure burst, ledger cleanup and keep-alive after 413. Correctness
+  # fails the job; sizes and latencies are evidence only (no threshold on a hosted runner).
+  performance-scaling:
+    name: Full-stack performance, controller scaling profile (Node + local workerd)
+    if: github.event_name == 'schedule' || inputs.suite == 'all' || inputs.suite == 'performance-scaling'
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    env:
+      STRATA_PERF_REPS: ${{ inputs.reps || '3' }}
+      STRATA_PERF_BUILD_REPS: ${{ inputs.build_reps || '3' }}
+      STRATA_PERF_REQUESTS: ${{ inputs.requests || '200' }}
+      STRATA_PERF_WARMUP: ${{ inputs.warmup || '50' }}
+      STRATA_PERF_CONCURRENCY: ${{ inputs.concurrency || '8' }}
+      STRATA_PERF_ISLANDS: "3"
+      STRATA_PERF_CONTROLLERS: "8"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: ./.github/actions/setup
+        with:
+          build: "false"
+          playwright: "true"
+
+      - name: Evidence directory
+        run: echo "STRATA_PERF_OUT=$RUNNER_TEMP/full-stack-performance-scaling" >> "$GITHUB_ENV"
+
+      - name: Measure three islands and eight controllers
+        run: pnpm test:full-stack-performance
+
+      - name: Summary
+        if: ${{ !cancelled() }}
+        run: |
+          [ -f "$STRATA_PERF_OUT/summary.md" ] && cat "$STRATA_PERF_OUT/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          exit 0
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-stack-performance-scaling-evidence
+          path: ${{ env.STRATA_PERF_OUT }}
+          if-no-files-found: ignore
+          retention-days: 30
+
   registry:
     name: Published package on Cloudflare Pages (build + local workerd rehearsal)
     if: github.event_name == 'schedule' || inputs.suite == 'all' || inputs.suite == 'registry'
@@ -234,11 +286,42 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-  registry-upgrade-rollback:
-    name: Published A/B upgrade and rollback (Node + local workerd, no deployment)
+  # `npm ci` of the committed candidate (tests/full-stack-candidate): the exact qualified dependency
+  # tree, refused if the registry, the lock, the fixture manifest or the toolchain differ from it.
+  registry-frozen-candidate:
+    name: Frozen release candidate (npm ci of the captured tree; Node + local workerd)
     if: github.event_name == 'schedule' || inputs.suite == 'all' || inputs.suite == 'registry'
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Diagnostics directory
+        run: echo "STRATA_DIAGNOSTICS_DIR=$RUNNER_TEMP/strata-diagnostics" >> "$GITHUB_ENV"
+
+      - uses: ./.github/actions/setup
+        with:
+          build: "false"
+          playwright: "true"
+
+      - name: Frozen candidate consumer
+        run: pnpm test:full-stack-frozen-candidate
+
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-stack-frozen-candidate-diagnostics
+          path: ${{ runner.temp }}/strata-diagnostics
+          if-no-files-found: ignore
+          retention-days: 14
+
+  registry-upgrade-rollback:
+    name: Published A/B upgrade and rollback (Node + local workerd + deployment rehearsal, no deployment)
+    if: github.event_name == 'schedule' || inputs.suite == 'all' || inputs.suite == 'registry'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - name: Checkout
         uses: actions/checkout@v7
