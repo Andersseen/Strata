@@ -12,6 +12,7 @@ import {
   discardEmptyChangesets,
   isEmptyChangeset,
   verifyPublication,
+  verifyPublicationEventually,
 } from "./release-state.js";
 import type { LocalPackage } from "./release-state.js";
 
@@ -361,5 +362,58 @@ describe("registry reader", () => {
         "@strata-sc/core",
       ),
     ).toThrow();
+  });
+});
+
+describe("verifyPublicationEventually (registry read-after-write lag)", () => {
+  const options = { attempts: 4, firstDelayMs: 10, maxDelayMs: 40 };
+  const invisible = {
+    ok: false,
+    problems: ["@strata-sc/analog@0.12.1 is not on the npm registry"],
+  };
+  const pass = { ok: true, problems: [] };
+  const noWait = () => Promise.resolve();
+
+  it("passes once a just-published version becomes visible (run 42034642481 sequence)", async () => {
+    const verdicts = [invisible, invisible, pass];
+    const result = await verifyPublicationEventually(
+      () => Promise.resolve(verdicts.shift()!),
+      noWait,
+      options,
+    );
+
+    expect(result).toMatchObject({ ok: true, attempts: 3 });
+  });
+
+  it("still fails when the version never appears (a publish that did nothing)", async () => {
+    const result = await verifyPublicationEventually(
+      () => Promise.resolve(invisible),
+      noWait,
+      options,
+    );
+
+    expect(result).toMatchObject({ ok: false, attempts: 4 });
+  });
+
+  it("never waits on any other problem", async () => {
+    let calls = 0;
+    const result = await verifyPublicationEventually(
+      () => {
+        calls++;
+
+        return Promise.resolve({
+          ok: false,
+          problems: [
+            ...invisible.problems,
+            '@strata-sc/analog dist-tag "next" is 0.12.0, expected 0.12.1',
+          ],
+        });
+      },
+      noWait,
+      options,
+    );
+
+    expect(result.ok).toBe(false);
+    expect(calls).toBe(1);
   });
 });

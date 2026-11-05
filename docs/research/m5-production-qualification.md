@@ -465,3 +465,25 @@ performance-tools 186), actionlint (one pre-existing shellcheck style note in an
 are recorded. NOT RUN locally: `test:full-stack-adversarial-security` (hosted Extended passed), www/Relay E2E
 (hosted `apps` passed), `test:full-stack-registry-deployed-cloudflare` (real deployments ran through the
 manual workflow instead), npm publication and dist-tag changes (out of scope).
+
+## Addendum (after PR #170 merged): analog 0.12.1 release
+
+While this work ran, the Version Packages PR #169 merged (12:53 UTC) and its Release run
+[42034642481](https://github.com/Andersseen/Strata/actions/runs/42034642481) published
+`@strata-sc/analog@0.12.1` (`sha512-0ytlP1rpn5zNhUUtFo2gB6oQzvim8h9jxNBFwMYyavnnUqgHbZYauXeDQXX6Q16Aa/a+wLkMAcqwGIfqLmV4aw==`,
+pins core 0.2.2). The statements above that 0.12.1 is unpublished were true when written and are superseded.
+
+**F10 — release defect (tooling, fixed in the follow-up PR).** `changeset publish` reported success; seconds
+later `sync-dist-tags` read npm, did not see 0.12.1, logged "not on npm; skipping" and never moved `next`;
+`verify` read once and failed closed. npm dates the version 13:21:52, after both reads. Result: `latest` =
+0.12.1 but `next` = 0.12.0 (off policy) and a red Release run. This is the read-after-write lag class of PR
+#168 (D2), hitting version visibility, which its bounded re-read did not cover. Fix: `sync-dist-tags
+--published=<names>` re-reads a package this run published with the same bounded backoff and fails if it never
+appears (others are still skipped); `verify` re-reads while its only problems are invisible versions; the
+workflow passes the published list to both. UNIT (exact run sequence, the never-visible bound, and no waiting on
+any other problem). No tag was changed by hand: the release workflow also aligns dist-tags in the
+`ALREADY_PUBLISHED` state, so the next Release run should repair `next` through the established process.
+
+Consequences: the keep-alive fix (PR #168 D1) is now in a published artifact; the frozen candidate still pins
+analog 0.12.0 and must be recaptured to include 0.12.1; a published pair with 0.12.1 can now be qualified.
+**Issue #117** stays open (this failure is not one of its missing transitions).

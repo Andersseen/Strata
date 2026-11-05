@@ -1,8 +1,14 @@
 import assert from "node:assert/strict";
 
-import { describe, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
-import { awaitCompliantDistTags, compareVersions, distTagFor, planDistTags } from "./dist-tags.ts";
+import {
+  awaitCompliantDistTags,
+  compareVersions,
+  distTagFor,
+  planDistTags,
+  awaitVersionVisible,
+} from "./dist-tags.ts";
 
 describe("compareVersions", () => {
   it("orders by semver precedence", () => {
@@ -133,5 +139,43 @@ describe("awaitCompliantDistTags", () => {
       /still out of policy after the update \(4 reads\): \{"latest":"0.14.0","next":"0.2.0"\}/,
     );
     assert.deepEqual(waits, [10, 20, 25]);
+  });
+});
+
+describe("awaitVersionVisible (Release run 42034642481)", () => {
+  const options = { attempts: 4, firstDelayMs: 10, maxDelayMs: 40 };
+
+  it("waits out a just-published version that npm does not show yet", async () => {
+    const waits: number[] = [];
+    const reads = [false, false, true];
+    const attempts = await awaitVersionVisible(
+      () => reads.shift() ?? true,
+      (ms) => {
+        waits.push(ms);
+
+        return Promise.resolve();
+      },
+      options,
+    );
+
+    expect(attempts).toBe(3);
+    expect(waits).toEqual([10, 20]);
+  });
+
+  it("fails closed when the version never appears, after exactly the bound", async () => {
+    let reads = 0;
+
+    await expect(
+      awaitVersionVisible(
+        () => {
+          reads++;
+
+          return false;
+        },
+        () => Promise.resolve(),
+        options,
+      ),
+    ).rejects.toThrow(/still not visible on npm after 4 reads/);
+    expect(reads).toBe(4);
   });
 });

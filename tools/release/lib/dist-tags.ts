@@ -138,3 +138,29 @@ export async function awaitCompliantDistTags(
     `dist-tags still out of policy after the update (${options.attempts} reads): ${JSON.stringify(tags)}`,
   );
 }
+
+/**
+ * After `changeset publish` reported success, npm may not show the new VERSION for a while
+ * (Release run 42034642481: published, then "not on npm; skipping" seconds later, so `next` was
+ * never moved and verification failed). A package this run published is therefore re-read with
+ * the same bounded backoff instead of being skipped, and is an error if it never appears.
+ */
+export async function awaitVersionVisible(
+  isVisible: () => boolean | Promise<boolean>,
+  wait: (ms: number) => Promise<void>,
+  options: { attempts: number; firstDelayMs: number; maxDelayMs: number } = DIST_TAG_VISIBILITY,
+): Promise<number> {
+  let delay = options.firstDelayMs;
+
+  for (let attempt = 1; attempt <= options.attempts; attempt++) {
+    if (await isVisible()) return attempt;
+    if (attempt < options.attempts) {
+      await wait(delay);
+      delay = Math.min(delay * 2, options.maxDelayMs);
+    }
+  }
+
+  throw new Error(
+    `the published version is still not visible on npm after ${options.attempts} reads`,
+  );
+}

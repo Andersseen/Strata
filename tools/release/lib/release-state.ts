@@ -213,3 +213,33 @@ export async function verifyPublication(input: {
 
   return { ok: problems.length === 0, problems };
 }
+
+/**
+ * Re-runs `verify` with a bounded backoff while its ONLY problems are versions not yet visible on
+ * npm (registry read-after-write lag right after a publish). Any other problem is returned at once;
+ * the last verdict is returned when the bound is reached, so a publish that really did nothing fails.
+ */
+export async function verifyPublicationEventually(
+  verify: () => Promise<PublicationVerdict>,
+  wait: (ms: number) => Promise<void>,
+  options: { attempts: number; firstDelayMs: number; maxDelayMs: number } = {
+    attempts: 6,
+    firstDelayMs: 2_000,
+    maxDelayMs: 16_000,
+  },
+): Promise<PublicationVerdict & { readonly attempts: number }> {
+  let delay = options.firstDelayMs;
+  let verdict = await verify();
+
+  for (let attempt = 1; ; attempt++) {
+    const onlyInvisible =
+      !verdict.ok &&
+      verdict.problems.every((problem) => problem.endsWith(" is not on the npm registry"));
+
+    if (verdict.ok || !onlyInvisible || attempt >= options.attempts)
+      return { ...verdict, attempts: attempt };
+    await wait(delay);
+    delay = Math.min(delay * 2, options.maxDelayMs);
+    verdict = await verify();
+  }
+}
