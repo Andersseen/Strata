@@ -125,6 +125,32 @@ describe("classifyRelease", () => {
     expect(decision.reason).toContain("partial release");
   });
 
+  it("the pending analog patch: VERSION_REQUIRED now, then PUBLISH_REQUIRED for analog 0.12.1 only", async () => {
+    const current = {
+      ...published,
+      "@strata-sc/server-components": found({ "0.14.0": {} }, { latest: "0.14.0" }),
+    };
+    const before = registry(current);
+    const pending = await classifyRelease({
+      changesets: { empty: 6, nonEmpty: 1 },
+      packages: all,
+      readRegistry: before,
+    });
+
+    expect(pending.state).toBe("VERSION_REQUIRED");
+    expect(before.calls).toEqual([]);
+
+    const versioned = await classifyRelease({
+      changesets: { empty: 6, nonEmpty: 0 },
+      packages: [core, { ...analog, version: "0.12.1" }, sc, h3],
+      readRegistry: registry(current),
+    });
+
+    expect(versioned.state).toBe("PUBLISH_REQUIRED");
+    expect(versioned.unpublished).toEqual(["@strata-sc/analog"]);
+    expect(versioned.published).toEqual(["@strata-sc/core", "@strata-sc/server-components"]);
+  });
+
   it("treats a never-published package (404) as unpublished", async () => {
     const decision = await classifyRelease({
       changesets: none,
