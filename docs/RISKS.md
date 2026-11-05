@@ -279,6 +279,17 @@ generic HTML with HTTP 503/no-store, with 400/no-store for invalid context. The 
 workerd, including overlap and document navigation. Unexpected Angular/Analog render failures
 still answer HTTP 200; no general status bridge, fallback API or streaming contract was found.
 
+Evidence note (2026-11-05), SSR failure contract: R09/R11's unexpected-render gap now has an
+opt-in package seam. `@strata-sc/server-components/ssr` (an application `ErrorHandler` keyed by
+Analog's public `RESPONSE`, plus a wrapper of the buffered `render()`) answers seven unexpected failure
+classes with a generic HTTP 500/no-store, drops render-set headers, logs one redacted line per failed
+request and keeps handled errors and application 404s unchanged, on Node and local workerd through the
+installed tarball ([report](research/ssr-failure-contract.md)). Residual risk: it is opt-in, so an
+application that does not adopt it still answers HTTP 200; it covers buffered SSR only (no streaming, no
+committed response); it replaces the application `ErrorHandler`; and the provider and wrapper must share
+one installed copy of the package (a duplicate copy fails open to native HTTP 200). No real application
+uses it yet.
+
 Evidence note (2026-10-14), request-bound authorization: R04 and R11 remain open for production
 identity, authorization, deployment, logging and tenant/cache semantics. The fixture-only
 `pnpm test:server-component-authorization` gate resolves a synthetic principal from one opaque

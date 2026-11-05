@@ -60,11 +60,16 @@ by one bounded reload), never hydrated across versions. No wire compatibility be
 promised before 1.0.
 
 **Unexpected SSR render failures.** Native Analog answers them with HTTP 200 and an incomplete
-document. The supported contract is application-owned, through public Angular/Analog APIs only: an
-application-level `ErrorHandler` that marks the per-request Analog `RESPONSE`, and a wrapper around the
-function `render()` returns, which turns a marked render into a generic HTTP 500 before the buffered
-response is written (`tests/full-stack-package-consumer/fixture/src/app/render-failure-status.ts`).
-Strata does not install it implicitly.
+document; an application that does not opt in keeps exactly that. From server-components 0.15.0 the
+opt-in `@strata-sc/server-components/ssr` entry provides the contract over public Angular/Analog APIs
+only: `provideStrataSsrFailureHandler(RESPONSE)` (an application-level `ErrorHandler` that marks the
+per-request Analog `RESPONSE`) and `withStrataSsrFailureContract(render(...))`, which turns a marked or
+rejected buffered render into a generic HTTP 500 (`no-store`) before the response is written
+([report](research/ssr-failure-contract.md)). Strata does not install it implicitly. Published tuples
+that predate the entry (server-components ≤ 0.14.x, including the frozen candidate below) are
+qualified with the equivalent consumer-owned recipe
+(`tests/full-stack-package-consumer/recipes/ssr-failure-contract.ts`). Streaming SSR and
+already-committed responses are not covered.
 
 ## Frozen release candidate (2026-11-05, recaptured)
 
@@ -221,6 +226,12 @@ build optimizer; the Vite plugin pre-bundles it for `vite` dev when the app reso
 `@angular/router`. It assumes a path-based location strategy (a hash strategy cannot render
 Server Components); an absolute `APP_BASE_HREF` on another origin is rejected. See the
 [document-navigation report](research/server-component-document-navigation-v04.md).
+
+The optional `@strata-sc/server-components/ssr` entry adds no new peer range: it imports only
+`@angular/core` (`ErrorHandler`, `inject`) and receives the host's response token from the
+application, so it has no Analog, Nitro or H3 dependency. It is qualified with Analog 2.7.2's buffered
+`render()` on Nitro `node-server` and local workerd (Cloudflare Pages preset); `renderStream` is
+unsupported. See the [SSR failure contract report](research/ssr-failure-contract.md).
 
 ## Current M1 consumer contract: experimental and blocked
 
