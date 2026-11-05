@@ -55,11 +55,10 @@ export const FULL_STACK_SERVER_SOURCES = [
   "lifecycle-stats.ts",
   "streaming.controller.ts",
   "stream-barrier.ts",
+  // The render-failure probes' `*.server-component.ts` files are not listed, like
+  // protected.server-component.ts: their browser surrogates legitimately carry the file name; their
+  // content is covered by the RENDER_FAILURE canary. Their server-only dependency must never appear.
   "render-failure-dependency.ts",
-  "render-failure-constructor.server-component.ts",
-  "render-failure-service.server-component.ts",
-  "render-failure-template.server-component.ts",
-  "render-failure-boundary.server-component.ts",
 ] as const;
 
 export const PRODUCT_42 = { id: "42", name: "Product 42", available: true } as const;
