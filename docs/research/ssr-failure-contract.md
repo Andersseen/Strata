@@ -201,7 +201,26 @@ Before (main `8d97e79`): PR run 42062487540 9.6 min wall; main push 42071079490 
 website deploy; slowest job "Packed consumer (deployment skew, Cloudflare local workerd)" 9.3–9.4 min;
 "Packed consumer (full stack, adversarial smoke, multi-isolate)" 5.9–6.3 min.
 
-AFTER_PLACEHOLDER
+After (this PR, CI run 42087244007, success): **9.4 min wall** (below the 9.6 min baseline PR run and
+the 12 min target). Per step: the full-stack consumer step went from 3.0 to 3.4 min (+~25 s: the new
+requests, the log waits and the extra Analog-integration type check), multi-isolate from 0.6–0.7 to
+0.8 min, and the adversarial smoke from 1.6–1.9 to 2.1 min. The smoke and multi-isolate deltas are inside
+the observed run-to-run variance. The full-stack job is 7.1 min against 5.9–6.3 before, still below the
+slowest job ("deployment skew", 9.2 min), so the wall did not move. Release authorization is unchanged: it
+still requires the successful aggregate `Verify` of the exact main SHA.
+
+Hosted evidence on this branch (HOSTED CI):
+
+| Workflow                                  | Run         | Result                                                                                                                                                                            |
+| ----------------------------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| CI (11 mandatory jobs + aggregate Verify) | 42087244007 | success                                                                                                                                                                           |
+| Verify npm registry artifact              | 42087244079 | success (published 0.14.0 with the changed Server Components fixture)                                                                                                             |
+| Extended `registry`                       | 42087355393 | success: published full-stack 0.14.0, frozen candidate, A/B 0.13.0 → 0.14.0 → rollback, all bridged; the 7-mode failure checks pass on Node, workerd and the deployment rehearsal |
+| Extended `adversarial`                    | 42087361554 | success (all source mutations rejected)                                                                                                                                           |
+
+Not run: the real Cloudflare deployment (`full-stack-deployed-cloudflare.yml` with a deploy). The local
+workerd rehearsal passed; the deployed qualification of the `/ssr` entry is left for a release, since the
+published deployed path would still use the recipe until 0.15.0 is on npm.
 
 ## Changeset
 
