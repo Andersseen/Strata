@@ -129,7 +129,7 @@ jobs:
       # version. A skipped or no-op publish cannot pass this.
       - name: Align npm dist-tags
         if: steps.state.outputs.state == 'PUBLISH_REQUIRED' || steps.state.outputs.state == 'ALREADY_PUBLISHED'
-        run: pnpm release:sync-dist-tags
+        run: pnpm release:sync-dist-tags --published=${{ steps.state.outputs.unpublished }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 

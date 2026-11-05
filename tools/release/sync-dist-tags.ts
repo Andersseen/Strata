@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 
 import { run } from "../consumer/lib/exec.ts";
 
-import { awaitCompliantDistTags, planDistTags } from "./lib/dist-tags.ts";
+import { awaitCompliantDistTags, awaitVersionVisible, planDistTags } from "./lib/dist-tags.ts";
 import { readManifest, REGISTRY_PACKAGES } from "./lib/packages.ts";
 
 /**
@@ -11,21 +11,31 @@ import { readManifest, REGISTRY_PACKAGES } from "./lib/packages.ts";
  * tools/release/lib/dist-tags.ts (ADR-005): the version in each package.json,
  * once it is on npm, is `latest` when stable or `next` when a prerelease, and
  * `next` is never left behind `latest`. Idempotent and never moves a tag
- * backwards. A version not on npm yet is skipped.
+ * backwards. A version not on npm yet is skipped, EXCEPT a package this run
+ * just published (`--published=a,b`): that one is re-read with a bounded backoff
+ * and fails the step if it never becomes visible.
  *
  * Runs in .github/workflows/release.yml after `changeset publish`, which is
  * what repairs releases published before this policy.
  *
- *   --dry-run   print the planned moves without changing the registry
+ *   --dry-run          print the planned moves without changing the registry
+ *   --published=a,b    packages `changeset publish` just published (must become visible)
  */
 
 const REGISTRY = "https://registry.npmjs.org/";
 
 const args = new Set(process.argv.slice(2));
 const dryRun = args.has("--dry-run");
+const justPublished = new Set(
+  [...args]
+    .find((arg) => arg.startsWith("--published="))
+    ?.slice("--published=".length)
+    .split(",")
+    .filter(Boolean) ?? [],
+);
 
 for (const arg of args) {
-  if (arg !== "--dry-run") {
+  if (arg !== "--dry-run" && !arg.startsWith("--published=")) {
     console.error(`Unknown argument: ${arg}`);
     process.exit(2);
   }
@@ -53,8 +63,19 @@ for (const pkg of REGISTRY_PACKAGES) {
   const { name, version } = readManifest(join(repoRoot, pkg.dir));
 
   try {
-    const published = npm(["view", `${name}@${version}`, "version"]);
-    if (published.status !== 0 || published.stdout.trim() !== version) {
+    const visible = (): boolean => {
+      const view = npm(["view", `${name}@${version}`, "version", "--prefer-online"]);
+
+      return view.status === 0 && view.stdout.trim() === version;
+    };
+
+    if (justPublished.has(name)) {
+      const reads = await awaitVersionVisible(
+        visible,
+        (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+      );
+      console.log(`${label} ${name}@${version} visible on npm after ${reads} read(s).`);
+    } else if (!visible()) {
       console.log(`${label} ${name}@${version} is not on npm; skipping.`);
       continue;
     }

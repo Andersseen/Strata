@@ -1,5 +1,10 @@
 # Technical risk register
 
+Release (2026-11-05): Release run 42034642481 published `@strata-sc/analog@0.12.1` but left `next` at 0.12.0 and
+failed, because npm did not yet show the just-published version to `sync-dist-tags` and `verify`. Fixed in tooling
+(bounded visibility re-reads for just-published packages); the dist-tag is repaired by the next Release run, not by
+hand. See the [M5 report addendum](research/m5-production-qualification.md).
+
 M5 qualification (2026-11-05, [report](research/m5-production-qualification.md)): no product defect found. Reproducibility risk recorded: the
 fresh consumer tree floats `@analogjs/content` to 2.9.6, whose optional peer `sharp ^0.33.5` conflicts with
 Wrangler's pinned `sharp 0.35.4`; npm writes a lock its own `npm ci` rejects. The frozen candidate reinstalls it

@@ -9,6 +9,7 @@ import {
   countChangesets,
   discardEmptyChangesets,
   verifyPublication,
+  verifyPublicationEventually,
 } from "./lib/release-state.ts";
 
 /**
@@ -80,7 +81,12 @@ if (command === "classify") {
     process.exitCode = 1;
   }
 } else if (command === "verify") {
-  const verdict = await verifyPublication({ packages, readRegistry });
+  // Bounded re-reads while a just-published version is not yet visible (Release run
+  // 42034642481); any other problem, or one that persists, still fails.
+  const verdict = await verifyPublicationEventually(
+    () => verifyPublication({ packages, readRegistry }),
+    (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  );
 
   for (const name of published) {
     const version = packages.find((pkg) => pkg.name === name)?.version;
