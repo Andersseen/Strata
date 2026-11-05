@@ -1,9 +1,9 @@
 {
   "schema": 1,
   "id": "402f33e953f9a04b",
-  "capturedAt": "2026-11-05T15:05:29.703Z",
-  "sourceSha": "e5590fc7ffccd9acfb9cab69c1988577e84d4096",
-  "fixtureSourceDigest": "82c56af9b9dafa2465b8382107c80291efa8938f8699d009d0336d5364126f6f",
+  "capturedAt": "2026-11-05T15:49:23.160Z",
+  "sourceSha": "419359f71f5ee7c0873a6d1e854d9b49fc695ffc",
+  "fixtureSourceDigest": "d3dd7119a712d253fd8c00f5bc927293cc4293e39a6d9b483d1aeaa728d45761",
   "registry": "https://registry.npmjs.org",
   "strata": {
     "@strata-sc/core": {
