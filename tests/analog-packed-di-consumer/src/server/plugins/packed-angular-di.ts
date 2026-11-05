@@ -13,6 +13,7 @@ import type {
 } from "@strata-sc/analog";
 import { defineNitroPlugin } from "nitropack/runtime";
 
+import { registerPackedComposition } from "../strata/composition.registration";
 import { PackedDiController } from "../strata/controller";
 import {
   PACKED_DI_PRINCIPAL,
@@ -97,4 +98,7 @@ export default defineNitroPlugin(async (nitroApp) => {
     interceptors: [interceptor],
     controllerFactory: factory,
   });
+  // A second, independent registration on the same router: its own guard, two interceptors,
+  // factory, settlement observer and request correlation, over the same application injector.
+  registerPackedComposition(nitroApp.router, application.injector);
 });
