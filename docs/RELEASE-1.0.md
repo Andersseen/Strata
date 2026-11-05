@@ -1,5 +1,17 @@
 # Strata 1.0 exit criteria
 
+**Reconciliation 2026-11-05 ([stabilization report](research/m3-m4-contract-stabilization.md)).** No item below is
+ticked or unticked by this work: every one still lacks a qualified release candidate, hosted and deployed evidence or a
+real application. Items that became **stronger**: Angular/Analog integration (full composition matrix through the packed
+consumer on Node, workerd NO-GO characterized as failing safely), stable public API (machine-checked inventory of the
+installed surface), failure behavior (hydration commit rollback through the installed tarball; SSR classifier negative
+controls), positive-control leak detectors (consumer DI markers on Node and Pages builds), compatibility matrix
+(current tuple and evidence levels in COMPATIBILITY). One production defect was found and fixed (keep-alive connection
+desynchronisation after an oversized validated body, `@strata-sc/analog` patch). Issue #117 stays open: hosted Release
+runs show success and a blocked non-successful source CI (run 41421263824), but cancelled, pending and stale-main
+transitions have not been observed. Two Release failures were dist-tag read-after-write lag, now handled with a bounded
+re-read (unit evidence only).
+
 The source-mutated authorization and confidentiality consumer qualification passed locally for packed and published-registry artifacts; hosted PR checks remain pending. This is test evidence only. It does not qualify production tenant isolation or close M4/M5/1.0 criteria.
 
 The full-stack authorization fixture has packed and published-registry Node/workerd/Chromium evidence, and PR #166 CI, documentation and registry verification workflows passed. Source-mutated ownership/data-substitution controls and separate Extended workflow runs remain open. It does not close the M4/M5 tenant-isolation gate or support a 1.0 claim. See [the report](research/full-stack-authorization-isolation.md).
@@ -96,15 +108,22 @@ compatibility matrix; do not check it based on intent or a demonstration.
 ## Framework
 
 - [ ] Stable documented public API with supported member/inheritance/registration semantics.
+      _Evidence so far (not certified):_ the installed surface of all three packages is machine-checked
+      (declarations = runtime exports = reviewed `tools/package-consumer/public-api.json`), and override /
+      factory-dispatch semantics are pinned (2026-11-05). Every API is still experimental; no stability
+      promise exists.
 - [ ] Controllers, request inputs, validation, safe errors, providers/lifetimes and authorization
       are usable in real applications; the chosen guard/interceptor execution model is tested.
 - [ ] Angular/Analog integration and consumer compilation pass development and production checks
       through the documented supported extension points.
       The 2026-10-20 [DI HTTP composition report](research/analog-di-http-composition.md)
-      qualifies the internal fixture on Node; the minimal external packed Node profile is only
-      partially qualified ([report](research/analog-packed-di-consumer.md)). The full packed
-      validation/failure/bundle matrix, shared SSR/controller DI, real application adoption and the
-      known workerd JIT limitation remain open, so this release gate stays unticked.
+      qualifies the internal fixture on Node; the minimal external packed Node profile was only
+      partially qualified ([report](research/analog-packed-di-consumer.md)). _2026-11-05:_ the packed
+      consumer now runs the full validation/failure/cleanup/confidentiality matrix through installed
+      packages on Node and characterizes the workerd JIT path as a safe NO-GO
+      ([report](research/m3-m4-contract-stabilization.md)). Shared SSR/controller DI, real application
+      adoption, hosted/deployed evidence and the workerd JIT limitation remain open, so this release
+      gate stays unticked.
 - [ ] Strata uses no legacy decorators, parameter decorators, `emitDecoratorMetadata` or
       `reflect-metadata`; compiler coexistence with Angular is demonstrated.
 - [ ] Core remains independent of H3/Angular/Nitro; packages each have an owned responsibility.

@@ -161,7 +161,10 @@ application, which can still read the native `request.headers`.
 UTF-8 (or no declared charset). `readValidatedForm` accepts only
 `application/x-www-form-urlencoded`; multipart uploads are not supported. Both
 validated body methods default to a 1 MiB maximum measured from consumed bytes,
-not `Content-Length` or JavaScript string length. Form input accepts no charset
+not `Content-Length` or JavaScript string length. On Node (Nitro `node-server`,
+Analog dev) the rest of an oversized body is drained and discarded rather than
+buffered, so the 413 leaves the keep-alive connection usable for the next
+request. Form input accepts no charset
 declaration or one UTF-8 declaration (`utf-8` / `utf8`, case-insensitive,
 optionally quoted); unsupported, malformed or duplicate charset declarations
 answer 415. Empty JSON validates as `undefined`; an empty form validates as an
