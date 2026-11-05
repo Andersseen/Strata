@@ -1,5 +1,13 @@
 # Strata 1.0 exit criteria
 
+**SSR failure contract (branch `feat/ssr-failure-contract`, [report](research/ssr-failure-contract.md)).**
+No item is ticked; the matrix is unchanged (PASS 1, PARTIAL 27, BLOCKED 0, NOT RUN 4). #15 stays
+PARTIAL with stronger evidence: the unexpected-render contract is now an opt-in Strata API
+(`@strata-sc/server-components/ssr`) qualified through the installed package on Node and local workerd (Chromium
+hydration and navigation unchanged in the same opted-in app), instead of fixture code each consumer copies. Still open for #15: no real application uses it,
+it is opt-in rather than default, streaming stays unsupported, and the published deployed qualification
+of the new entry waits for a release.
+
 **Pre-1.0 hardening 2026-11-05 ([report](research/pre1-runtime-hardening.md)).** No item is ticked. Matrix: PASS 1, PARTIAL 27, BLOCKED 0,
 NOT RUN 4. The render-failure item (#15) moves from BLOCKED to PARTIAL: a supported public seam exists
 and an application-owned contract is qualified packed, on local workerd and deployed, but Strata does
@@ -231,8 +239,10 @@ complete M4, M5 or Strata 1.0; see the
       [report](research/server-component-failure-recovery.md)) pins render, serialization, preflight, commit
       rollback, sibling-host isolation and navigation/Back/re-entry failures with one `ErrorHandler`
       report each and no retry; streaming is explicitly **unsupported** (not qualified). Still open: a
-      Server Component render error answers HTTP 200 (empty outlet or half-rendered component) with no
-      supported general Strata seam to change it. The narrow consumer-owned expected-service
+      Server Component render error answers HTTP 200 (empty outlet or half-rendered component) unless
+      the application opts into `@strata-sc/server-components/ssr`, which answers a generic HTTP 500
+      before the buffered response is written ([report](research/ssr-failure-contract.md)); it is opt-in
+      and unused by any real application. The narrow consumer-owned expected-service
       recovery fixture passes HTTP 503/no-store on Node and local workerd, but is not a general
       fallback API and does not close this criterion ([report](research/server-component-ssr-response.md)).
       The 0.7 candidate adds a build-time production compilation gate and class-labelled SSR integrity

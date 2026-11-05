@@ -16,6 +16,7 @@ export function tscDeclarations(
   dir: string,
   label: string,
   env: NodeJS.ProcessEnv,
+  options: { readonly ssrEntry: boolean } = { ssrEntry: true },
 ): { ok: boolean; version: string } {
   const tsc = join(dir, "node_modules", "typescript", "bin", "tsc");
   const version = installedVersion(dir, "typescript");
@@ -47,7 +48,21 @@ export function tscDeclarations(
     [SERVER_COMPONENTS.name, "dist/vite/index.d.ts"],
     [SERVER_COMPONENTS.name, "dist/server-only/index.d.ts"],
     [SERVER_COMPONENTS.name, "dist/fesm2022/navigation/index.d.ts"],
+    // Absent only for a published tuple that predates the entry (ssr-recipe-bridge.ts).
+    ...(options.ssrEntry
+      ? [[SERVER_COMPONENTS.name, "dist/fesm2022/ssr/index.d.ts"] as [string, string]]
+      : []),
   ];
+
+  // The documented Analog integration of the /ssr entry against Analog's real render()/RESPONSE.
+  // skipLibCheck is true for this one project only: Analog's declarations reference Nitro and database
+  // driver types the consumer does not install. The consumer's own file is still checked strictly.
+  const analogSsr = options.ssrEntry
+    ? run(process.execPath, [tsc, "-p", "tsconfig.check.analog-ssr.json", "--noEmit"], {
+        cwd: dir,
+        env,
+      })
+    : undefined;
 
   console.log(
     `${label}: typescript@${version}, ${listed.length} files, ${strata.length} from the installed Strata packages, ${diagnostics.length} diagnostic(s)`,
@@ -62,7 +77,7 @@ export function tscDeclarations(
         diagnostics.slice(0, 8).join("\n") || results.map((r) => r.stderr).join("\n"),
       ),
       check(
-        `${label}: every public entry's declaration (core, analog, server-components, /vite, /navigation, /server-only) is read from node_modules`,
+        `${label}: every public entry's declaration (core, analog, server-components, /vite, /navigation, /ssr, /server-only) is read from node_modules`,
         entries.every(([name, file]) =>
           strata.some((s) => s.endsWith(`/node_modules/${name}/${file}`)),
         ) && strata.every((file) => file.includes("/node_modules/@strata-sc/")),
@@ -73,6 +88,15 @@ export function tscDeclarations(
           .map(([name, file]) => `${name}/${file}`)
           .join(", "),
       ),
+      ...(analogSsr
+        ? [
+            check(
+              `${label}: the documented Analog integration of /ssr type-checks against Analog's real render() and RESPONSE (strict; skipLibCheck only for Analog's own declarations)`,
+              analogSsr.status === 0,
+              `${analogSsr.stdout}${analogSsr.stderr}`.slice(0, 1_200),
+            ),
+          ]
+        : []),
       check(
         `${label}: no file resolves from the repository or from package src/`,
         fromRepo.length === 0 && !listed.some((file) => /@strata-sc\/[^/]+\/src\//.test(file)),

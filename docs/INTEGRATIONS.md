@@ -278,8 +278,10 @@ Do not rely on any of these (see the package
   `<a href>` stays valid.
 - Streaming SSR; unregistered or arbitrary package components as islands; content projection into
   islands (not qualified); a request-scoped Server Component context.
-- Server render errors answer HTTP 200 (current Angular/Analog behaviour), see
-  [failure and recovery](research/server-component-failure-recovery.md).
+- Server render errors answer HTTP 200 (current Angular/Analog behaviour) unless the application
+  opts into `@strata-sc/server-components/ssr` (generic HTTP 500 for buffered SSR), see
+  [failure and recovery](research/server-component-failure-recovery.md) and the
+  [SSR failure contract](research/ssr-failure-contract.md).
 
 ### Evidence and qualification
 

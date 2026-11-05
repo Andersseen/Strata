@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.runtime.json",
+  "compilerOptions": {
+    "rootDir": "src/ssr",
+    "outDir": "dist/fesm2022/ssr"
+  },
+  "include": ["src/ssr/**/*.ts"],
+  "exclude": ["src/**/*.test.ts"]
+}

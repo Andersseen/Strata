@@ -1,5 +1,13 @@
 # Testing strategy and evidence
 
+SSR failure contract ([report](research/ssr-failure-contract.md)): unit tests of request-owned failure
+tracking (`packages/server-components/src/ssr/failure-contract.test.ts`), package-boundary checks for
+the `/ssr` entry, and the existing mandatory full-stack packed consumer, which now imports the contract
+from the installed tarball and adds non-`Error` rejection, render-set header, handled-error and
+application-404 cases, exactly-once redacted logging and leak-predicate negative controls on Node and
+local workerd. The packed Server Components consumer is the not-opted-in control (native HTTP 200 pinned).
+No new CI job or command.
+
 Pre-1.0 hardening ([report](research/pre1-runtime-hardening.md)): mandatory CI runs in eleven jobs whose command set is fixed by
 `tools/ci/required-commands.json` and checked by `pnpm test:ci`. New: `pnpm test:full-stack-multi-isolate`
 (F6 reproduction across independent Node and workerd instances, mandatory), read receipts and the

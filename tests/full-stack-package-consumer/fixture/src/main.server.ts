@@ -2,15 +2,16 @@ import "@angular/platform-server/init";
 import { render } from "@analogjs/router/server";
 import { REQUEST as ANALOG_REQUEST } from "@analogjs/router/tokens";
 import { REQUEST_CONTEXT, inject } from "@angular/core";
+import { withStrataSsrFailureContract } from "@strata-sc/server-components/ssr";
 
 import { App } from "./app/app";
 import { config } from "./app/app.config.server";
-import { withRenderFailureStatus } from "./app/render-failure-status";
 import { resolveTenant } from "./server/strata/tenant-authorization";
 
-// The application owns its server entry: an unexpected render failure becomes a generic HTTP 500
-// before Analog writes the response (app/render-failure-status.ts).
-export default withRenderFailureStatus(
+// Opt-in SSR failure contract from the INSTALLED package: an unexpected render failure becomes a
+// generic HTTP 500 (no-store) before Analog writes the response. The ErrorHandler half is registered
+// in app.config.server.ts.
+export default withStrataSsrFailureContract(
   render(App, config, [
     {
       provide: REQUEST_CONTEXT,

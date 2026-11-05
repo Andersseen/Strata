@@ -91,6 +91,12 @@ import type { SsrExpectation, SsrReply } from "./lib/ssr-integrity.ts";
 const TITLE = "server-component packed-package consumer qualification";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const fixtureTemplate = join(repoRoot, "tests", "server-component-package-consumer", "fixture");
+/**
+ * Thrown by the fixture's ordinary (browser-visible) `native-render-failure` page. A log-redaction
+ * probe for the application that does NOT opt into the SSR failure contract, not a confidentiality
+ * canary.
+ */
+const NATIVE_RENDER_FAILURE_CANARY = "NATIVE_RENDER_FAILURE_PRIVATE_4b8e";
 const angularWidgetsSource = join(
   repoRoot,
   "tests",
@@ -1432,6 +1438,48 @@ try {
   } finally {
     await tracked.close();
   }
+
+  // This application does NOT opt into `@strata-sc/server-components/ssr`. Run last on this
+  // server: the native failure deliberately writes Angular's default ERROR line to its log.
+  section("Production server: native Analog SSR failure without the opt-in contract");
+
+  const nativeLogBefore = sanitize(node.output()).length;
+  const nativeFailure = await httpGet(`${node.baseUrl}/native-render-failure`);
+  const nativeLog =
+    (await until(() => {
+      const text = sanitize(node.output()).slice(nativeLogBefore);
+      return text.includes(NATIVE_RENDER_FAILURE_CANARY) ? text : undefined;
+    }, 5_000)) ?? sanitize(node.output()).slice(nativeLogBefore);
+
+  nodeOk.push(
+    check(
+      "not opted in: the installed /ssr entry and its failure document are absent from this application's server and browser output",
+      [...serverJs, ...browserJs].every(
+        (file) =>
+          !readFileSync(dist(file), "utf8").includes("[strata:ssr]") &&
+          !readFileSync(dist(file), "utf8").includes("This page could not be rendered."),
+      ) &&
+        !mapSources([...server, ...browser]).some((source) =>
+          /@strata-sc\/server-components\/dist\/fesm2022\/ssr\//.test(source),
+        ) &&
+        // Positive control: the same path shape does match the installed runtime entry.
+        mapSources(browser).some((source) =>
+          /@strata-sc\/server-components\/dist\/fesm2022\//.test(source),
+        ),
+    ),
+    check(
+      "not opted in: a template that throws after partial output keeps native Analog's documented limitation (HTTP 200, not the generic 500)",
+      nativeFailure.status === 200 &&
+        !nativeFailure.body.includes('id="render-failure"') &&
+        !nativeFailure.body.includes(NATIVE_RENDER_FAILURE_CANARY),
+      `${nativeFailure.status} ${nativeFailure.body.slice(0, 200)}`,
+    ),
+    check(
+      "negative control: the log-redaction assertion detects the private message Angular's default ErrorHandler prints natively",
+      nativeLog.includes(NATIVE_RENDER_FAILURE_CANARY) && !nativeLog.includes("[strata:ssr]"),
+      nativeLog.slice(0, 300),
+    ),
+  );
 
   await node.stop();
   servers.length = 0;

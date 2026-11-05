@@ -11,5 +11,5 @@
     "useDefineForClassFields": false,
     "types": ["node"]
   },
-  "files": ["src/check/declarations.ts"]
+  "files": ["src/check/declarations.ts", "src/check/ssr-failure-example.ts"]
 }

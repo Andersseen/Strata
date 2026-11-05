@@ -214,3 +214,48 @@ describe("ServerComponent", () => {
     expect(Reflect.ownKeys(Marked)).toEqual(before);
   });
 });
+
+describe("ssr entry", () => {
+  const ssrDir = join(packageDir, "src", "ssr");
+  const files = readdirSync(ssrDir).filter(
+    (name) => name.endsWith(".ts") && !name.endsWith(".test.ts"),
+  );
+
+  it("is exported as a separate, opt-in subpath", () => {
+    expect(manifest.exports["./ssr"]).toEqual({
+      types: "./dist/fesm2022/ssr/index.d.ts",
+      default: "./dist/fesm2022/ssr/index.js",
+    });
+  });
+
+  it("imports only @angular/core and its own modules: no Analog, Nitro, H3 or Node dependency", () => {
+    for (const specifier of importsOf(ssrDir)) {
+      expect(specifier === "@angular/core" || /^\.\/[\w-]+\.js$/.test(specifier), specifier).toBe(
+        true,
+      );
+    }
+  });
+
+  it("holds failure state only in a WeakMap keyed by the request's response object", () => {
+    for (const name of files) {
+      const source = readFileSync(join(ssrDir, name), "utf8");
+
+      expect(source, name).not.toMatch(/\b(globalThis|localStorage|sessionStorage|process)\b/);
+      const moduleState = [...source.matchAll(/^(?:const|let|var) (\w+) = new (\w+)/gm)];
+      expect(
+        moduleState.map(([, binding, kind]) => `${binding}:${kind}`),
+        name,
+      ).toEqual(name === "failure-contract.ts" ? ["rendering:WeakMap"] : []);
+      expect(source, name).not.toMatch(/^let /m);
+    }
+  });
+
+  it("is not reachable from the browser runtime or navigation entries", () => {
+    const browserImports = [
+      ...importsOf(join(packageDir, "src", "runtime")),
+      ...importsOf(join(packageDir, "src", "navigation")),
+    ];
+
+    expect(browserImports.filter((specifier) => specifier.includes("ssr"))).toEqual([]);
+  });
+});

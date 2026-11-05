@@ -1,5 +1,23 @@
 # Current implementation audit
 
+## SSR failure contract (branch `feat/ssr-failure-contract`)
+
+Package change: `@strata-sc/server-components` minor, new opt-in `/ssr` entry
+([report](research/ssr-failure-contract.md)).
+
+- **API**: `provideStrataSsrFailureHandler(RESPONSE)` + `withStrataSsrFailureContract(render)` +
+  `STRATA_SSR_FAILURE_DOCUMENT`. Imports only `@angular/core`; request-owned `WeakMap` state keyed by the
+  response object; never in the browser graph. IMPLEMENTED, UNIT (14 tests + package-boundary checks).
+- **Qualified through the installed tarball** (full-stack packed consumer, Node production + local
+  workerd): constructor, injected service, template after partial output, boundary refusal, bootstrap
+  initializer, non-`Error` initializer rejection and render-set private header all answer 500 / `no-store`
+  / generic document; handled error and application 404 unchanged; 24-way overlap; one redacted log line
+  per failed request. TS 6.0.3 and 5.9.2 declarations; public API inventory updated.
+- **Not opted in**: the packed Server Components consumer pins native HTTP 200 for a throwing page, the
+  entry absent from its output, and Angular's default log exposing the private message (negative control).
+- **Not changed**: streaming SSR, committed responses, hydration errors after delivery, Router subtree
+  navigation. 1.0 criterion #15 stays PARTIAL (no real application uses the contract).
+
 ## Pre-1.0 hardening (branch `stabilize/pre1-ci-edge-runtime-hardening`)
 
 Tooling, fixtures, CI and documentation only; no package change ([report](research/pre1-runtime-hardening.md)).
