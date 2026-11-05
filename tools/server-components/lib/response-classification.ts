@@ -56,8 +56,50 @@ export interface AnomalySample {
   /** Bounded, and replaced when it would carry a synthetic private value. */
   readonly bodyPrefix: string;
   readonly privateValueInBody: boolean;
+  /**
+   * Where a body first differs from the expected baseline: the character offset, both lengths, a
+   * bounded window of each around the offset and the build stamps on each side. Absent when the body
+   * was not compared or a private value was found (nothing is copied then).
+   */
+  readonly bodyDifference?: BodyDifference;
   readonly elapsedMs: number;
   readonly transportError: string | null;
+}
+
+export interface BodyDifference {
+  readonly offset: number;
+  readonly expectedLength: number;
+  readonly actualLength: number;
+  readonly expectedWindow: string;
+  readonly actualWindow: string;
+  readonly expectedBuilds: readonly string[];
+  readonly actualBuilds: readonly string[];
+}
+
+export const DIFFERENCE_WINDOW = 80;
+
+const buildsIn = (html: string): string[] => [
+  ...new Set([...html.matchAll(/data-strata-build="([^"]*)"/g)].map((m) => m[1]!)),
+];
+
+/** The first difference between two public bodies, bounded; never called for a private body. */
+export function bodyDifference(expected: string, actual: string): BodyDifference {
+  let offset = 0;
+
+  while (offset < expected.length && offset < actual.length && expected[offset] === actual[offset])
+    offset++;
+
+  const from = Math.max(0, offset - DIFFERENCE_WINDOW / 2);
+
+  return {
+    offset,
+    expectedLength: expected.length,
+    actualLength: actual.length,
+    expectedWindow: expected.slice(from, from + DIFFERENCE_WINDOW),
+    actualWindow: actual.slice(from, from + DIFFERENCE_WINDOW),
+    expectedBuilds: buildsIn(expected),
+    actualBuilds: buildsIn(actual),
+  };
 }
 
 export const FINGERPRINT_HEADER = "x-fullstack-catalog";
@@ -159,6 +201,12 @@ export function classifyReply(
         ? "[withheld: private value]"
         : reply.body.slice(0, BODY_PREFIX_LIMIT),
       privateValueInBody,
+      ...(!bodyOk &&
+      expected.body !== null &&
+      !privateValueInBody &&
+      leaks(expected.body).length === 0
+        ? { bodyDifference: bodyDifference(expected.body, reply.body) }
+        : {}),
       elapsedMs: Math.round(elapsedMs * 10) / 10,
       transportError: null,
     },
