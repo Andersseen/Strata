@@ -112,3 +112,21 @@ describe("Angular hydration template ids (per-isolate numbering)", () => {
     ).toBe("unclassified");
   });
 });
+
+describe("concurrent-round body comparison (F5 residual, deployed run 42053087187)", async () => {
+  const { bodyMatchesBaseline } = await import("./lib/full-stack-remote.ts");
+  const doc = (ids: string, text = "Product 42") =>
+    `<!DOCTYPE html><html><body><h1>${text}</h1><script id="ng-state" type="application/json">{"__nghData__":[{"t":{"0":"${ids}"}}]}</script></body></html>`;
+
+  it("accepts a document whose only difference is Angular's per-isolate template ids", () => {
+    expect(bodyMatchesBaseline(doc("t0"), doc("t3"), ["req-1"])).toBe(true);
+  });
+
+  it("still rejects any other difference, an echoed request id or a private canary", () => {
+    expect(bodyMatchesBaseline(doc("t0"), doc("t3", "Product 7"), ["req-1"])).toBe(false);
+    expect(bodyMatchesBaseline(doc("t0"), `${doc("t0")}req-1`, ["req-1"])).toBe(false);
+    expect(bodyMatchesBaseline(doc("t0"), doc("t0", "ALPHA_CONFIDENTIAL_71c1"), ["req-1"])).toBe(
+      false,
+    );
+  });
+});
