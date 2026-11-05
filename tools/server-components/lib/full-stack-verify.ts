@@ -831,8 +831,9 @@ export async function httpSuite(
   if (options.log) {
     ok.push(
       check(
-        `${label}: every failure reached the server-side ErrorHandler log (private text stays server-side)`,
-        sanitize(options.log()).includes(FULL_STACK_MARKERS.renderFailure),
+        `${label}: every failure reached the ErrorHandler, which logs a redacted line without the private error text`,
+        sanitize(options.log()).includes("[render-failure] Error during server render") &&
+          !sanitize(options.log()).includes(FULL_STACK_MARKERS.renderFailure),
       ),
     );
   }

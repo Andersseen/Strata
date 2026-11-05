@@ -19,7 +19,8 @@ import type { ServerContext } from "@analogjs/router/tokens";
  *    `main.server.ts` exports.
  * A failed render is marked on ITS response object; the wrapper sees the mark after the buffered
  * render and, before anything is committed, replaces the incomplete document with a generic 500
- * page. Errors still reach the default handler (server log only); no error text reaches the client.
+ * page. The server log gets one redacted line per failure (class name only); no error text reaches
+ * the client or the log.
  */
 const failedResponses = new WeakSet<object>();
 
@@ -29,7 +30,11 @@ export class RenderFailureErrorHandler extends ErrorHandler {
 
   override handleError(error: unknown): void {
     if (this.response) failedResponses.add(this.response);
-    super.handleError(error);
+    // Redacted: an error message may carry request or tenant data, and server logs are a public
+    // surface for this fixture's log-redaction checks. Name the failure class only.
+    console.error(
+      `[render-failure] ${error instanceof Error ? error.name : typeof error} during server render`,
+    );
   }
 }
 
@@ -48,9 +53,12 @@ export function withRenderFailureStatus(render: AnalogRender): AnalogRender {
     let html: string | undefined;
     try {
       html = await render(url, document, context);
-    } catch {
+    } catch (error) {
       // Bootstrap or initializer failures reject before any document exists.
       failedResponses.add(context.res);
+      console.error(
+        `[render-failure] ${error instanceof Error ? error.name : typeof error} during server render`,
+      );
     }
     if (html === undefined || failedResponses.has(context.res)) {
       failedResponses.delete(context.res);
