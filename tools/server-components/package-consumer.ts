@@ -23,6 +23,7 @@ import type { CommandResult } from "../consumer/lib/exec.ts";
 import { EXCLUDED_PACKAGES, REGISTRY_PACKAGES } from "../release/lib/packages.ts";
 
 import { observeBrowser } from "./lib/browser.ts";
+import { assessCommitRollback, observeCommitRollback } from "./lib/commit-rollback.ts";
 import {
   EXPECTED_EVIDENCE,
   MARKERS,
@@ -1241,6 +1242,8 @@ try {
       count: packedBudgetRefusal.countAfterClick,
     }),
   );
+  // Commit-phase failure through the installed tarball: host 2 of /pair rolls back, host 1 commits.
+  nodeOk.push(assessCommitRollback("Node", await observeCommitRollback(`${node.baseUrl}/pair`)));
 
   nodeOk.push(
     check(
@@ -2309,6 +2312,7 @@ import type { ProductRepository as RepositoryType } from "@app/product/types-bar
         count: packedWorkerdBudgetRefusal.countAfterClick,
       }),
     ),
+    assessCommitRollback("workerd", await observeCommitRollback(`${wrangler.baseUrl}/pair`)),
     check(
       "workerd: the island hydrates by DOM identity",
       cfBrowser.hydratedWithinTimeout &&
