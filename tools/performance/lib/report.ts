@@ -139,6 +139,13 @@ export interface PerfReport {
   };
   readonly arms: readonly ArmReport[];
   readonly negativeControls: readonly NegativeControl[];
+  /** Deterministic browser-size budgets (schema 3; evaluated after validation). */
+  readonly budgets?: readonly {
+    readonly name: string;
+    readonly limitBytes: number;
+    readonly measuredBytes: number | null;
+    readonly verdict: string;
+  }[];
 }
 
 // ---------------------------------------------------------------------------
@@ -439,6 +446,21 @@ export function renderMarkdown(report: PerfReport): string {
     }
   }
 
+  if (report.budgets?.length)
+    out.push(
+      "**Deterministic size budgets** (enforced; browser bytes only)",
+      "",
+      table(
+        ["budget", "measured", "limit", "verdict"],
+        report.budgets.map((b) => [
+          b.name,
+          b.measuredBytes === null ? "n/a" : formatBytes(b.measuredBytes),
+          formatBytes(b.limitBytes),
+          b.verdict,
+        ]),
+      ),
+      "",
+    );
   if (controllerCountOf(report) === 8) out.push(...scaleMarkdown(report));
 
   return out.join("\n");

@@ -46,6 +46,7 @@ import { ARMS, assembleArm, parseIslandCount, strataPackagesOf } from "./lib/arm
 import type { ArmId, ArmSpec } from "./lib/arms.ts";
 import { measureTarget, startNodeServer, startWithPortRetry, timedGet } from "./lib/bench.ts";
 import type { Target } from "./lib/bench.ts";
+import { evaluateBudgets } from "./lib/budgets.ts";
 import {
   MARKERS,
   apiProblems,
@@ -92,8 +93,9 @@ import type { IslandFault } from "./lib/smoke.ts";
  * measured on the Nitro node-server output and on local Wrangler/workerd.
  * (docs/research/full-stack-performance-baseline.md)
  *
- * It asserts correctness strictly and performance NOT AT ALL: no latency or size threshold
- * exists. Output: report.json + summary.md in the evidence directory (printed at the end).
+ * It asserts correctness strictly and only two deterministic browser-size budgets
+ * (lib/budgets.ts); no latency or server-size threshold exists. Output: report.json + summary.md in
+ * the evidence directory (printed at the end).
  *
  * Environment overrides (all recorded in the report):
  *   STRATA_PERF_REPS (3)  STRATA_PERF_BUILD_REPS (3)  STRATA_PERF_REQUESTS (200)
@@ -1392,9 +1394,24 @@ async function main(): Promise<boolean> {
     problems.join("; "),
   );
 
-  writeFileSync(join(evidenceDir, "report.json"), `${JSON.stringify(report, null, 2)}\n`);
-  writeFileSync(join(evidenceDir, "summary.md"), `${renderMarkdown(report)}\n`);
-  console.log(`\n${renderMarkdown(report)}`);
+  section(
+    "Deterministic size budgets (browser bytes only; latency and server size are informational)",
+  );
+
+  const budgets = evaluateBudgets(report);
+  const budgetsOk = budgets.every((budget) =>
+    check(
+      `budget ${budget.name}: ${budget.measuredBytes ?? "n/a"} B ≤ ${budget.limitBytes} B (${budget.verdict})`,
+      budget.verdict !== "FAIL",
+      budget.description,
+    ),
+  );
+
+  const published: PerfReport = { ...report, budgets };
+
+  writeFileSync(join(evidenceDir, "report.json"), `${JSON.stringify(published, null, 2)}\n`);
+  writeFileSync(join(evidenceDir, "summary.md"), `${renderMarkdown(published)}\n`);
+  console.log(`\n${renderMarkdown(published)}`);
   console.log(
     `\nreport: ${join(evidenceDir, "report.json")}\nsummary: ${join(evidenceDir, "summary.md")}`,
   );
@@ -1402,7 +1419,7 @@ async function main(): Promise<boolean> {
     if (!arm.correctness.ok)
       console.log(`arm ${arm.id} FAILED correctness: ${arm.correctness.problems.join("; ")}`);
 
-  return problems.length === 0 && arms.every((arm) => arm.correctness.ok);
+  return problems.length === 0 && budgetsOk && arms.every((arm) => arm.correctness.ok);
 }
 
 let ok = false;
@@ -1416,6 +1433,6 @@ try {
 }
 
 console.log(
-  `\n${ok ? "PASS" : "FAIL"}: full-stack performance baseline (correctness only; no performance threshold exists)`,
+  `\n${ok ? "PASS" : "FAIL"}: full-stack performance baseline (correctness and deterministic browser-size budgets; no latency threshold exists)`,
 );
 process.exit(ok ? 0 : 1);

@@ -18,8 +18,10 @@ name: Extended checks
 # - Weekly (Monday 04:00 UTC) runs all suites; `workflow_dispatch` runs one or all with custom workload.
 # - No deployment, no npm publication, no Cloudflare secrets, no write to any external service
 #   (`permissions: contents: read`; no `secrets.*` is referenced).
-# - The performance job asserts correctness only. There is deliberately NO latency or size gate:
-#   hosted runners are noisy and the JSON report is evidence, not a regression check.
+# - The performance jobs assert correctness and two deterministic browser-size budgets (controllers add
+#   0 B; Server Components overhead <= 5 KiB gzip; byte-identical across builds and platforms). There is
+#   deliberately NO latency gate and no server-size gate: hosted runners are noisy and server size
+#   depends on application shape. The JSON report is evidence.
 on:
   schedule:
     - cron: "0 4 * * 1"
