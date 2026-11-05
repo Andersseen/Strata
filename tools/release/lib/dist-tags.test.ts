@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 
 import { describe, it } from "vitest";
 
-import { compareVersions, distTagFor, planDistTags } from "./dist-tags.ts";
+import { awaitCompliantDistTags, compareVersions, distTagFor, planDistTags } from "./dist-tags.ts";
 
 describe("compareVersions", () => {
   it("orders by semver precedence", () => {
@@ -73,5 +73,65 @@ describe("planDistTags", () => {
   it("never moves a tag backwards", () => {
     assert.deepEqual(planDistTags({ latest: "0.3.0", next: "1.0.0-rc.1" }, "0.2.1"), []);
     assert.deepEqual(planDistTags({ latest: "0.9.0", next: "1.0.0-rc.2" }, "1.0.0-rc.1"), []);
+  });
+});
+
+describe("awaitCompliantDistTags", () => {
+  const record =
+    (waits: number[]) =>
+    (ms: number): Promise<void> => {
+      waits.push(ms);
+      return Promise.resolve();
+    };
+  const options = { attempts: 4, firstDelayMs: 10, maxDelayMs: 25 };
+  const reads = (...sequence: Record<string, string>[]) => {
+    let index = 0;
+    return () => sequence[Math.min(index++, sequence.length - 1)]!;
+  };
+
+  it("returns on the first read when the update is already visible", async () => {
+    const waits: number[] = [];
+    const result = await awaitCompliantDistTags(
+      reads({ latest: "0.14.0", next: "0.14.0" }),
+      "0.14.0",
+      record(waits),
+      options,
+    );
+
+    assert.equal(result.attempts, 1);
+    assert.deepEqual(waits, []);
+  });
+
+  it("waits out a stale read after a successful update (hosted runs 41526028881, 41615685717)", async () => {
+    const waits: number[] = [];
+    const result = await awaitCompliantDistTags(
+      reads(
+        { latest: "0.14.0", next: "0.2.0" },
+        { latest: "0.14.0", next: "0.2.0" },
+        { latest: "0.14.0", next: "0.14.0" },
+      ),
+      "0.14.0",
+      record(waits),
+      options,
+    );
+
+    assert.equal(result.attempts, 3);
+    assert.deepEqual(result.tags, { latest: "0.14.0", next: "0.14.0" });
+    assert.deepEqual(waits, [10, 20]);
+  });
+
+  it("still fails closed, with the last tags, when the registry never complies", async () => {
+    const waits: number[] = [];
+
+    await assert.rejects(
+      awaitCompliantDistTags(
+        reads({ latest: "0.14.0", next: "0.2.0" }),
+        "0.14.0",
+        record(waits),
+        options,
+      ),
+      /still out of policy after the update \(4 reads\): \{"latest":"0.14.0","next":"0.2.0"\}/,
+    );
+    assert.deepEqual(waits, [10, 20, 25]);
   });
 });
