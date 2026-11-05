@@ -60,3 +60,55 @@ describe("body-difference diagnostics of an anomaly sample", () => {
     });
   });
 });
+
+describe("Angular hydration template ids (per-isolate numbering)", () => {
+  const doc = (
+    ids: [string, string],
+    value = "Product 42",
+    tag = '<script id="ng-state" type="application/json">',
+  ) =>
+    `<html><body><h1>${value}</h1>${tag}{"__nghData__":[{},{"t":{"0":"${ids[0]}","1":"${ids[1]}"},"c":{"0":[{"i":"${ids[0]}","r":1}]}}]}</script></body></html>`;
+
+  it("treats a renumbered annotation as the same document (deployed run 42034490852)", () => {
+    const result = classifyReply(
+      expectation(doc(["t3", "t4"])),
+      reply(doc(["t0", "t1"])),
+      1,
+      noLeaks,
+    );
+
+    expect(result).toEqual({ class: "match" });
+    expect(
+      classifyReply(
+        expectation(
+          doc(["t3", "t4"], "Product 42", '<script type="application/json" id="ng-state">'),
+        ),
+        reply(doc(["t0", "t1"], "Product 42", '<script type="application/json" id="ng-state">')),
+        1,
+        noLeaks,
+      ),
+    ).toEqual({ class: "match" });
+  });
+
+  it("still detects a different id structure and any other changed byte (negative controls)", () => {
+    expect(
+      classifyReply(expectation(doc(["t3", "t4"])), reply(doc(["t0", "t0"])), 1, noLeaks).class,
+    ).toBe("unclassified");
+    expect(
+      classifyReply(
+        expectation(doc(["t3", "t4"])),
+        reply(doc(["t0", "t1"], "Product 7")),
+        1,
+        noLeaks,
+      ).class,
+    ).toBe("unclassified");
+    expect(
+      classifyReply(
+        expectation(doc(["t3", "t4"])),
+        reply(doc(["t0", "t1"]).replace('type="application/json"', 'type="text/plain"')),
+        1,
+        noLeaks,
+      ).class,
+    ).toBe("unclassified");
+  });
+});

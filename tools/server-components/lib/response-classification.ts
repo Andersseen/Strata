@@ -78,6 +78,34 @@ export interface BodyDifference {
 
 export const DIFFERENCE_WINDOW = 80;
 
+// Angular's transfer-state script (`<script id="${APP_ID}-state" type="application/json">`).
+const STATE_SCRIPT = /(<script[^>]*type="application\/json"[^>]*>)([\s\S]*?)(<\/script>)/g;
+
+/**
+ * Angular numbers the serialized templates of its hydration annotation (`__nghData__`, ids `t0`,
+ * `t1`, …) from render history that lives in the server process: a Worker isolate that already
+ * rendered the page numbers them differently from a fresh one (observed on Cloudflare Pages,
+ * deployed run 42034490852). Renumbering those ids by first appearance makes two such documents
+ * equal; ANY other byte still counts, including the ids' structure and every other value.
+ */
+export function canonicalDocument(html: string): string {
+  return html.replace(STATE_SCRIPT, (_match, open: string, state: string, close: string) => {
+    if (!state.includes("__nghData__")) return `${open}${state}${close}`;
+
+    const ids = new Map<string, string>();
+    const renumbered = state.replace(/"(t\d+)"/g, (_id, id: string) => {
+      if (!ids.has(id)) ids.set(id, `t${ids.size}`);
+
+      return `"${ids.get(id)}"`;
+    });
+
+    return `${open}${renumbered}${close}`;
+  });
+}
+
+export const sameDocument = (expected: string, actual: string): boolean =>
+  expected === actual || canonicalDocument(expected) === canonicalDocument(actual);
+
 const buildsIn = (html: string): string[] => [
   ...new Set([...html.matchAll(/data-strata-build="([^"]*)"/g)].map((m) => m[1]!)),
 ];
@@ -151,7 +179,7 @@ export function classifyReply(
   const subjectOk = expected.subject === null || identity.subject === expected.subject;
   const correlationOk =
     expected.correlation === null || identity.correlation === expected.correlation;
-  const bodyOk = expected.body === null || reply.body === expected.body;
+  const bodyOk = expected.body === null || sameDocument(expected.body, reply.body);
 
   if (statusOk && typeOk && subjectOk && correlationOk && bodyOk && !privateValueInBody)
     return { class: "match" };
