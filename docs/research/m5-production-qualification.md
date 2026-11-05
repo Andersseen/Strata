@@ -437,8 +437,31 @@ No defect in a published or source package was found; no Changeset other than th
 
 ## Hosted results
 
-HOSTED_SECTION
+| Workflow / run                                                                                                                                            | Commit                                                    | Result                                                                                                                                                                                                                                                                             |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| CI [42037152530](https://github.com/Andersseen/Strata/actions/runs/42037152530) (`static`, `graph`, `runtime`, `consumers`, `apps`, aggregate **Verify**) | `12ef086`                                                 | **success** (website deploy skipped for a PR, as designed). Earlier CI runs on this branch were cancelled by newer pushes.                                                                                                                                                         |
+| Entwine docs, Verify published Server Components                                                                                                          | `12ef086`                                                 | success                                                                                                                                                                                                                                                                            |
+| Extended [42031499769](https://github.com/Andersseen/Strata/actions/runs/42031499769), `suite=all`                                                        | `6d94856`                                                 | **success, 9 of 9 jobs**: frozen candidate (npm ci of the macOS-captured lock on Linux), published full-stack tuple, upgrade/rollback + rehearsal, controller scaling profile, one-island performance, adversarial, integrity, types (expected verdict), published Cloudflare gate |
+| Manual Cloudflare `upgrade-rollback`: 42031494617, 42033211175, 42034490852, 42035776818                                                                  | `6d94856`, `6d94856`, `5979bfb`, `f5adcc3` (verifier fix) | rehearsal GO in all four; DEPLOYED NO-GO in all four (section C: F5 fixed, F6 remains)                                                                                                                                                                                             |
+
+Extended ran before two later commits: the budgets (`tools/performance/lib/budgets.ts`) were evaluated on
+that run's hosted reports offline and pass (0 B; 4,424 B), and the verifier fix was proven by deployed run 42035776818. A hosted Extended rerun of the final head is the next confirmation. **Issue #117 remains
+open**; no Release run was triggered by this work.
 
 ## Local verification
 
-LOCAL_SECTION
+macOS arm64, Node 22.23.1, final branch state unless noted. PASS: `pnpm install --frozen-lockfile`, `build`,
+`typecheck`, `lint` (0 errors, 6 pre-existing warnings), `format:check`, `test` (turbo 9/9; release 159;
+performance-tools 186), actionlint (one pre-existing shellcheck style note in an untouched workflow);
+`test:analog`; `test:analog-packed-di-consumer`; `test:server-components`; `-security`; `-ssr-response`;
+`-navigation`; `-deployment-skew`; `-package-consumer`; `test:server-component-registry-consumer`
+(`STRATA_SC_REGISTRY_VERSION=0.14.0`); `test:full-stack-package-consumer`; `test:full-stack-registry-consumer`
+(fresh, with capture); `test:full-stack-frozen-candidate`; `test:full-stack-registry-upgrade-rollback`
+(0.13.0 → 0.14.0, Node + workerd + rehearsal); `test:full-stack-performance` with
+`STRATA_PERF_ISLANDS=1`, `=3`, and `=3` + `STRATA_PERF_CONTROLLERS=8`.
+
+`test:server-component-failures` failed once (all checks passed, then the harness's own `route.fetch` got
+`ECONNRESET` from the local server; the suite and fixture are untouched here) and passed on the rerun. Both runs
+are recorded. NOT RUN locally: `test:full-stack-adversarial-security` (hosted Extended passed), www/Relay E2E
+(hosted `apps` passed), `test:full-stack-registry-deployed-cloudflare` (real deployments ran through the
+manual workflow instead), npm publication and dist-tag changes (out of scope).
