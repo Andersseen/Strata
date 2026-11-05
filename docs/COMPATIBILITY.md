@@ -5,6 +5,67 @@ The full-stack authorization fixture's protected paths passed with the packed an
 Policy date: 2026-09-17. There is **no production support matrix yet**. Distinguish manifest ranges,
 locally exercised versions, researched candidates and qualified release combinations.
 
+## Versioning, deprecation and migration policy (pre-1.0)
+
+Written 2026-11-05 for 1.0 criterion #26 ([hardening report](research/pre1-runtime-hardening.md)). It
+governs the published packages `@strata-sc/core`, `@strata-sc/analog` and `@strata-sc/server-components`
+until 1.0; `@strata-sc/h3` stays private. It is a release rule, not a support promise: every API is
+still experimental.
+
+**Version numbers (SemVer 0.x, owned by Changesets).**
+
+- A **patch** (`0.y.Z`) never changes the public API inventory
+  (`tools/package-consumer/public-api.json`), a documented behavior, a wire format or a peer range. It
+  fixes a defect, with a regression that fails on the previous version (example: analog 0.12.1, keep-alive
+  after 413).
+- A **minor** (`0.Y.0`) may add API and, before 1.0, may also change or remove experimental API. Every
+  such change names itself as breaking in its Changeset and in the CHANGELOG entry, with the migration
+  steps below.
+- No change is published without a Changeset; tooling-, test- and documentation-only work uses an empty
+  Changeset and publishes nothing.
+- Prereleases use Changesets pre mode and the `next` dist-tag; stable versions move `latest`, and `next`
+  is never left behind `latest` ([ADR-005](adr/005-npm-dist-tag-channels.md)). Publishing happens only
+  from the Release workflow after a successful `Verify` of the exact main SHA (issue #117).
+
+**Deprecation.** A public export that will be removed or changed incompatibly is first marked
+`@deprecated` in its declaration with the replacement, and listed in the CHANGELOG, in a release that
+still contains it. Before 1.0 a removal may follow in the next minor; after 1.0 removal waits for the
+next major. Security fixes may skip the deprecation step and say so.
+
+**Migration requirements for a breaking minor.** The CHANGELOG entry carries the steps; the reviewed
+public API inventory is updated in the same PR; the packed consumers pass with the new version; and when
+the change touches the client boundary protocol, build identity or anything a deployed browser holds,
+the published A/B upgrade/rollback qualification
+(`pnpm test:full-stack-registry-upgrade-rollback`) runs for the old and new versions before the release
+is called qualified.
+
+**Declared ranges versus the qualified tuple.** Peer and engine ranges say what a package accepts; only
+the frozen candidate below says what was qualified. A tuple outside the candidate is not supported even
+if it installs. Strata does not promise arbitrary Angular, Analog, Nitro or TypeScript versions inside
+a declared range: any Angular upgrade re-runs the graph and package-consumer qualifications (RISKS R21).
+
+**Supported runtime shapes (all experimental).** Nitro `node-server` on Node 22 and the Nitro
+`cloudflare-pages` preset (compatibility date 2026-09-21, no flags) for controllers, SSR and Server
+Components with buffered responses. Not supported: consumer-owned Angular DI and Analog `serverFn` on
+workerd (Angular JIT), streaming SSR, client-disconnect cancellation through the Nitro adapters,
+incremental streamed delivery on Cloudflare Pages, Router activation into a Server Component subtree.
+Native H3 routes remain the escape hatch and coexist with Strata routes on Nitro/H3 v1; the H3 v2
+adapter is private (strict consumer types upstream-blocked).
+
+**Server Component protocol guarantees.** Protocols v1 (flat primitives) and v2 (bounded structured
+JSON) are experimental. Within one deployment, a payload the server writes is one the browser of the
+same build accepts. Across deployments the only guarantee is fail-closed: with build identity, a
+document and script of different builds are refused as a build mismatch (and, when opted in, recovered
+by one bounded reload), never hydrated across versions. No wire compatibility between two minors is
+promised before 1.0.
+
+**Unexpected SSR render failures.** Native Analog answers them with HTTP 200 and an incomplete
+document. The supported contract is application-owned, through public Angular/Analog APIs only: an
+application-level `ErrorHandler` that marks the per-request Analog `RESPONSE`, and a wrapper around the
+function `render()` returns, which turns a marked render into a generic HTTP 500 before the buffered
+response is written (`tests/full-stack-package-consumer/fixture/src/app/render-failure-status.ts`).
+Strata does not install it implicitly.
+
 ## Frozen release candidate (2026-11-05)
 
 The exact qualified combination is now a committed, reproducible artifact, `tests/full-stack-candidate`
