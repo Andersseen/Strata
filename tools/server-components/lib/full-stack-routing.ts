@@ -302,11 +302,14 @@ export async function routingSuite(
 
   ok.push(
     check(
-      `${label}: Analog SSR pages stay HTML (/products/42, /about, /apix)`,
-      [page, about, lookalike].every(
+      `${label}: Analog SSR pages stay HTML (/products/42, /about 200; the /apix lookalike is the application's 404 page, not the API boundary)`,
+      [page, about].every(
         (reply) =>
           reply.status === 200 && (reply.headers.get("content-type") ?? "").includes("text/html"),
-      ),
+      ) &&
+        lookalike.status === 404 &&
+        (lookalike.headers.get("content-type") ?? "").includes("text/html") &&
+        lookalike.body.includes('id="not-found-page"'),
       [page, about, lookalike].map((reply) => reply.status).join(","),
     ),
     check(

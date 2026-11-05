@@ -18,6 +18,8 @@ export const FULL_STACK_MARKERS = {
   alphaCredential: "opaque-test-alpha",
   betaCredential: "opaque-test-beta",
   client: "FULLSTACK_CONSUMER_CLIENT_MARKER",
+  /** Carried by every deliberately thrown SSR render failure; server log only. */
+  renderFailure: "RENDER_FAILURE_PRIVATE_5c1e",
 } as const;
 
 /** The confidential supplier cost the repository turns into a public tier. */
@@ -34,6 +36,7 @@ export const SERVER_ONLY_MARKERS = [
   FULL_STACK_MARKERS.betaPrivate,
   FULL_STACK_MARKERS.alphaCredential,
   FULL_STACK_MARKERS.betaCredential,
+  FULL_STACK_MARKERS.renderFailure,
 ] as const;
 
 /** Values that must never reach HTML, props, API JSON, browser files or maps. */
@@ -52,6 +55,11 @@ export const FULL_STACK_SERVER_SOURCES = [
   "lifecycle-stats.ts",
   "streaming.controller.ts",
   "stream-barrier.ts",
+  "render-failure-dependency.ts",
+  "render-failure-constructor.server-component.ts",
+  "render-failure-service.server-component.ts",
+  "render-failure-template.server-component.ts",
+  "render-failure-boundary.server-component.ts",
 ] as const;
 
 export const PRODUCT_42 = { id: "42", name: "Product 42", available: true } as const;
@@ -65,3 +73,16 @@ export const EXPECTED_EVIDENCE = [
   fingerprint(FULL_STACK_MARKERS.transitive),
   fingerprint(FULL_STACK_MARKERS.privateNote),
 ].join(".");
+
+/** The application-owned generic document for an unexpected SSR render failure (render-failure-status.ts). */
+export const RENDER_FAILURE_DOCUMENT =
+  '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="robots" content="noindex"><title>Page unavailable</title></head><body><main id="render-failure">This page could not be rendered.</main></body></html>';
+
+/** Each deliberately failing route of the fixture's `render-failure/:mode` page. */
+export const RENDER_FAILURE_MODES = [
+  "constructor",
+  "service",
+  "template",
+  "boundary",
+  "bootstrap",
+] as const;

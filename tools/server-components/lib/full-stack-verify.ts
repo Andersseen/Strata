@@ -7,6 +7,8 @@ import {
   FULL_STACK_MARKERS,
   PRIVATE_CANARIES,
   PRODUCT_42,
+  RENDER_FAILURE_DOCUMENT,
+  RENDER_FAILURE_MODES,
 } from "./full-stack-fixture.ts";
 import { check } from "./harness.ts";
 import { evaluate, openTracked } from "./package-consumer.ts";
@@ -693,6 +695,87 @@ export async function httpSuite(
       }),
     ),
   );
+  // Unexpected SSR render failures (Workstream C): the application-owned contract replaces the
+  // empty or half-rendered HTTP 200 document with a generic 500 before Analog commits the response.
+  const failureReplies = await Promise.all(
+    RENDER_FAILURE_MODES.map(async (mode) => ({
+      mode,
+      reply: await get(`${base}/render-failure/${mode}`),
+    })),
+  );
+  const healthyFailurePage = await get(`${base}/render-failure/none`);
+  ok.push(
+    check(
+      `${label}: unexpected render failures (constructor, service, template, boundary, bootstrap) answer HTTP 500 no-store with only the generic document`,
+      failureReplies.every(
+        ({ reply }) =>
+          reply.status === 500 &&
+          !!reply.headers.get("content-type")?.includes("text/html") &&
+          reply.headers.get("cache-control") === "no-store" &&
+          reply.body === RENDER_FAILURE_DOCUMENT &&
+          !hasCanary(`${reply.body}${[...reply.headers].join(";")}`).length,
+      ),
+      JSON.stringify(
+        failureReplies.map(({ mode, reply }) => ({
+          mode,
+          status: reply.status,
+          cache: reply.headers.get("cache-control"),
+          body: reply.body.slice(0, 300),
+        })),
+      ),
+    ),
+    check(
+      `${label}: no partial output survives a failure (no text rendered before the throw, no boundary, no hydration state)`,
+      failureReplies.every(
+        ({ reply }) =>
+          !reply.body.includes("partial-before") &&
+          !reply.body.includes("Render failure probe") &&
+          !reply.body.includes("data-strata-") &&
+          !reply.body.includes("ng-state") &&
+          !reply.body.includes("ngh="),
+      ),
+    ),
+    check(
+      `${label}: the same page and wrapper render a healthy document as HTTP 200`,
+      healthyFailurePage.status === 200 &&
+        healthyFailurePage.body.includes('id="render-healthy"') &&
+        !healthyFailurePage.body.includes('id="render-failure"'),
+      `${healthyFailurePage.status} ${healthyFailurePage.body.slice(0, 200)}`,
+    ),
+  );
+  const failureOverlap = await Promise.all(
+    Array.from({ length: 24 }, (_, index) => {
+      const mode =
+        index % 2 === 0 ? RENDER_FAILURE_MODES[index % RENDER_FAILURE_MODES.length]! : "none";
+      return get(`${base}/render-failure/${mode}`).then((reply) => ({ mode, reply }));
+    }),
+  );
+  const afterFailures = await get(`${base}/products/42`);
+  ok.push(
+    check(
+      `${label}: 24 overlapping failing and healthy renders keep their own status (no failure leaks into a sibling request)`,
+      failureOverlap.every(({ mode, reply }) =>
+        mode === "none"
+          ? reply.status === 200 && reply.body.includes('id="render-healthy"')
+          : reply.status === 500 && reply.body === RENDER_FAILURE_DOCUMENT,
+      ),
+      failureOverlap.map(({ mode, reply }) => `${mode}:${reply.status}`).join(","),
+    ),
+    check(
+      `${label}: the next ordinary Server Component document after the failures is HTTP 200 and complete`,
+      afterFailures.status === 200 && afterFailures.body.includes("<h1>Product 42</h1>"),
+      String(afterFailures.status),
+    ),
+  );
+  if (options.log) {
+    ok.push(
+      check(
+        `${label}: every failure reached the server-side ErrorHandler log (private text stays server-side)`,
+        sanitize(options.log()).includes(FULL_STACK_MARKERS.renderFailure),
+      ),
+    );
+  }
+
   if (options.log) {
     const { log } = options;
 
