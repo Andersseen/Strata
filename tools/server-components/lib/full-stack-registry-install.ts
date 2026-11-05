@@ -77,6 +77,7 @@ import {
   readTarball,
   snapshotDir,
 } from "./package-consumer.ts";
+import { SSR_ENTRY_SINCE, applySsrRecipeBridge, predatesSsrEntry } from "./ssr-recipe-bridge.ts";
 import { COMPATIBILITY_DATE } from "./wrangler.ts";
 
 /**
@@ -230,6 +231,12 @@ export function installRegistryConsumer(context: {
     ),
   );
   writeFileSync(consumerManifestPath, `${JSON.stringify(consumerManifest, null, 2)}\n`);
+  if (predatesSsrEntry(tuple["@strata-sc/server-components"])) {
+    const touched = applySsrRecipeBridge(consumerDir);
+    console.log(
+      `@strata-sc/server-components@${tuple["@strata-sc/server-components"]} predates the /ssr entry (${SSR_ENTRY_SINCE}): SSR failure checks run on the consumer-owned recipe (${touched.join(", ")})`,
+    );
+  }
 
   const pristine = snapshotDir(consumerDir, NOT_SOURCE);
   const installArgs = [

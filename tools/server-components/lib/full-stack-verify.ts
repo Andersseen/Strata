@@ -10,6 +10,7 @@ import {
   PRODUCT_42,
   RENDER_FAILURE_DOCUMENT,
   RENDER_FAILURE_MODES,
+  SSR_FAILURE_LOG_PREFIX,
 } from "./full-stack-fixture.ts";
 import { check } from "./harness.ts";
 import { evaluate, openTracked } from "./package-consumer.ts";
@@ -98,6 +99,41 @@ const observed = (id: string, response: Response) => ({
   id,
   receipt: response.headers.get(READ_RECEIPT_HEADER),
 });
+
+/** True when a server log exposes a render failure's private text, a stack frame or the failing URL. */
+export const logLeaksRenderFailure = (log: string): boolean =>
+  log.includes(FULL_STACK_MARKERS.renderFailure) ||
+  log
+    .split("\n")
+    .some(
+      (line) =>
+        /^\s+at \S*RenderFailure/.test(line) ||
+        (line.includes(SSR_FAILURE_LOG_PREFIX) && line.includes("render-failure/")),
+    );
+
+/**
+ * The contract's failure lines written after `offset`, once their count reached `expected` (or 5 s
+ * passed) plus a 500 ms quiet period, so a late duplicate line would still be counted.
+ */
+async function settledFailureLines(
+  log: () => string,
+  offset: number,
+  expected: number,
+): Promise<string[]> {
+  const lines = () =>
+    sanitize(log())
+      .slice(offset)
+      .split("\n")
+      .filter((line) => line.includes(SSR_FAILURE_LOG_PREFIX));
+  const deadline = Date.now() + 5_000;
+
+  while (lines().length < expected && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  await new Promise((resolve) => setTimeout(resolve, 500));
+
+  return lines();
+}
 
 export interface Reply {
   readonly status: number;
@@ -756,8 +792,10 @@ export async function httpSuite(
     );
   }
 
-  // Unexpected SSR render failures (Workstream C): the application-owned contract replaces the
-  // empty or half-rendered HTTP 200 document with a generic 500 before Analog commits the response.
+  // Unexpected SSR render failures: the opt-in contract from the INSTALLED
+  // `@strata-sc/server-components/ssr` entry replaces the empty or half-rendered HTTP 200 document with a
+  // generic 500 before Analog commits the response (docs/research/ssr-failure-contract.md).
+  const logBefore = options.log ? sanitize(options.log()) : "";
   const failureReplies = await Promise.all(
     RENDER_FAILURE_MODES.map(async (mode) => ({
       mode,
@@ -765,9 +803,14 @@ export async function httpSuite(
     })),
   );
   const healthyFailurePage = await get(`${base}/render-failure/none`);
+  const handledFailurePage = await get(`${base}/render-failure/handled`);
+  const applicationNotFound = await get(`${base}/no-such-page/${encodeURIComponent(label)}`);
+  const failureLogLines = options.log
+    ? await settledFailureLines(options.log, logBefore.length, RENDER_FAILURE_MODES.length)
+    : [];
   ok.push(
     check(
-      `${label}: unexpected render failures (constructor, service, template, boundary, bootstrap) answer HTTP 500 no-store with only the generic document`,
+      `${label}: unexpected render failures (${RENDER_FAILURE_MODES.join(", ")}) answer HTTP 500 no-store with only the generic document`,
       failureReplies.every(
         ({ reply }) =>
           reply.status === 500 &&
@@ -797,11 +840,41 @@ export async function httpSuite(
       ),
     ),
     check(
+      `${label}: a header the failed render set is not sent, and its cacheable cache-control is replaced by no-store`,
+      failureReplies.some(({ mode }) => mode === "header") &&
+        failureReplies.every(
+          ({ reply }) =>
+            reply.headers.get("x-render-private") === null &&
+            reply.headers.get("cache-control") === "no-store",
+        ),
+      JSON.stringify(
+        failureReplies
+          .filter(({ mode }) => mode === "header")
+          .map(({ reply }) => [...reply.headers]),
+      ),
+    ),
+    check(
       `${label}: the same page and wrapper render a healthy document as HTTP 200`,
       healthyFailurePage.status === 200 &&
         healthyFailurePage.body.includes('id="render-healthy"') &&
         !healthyFailurePage.body.includes('id="render-failure"'),
       `${healthyFailurePage.status} ${healthyFailurePage.body.slice(0, 200)}`,
+    ),
+    check(
+      `${label}: an error the application handles itself is not a render failure (HTTP 200, its own fallback, no private text)`,
+      handledFailurePage.status === 200 &&
+        handledFailurePage.body.includes("Availability is temporarily unknown") &&
+        !handledFailurePage.body.includes('id="render-failure"') &&
+        !hasCanary(handledFailurePage.body).length,
+      `${handledFailurePage.status} ${handledFailurePage.body.slice(0, 200)}`,
+    ),
+    check(
+      `${label}: an expected application 404 page stays an application-owned 404 through the wrapper, not a 500`,
+      applicationNotFound.status === 404 &&
+        applicationNotFound.body.includes('id="not-found-page"') &&
+        !applicationNotFound.body.includes('id="render-failure"') &&
+        applicationNotFound.headers.get("cache-control") !== "no-store",
+      `${applicationNotFound.status} ${applicationNotFound.body.slice(0, 200)}`,
     ),
   );
   const failureOverlap = await Promise.all(
@@ -829,11 +902,32 @@ export async function httpSuite(
     ),
   );
   if (options.log) {
+    const log = sanitize(options.log());
+
     ok.push(
       check(
-        `${label}: every failure reached the ErrorHandler, which logs a redacted line without the private error text`,
-        sanitize(options.log()).includes("[render-failure] Error during server render") &&
-          !sanitize(options.log()).includes(FULL_STACK_MARKERS.renderFailure),
+        `${label}: exactly one redacted failure line per failed request (${RENDER_FAILURE_MODES.length}), naming the class and phase only`,
+        failureLogLines.length === RENDER_FAILURE_MODES.length &&
+          failureLogLines.every((line) =>
+            /\[strata:ssr\] unexpected render failure \([\w, ]+; (render|rejection)\); answered HTTP 500/.test(
+              line,
+            ),
+          ) &&
+          failureLogLines.some((line) => line.includes("(string; rejection)")),
+        failureLogLines.join(" | ") || logBefore.slice(-300),
+      ),
+      check(
+        `${label}: no private error text, stack or failing URL reaches the server log`,
+        !logLeaksRenderFailure(log),
+      ),
+      check(
+        `${label}: negative control — the same log and body predicates detect a private message, a stack frame or a failing URL`,
+        logLeaksRenderFailure(`[strata:ssr] ${FULL_STACK_MARKERS.renderFailure}`) &&
+          logLeaksRenderFailure("    at RenderFailureTemplate.explode (chunk.mjs:1:1)") &&
+          logLeaksRenderFailure("[strata:ssr] GET /render-failure/template failed") &&
+          hasCanary(`<p>${FULL_STACK_MARKERS.renderFailure}</p>`).includes(
+            FULL_STACK_MARKERS.renderFailure,
+          ),
       ),
     );
   }

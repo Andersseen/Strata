@@ -73,7 +73,11 @@ export const EXPECTED_EVIDENCE = [
   fingerprint(FULL_STACK_MARKERS.privateNote),
 ].join(".");
 
-/** The application-owned generic document for an unexpected SSR render failure (render-failure-status.ts). */
+/**
+ * The generic document `@strata-sc/server-components/ssr` answers for an unexpected SSR render failure
+ * (its `STRATA_SSR_FAILURE_DOCUMENT`). Kept as an independent literal: a drift in the package default
+ * fails the qualification instead of moving the oracle.
+ */
 export const RENDER_FAILURE_DOCUMENT =
   '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="robots" content="noindex"><title>Page unavailable</title></head><body><main id="render-failure">This page could not be rendered.</main></body></html>';
 
@@ -84,4 +88,9 @@ export const RENDER_FAILURE_MODES = [
   "template",
   "boundary",
   "bootstrap",
+  "rejection",
+  "header",
 ] as const;
+
+/** The one line the contract's default reporter writes per failed request. */
+export const SSR_FAILURE_LOG_PREFIX = "[strata:ssr]";

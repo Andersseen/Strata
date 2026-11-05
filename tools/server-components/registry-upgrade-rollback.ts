@@ -44,6 +44,7 @@ import { check, failureCount, finish, section } from "./lib/harness.ts";
 import { startNodeServer, startWrangler, until } from "./lib/package-consumer.ts";
 import type { RunningServer } from "./lib/package-consumer.ts";
 import { deployToPages } from "./lib/pages-deploy.ts";
+import { ssrBridged } from "./lib/ssr-recipe-bridge.ts";
 import {
   INIT_SCRIPT,
   OBSERVE,
@@ -739,7 +740,9 @@ try {
       artifacts: lookup.artifacts,
     });
     check(`release ${side.toUpperCase()}: install verified`, installs[side].ok);
-    tscDeclarations(consumerDirs[side], `release ${side.toUpperCase()} TypeScript 6`, env);
+    tscDeclarations(consumerDirs[side], `release ${side.toUpperCase()} TypeScript 6`, env, {
+      ssrEntry: !ssrBridged(consumerDirs[side]),
+    });
   }
 
   section("Attribution: only the Strata packages differ between A and B");

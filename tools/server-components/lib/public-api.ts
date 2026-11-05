@@ -150,6 +150,11 @@ export function checkPublicApi(
   consumerDir: string,
   env: NodeJS.ProcessEnv,
   label: string,
+  /**
+   * Baseline subpaths a PUBLISHED tuple predates (registry bridge only, ssr-recipe-bridge.ts): removed
+   * from the expected surface, never from the installed one, so an unexpected extra entry still fails.
+   */
+  predates: readonly (readonly [pkg: string, subpath: string])[] = [],
 ): boolean {
   const results: boolean[] = [];
   const surface: PublicSurface = {};
@@ -219,7 +224,7 @@ export function checkPublicApi(
 
   const serialized = `${JSON.stringify(surface, null, 2)}\n`;
 
-  if (process.env["STRATA_UPDATE_PUBLIC_API"] === "1") {
+  if (process.env["STRATA_UPDATE_PUBLIC_API"] === "1" && predates.length === 0) {
     writeFileSync(PUBLIC_API_BASELINE, serialized);
     console.log(`public API baseline written: ${PUBLIC_API_BASELINE}`);
   }
@@ -227,6 +232,13 @@ export function checkPublicApi(
   const baseline = existsSync(PUBLIC_API_BASELINE)
     ? (JSON.parse(readFileSync(PUBLIC_API_BASELINE, "utf8")) as PublicSurface)
     : undefined;
+
+  for (const [pkg, subpath] of predates) {
+    if (baseline?.[pkg]) delete baseline[pkg][subpath];
+    console.log(
+      `${label}: expected surface omits ${pkg} ${subpath} (the published version predates it)`,
+    );
+  }
   results.push(
     check(
       `${label}: the installed public surface equals the reviewed baseline (${dirname(PUBLIC_API_BASELINE).slice(repoRoot.length + 1)}/public-api.json)`,

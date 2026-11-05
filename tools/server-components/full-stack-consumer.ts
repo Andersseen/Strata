@@ -63,6 +63,7 @@ import {
 } from "./lib/package-consumer.ts";
 import type { RunningServer, Snapshot } from "./lib/package-consumer.ts";
 import { checkPublicApi } from "./lib/public-api.ts";
+import { ssrBridged } from "./lib/ssr-recipe-bridge.ts";
 import { treeDigest } from "./lib/upgrade-rollback.ts";
 import { COMPATIBILITY_DATE } from "./lib/wrangler.ts";
 
@@ -215,9 +216,30 @@ try {
   }
 
   // ------------------------------------------------------------------------
+  section("Opt-in SSR failure contract source (installed /ssr entry or pre-entry recipe)");
+
+  const bridged = ssrBridged(consumerDir);
+  const installedServerComponents = JSON.parse(
+    readFileSync(
+      join(consumerDir, "node_modules", "@strata-sc", "server-components", "package.json"),
+      "utf8",
+    ),
+  ) as { version: string; exports?: Record<string, unknown> };
+  const installedHasSsr = !!installedServerComponents.exports?.["./ssr"];
+
+  verdict.install =
+    check(
+      bridged
+        ? `@strata-sc/server-components@${installedServerComponents.version} has no /ssr entry, so the run uses the consumer-owned recipe (registry bridge)`
+        : `the fixture imports the opt-in contract from the INSTALLED @strata-sc/server-components@${installedServerComponents.version}/ssr`,
+      bridged ? !installedHasSsr && REGISTRY : installedHasSsr,
+      `bridged=${bridged} installedHasSsr=${installedHasSsr} registry=${REGISTRY}`,
+    ) && verdict.install;
+
+  // ------------------------------------------------------------------------
   section("Declaration portability (TypeScript 6 and 5.9, skipLibCheck: false)");
 
-  const ts6 = tscDeclarations(consumerDir, "TypeScript 6", env);
+  const ts6 = tscDeclarations(consumerDir, "TypeScript 6", env, { ssrEntry: !bridged });
 
   check("TypeScript 6.0.3 is the declaration consumer", ts6.version === "6.0.3", ts6.version);
   verdict.declarations6 = ts6.ok && ts6.version === "6.0.3";
@@ -239,6 +261,13 @@ try {
     "src/check/api-boundary-example.ts",
     "src/check/stream-example.ts",
     "src/check/correlation-example.ts",
+    ...(bridged
+      ? []
+      : [
+          "tsconfig.check.analog-ssr.json",
+          "src/check/ssr-failure-example.ts",
+          "src/check/ssr-failure-analog.ts",
+        ]),
   ]) {
     const destination = join(ts59Dir, file);
     mkdirSync(dirname(destination), { recursive: true });
@@ -288,7 +317,7 @@ try {
       verdict.install;
   }
 
-  const ts59 = tscDeclarations(ts59Dir, "TypeScript 5.9", env);
+  const ts59 = tscDeclarations(ts59Dir, "TypeScript 5.9", env, { ssrEntry: !bridged });
 
   check(
     `TypeScript ${TS59_VERSION} is the declaration consumer`,
@@ -300,7 +329,12 @@ try {
   // ------------------------------------------------------------------------
   section("Public API surface (installed declarations, runtime exports, reviewed baseline)");
 
-  verdict.publicApi = checkPublicApi(consumerDir, env, REGISTRY ? "registry" : "packed");
+  verdict.publicApi = checkPublicApi(
+    consumerDir,
+    env,
+    REGISTRY ? "registry" : "packed",
+    bridged ? [["@strata-sc/server-components", "./ssr"]] : [],
+  );
 
   // ------------------------------------------------------------------------
   section("External production build (Node): graph separation");
@@ -383,6 +417,15 @@ try {
       ["registerControllers", "getControllerDefinition", "ProductsController", "nitropack"].every(
         (needle) => filesWith(browserJs, needle).length === 0,
       ),
+    ),
+    check(
+      "the opt-in /ssr entry stays server-side: no browser file or source map carries it, the Node server graph does",
+      !browserSources.some((s) =>
+        /server-components\/dist\/fesm2022\/ssr\/|ssr-failure-contract/.test(s),
+      ) &&
+        filesWith(browser, "[strata:ssr]").length === 0 &&
+        filesWith(serverJs, "[strata:ssr]").length > 0,
+      filesWith(browser, "[strata:ssr]").join(", "),
     ),
     check(
       `${FULL_STACK_MARKERS.client}: present in the browser graph (positive control)`,

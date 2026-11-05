@@ -37,6 +37,8 @@ export default config(
       // External full-stack consumer of the three packed packages, installed with
       // npm outside the workspace (test:full-stack-package-consumer).
       "tests/full-stack-package-consumer/fixture/**",
+      // The consumer-owned SSR failure recipe, copied into a registry-mode consumer only.
+      "tests/full-stack-package-consumer/recipes/**",
       // Temporary external packed Angular DI consumer sources; copied into a temp Analog app.
       "tests/analog-packed-di-consumer/src/**",
       // Four-arm external consumer of the full-stack performance baseline,

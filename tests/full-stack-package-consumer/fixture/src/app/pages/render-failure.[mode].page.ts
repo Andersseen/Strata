@@ -3,6 +3,8 @@ import { ActivatedRoute } from "@angular/router";
 
 import { RenderFailureBoundary } from "../products/render-failure-boundary.server-component";
 import { RenderFailureConstructor } from "../products/render-failure-constructor.server-component";
+import { RenderFailureHandled } from "../products/render-failure-handled.server-component";
+import { RenderFailureHeader } from "../products/render-failure-header.server-component";
 import { RenderFailureNone } from "../products/render-failure-none.server-component";
 import { RenderFailureService } from "../products/render-failure-service.server-component";
 import { RenderFailureTemplate } from "../products/render-failure-template.server-component";
@@ -13,6 +15,8 @@ import { RenderFailureTemplate } from "../products/render-failure-template.serve
   imports: [
     RenderFailureBoundary,
     RenderFailureConstructor,
+    RenderFailureHandled,
+    RenderFailureHeader,
     RenderFailureNone,
     RenderFailureService,
     RenderFailureTemplate,
@@ -30,6 +34,12 @@ import { RenderFailureTemplate } from "../products/render-failure-template.serve
       }
       @case ("boundary") {
         <render-failure-boundary />
+      }
+      @case ("header") {
+        <render-failure-header />
+      }
+      @case ("handled") {
+        <render-failure-handled />
       }
       @default {
         <render-failure-none />
