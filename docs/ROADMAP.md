@@ -1,5 +1,12 @@
 # Roadmap to 1.0
 
+**Pre-1.0 hardening (2026-11-05, [report](research/pre1-runtime-hardening.md)).** M4: the general unexpected-render response seam is no longer
+missing; an application-owned contract over public APIs is qualified (packed, local workerd, deployed),
+and whether Strata exports it is the next API decision. M5: the full-stack deployed qualification and
+the published A/B upgrade/rollback pass DEPLOYED for the first time; F6 is resolved. CI feedback dropped
+to about 10 minutes. Still open for 1.0: real-application adoption, Angular JIT on workerd, cancellation,
+Cloudflare cold start/memory, #117 transitions.
+
 **M3/M4 contract stabilization (2026-11-05, [report](research/m3-m4-contract-stabilization.md)).** Stronger, not
 closed: M3 gains the full composition matrix through installed packages (Node), a fixed production defect (keep-alive
 desynchronisation after an oversized validated body), pinned inheritance/override semantics and a public API inventory

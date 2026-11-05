@@ -66,7 +66,14 @@ function `render()` returns, which turns a marked render into a generic HTTP 500
 response is written (`tests/full-stack-package-consumer/fixture/src/app/render-failure-status.ts`).
 Strata does not install it implicitly.
 
-## Frozen release candidate (2026-11-05)
+## Frozen release candidate (2026-11-05, recaptured)
+
+Current: `402f33e953f9a04b` (core 0.2.2 / **analog 0.12.1** / server-components 0.14.0), recaptured from
+a passing fresh registry run and reproduced with `npm ci`; consumer lock 869 packages, TS 5.9 lock 80,
+same toolchain as below ([report](research/pre1-runtime-hardening.md)). The previous candidate,
+kept as history below, used analog 0.12.0.
+
+### Previous candidate
 
 The exact qualified combination is now a committed, reproducible artifact, `tests/full-stack-candidate`
 (id `318670103337b243`, [report](research/m5-production-qualification.md)): Strata core 0.2.2 / analog 0.12.0 / server-components 0.14.0 with

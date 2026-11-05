@@ -1,5 +1,22 @@
 # Current implementation audit
 
+## Pre-1.0 hardening (branch `stabilize/pre1-ci-edge-runtime-hardening`)
+
+Tooling, fixtures, CI and documentation only; no package change ([report](research/pre1-runtime-hardening.md)).
+
+- **CI**: eleven measured jobs, 10.2 min hosted wall for a full run (was 22.9–32.3), coverage enforced
+  by `pnpm test:ci` against `tools/ci/required-commands.json`; main runs are never cancelled
+  ([CI report](research/ci-acceleration.md)).
+- **F6 resolved**: invocation-owned read receipts (`x-fixture-read-receipt`) replace per-isolate
+  counters; `pnpm test:full-stack-multi-isolate` reproduces the old failure and passes the new protocol
+  across two Node processes and local workerd; DEPLOYED GO.
+- **SSR failure contract**: an application-owned `ErrorHandler` + render wrapper in the full-stack
+  fixture turns unexpected render failures into a generic HTTP 500 before commit (public APIs only);
+  packed, local workerd and deployed. The internal fixture keeps native HTTP-200 behavior as control.
+- **Candidate** `402f33e953f9a04b`: core 0.2.2, analog 0.12.1, server-components 0.14.0; keep-alive after
+  413 verified through the published 0.12.1 (0.12.0 fails it).
+- **Deployed upgrade/rollback**: first DEPLOYED GO (run 42058305233).
+
 ## M5 production qualification (branch `stabilize/m5-production-qualification`, PR #170)
 
 Tooling, tests, CI and documentation only; no package change ([report](research/m5-production-qualification.md)).

@@ -1,5 +1,15 @@
 # Technical risk register
 
+Pre-1.0 hardening (2026-11-05, [report](research/pre1-runtime-hardening.md)): F6 (per-isolate authorization counters) and a residual of F5
+(byte comparison in the full-stack concurrency round) are resolved and deployed-qualified. F7 (Pages
+alias convergence) and F9 (double document request) were not reproduced; F7 keeps the immutable-artifact
+plus build-identity contract (Cloudflare documents no atomic alias update), F9's verifier now classifies
+navigation chains and records evidence. The unexpected-render HTTP-200 risk now has a supported,
+application-owned mitigation through public Angular/Analog APIs; Strata does not install it, so native
+Analog applications keep the risk. Release verification now tolerates bounded dist-tag read lag
+(Release 42048951547). Open: #117 pending/stale-main transitions; installed-island check L's
+ordering-dependent diagnostic.
+
 Release (2026-11-05): Release run 42034642481 published `@strata-sc/analog@0.12.1` but left `next` at 0.12.0 and
 failed, because npm did not yet show the just-published version to `sync-dist-tags` and `verify`. Fixed in tooling
 (bounded visibility re-reads for just-published packages); the dist-tag is repaired by the next Release run, not by
