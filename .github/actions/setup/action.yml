@@ -3,7 +3,10 @@ description: Install pnpm, Node and the locked dependencies, build the packages,
 
 inputs:
   build:
-    description: Build every package first (needed by type-aware lint and every external consumer).
+    description: >-
+      "true" builds the whole workspace (packages and apps; needed by type-aware lint and typecheck).
+      "packages" builds only packages/* (every suite that builds its own fixture, app or external
+      consumer from fresh sources). "false" builds nothing.
     default: "true"
   playwright:
     description: Install Chromium for the browser suites.
@@ -31,6 +34,15 @@ runs:
       if: inputs.build == 'true'
       shell: bash
       run: pnpm build
+
+    # The Server Component, Analog and packed-consumer suites build the fixture, the apps or the
+    # external consumer themselves from the checked-out sources. They only need the package
+    # `dist/` that those builds and `pnpm pack` resolve; the workspace app builds (~75% of
+    # `pnpm build`) were discarded unread. Nothing is restored from another commit.
+    - name: Build packages
+      if: inputs.build == 'packages'
+      shell: bash
+      run: pnpm exec turbo run build --filter='./packages/*'
 
     - name: Install Chromium
       if: inputs.playwright == 'true'

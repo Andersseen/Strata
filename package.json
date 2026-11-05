@@ -42,7 +42,8 @@
     "relay:test": "pnpm --filter @strata-sc/relay test",
     "relay:test:e2e": "pnpm --filter @strata-sc/relay test:e2e",
     "relay:verify:server-components": "pnpm --filter @strata-sc/relay verify:server-components",
-    "test": "turbo run test && pnpm test:release && pnpm test:performance-tools",
+    "test": "turbo run test && pnpm test:release && pnpm test:performance-tools && pnpm test:ci",
+    "test:ci": "vitest run --config tools/ci/vitest.config.ts && node --experimental-strip-types tools/ci/coverage.ts",
     "test:release": "vitest run --config tools/release/vitest.config.ts",
     "test:performance-tools": "vitest run --config tools/performance/vitest.config.ts",
     "test:full-stack-performance": "node --experimental-strip-types tools/performance/full-stack.ts",
@@ -122,6 +123,7 @@
     "typescript-eslint": "8.70.0",
     "vite": "8.3.0",
     "vite-plugin-dts": "5.1.0",
-    "vitest": "5.0.1"
+    "vitest": "5.0.1",
+    "yaml": "2.9.1"
   }
 }
