@@ -44,7 +44,19 @@ runs:
       shell: bash
       run: pnpm exec turbo run build --filter='./packages/*'
 
+    # The hosted Ubuntu image already carries Chromium's shared libraries. `--with-deps` additionally
+    # apt-installs font packages from the Ubuntu mirror, which stalled at ~24 kB/s for 9-10 minutes in
+    # hosted runs 42043494173 and 42046849111 (docs/research/ci-acceleration.md). Install the browser
+    # only, prove it launches, and install the system dependencies only when that real launch fails:
+    # a missing library still fails the job instead of being skipped.
     - name: Install Chromium
       if: inputs.playwright == 'true'
       shell: bash
-      run: pnpm --filter @strata-sc/www exec playwright install --with-deps chromium
+      run: |
+        pnpm --filter @strata-sc/www exec playwright install chromium
+        launch='import("playwright").then(({ chromium }) => chromium.launch()).then((browser) => browser.close())'
+        if ! node -e "$launch"; then
+          echo "::warning::Chromium did not launch without system dependencies; installing them"
+          pnpm --filter @strata-sc/www exec playwright install-deps chromium
+          node -e "$launch"
+        fi
