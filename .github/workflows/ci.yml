@@ -25,7 +25,26 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      # Every workflow file, before anything is installed: an invalid expression context (for example
+      # `runner.*` in job-level `env`) makes GitHub reject a file with zero jobs, which a green PR never
+      # shows. Pinned release binary, checksum verified; shellcheck and pyflakes are disabled so this
+      # gate stays a deterministic syntax/context check.
+      - name: Validate workflow files (actionlint)
+        env:
+          ACTIONLINT_VERSION: "1.7.12"
+          ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+        run: |
+          archive="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          curl -fsSL -o "$RUNNER_TEMP/$archive" \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/$archive"
+          echo "$ACTIONLINT_SHA256  $RUNNER_TEMP/$archive" | sha256sum --check --strict
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP" actionlint
+          "$RUNNER_TEMP/actionlint" -color -shellcheck= -pyflakes=
+
       - uses: ./.github/actions/setup
+
+      - name: Formatting
+        run: pnpm format:check
 
       - name: Lint
         run: pnpm lint
@@ -101,7 +120,7 @@ jobs:
   runtime:
     name: Server Component runtime contracts (Node + workerd)
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     env:
       STRATA_KEEP_CONSUMER: "1"
     steps:
@@ -137,6 +156,12 @@ jobs:
       # Fixture-only synthetic principal resolution and resource authorization (HttpOnly cookie).
       - name: Server Component authorization isolation (Node + workerd)
         run: pnpm test:server-component-authorization
+
+      # The internal Analog fixture in dev and production: controller/HTTP contract, guards, interceptors,
+      # Standard Schema validation, response helpers, the SPEC-003 Angular DI composition matrix and the
+      # client-bundle scan. Until this step it ran in no workflow (it left CI with the old publish job).
+      - name: Analog fixture contracts (dev + production)
+        run: pnpm test:analog
 
       # `streamResponse()` request-scoped resource lifetime, a real Analog serverFn beside Strata, native
       # routes, the API boundary and SSR, on the Node production server, the Vite dev server and local workerd.

@@ -4,7 +4,8 @@ name: Extended checks
 #   performance  four-arm full-stack bundle/latency baseline (docs/research/full-stack-performance-baseline.md),
 #                optionally also the three-island scaling profile on the SAME runner
 #                (docs/research/full-stack-performance-scaling.md)
-#   registry     the PUBLISHED @strata-sc/server-components from npm, built for Cloudflare Pages, local workerd
+#   registry     the PUBLISHED @strata-sc/server-components from npm, built for Cloudflare Pages, local workerd;
+#                the published core + analog + server-components full-stack tuple; A/B upgrade and rollback
 #   types        the H3 consumer type-closure experiment (SPEC-002; its expected verdict is "upstream-blocked")
 #   integrity    the packed Server Components consumer with many independent rebuilds, each followed by
 #                cold-start overlapping first requests (docs/research/server-component-ssr-integrity-v07.md)
@@ -66,10 +67,15 @@ jobs:
     timeout-minutes: 120
     env:
       STRATA_KEEP_CONSUMER: "1"
-      STRATA_DIAGNOSTICS_DIR: ${{ runner.temp }}/strata-adversarial-diagnostics
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+
+      # `runner.*` is not available in job-level `env`: using it there made GitHub reject the whole
+      # file before any job started (every Extended run from PR #167 on failed with zero jobs).
+      # `actionlint` in ci.yml now catches this class of error on every pull request.
+      - name: Diagnostics directory
+        run: echo "STRATA_DIAGNOSTICS_DIR=$RUNNER_TEMP/strata-adversarial-diagnostics" >> "$GITHUB_ENV"
 
       - uses: ./.github/actions/setup
         with:
@@ -192,6 +198,41 @@ jobs:
 
       - name: Published package (no account, no secrets, no deployment)
         run: pnpm test:server-components:deployed-cloudflare
+
+  # The PUBLISHED core, analog and server-components (exact versions of the package manifests, or
+  # STRATA_REGISTRY_*_VERSION) installed from npm into the full-stack consumer: Node + local workerd +
+  # Chromium. Read-only: no account, no secret, no deployment.
+  registry-full-stack:
+    name: Published full-stack tuple (Node + local workerd, no deployment)
+    if: github.event_name == 'schedule' || inputs.suite == 'all' || inputs.suite == 'registry'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      STRATA_KEEP_CONSUMER: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Diagnostics directory
+        run: echo "STRATA_DIAGNOSTICS_DIR=$RUNNER_TEMP/strata-diagnostics" >> "$GITHUB_ENV"
+
+      - uses: ./.github/actions/setup
+        with:
+          playwright: "true"
+
+      - name: Published full-stack consumer
+        run: pnpm test:full-stack-registry-consumer
+
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-stack-registry-diagnostics
+          path: |
+            ${{ runner.temp }}/strata-diagnostics
+            /tmp/strata-full-stack-consumer-*/consumer/dist
+          if-no-files-found: ignore
+          retention-days: 14
 
   registry-upgrade-rollback:
     name: Published A/B upgrade and rollback (Node + local workerd, no deployment)
