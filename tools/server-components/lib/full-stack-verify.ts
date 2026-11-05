@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { connect } from "node:net";
 import { stripVTControlCharacters } from "node:util";
 
 import {
@@ -125,6 +126,45 @@ export interface HttpOptions {
   readonly lifecycle: boolean;
   /** Server log of a local process, scanned for JIT fallbacks and errors. Absent for a remote URL. */
   readonly log?: () => string;
+  /**
+   * Nitro node-server only: an oversized validated body answered 413 must leave the SAME keep-alive
+   * connection usable (the @strata-sc/analog 0.12.1 fix). Needs a raw local TCP socket.
+   */
+  readonly keepAliveAfter413?: boolean;
+}
+
+/**
+ * One raw keep-alive connection: a POST whose JSON body exceeds the 1 MiB validated limit, then, once
+ * the 413 has arrived, a GET on the same socket. @strata-sc/analog 0.12.0 left Node's parser out of
+ * step and the GET got a bare `400 Bad Request` (docs/research/m3-m4-contract-stabilization.md).
+ * The 15 s timer only ends a hung probe; it never decides a result.
+ */
+export function oversizedThenNextOnOneConnection(base: URL, tag: string): Promise<string[]> {
+  const body = JSON.stringify({ n: `1${"9".repeat(1024 * 1024)}` });
+  const first =
+    `POST /api/strata/correlated/validated?tag=${tag} HTTP/1.1\r\nhost: ${base.host}\r\n` +
+    `content-type: application/json\r\ncontent-length: ${Buffer.byteLength(body)}\r\n` +
+    `connection: keep-alive\r\n\r\n${body}`;
+  const second = `GET /api/products/42 HTTP/1.1\r\nhost: ${base.host}\r\nconnection: close\r\n\r\n`;
+
+  return new Promise((resolve, reject) => {
+    const socket = connect(Number(base.port), base.hostname);
+    let received = "";
+    let continued = false;
+    socket.on("data", (chunk: Buffer) => {
+      received += chunk.toString("latin1");
+      if (!continued && received.includes("payload_too_large")) {
+        continued = true;
+        socket.write(second);
+      }
+    });
+    socket.on("error", reject);
+    socket.on("close", () =>
+      resolve([...received.matchAll(/HTTP\/1\.1 (\d{3})/g)].map((match) => match[1] ?? "")),
+    );
+    socket.write(first);
+    setTimeout(() => socket.destroy(), 15_000).unref();
+  });
 }
 
 export interface HttpResult {
@@ -695,6 +735,27 @@ export async function httpSuite(
       }),
     ),
   );
+  if (options.keepAliveAfter413) {
+    const single = await oversizedThenNextOnOneConnection(new URL(base), "keepalive-single");
+    const concurrent = await Promise.all(
+      Array.from({ length: 8 }, (_, index) =>
+        oversizedThenNextOnOneConnection(new URL(base), `keepalive-${index}`),
+      ),
+    );
+    ok.push(
+      check(
+        `${label}: after a 413 for an oversized validated body, the SAME keep-alive connection serves the next request (413, 200)`,
+        single.join(",") === "413,200",
+        single.join(","),
+      ),
+      check(
+        `${label}: 8 concurrent keep-alive connections each answer 413 then 200 (no parser 400 on any socket)`,
+        concurrent.every((statuses) => statuses.join(",") === "413,200"),
+        concurrent.map((statuses) => statuses.join("/")).join(" "),
+      ),
+    );
+  }
+
   // Unexpected SSR render failures (Workstream C): the application-owned contract replaces the
   // empty or half-rendered HTTP 200 document with a generic 500 before Analog commits the response.
   const failureReplies = await Promise.all(

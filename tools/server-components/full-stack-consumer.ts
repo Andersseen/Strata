@@ -424,6 +424,7 @@ try {
   const nodeHttp = await httpSuite(node.baseUrl, "node", {
     lifecycle: true,
     log: () => node.output(),
+    keepAliveAfter413: true,
   });
   const nodeIsland = await islandSuite(node.baseUrl, "node");
   const nodeNavigation = await navigationSuite(node.baseUrl, "node");
