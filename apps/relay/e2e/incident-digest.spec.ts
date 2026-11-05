@@ -144,7 +144,11 @@ test("a v2 payload downgraded to v1 fails preflight and preserves inert SSR DOM"
   await expect(digest.locator("relay-incident-triage[data-strata-hydrated]")).toHaveCount(0);
   await expect(digest.getByRole("button", { name: /Start monitoring/ }).first()).toBeAttached();
   expect(tampered).toBe(true);
-  expect(
-    errors.some((error) => error.includes("does not support") || error.includes("protocol 1")),
-  ).toBe(true);
+  // The ErrorHandler report arrives as a console message, asynchronously: wait for it (bounded)
+  // instead of reading the collected errors once, which raced (1 of 4 local runs, 2026-11-05).
+  await expect
+    .poll(() =>
+      errors.some((error) => error.includes("does not support") || error.includes("protocol 1")),
+    )
+    .toBe(true);
 });

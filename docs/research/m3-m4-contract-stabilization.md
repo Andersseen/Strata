@@ -210,3 +210,25 @@ injector; no Router subtree hydration.
   analog 0.12.0, server-components 0.14.0), registry upgrade/rollback, types (expected upstream-blocked
   verdict), integrity, adversarial (three source-mutated consumers). Failed: the published Cloudflare gate (D5),
   fixed afterwards; its hosted rerun is recorded on the pull request.
+
+## Local verification (macOS, Node 22.23.1, final branch state)
+
+All PASS unless stated: `pnpm install --frozen-lockfile`, `build`, actionlint, `format:check`, `lint` (0 errors;
+6 pre-existing warnings in untouched files), `typecheck`, `test`; `test:analog`, `-streaming`, `-headers`, `-forms`,
+`-correlation`, `-observability`; `test:package-consumer`; `test:server-components`, `-navigation`, `-defer`,
+`-server-only`, `-optimized-deps`, `-dev`, `-security`, `-request-context`, `-failures`, `-ssr-response`,
+`-authorization`, `-installed-island`, `-deployment-skew`; `test:analog-packed-di-consumer` (90 checks);
+`test:server-component-package-consumer` (268); `test:full-stack-package-consumer` (417);
+`test:full-stack-adversarial-security:smoke` and the full `test:full-stack-adversarial-security`;
+`test:full-stack-deployed-cloudflare` (local rehearsal only); `test:server-components:cloudflare`;
+`test:server-components:deployed-cloudflare` (published 0.14.0, local build GO); `test:server-component-registry-consumer`
+(0.14.0); `test:full-stack-registry-consumer`; www `test:e2e`, `test:www:server-components`, `relay:test:e2e`,
+`test:relay:server-components`.
+
+`test:relay:server-components` failed once in four runs: its v1-downgrade test read the collected console errors
+once, before the asynchronous ErrorHandler report had arrived (fail-closed behavior itself held: no hydration, SSR
+intact). The assertion now waits for the report with `expect.poll`; it passed afterwards.
+
+NOT RUN: real Cloudflare deployments and npm publication (out of scope, credentials not used);
+`test:consumer` and `test:consumer:types` locally (H3 SPEC-001/002, expected upstream-blocked; `types` passed its
+expected verdict in hosted Extended); performance and registry upgrade/rollback locally (passed hosted in Extended).
