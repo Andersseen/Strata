@@ -395,6 +395,38 @@ describe("verifyPublicationEventually (registry read-after-write lag)", () => {
     expect(result).toMatchObject({ ok: false, attempts: 4 });
   });
 
+  const staleNext = {
+    ok: false,
+    problems: ['@strata-sc/analog dist-tag "next" is 0.12.0, expected 0.12.1'],
+  };
+
+  it("passes once a just-aligned dist-tag becomes visible (run 42048951547 sequence)", async () => {
+    const verdicts = [staleNext, staleNext, pass];
+    const result = await verifyPublicationEventually(
+      () => Promise.resolve(verdicts.shift()!),
+      noWait,
+      options,
+    );
+
+    expect(result).toMatchObject({ ok: true, attempts: 3 });
+  });
+
+  it("still fails when a dist-tag stays wrong for the whole bound", async () => {
+    let calls = 0;
+    const result = await verifyPublicationEventually(
+      () => {
+        calls++;
+        return Promise.resolve(staleNext);
+      },
+      noWait,
+      options,
+    );
+
+    expect(result).toMatchObject({ ok: false, attempts: 4 });
+    expect(result.problems).toEqual(staleNext.problems);
+    expect(calls).toBe(4);
+  });
+
   it("never waits on any other problem", async () => {
     let calls = 0;
     const result = await verifyPublicationEventually(
@@ -405,7 +437,8 @@ describe("verifyPublicationEventually (registry read-after-write lag)", () => {
           ok: false,
           problems: [
             ...invisible.problems,
-            '@strata-sc/analog dist-tag "next" is 0.12.0, expected 0.12.1',
+            ...staleNext.problems,
+            "@strata-sc/analog@0.12.1 depends on @strata-sc/core@0.2.1, expected 0.2.2",
           ],
         });
       },

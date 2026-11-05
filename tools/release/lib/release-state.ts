@@ -215,9 +215,13 @@ export async function verifyPublication(input: {
 }
 
 /**
- * Re-runs `verify` with a bounded backoff while its ONLY problems are versions not yet visible on
- * npm (registry read-after-write lag right after a publish). Any other problem is returned at once;
- * the last verdict is returned when the bound is reached, so a publish that really did nothing fails.
+ * Re-runs `verify` with a bounded backoff while its ONLY problems are registry read-after-write lag:
+ * a version not yet visible on npm right after a publish, or a dist-tag not yet showing the value the
+ * align step just wrote. Release run 42048951547 moved `@strata-sc/analog` `next` 0.12.0 → 0.12.1,
+ * saw it on the full packument, and 0.4 s later this step's abbreviated-packument read still said
+ * 0.12.0 (a separately cached document); npm then served 0.12.1 everywhere. Any other problem (a
+ * dependency range) is returned at once, and the last verdict is returned when the bound is reached,
+ * so a publish that did nothing or a tag that really is wrong still fails.
  */
 export async function verifyPublicationEventually(
   verify: () => Promise<PublicationVerdict>,
@@ -232,11 +236,15 @@ export async function verifyPublicationEventually(
   let verdict = await verify();
 
   for (let attempt = 1; ; attempt++) {
-    const onlyInvisible =
+    const onlyLag =
       !verdict.ok &&
-      verdict.problems.every((problem) => problem.endsWith(" is not on the npm registry"));
+      verdict.problems.every(
+        (problem) =>
+          problem.endsWith(" is not on the npm registry") ||
+          /^@strata-sc\/[a-z0-9-]+ dist-tag "(latest|next)" is [^,]+, expected \S+$/.test(problem),
+      );
 
-    if (verdict.ok || !onlyInvisible || attempt >= options.attempts)
+    if (verdict.ok || !onlyLag || attempt >= options.attempts)
       return { ...verdict, attempts: attempt };
     await wait(delay);
     delay = Math.min(delay * 2, options.maxDelayMs);
