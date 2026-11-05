@@ -1,7 +1,7 @@
 # M3/M4 contract stabilization
 
-**Status:** implemented on `stabilize/m3-m4-contract-hardening`; local verification recorded below;
-hosted CI and the repaired Extended workflow are recorded in the pull request. This work adds no
+**Status:** implemented on `stabilize/m3-m4-contract-hardening` ([PR #168](https://github.com/Andersseen/Strata/pull/168));
+local verification and hosted results are recorded below. This work adds no
 feature, export, package, runtime, protocol or rendering mode. It does **not** qualify production
 use, M3, M4, M5 or Strata 1.0.
 
@@ -99,6 +99,17 @@ a step through `GITHUB_ENV`. The last scheduled run that did start
 `performance` on the dependency-tree mismatch PR #164 fixed; that fix has therefore never run hosted
 in Extended.
 
+### D5 — the published Cloudflare gate had not built since 2026-10-21 (CI, fixed)
+
+The repaired Extended run [42001301096](https://github.com/Andersseen/Strata/actions/runs/42001301096)
+started all seven jobs; six passed. The seventh, `test:server-components:deployed-cloudflare` (also the
+basis of the manual real-deployment workflow), failed: it copied the shared fixture without the
+published-artifact adaptation `registry-consumer.ts` applies, and since the fixture gained package islands
+(2026-10-21) its Server Components import a private test library no registry gate installs. Its only green
+run since then (41440983466) printed NOT APPLICABLE because 0.14.0 was not yet on npm, so it built nothing.
+The adaptation is now one helper used by both registry gates, and a NOT APPLICABLE run emits a warning
+annotation. Locally the gate now passes for published 0.14.0 (Local build GO, workerd verifier, 0 failing).
+
 ## Tests added or strengthened
 
 | Area                      | Change                                                                                                                                                                                          | Evidence                                         |
@@ -186,3 +197,16 @@ injector; no Router subtree hydration.
 4. Deployed qualification of the composed controller + DI + Server Components path; Node server
    deployment.
 5. Real-application adoption (ForgeCMS or equivalent) with migration and rollback.
+
+## Hosted results
+
+- PR CI [42001271320](https://github.com/Andersseen/Strata/actions/runs/42001271320) on `a24af18`:
+  `static` (with actionlint and `format:check`), `graph`, `runtime` (with `test:analog`), `consumers`, `apps`
+  and the aggregate **Verify passed**; the website deployment was skipped as designed for a pull request.
+  Entwine documentation and the registry-artifact verification also passed. HOSTED CI.
+- Extended [42001301096](https://github.com/Andersseen/Strata/actions/runs/42001301096) (`workflow_dispatch`,
+  `suite=all`, on `a24af18`): the workflow **started all seven jobs** (it could not start since PR #167).
+  Passed: performance (first hosted pass of the PR #164 repair), registry-full-stack (published core 0.2.2,
+  analog 0.12.0, server-components 0.14.0), registry upgrade/rollback, types (expected upstream-blocked
+  verdict), integrity, adversarial (three source-mutated consumers). Failed: the published Cloudflare gate (D5),
+  fixed afterwards; its hosted rerun is recorded on the pull request.
