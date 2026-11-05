@@ -394,15 +394,16 @@ jobs:
       - name: Full-stack packed-package consumer (core + analog + server-components)
         run: pnpm test:full-stack-package-consumer
 
+      # F6: independent Node and workerd instances behind a round-robin router. The pre-fix
+      # cross-request read-back must fail; the invocation-owned read receipts must pass. Reuses the
+      # verified packed install of the full-stack step above (STRATA_ADVERSARIAL_REUSE_ROOT); it runs before the adversarial smoke,
+      # which removes that root when it finishes.
+      - name: Full-stack multi-isolate authorization observation (Node + Node + workerd)
+        run: pnpm test:full-stack-multi-isolate
+
       # Real source mutation through the independently packed production consumer; smoke one fault per PR.
       - name: Full-stack adversarial source-mutation smoke
         run: pnpm test:full-stack-adversarial-security:smoke
-
-      # F6: independent Node and workerd instances behind a round-robin router. The pre-fix
-      # cross-request read-back must fail; the invocation-owned read receipts must pass. Reuses the
-      # verified packed install of the full-stack step above (STRATA_ADVERSARIAL_REUSE_ROOT).
-      - name: Full-stack multi-isolate authorization observation (Node + Node + workerd)
-        run: pnpm test:full-stack-multi-isolate
 
       - name: Upload failure diagnostics
         if: failure()
