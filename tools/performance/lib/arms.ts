@@ -1,6 +1,8 @@
 import { cpSync, existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
+import type { ControllerCount } from "./api-scale.ts";
+
 /**
  * The four comparison arms are two independent switches over ONE application:
  *
@@ -92,6 +94,11 @@ export interface AssembleOptions {
   readonly nativeStyle?: "response" | "object";
   /** Interactive islands in the app; default one. Profile files live in `islands-<n>/`. */
   readonly islands?: IslandCount;
+  /**
+   * Controllers in the API; default one. `8` adds `controllers-8/`: the same eight-resource API
+   * as eight Strata controllers (controller arms) or as equivalent native routes (native arms).
+   */
+  readonly controllers?: ControllerCount;
 }
 
 export interface Assembled {
@@ -111,9 +118,14 @@ export function assembleArm({
   tarballs,
   nativeStyle = "response",
   islands = DEFAULT_ISLAND_COUNT,
+  controllers = 1,
 }: AssembleOptions): Assembled {
   if (islands !== 1 && nativeStyle === "object")
     throw new Error("the object-return native diagnostic only exists for the one-island profile");
+  if (controllers !== 1 && nativeStyle === "object")
+    throw new Error(
+      "the object-return native diagnostic only exists for the one-controller profile",
+    );
 
   const common = join(template, "common");
   const overlays = [
@@ -132,19 +144,29 @@ export function assembleArm({
       : ["common", `page-${arm.page}`, `api-${arm.api}`].map((name) =>
           join(template, `islands-${islands}`, name),
         );
+  const scale =
+    controllers === 1
+      ? []
+      : ["common", `api-${arm.api}`].map((name) =>
+          join(template, `controllers-${controllers}`, name),
+        );
+  // A profile's `common/` only adds files and is protected like `common/`; its page/api overlays
+  // may replace a variant's file of the same name, never a common or profile-common file.
+  const sharedRoots = new Set([common, profile[0], scale[0]].filter(Boolean));
+  const replacingRoots = new Set([...profile.slice(1), ...scale.slice(1)]);
   const placed = new Set<string>();
   const protectedFiles = new Set<string>();
 
-  for (const root of [common, ...overlays, ...profile]) {
+  for (const root of [common, ...overlays, ...profile, ...scale]) {
     if (!existsSync(root)) throw new Error(`Missing fixture directory: ${root}`);
 
-    const mayReplaceVariant = profile.slice(1).includes(root);
+    const mayReplaceVariant = replacingRoots.has(root);
 
     for (const file of listAll(root)) {
       if (placed.has(file) && !(mayReplaceVariant && !protectedFiles.has(file)))
         throw new Error(`Variant file overrides another file: ${file}`);
       placed.add(file);
-      if (root === common || root === profile[0]) protectedFiles.add(file);
+      if (sharedRoots.has(root)) protectedFiles.add(file);
     }
 
     cpSync(root, destination, { recursive: true });

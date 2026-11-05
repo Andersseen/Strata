@@ -8,3 +8,7 @@ pnpm-lock.yaml
 .claude/skills/entwine-*
 # Deliberately invalid module of the optimizer-firewall fixture package.
 tests/server-component-optimized-deps/kit/broken.js
+
+# Captured npm dependency trees of the frozen full-stack candidate (tests/full-stack-candidate):
+# byte-for-byte what npm wrote; reformatting would change nothing but must never be needed.
+tests/full-stack-candidate/*/package-lock.json

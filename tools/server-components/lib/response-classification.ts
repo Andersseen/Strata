@@ -56,8 +56,78 @@ export interface AnomalySample {
   /** Bounded, and replaced when it would carry a synthetic private value. */
   readonly bodyPrefix: string;
   readonly privateValueInBody: boolean;
+  /**
+   * Where a body first differs from the expected baseline: the character offset, both lengths, a
+   * bounded window of each around the offset and the build stamps on each side. Absent when the body
+   * was not compared or a private value was found (nothing is copied then).
+   */
+  readonly bodyDifference?: BodyDifference;
   readonly elapsedMs: number;
   readonly transportError: string | null;
+}
+
+export interface BodyDifference {
+  readonly offset: number;
+  readonly expectedLength: number;
+  readonly actualLength: number;
+  readonly expectedWindow: string;
+  readonly actualWindow: string;
+  readonly expectedBuilds: readonly string[];
+  readonly actualBuilds: readonly string[];
+}
+
+export const DIFFERENCE_WINDOW = 80;
+
+// Angular's transfer-state script (`<script id="${APP_ID}-state" type="application/json">`).
+const STATE_SCRIPT = /(<script[^>]*type="application\/json"[^>]*>)([\s\S]*?)(<\/script>)/g;
+
+/**
+ * Angular numbers the serialized templates of its hydration annotation (`__nghData__`, ids `t0`,
+ * `t1`, …) from render history that lives in the server process: a Worker isolate that already
+ * rendered the page numbers them differently from a fresh one (observed on Cloudflare Pages,
+ * deployed run 42034490852). Renumbering those ids by first appearance makes two such documents
+ * equal; ANY other byte still counts, including the ids' structure and every other value.
+ */
+export function canonicalDocument(html: string): string {
+  return html.replace(STATE_SCRIPT, (_match, open: string, state: string, close: string) => {
+    if (!state.includes("__nghData__")) return `${open}${state}${close}`;
+
+    const ids = new Map<string, string>();
+    const renumbered = state.replace(/"(t\d+)"/g, (_id, id: string) => {
+      if (!ids.has(id)) ids.set(id, `t${ids.size}`);
+
+      return `"${ids.get(id)}"`;
+    });
+
+    return `${open}${renumbered}${close}`;
+  });
+}
+
+export const sameDocument = (expected: string, actual: string): boolean =>
+  expected === actual || canonicalDocument(expected) === canonicalDocument(actual);
+
+const buildsIn = (html: string): string[] => [
+  ...new Set([...html.matchAll(/data-strata-build="([^"]*)"/g)].map((m) => m[1]!)),
+];
+
+/** The first difference between two public bodies, bounded; never called for a private body. */
+export function bodyDifference(expected: string, actual: string): BodyDifference {
+  let offset = 0;
+
+  while (offset < expected.length && offset < actual.length && expected[offset] === actual[offset])
+    offset++;
+
+  const from = Math.max(0, offset - DIFFERENCE_WINDOW / 2);
+
+  return {
+    offset,
+    expectedLength: expected.length,
+    actualLength: actual.length,
+    expectedWindow: expected.slice(from, from + DIFFERENCE_WINDOW),
+    actualWindow: actual.slice(from, from + DIFFERENCE_WINDOW),
+    expectedBuilds: buildsIn(expected),
+    actualBuilds: buildsIn(actual),
+  };
 }
 
 export const FINGERPRINT_HEADER = "x-fullstack-catalog";
@@ -109,7 +179,7 @@ export function classifyReply(
   const subjectOk = expected.subject === null || identity.subject === expected.subject;
   const correlationOk =
     expected.correlation === null || identity.correlation === expected.correlation;
-  const bodyOk = expected.body === null || reply.body === expected.body;
+  const bodyOk = expected.body === null || sameDocument(expected.body, reply.body);
 
   if (statusOk && typeOk && subjectOk && correlationOk && bodyOk && !privateValueInBody)
     return { class: "match" };
@@ -159,6 +229,12 @@ export function classifyReply(
         ? "[withheld: private value]"
         : reply.body.slice(0, BODY_PREFIX_LIMIT),
       privateValueInBody,
+      ...(!bodyOk &&
+      expected.body !== null &&
+      !privateValueInBody &&
+      leaks(expected.body).length === 0
+        ? { bodyDifference: bodyDifference(expected.body, reply.body) }
+        : {}),
       elapsedMs: Math.round(elapsedMs * 10) / 10,
       transportError: null,
     },

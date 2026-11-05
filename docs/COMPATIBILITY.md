@@ -5,6 +5,17 @@ The full-stack authorization fixture's protected paths passed with the packed an
 Policy date: 2026-09-17. There is **no production support matrix yet**. Distinguish manifest ranges,
 locally exercised versions, researched candidates and qualified release combinations.
 
+## Frozen release candidate (2026-11-05)
+
+The exact qualified combination is now a committed, reproducible artifact, `tests/full-stack-candidate`
+(id `318670103337b243`, [report](research/m5-production-qualification.md)): Strata core 0.2.2 / analog 0.12.0 / server-components 0.14.0 with
+their npm integrities, the complete consumer lock (869 packages) and the TypeScript 5.9 declaration lock, the
+resolved framework tuple (as below, plus `@analogjs/vite-plugin-nitro` 2.9.6, Rolldown 1.2.0, workerd
+1.20260918.1) and the toolchain (Node 22, Playwright 1.62.1, Wrangler 4.135.0, compatibility date 2026-09-21,
+no flags). It is one exact tuple, not a support range. Manifest peer and engine ranges are **not** narrowed:
+the lower Angular bound (22.1.7) is exercised by the performance fixture and 22.2.3 by the full-stack
+fixture, so the evidence does not contradict `^22.1.7`, but it does not qualify the whole range either.
+
 ## Current tested tuple and evidence levels (2026-11-05)
 
 This section is the current reconciliation; the sections below keep their historical record. It is

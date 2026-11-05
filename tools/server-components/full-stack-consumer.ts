@@ -37,10 +37,20 @@ import {
   sanitize,
   sha256,
 } from "./lib/full-stack-install.ts";
-import { NotAvailable, installCandidate, registryMode } from "./lib/full-stack-registry-install.ts";
+import {
+  NotAvailable,
+  activeCandidate,
+  checkFrozenToolchain,
+  collectToolchain,
+  frozenMode,
+  installAuxiliaryConsumer,
+  installCandidate,
+  registryMode,
+  writeCapturedCandidate,
+} from "./lib/full-stack-registry-install.ts";
 import { routingBrowserSuite, routingSuite } from "./lib/full-stack-routing.ts";
 import { httpSuite, islandSuite, navigationSuite } from "./lib/full-stack-verify.ts";
-import { check, finish, repoRoot, section } from "./lib/harness.ts";
+import { check, failureCount, finish, repoRoot, section } from "./lib/harness.ts";
 import { moduleGraph } from "./lib/module-graph.ts";
 import {
   installedVersion,
@@ -53,6 +63,7 @@ import {
 } from "./lib/package-consumer.ts";
 import type { RunningServer, Snapshot } from "./lib/package-consumer.ts";
 import { checkPublicApi } from "./lib/public-api.ts";
+import { treeDigest } from "./lib/upgrade-rollback.ts";
 import { COMPATIBILITY_DATE } from "./lib/wrangler.ts";
 
 /**
@@ -74,10 +85,13 @@ import { COMPATIBILITY_DATE } from "./lib/wrangler.ts";
  * command.
  */
 
-const REGISTRY = registryMode();
-const TITLE = REGISTRY
-  ? "full-stack PUBLISHED-REGISTRY consumer qualification"
-  : "full-stack packed-package consumer qualification";
+const FROZEN = frozenMode();
+const REGISTRY = registryMode() || FROZEN;
+const TITLE = FROZEN
+  ? "full-stack FROZEN-CANDIDATE consumer qualification"
+  : REGISTRY
+    ? "full-stack PUBLISHED-REGISTRY consumer qualification"
+    : "full-stack packed-package consumer qualification";
 
 const TS59_VERSION = "5.9.2";
 
@@ -125,6 +139,7 @@ const emptyGlobalNpmrc = join(tmpRoot, "empty-global.npmrc");
 const env = isolatedEnv(emptyNpmrc, emptyGlobalNpmrc);
 
 let notAvailable: NotAvailable | undefined;
+let toolchain: Awaited<ReturnType<typeof collectToolchain>> | undefined;
 let templateBefore: Snapshot | undefined;
 let pristine: Snapshot | undefined;
 
@@ -188,10 +203,16 @@ try {
   // ------------------------------------------------------------------------
 
   const tool = installCandidate({ tmpRoot, consumerDir, env, time }, installFullStackConsumer);
-  const { installArgs, consumerManifest, manifests } = tool;
+  const { consumerManifest, manifests } = tool;
 
   pristine = tool.pristine;
   verdict.install = tool.ok;
+
+  if (REGISTRY) {
+    toolchain = await collectToolchain(consumerDir, env);
+    console.log(`toolchain: ${JSON.stringify(toolchain)}`);
+    verdict.install = checkFrozenToolchain(toolchain) && verdict.install;
+  }
 
   // ------------------------------------------------------------------------
   section("Declaration portability (TypeScript 6 and 5.9, skipLibCheck: false)");
@@ -263,9 +284,9 @@ try {
     copyInstalledTree(join(seedTypeConsumer, "node_modules"), join(ts59Dir, "node_modules"));
     console.log(`reused verified TypeScript 5.9 install from ${seedTypeConsumer}`);
   } else {
-    time("npm install (TypeScript 5.9 consumer)", () =>
-      must(run("npm", installArgs, { cwd: ts59Dir, env }), "npm install (TypeScript 5.9 consumer)"),
-    );
+    verdict.install =
+      installAuxiliaryConsumer({ tree: "consumer-ts59", dir: ts59Dir, env, time }) &&
+      verdict.install;
   }
 
   const ts59 = tscDeclarations(ts59Dir, "TypeScript 5.9", env);
@@ -682,6 +703,19 @@ if (notAvailable) {
 }
 
 section("Verdict");
+if (FROZEN) {
+  console.log(
+    `frozen candidate: ${activeCandidate()?.record.id ?? "(none)"}; tested source ${run("git", ["rev-parse", "HEAD"], { cwd: repoRoot }).stdout.trim()}`,
+  );
+}
+if (REGISTRY && !FROZEN && toolchain) {
+  writeCapturedCandidate({
+    passed: failureCount() === 0 && Object.values(verdict).every(Boolean),
+    toolchain,
+    sourceSha: run("git", ["rev-parse", "HEAD"], { cwd: repoRoot }).stdout.trim(),
+    fixtureSourceDigest: treeDigest(fixtureTemplate, (file) => file === "package.json"),
+  });
+}
 check(
   `external ${REGISTRY ? "published-registry" : "packed-package"} installation`,
   verdict.install,

@@ -1,5 +1,12 @@
 # Technical risk register
 
+M5 qualification (2026-11-05, [report](research/m5-production-qualification.md)): no product defect found. Reproducibility risk recorded: the
+fresh consumer tree floats `@analogjs/content` to 2.9.6, whose optional peer `sharp ^0.33.5` conflicts with
+Wrangler's pinned `sharp 0.35.4`; npm writes a lock its own `npm ci` rejects. The frozen candidate reinstalls it
+with `--legacy-peer-deps` and proves the tree identical to the lock; the conflict is outside every runtime path
+exercised. Cloudflare isolate cold start and Worker memory remain NOT MEASURED; client-disconnect cancellation
+remains unsupported through the pinned adapters.
+
 M3/M4 contract stabilization (2026-11-05, [report](research/m3-m4-contract-stabilization.md)): the extended
 packed Angular DI consumer found a **production defect**, now fixed in `@strata-sc/analog` (patch Changeset):
 after a 413 for an oversized validated JSON/form body on Nitro node-server, the next request on the same

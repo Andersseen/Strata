@@ -18,17 +18,21 @@ import { sanitize } from "./deployment-skew.ts";
 
 export type Side = "a" | "b";
 
-/** Release A → release B. The default pair is the latest two published server-components minors. */
+/**
+ * Release A → release B. The default pair is the latest two published server-components minors
+ * on the latest published core and analog (0.12.0 → 0.13.0 until 2026-11-05; see the M5 report).
+ * `@strata-sc/analog` 0.12.1 is not published, so no pair can contain it yet.
+ */
 export const DEFAULT_PAIR: Readonly<Record<Side, VersionTuple>> = {
   a: {
     "@strata-sc/core": "0.2.2",
     "@strata-sc/analog": "0.12.0",
-    "@strata-sc/server-components": "0.12.0",
+    "@strata-sc/server-components": "0.13.0",
   },
   b: {
     "@strata-sc/core": "0.2.2",
     "@strata-sc/analog": "0.12.0",
-    "@strata-sc/server-components": "0.13.0",
+    "@strata-sc/server-components": "0.14.0",
   },
 };
 
@@ -37,8 +41,8 @@ export const DEFAULT_PAIR: Readonly<Record<Side, VersionTuple>> = {
  * package version: a redeploy with identical packages is still a different build.
  */
 export const DEFAULT_BUILD_IDS: Readonly<Record<Side, string>> = {
-  a: "upgrade-a-2026.11.1",
-  b: "upgrade-b-2026.11.2",
+  a: "upgrade-a-2026.11.5",
+  b: "upgrade-b-2026.11.6",
 };
 
 const SUFFIX: Readonly<Record<TuplePackage, string>> = {

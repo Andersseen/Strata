@@ -1,0 +1,24 @@
+{
+  "name": "strata-full-stack-declarations-ts59",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@strata-sc/core": "0.2.2",
+    "@strata-sc/analog": "0.12.0",
+    "@strata-sc/server-components": "0.14.0",
+    "@analogjs/router": "2.7.2",
+    "@angular/core": "22.2.3",
+    "@angular/common": "22.2.3",
+    "@angular/compiler": "22.2.3",
+    "@angular/platform-browser": "22.2.3",
+    "@angular/platform-server": "22.2.3",
+    "@angular/router": "22.2.3",
+    "h3": "1.15.11",
+    "rxjs": "7.8.2",
+    "tslib": "2.8.1",
+    "vite": "8.3.0",
+    "zod": "4.6.5",
+    "@types/node": "22.20.3",
+    "typescript": "5.9.2"
+  }
+}

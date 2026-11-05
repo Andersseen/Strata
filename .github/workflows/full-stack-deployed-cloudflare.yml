@@ -23,6 +23,14 @@ name: Qualify Full-Stack Strata on Cloudflare
 # default to the dispatched ref's manifest versions) and runs `test:full-stack-registry-deployed-cloudflare`;
 # a version that is not on npm exits 3, NOT AVAILABLE (not a runtime failure, not a GO, nothing substituted).
 # See docs/research/full-stack-registry-qualification.md.
+#
+# `upgrade-rollback` runs `test:full-stack-registry-upgrade-rollback` on the cloudflare runtime with
+# STRATA_UPGRADE_DEPLOY=1: two exact PUBLISHED tuples (STRATA_UPGRADE_* defaults, the core/analog/
+# server_components inputs are ignored) are built and verified locally, the deployment rehearsal must
+# pass, then release A, release B and A's RETAINED artifact are deployed in turn to the preview branch
+# `m5-upgrade-rollback` of the same isolated project and verified on its branch alias (stale clients get
+# the previous deployment's real assets from its immutable URL). See
+# docs/research/m5-production-qualification.md.
 on:
   workflow_dispatch:
     inputs:
@@ -30,7 +38,7 @@ on:
         description: "Candidate: packed (this checkout, default) or registry (published npm versions)"
         required: false
         type: choice
-        options: [packed, registry]
+        options: [packed, registry, upgrade-rollback]
         default: packed
       core_version:
         description: "registry only: @strata-sc/core exact version (default: manifest)"
@@ -59,7 +67,7 @@ jobs:
   deployed:
     name: Deploy and qualify the full-stack app on Cloudflare Pages
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -84,6 +92,12 @@ jobs:
           test "$PAGES_PROJECT" = "strata-fullstack-qualification"
           if [ "$CANDIDATE_SOURCE" = "registry" ]; then
             pnpm test:full-stack-registry-deployed-cloudflare
+          elif [ "$CANDIDATE_SOURCE" = "upgrade-rollback" ]; then
+            STRATA_UPGRADE_DEPLOY=1 STRATA_UPGRADE_REQUIRE_DEPLOYED=1 \
+              STRATA_UPGRADE_RUNTIMES=cloudflare \
+              STRATA_UPGRADE_PAGES_PROJECT="$PAGES_PROJECT" \
+              STRATA_UPGRADE_EVIDENCE="$RUNNER_TEMP/full-stack-deployed-evidence.json" \
+              pnpm test:full-stack-registry-upgrade-rollback
           else
             pnpm test:full-stack-deployed-cloudflare
           fi
