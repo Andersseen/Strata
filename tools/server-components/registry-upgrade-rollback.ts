@@ -12,6 +12,16 @@ import { observeStreaming } from "../analog/lib/streaming.ts";
 import { TUPLE_PACKAGES, tupleProblems } from "../release/lib/registry-tuple.ts";
 import type { LockEntry, TuplePackage } from "../release/lib/registry-tuple.ts";
 
+import { MAX_REQUESTS_PER_URL, runConcurrencyMatrix } from "./lib/concurrency-matrix.ts";
+import {
+  AliasOrigin,
+  DEFAULT_UPGRADE_BRANCH,
+  UPGRADE_DEPLOY_PROJECT,
+  branchAliasUrl,
+  deployTargetProblems,
+  servesBuild,
+  staleAssets,
+} from "./lib/deployed-upgrade.ts";
 import { Edge, entryScript, filesContaining, isolated } from "./lib/deployment-skew.ts";
 import type { Plan, Release, Rewrite } from "./lib/deployment-skew.ts";
 import { tscDeclarations } from "./lib/full-stack-declarations.ts";
@@ -27,11 +37,13 @@ import {
   lookupTuple,
 } from "./lib/full-stack-registry-install.ts";
 import type { RegistryInstall } from "./lib/full-stack-registry-install.ts";
+import { surfaceSuite } from "./lib/full-stack-remote.ts";
 import { routingBrowserSuite, routingSuite } from "./lib/full-stack-routing.ts";
 import { httpSuite, islandSuite, navigationSuite } from "./lib/full-stack-verify.ts";
-import { check, finish, section } from "./lib/harness.ts";
+import { check, failureCount, finish, section } from "./lib/harness.ts";
 import { startNodeServer, startWrangler, until } from "./lib/package-consumer.ts";
 import type { RunningServer } from "./lib/package-consumer.ts";
+import { deployToPages } from "./lib/pages-deploy.ts";
 import {
   INIT_SCRIPT,
   OBSERVE,
@@ -44,6 +56,7 @@ import {
   treeDigest,
 } from "./lib/upgrade-rollback.ts";
 import type { Observed, Side } from "./lib/upgrade-rollback.ts";
+import { COMPATIBILITY_DATE } from "./lib/wrangler.ts";
 
 /**
  * `pnpm test:full-stack-registry-upgrade-rollback`: can a real external Analog consumer move
@@ -56,7 +69,15 @@ import type { Observed, Side } from "./lib/upgrade-rollback.ts";
  *
  * Runtimes: Nitro Node production and LOCAL workerd (`wrangler pages dev`; NOT a deployed Pages
  * project). The release A/B exact versions come from `STRATA_UPGRADE_{A,B}_{CORE,ANALOG,SERVER_COMPONENTS}_VERSION`.
- * Nothing is published, deployed or substituted: an unpublished version is NOT AVAILABLE (exit 3).
+ * Nothing is published or substituted: an unpublished version is NOT AVAILABLE (exit 3).
+ *
+ * DEPLOYMENT-AWARE phase (with the cloudflare runtime): A, then B, then A's RETAINED artifact are
+ * "deployed" in turn to one stable origin, and stale clients get the previous deployment's real
+ * assets from its immutable URL. By default this is a LOCAL REHEARSAL (wrangler + a local alias).
+ * `STRATA_UPGRADE_DEPLOY=1` deploys for real, only to the isolated `strata-fullstack-qualification`
+ * Pages project on a preview branch (`STRATA_UPGRADE_PAGES_BRANCH`, default m5-upgrade-rollback),
+ * only after the rehearsal passed, and only from the manual workflow. Credentials are removed from
+ * every other command and redacted from output. Without them the result is DEPLOYED NOT RUN.
  */
 
 const TITLE = "published-registry upgrade/rollback qualification";
@@ -65,8 +86,41 @@ const SIDES = ["a", "b"] as const;
 const PAGE = "/products/42";
 const TUPLE_LIST: readonly TuplePackage[] = TUPLE_PACKAGES;
 
+const DEPLOY = process.env["STRATA_UPGRADE_DEPLOY"] === "1";
+const REQUIRE_DEPLOYED = process.env["STRATA_UPGRADE_REQUIRE_DEPLOYED"] === "1";
+const DEPLOY_TARGET = {
+  project: process.env["STRATA_UPGRADE_PAGES_PROJECT"] ?? UPGRADE_DEPLOY_PROJECT,
+  branch: process.env["STRATA_UPGRADE_PAGES_BRANCH"] ?? DEFAULT_UPGRADE_BRANCH,
+};
+const REHEARSE = process.env["STRATA_UPGRADE_DEPLOYED_PHASE"] !== "0";
+
+if (DEPLOY) {
+  const problems = deployTargetProblems(DEPLOY_TARGET);
+
+  if (problems.length > 0 || !runtimes.includes("cloudflare")) {
+    console.error(
+      `${TITLE}: refusing deployment: ${[...problems, ...(runtimes.includes("cloudflare") ? [] : ["the cloudflare runtime is required"])].join("; ")}`,
+    );
+    process.exit(2);
+  }
+}
+
+/** Credentials exist only for `wrangler pages deploy`; every other command runs without them. */
+const credentials = {
+  token: process.env["CLOUDFLARE_API_TOKEN"],
+  account: process.env["CLOUDFLARE_ACCOUNT_ID"],
+};
+const secrets = [credentials.token, credentials.account, process.env["CLOUDFLARE_API_KEY"]].filter(
+  (value): value is string => !!value && value.length > 3,
+);
+const redact = (text: string): string =>
+  secrets.reduce((out, secret) => out.split(secret).join("***"), sanitize(text));
+
 const tmpRoot = mkdtempSync(join(tmpdir(), "strata-upgrade-rollback-"));
 const env = isolated(tmpRoot);
+
+for (const name of ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_API_KEY"])
+  delete env[name];
 const servers: RunningServer[] = [];
 const timings: string[] = [];
 let browser: Browser | undefined;
@@ -196,6 +250,414 @@ const unexpected = (v: Visit, seen: Observed): string[] => [
 
 const leaks = (...texts: string[]): string[] =>
   PRIVATE_CANARIES.filter((canary) => texts.some((text) => text.includes(canary)));
+
+/** A refusal is a mismatch only when it is classified and names both builds. */
+const mismatchNaming = (
+  error: Observed["errors"][number] | undefined,
+  browserId: string,
+  serverId: string,
+): boolean =>
+  error?.name === "StrataBuildMismatchError" &&
+  error.category === "build-mismatch" &&
+  error.message.includes(`"${browserId}"`) &&
+  error.message.includes(`"${serverId}"`);
+
+/** The cloudflare-preset artifacts of A and B, retained for the deployment-aware phase. */
+let cloudflareRelease:
+  | { dirs: Record<Side, string>; digests: Record<Side, { tree: string; entry: string }> }
+  | undefined;
+
+// ---------------------------------------------------------------------------
+// Deployment-aware upgrade and rollback (local rehearsal or the isolated Pages project)
+
+interface DeployTarget {
+  /** LOCAL REHEARSAL or DEPLOYED: what the evidence may be called. */
+  readonly kind: "LOCAL REHEARSAL" | "DEPLOYED";
+  readonly alias: string;
+  deploy(side: Side): Promise<{ immutable: string; record: Record<string, unknown> }>;
+  close(): Promise<void>;
+}
+
+/** Bounded readiness: the alias must serve `buildId` (SSR stamps and the controller) N times in a row. */
+async function awaitBuild(
+  base: string,
+  buildId: string,
+  deployed: boolean,
+): Promise<{ ready: boolean; attempts: number; notReady: string[] }> {
+  const attempts = deployed ? 60 : 40;
+  const interval = deployed ? 3_000 : 100;
+  const consecutive = deployed ? 3 : 1;
+  const notReady: string[] = [];
+  let streak = 0;
+  let made = 0;
+
+  for (let attempt = 1; attempt <= attempts && streak < consecutive; attempt++) {
+    made = attempt;
+    const page = await httpGet(`${base}${PAGE}`).catch((error: unknown) => ({
+      status: 0,
+      body: String(error),
+    }));
+    const api = await httpGet(`${base}/api/products/42`).catch(() => ({ status: 0, body: "" }));
+    const ok = page.status === 200 && servesBuild(page.body, buildId) && api.status === 200;
+
+    if (!ok) notReady.push(`#${attempt}: page ${page.status}, api ${api.status}`);
+    streak = ok ? streak + 1 : 0;
+    if (streak < consecutive) await new Promise((resolve) => setTimeout(resolve, interval));
+  }
+
+  return { ready: streak >= consecutive, attempts: made, notReady };
+}
+
+async function rehearsalTarget(dirs: Record<Side, string>): Promise<DeployTarget> {
+  const alias = new AliasOrigin();
+  const immutable = {} as Record<Side, RunningServer>;
+
+  await alias.start();
+
+  return {
+    kind: "LOCAL REHEARSAL",
+    alias: alias.baseUrl,
+    async deploy(side) {
+      immutable[side] ??= await startWrangler(dirs[side], env, PAGE);
+      alias.point(immutable[side].baseUrl);
+
+      return {
+        immutable: immutable[side].baseUrl,
+        record: { side, immutable: immutable[side].baseUrl, via: "local wrangler + AliasOrigin" },
+      };
+    },
+    async close() {
+      await alias.stop();
+      for (const server of Object.values(immutable)) await server.stop().catch(() => undefined);
+    },
+  };
+}
+
+function pagesTarget(dirs: Record<Side, string>): DeployTarget {
+  const { project, branch } = DEPLOY_TARGET;
+
+  return {
+    kind: "DEPLOYED",
+    alias: branchAliasUrl(project, branch),
+    deploy(side) {
+      writeFileSync(
+        join(dirs[side], "wrangler.jsonc"),
+        `${JSON.stringify({ name: project, pages_build_output_dir: "./dist/analog/public", compatibility_date: COMPATIBILITY_DATE }, null, 2)}\n`,
+      );
+
+      const deployment = deployToPages({
+        consumerDir: dirs[side],
+        env: {
+          ...env,
+          CLOUDFLARE_API_TOKEN: credentials.token,
+          CLOUDFLARE_ACCOUNT_ID: credentials.account,
+        },
+        project,
+        branch,
+        outputDirectory: "dist/analog/public",
+        redact,
+      });
+
+      if (!deployment.ok || !deployment.url) {
+        return Promise.reject(
+          new Error(`wrangler pages deploy of ${side.toUpperCase()} failed: ${deployment.output}`),
+        );
+      }
+
+      return Promise.resolve({
+        immutable: deployment.url,
+        record: {
+          side,
+          project,
+          branch,
+          url: deployment.url,
+          hash: deployment.hash,
+          ...(deployment.id ? { id: deployment.id } : {}),
+        },
+      });
+    },
+    close: () => Promise.resolve(),
+  };
+}
+
+async function deploymentPhase(
+  target: DeployTarget,
+  release: NonNullable<typeof cloudflareRelease>,
+  ids: Record<Side, string>,
+): Promise<boolean> {
+  const deployed = target.kind === "DEPLOYED";
+  const tag = deployed ? "deployed" : "rehearsal";
+  const alias = target.alias;
+  const ok: boolean[] = [];
+  const ck = (name: string, passed: boolean, detail?: string): boolean => {
+    ok.push(check(`${tag}: ${name}`, passed, detail ? redact(detail) : detail));
+
+    return passed;
+  };
+  const record: Record<string, unknown> = { kind: target.kind, alias, deployments: [] };
+  const immutable = {} as Record<Side, string>;
+  const skip = (file: string): boolean => /(^|\/)\.wrangler-/.test(file);
+
+  evidence["deployment"] = record;
+
+  const publish = async (side: Side, step: string): Promise<boolean> => {
+    const before = treeDigest(join(release.dirs[side], "dist"), skip);
+
+    ck(
+      `${step}: the artifact handed to the deployment is release ${side.toUpperCase()}'s retained build (digest unchanged since its local verification)`,
+      before === release.digests[side].tree,
+    );
+
+    const result = await target.deploy(side);
+
+    immutable[side] = result.immutable;
+    (record["deployments"] as unknown[]).push({ step, ...result.record });
+
+    const readiness = await awaitBuild(alias, ids[side], deployed);
+
+    (record["readiness"] ??= []) as unknown[];
+    (record["readiness"] as unknown[]).push({ step, ...readiness });
+
+    return ck(
+      `${step}: the alias serves build ${ids[side]} (readiness: ${readiness.attempts} attempt(s), ${readiness.notReady.length} not-ready, kept separate from the assertions)`,
+      readiness.ready,
+      readiness.notReady.slice(0, 5).join("; "),
+    );
+  };
+
+  const contract = async (side: Side, step: string): Promise<boolean> => {
+    const label = `${tag} ${step}`;
+    const http = await httpSuite(alias, label, { lifecycle: false });
+    const island = await islandSuite(alias, label);
+    const navigation = await navigationSuite(alias, label);
+    const html = (await httpGet(`${alias}${PAGE}`)).body;
+    const own = (await httpGet(`${immutable[side]}${PAGE}`)).body;
+
+    return all([
+      ...http.controller,
+      ...http.serverComponents,
+      ...island.ok,
+      ...navigation,
+      ck(`${step}: every boundary on the alias carries ${ids[side]}`, servesBuild(html, ids[side])),
+      ck(
+        `${step}: the deployment's own immutable URL serves the same build`,
+        servesBuild(own, ids[side]),
+      ),
+      ck(`${step}: no private canary in the public document`, leaks(html).length === 0),
+    ]);
+  };
+
+  section(`${target.kind}: deploy A → verify → deploy B → stale clients → restore A (${alias})`);
+
+  // D1 — release A.
+  if (!(await publish("a", "D1 deploy A"))) return false;
+  ck("D1 release A: full-stack contract on the alias", await contract("a", "D1 A"));
+
+  // D2 — a tab that loaded A stays open across the upgrade.
+  const tab = await visit();
+
+  await tab.page.goto(`${alias}${PAGE}`);
+  const onA = await settled(tab.page, 1);
+
+  ck(
+    "D2 a tab on A: hydrated over the SSR nodes and interactive",
+    onA.hydratedHosts === 1 && onA.errors.length === 0 && (await interactive(tab)),
+    JSON.stringify(onA.errors),
+  );
+
+  // D3 — release B.
+  if (!(await publish("b", "D3 deploy B"))) {
+    await tab.close();
+
+    return false;
+  }
+  ck("D3 release B: full-stack contract on the alias", await contract("b", "D3 B"));
+  ck(
+    "D3 the previous deployment (A) is still served unchanged at its immutable URL",
+    servesBuild((await httpGet(`${immutable.a}${PAGE}`)).body, ids.a),
+  );
+
+  // D4 — the open A tab after the upgrade: same controller API, then a document navigation.
+  ck(
+    "D4 the A tab still works against B's controller API (one click, one request, the answer reaches the DOM)",
+    await interactive(tab),
+  );
+  await tab.page.goto(`${alias}${PAGE}?recovery=reload`);
+  const tabOnB = await settled(tab.page, 1);
+  const stampsB = await tab.page.evaluate(
+    "[...document.querySelectorAll('[data-strata-build]')].map((n) => n.getAttribute('data-strata-build'))",
+  );
+
+  ck(
+    "D4 a document navigation in the A tab loads B's document and B's scripts: hydrated, no refusal, no reload",
+    tabOnB.hydratedHosts === 1 &&
+      tabOnB.errors.length === 0 &&
+      JSON.stringify(stampsB) === JSON.stringify([ids.b]) &&
+      tabOnB.record === null,
+    JSON.stringify({ tabOnB, stampsB }),
+  );
+  await tab.page.goto(`${alias}/about`);
+  await tab.page.goBack();
+  const back = await settled(tab.page, 1);
+
+  await tab.page.goForward();
+  await tab.page.waitForURL("**/about");
+  await tab.page.goBack();
+  const again = await settled(tab.page, 1);
+
+  ck(
+    "D4 Back, Forward and Back again stay hydrated with no unexpected exception",
+    back.hydratedHosts === 1 &&
+      back.errors.length === 0 &&
+      again.hydratedHosts === 1 &&
+      unexpected(tab, again).length === 0,
+    unexpected(tab, again).join(" | "),
+  );
+  await tab.close();
+
+  // D5–D7 — stale A assets (A's real deployed files) with B's document.
+  const staleScenario = async (html: Side, assets: Side, step: string): Promise<void> => {
+    // Without recovery: refused as a mismatch naming both builds, inert, one document.
+    {
+      const v = await visit();
+      const stale = await staleAssets(v.page.context(), {
+        origin: alias,
+        previous: immutable[assets],
+        documents: "always",
+      });
+
+      await v.page.goto(`${alias}${PAGE}`);
+      const seen = await settled(v.page, 1);
+
+      ck(
+        `${step}: ${html.toUpperCase()} document + ${assets.toUpperCase()}'s deployed scripts, recovery off: refused as build-mismatch naming both builds, nothing hydrated, inert, one document`,
+        seen.hydratedHosts === 0 &&
+          seen.errors.length === 1 &&
+          mismatchNaming(seen.errors[0], ids[assets], ids[html]) &&
+          (await inert(v)) &&
+          v.documents.length === 1 &&
+          stale.served.length > 0,
+        JSON.stringify({ errors: seen.errors, served: stale.served.length }),
+      );
+      ck(
+        `${step}: no unexpected exception and no private canary in the DOM or console`,
+        unexpected(v, await observe(v.page)).length === 0 &&
+          leaks(await v.page.evaluate("document.documentElement.outerHTML"), v.console.join("\n"))
+            .length === 0,
+        unexpected(v, seen).join(" | "),
+      );
+      await stale.dispose();
+      await v.close();
+    }
+    // Recovery on, cache converges after one document: exactly one reload, then healthy.
+    {
+      const v = await visit();
+      const stale = await staleAssets(v.page.context(), {
+        origin: alias,
+        previous: immutable[assets],
+        documents: 1,
+      });
+
+      await v.page.goto(`${alias}${PAGE}?recovery=reload`);
+      await until(() => v.documents.length >= 2, 30_000, 40);
+      const seen = await settled(v.page, 1);
+
+      ck(
+        `${step}: recovery on, converging cache: exactly one bounded reload, then ${html.toUpperCase()} hydrates and is interactive`,
+        v.documents.length === 2 &&
+          seen.hydratedHosts === 1 &&
+          seen.errors.length === 0 &&
+          /^\{"count":1,"since":\d+\}$/.test(seen.record ?? "") &&
+          (await interactive(v)),
+        JSON.stringify({ documents: v.documents.length, seen }),
+      );
+      await stale.dispose();
+      await v.close();
+    }
+    // Recovery on, skew persists: one reload, then "exhausted"; no loop.
+    {
+      const v = await visit();
+      const stale = await staleAssets(v.page.context(), {
+        origin: alias,
+        previous: immutable[assets],
+        documents: "always",
+      });
+
+      await v.page.goto(`${alias}${PAGE}?recovery=reload`);
+      await until(() => v.documents.length >= 2, 30_000, 40);
+      const refused = await until(
+        async () => {
+          const now = await observe(v.page).catch(() => undefined);
+
+          return now && now.errors.length > 0 ? now : undefined;
+        },
+        30_000,
+        50,
+      );
+
+      await v.page.waitForLoadState("networkidle");
+      await new Promise((resolve) => setTimeout(resolve, 1_500));
+      ck(
+        `${step}: recovery on, persistent skew: exactly one reload, then "exhausted"; the page stays inert SSR and no reload loop`,
+        v.documents.length === 2 &&
+          refused?.errors.length === 1 &&
+          refused.errors[0]?.recovery === "exhausted" &&
+          refused.hydratedHosts === 0 &&
+          (await inert(v)),
+        JSON.stringify({ documents: v.documents.length, errors: refused?.errors }),
+      );
+      await stale.dispose();
+      await v.close();
+    }
+  };
+
+  await staleScenario("b", "a", "D5 upgrade skew");
+
+  // D8 — rollback: restore A's retained artifact (never a rebuild).
+  if (!(await publish("a", "D8 restore A"))) return false;
+  ck("D8 rolled-back release A: full-stack contract on the alias", await contract("a", "D8 A"));
+  await staleScenario("a", "b", "D8 rollback skew");
+
+  // D9 — public surface confidentiality and edge consistency of the final state.
+  const surface = failureCount();
+
+  await surfaceSuite(alias, `${tag} D9`);
+  ck(
+    "D9 public surface confidentiality (documents, assets, maps, headers)",
+    failureCount() === surface,
+  );
+
+  const matrix = await runConcurrencyMatrix(alias, {
+    target: tag,
+    stabilizeMs: deployed ? 10_000 : 0,
+    // The matrix's own hard ceiling (MAX_REQUESTS_PER_URL); it can only be lowered, never raised.
+    requestBudget: MAX_REQUESTS_PER_URL,
+  });
+
+  record["edge"] = {
+    verdict: matrix.verdict,
+    reproduced: matrix.reproduced,
+    requestsIssued: matrix.requestsIssued,
+    requestBudget: matrix.requestBudget,
+    anomalies: matrix.anomalies,
+    firstSamples: matrix.firstSamples,
+    rounds: matrix.rounds.map((r) => ({
+      label: r.label,
+      requests: r.requests,
+      classes: r.classes,
+      statuses: r.statuses,
+    })),
+  };
+  ck(
+    `D9 edge consistency: ${matrix.requestsIssued} requests (budget ${matrix.requestBudget}), ${matrix.anomalies} anomalies, no retries (${matrix.reproduced})`,
+    matrix.verdict === "GO",
+    JSON.stringify(matrix.firstSamples.slice(0, 3)),
+  );
+
+  record["verdict"] = all(ok) ? "GO" : "NO-GO";
+
+  return all(ok);
+}
 
 // ---------------------------------------------------------------------------
 
@@ -381,6 +843,8 @@ try {
       digests.a.tree !== digests.b.tree && digests.a.entry !== digests.b.entry,
     );
     outcome["digests"] = digests;
+    if (runtime === "cloudflare")
+      cloudflareRelease = { dirs: { ...dirs }, digests: { ...digests } };
 
     const clientRoots = ["client", "analog/public"];
 
@@ -899,6 +1363,45 @@ try {
     servers.length = 0;
     outcome["rollback"] = rollbackOk;
     check(`rollback to A (${label}): full-stack contract`, rollbackOk);
+  }
+  // -------------------------------------------------------------------------
+  if (cloudflareRelease && REHEARSE) {
+    const deploymentEvidence: Record<string, string> = {};
+
+    evidence["deploymentVerdicts"] = deploymentEvidence;
+
+    const rehearsal = await rehearsalTarget(cloudflareRelease.dirs);
+    let rehearsed = false;
+
+    try {
+      rehearsed = await deploymentPhase(rehearsal, cloudflareRelease, ids);
+    } finally {
+      await rehearsal.close();
+    }
+    deploymentEvidence["LOCAL REHEARSAL"] = rehearsed ? "GO" : "NO-GO";
+    evidence["rehearsal"] = evidence["deployment"];
+
+    if (!DEPLOY) {
+      deploymentEvidence["DEPLOYED"] = "NOT RUN (STRATA_UPGRADE_DEPLOY is not 1)";
+    } else if (!rehearsed || failureCount() > 0) {
+      deploymentEvidence["DEPLOYED"] = "NOT RUN (local qualification or rehearsal failed)";
+      check("the real deployment runs only after every local check passed", false);
+    } else if (!credentials.token || !credentials.account) {
+      deploymentEvidence["DEPLOYED"] = "NOT RUN (missing Cloudflare credentials)";
+      check(
+        "CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID are set (values never printed)",
+        !REQUIRE_DEPLOYED,
+      );
+    } else {
+      const deployedOk = await deploymentPhase(
+        pagesTarget(cloudflareRelease.dirs),
+        cloudflareRelease,
+        ids,
+      );
+
+      deploymentEvidence["DEPLOYED"] = deployedOk ? "GO" : "NO-GO";
+    }
+    console.log(`\ndeployment-aware verdicts: ${JSON.stringify(deploymentEvidence)}`);
   }
 } catch (error) {
   if (error instanceof NotAvailable) {
