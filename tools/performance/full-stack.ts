@@ -34,6 +34,14 @@ import {
 } from "../server-components/lib/package-consumer.ts";
 import { COMPATIBILITY_DATE } from "../server-components/lib/wrangler.ts";
 
+import {
+  SCALE_MARKERS,
+  burstPlan,
+  keepAliveAfterOversized,
+  parseControllerCount,
+  peakRssKiB,
+  runBurst,
+} from "./lib/api-scale.ts";
 import { ARMS, assembleArm, parseIslandCount, strataPackagesOf } from "./lib/arms.ts";
 import type { ArmId, ArmSpec } from "./lib/arms.ts";
 import { measureTarget, startNodeServer, startWithPortRetry, timedGet } from "./lib/bench.ts";
@@ -94,6 +102,11 @@ import type { IslandFault } from "./lib/smoke.ts";
  *   STRATA_PERF_ISLANDS=1|3 (1): interactive client islands in all four arms; any other value fails.
  *     3 = three distinct island components (availability, stock, delivery), measured on the same
  *     arms and method. (docs/research/full-stack-performance-scaling.md)
+ *   STRATA_PERF_CONTROLLERS=1|8 (1): 8 adds the eight-resource API (eight controllers / 32 native
+ *     routes, request-scoped ledger, guard, Standard Schema, 1 MiB limit, failing handler) to all
+ *     four arms, its own latency target, a bounded mixed failure burst with cleanup accounting and
+ *     the keep-alive-after-413 check. STRATA_PERF_BURST_ROUNDS (16) rounds of 15 requests each.
+ *     (docs/research/m5-production-qualification.md)
  */
 
 const integer = (name: string, fallback: number): number => {
@@ -110,6 +123,7 @@ const integer = (name: string, fallback: number): number => {
 };
 
 const islands = parseIslandCount(process.env["STRATA_PERF_ISLANDS"]);
+const controllers = parseControllerCount(process.env["STRATA_PERF_CONTROLLERS"]);
 
 const policy = {
   repetitions: integer("STRATA_PERF_REPS", 3),
@@ -117,6 +131,7 @@ const policy = {
   requests: integer("STRATA_PERF_REQUESTS", 200),
   warmup: integer("STRATA_PERF_WARMUP", 50),
   concurrency: integer("STRATA_PERF_CONCURRENCY", 8),
+  burstRounds: integer("STRATA_PERF_BURST_ROUNDS", 16),
 };
 
 /** Williams design for four arms: each arm is first once, and every arm follows every other once. */
@@ -129,9 +144,18 @@ const ORDERS: readonly (readonly ArmId[])[] = [
 const orderFor = (index: number): readonly ArmId[] => ORDERS[index % ORDERS.length]!;
 const armById = (id: ArmId): ArmSpec => ARMS.find((arm) => arm.id === id)!;
 
-const TARGETS: Record<"api" | "ssr", Target> = {
+const TARGETS: Record<"api" | "ssr" | "api-scale", Target> = {
   api: { name: "api", path: "/api/products/42", validate: apiProblems },
   ssr: { name: "ssr", path: "/products/42", validate: (outcome) => ssrProblems(outcome, islands) },
+  // The LAST registered of the eight extra controllers (route lookup at its largest).
+  "api-scale": {
+    name: "api-scale",
+    path: "/api/scale/r8/42",
+    validate: ({ status, body }) => [
+      ...(status === 200 ? [] : [`status ${status}`]),
+      ...(body.includes('"id":"42"') && body.includes('"resource":"r8"') ? [] : ["body"]),
+    ],
+  },
 };
 
 const tmpRoot = mkdtempSync(join(tmpdir(), "strata-full-stack-performance-"));
@@ -168,6 +192,7 @@ console.log(`evidence directory: ${evidenceDir}`);
 console.log(`working directory (removed afterwards unless STRATA_PERF_KEEP=1): ${tmpRoot}`);
 console.log(`policy: ${JSON.stringify(policy)}`);
 console.log(`islands: ${islands}`);
+console.log(`controllers: ${controllers}`);
 
 // ---------------------------------------------------------------------------
 // 1. Pack the three real packages
@@ -260,6 +285,7 @@ function installArm(spec: ArmSpec, tarballs: readonly Tarball[]): ArmState {
     tarballs: Object.fromEntries(tarballs.map((t) => [t.name, t.path])),
     nativeStyle: process.env["STRATA_PERF_NATIVE_HANDLER"] === "object" ? "object" : "response",
     islands,
+    controllers,
   });
 
   // npm 10's peer-dependency resolver crashes (`Cannot read properties of null (reading
@@ -485,7 +511,7 @@ function buildAll(states: ReadonlyMap<ArmId, ArmState>): void {
 // ---------------------------------------------------------------------------
 // 4. Correctness preflight (static)
 
-const ALL_MARKERS = Object.values(MARKERS);
+const ALL_MARKERS = [...Object.values(MARKERS), ...Object.values(SCALE_MARKERS)];
 
 function staticProblems(
   state: ArmState,
@@ -498,7 +524,7 @@ function staticProblems(
     server: scanMarkers(targets.server, ALL_MARKERS),
     browser: scanMarkers(targets.browser, ALL_MARKERS),
   };
-  const problems = confidentialityProblems(state.spec, scan, islands);
+  const problems = confidentialityProblems(state.spec, scan, islands, controllers);
 
   if (measurement)
     problems.push(
@@ -536,6 +562,8 @@ interface Running {
   readonly baseUrl: string;
   readonly startupMs?: number;
   rssKiB(): number | null;
+  /** Kernel high-water mark of the process RSS (Linux `VmHWM`); null where not available. */
+  peakRssKiB(): number | null;
   output(): string;
   stop(): Promise<void>;
 }
@@ -544,7 +572,7 @@ async function start(runtime: Runtime, runDir: string): Promise<Running> {
   if (runtime === "node") {
     const server = await startNodeServer({ cwd: runDir, env, readyPath: "/api/products/42" });
 
-    return server;
+    return { ...server, peakRssKiB: () => peakRssKiB(server.pid) };
   }
 
   // `findFreePort` is a pick-then-bind race; a collision is retried, anything else is not.
@@ -557,6 +585,7 @@ async function start(runtime: Runtime, runDir: string): Promise<Running> {
   return {
     baseUrl: server.baseUrl,
     rssKiB: () => null,
+    peakRssKiB: () => null,
     output: () => server.output(),
     stop: () => server.stop(),
   };
@@ -605,6 +634,7 @@ async function httpProblems(spec: ArmSpec, base: string): Promise<string[]> {
     if (unknown.status !== 404 || !unknown.body.includes("not_found"))
       problems.push(`${island.id} API: unknown product answered ${unknown.status}`);
   }
+  if (controllers === 8) problems.push(...(await scaleProblems(spec, base)));
   if (missing.status !== 404 || !missing.body.includes("not_found"))
     problems.push(`unknown product answered ${missing.status}`);
   if (home.status !== 200) problems.push(`home answered ${home.status}`);
@@ -615,6 +645,85 @@ async function httpProblems(spec: ArmSpec, base: string): Promise<string[]> {
     problems.push(`API served by ${headers.handler}`);
 
   return problems;
+}
+
+/** The eight-resource API answers the same in every arm, from the arm's own handler. */
+async function scaleProblems(spec: ArmSpec, base: string): Promise<string[]> {
+  const problems: string[] = [];
+  const marker = spec.api === "controller" ? SCALE_MARKERS.controller : SCALE_MARKERS.native;
+
+  for (const resource of ["r1", "r4", "r8"]) {
+    const response = await fetch(`${base}/api/scale/${resource}/42`);
+    const body = await response.text();
+
+    if (response.status !== 200 || !body.includes(`"resource":"${resource}"`))
+      problems.push(`scale ${resource}: ${response.status} ${body.slice(0, 80)}`);
+    if (response.headers.get("x-perf-handler") !== marker)
+      problems.push(`scale ${resource} served by ${response.headers.get("x-perf-handler")}`);
+  }
+
+  const unknown = await timedGet(`${base}/api/scale/r2/999`);
+  const stats = await timedGet(`${base}/api/scale/stats`);
+
+  if (unknown.status !== 404) problems.push(`scale unknown item answered ${unknown.status}`);
+  if (stats.status !== 200 || !stats.body.includes('"open":0'))
+    problems.push(`scale stats: ${stats.status} ${stats.body}`);
+
+  return problems;
+}
+
+/** The bounded mixed failure burst, cleanup, keep-alive after 413 and post-burst health. */
+async function scaleWorkload(
+  spec: ArmSpec,
+  server: Running,
+): Promise<NonNullable<HttpRepetition["scale"]>> {
+  const base = server.baseUrl;
+  const plan = burstPlan(policy.burstRounds);
+  const burst = await runBurst(base, plan, policy.concurrency * 2, {
+    validate: (outcome) =>
+      outcome.request.kind === "ssr"
+        ? ssrProblems(outcome, islands)
+        : [
+            ...canaryProblems(outcome.request.kind, outcome.body),
+            ...(outcome.request.kind === "island-api" ? apiProblems(outcome) : []),
+          ],
+    healthy: async () =>
+      apiProblems(await timedGet(`${base}/api/products/42`)).length === 0 &&
+      ssrProblems(await timedGet(`${base}/products/42`), islands).length === 0 &&
+      (await timedGet(`${base}/api/scale/r1/42`)).status === 200,
+  });
+  const keepAlive = await keepAliveAfterOversized(base, "/api/scale/r1", "/api/scale/r2/42");
+  const scaleTarget = await measureTarget(base, TARGETS["api-scale"], policy);
+
+  console.log(
+    `  arm ${spec.id} burst: ${burst.requests} requests in ${burst.wallMs.toFixed(0)} ms, ${burst.invalid} invalid, statuses ${JSON.stringify(burst.statuses)}, cleanup ${burst.cleanupProblems.length === 0 ? "ok" : burst.cleanupProblems.join("; ")}, keep-alive ${keepAlive.first}→${keepAlive.second}${keepAlive.reused ? " (same socket)" : ""}`,
+  );
+
+  return { apiScale: scaleTarget, burst, keepAlive };
+}
+
+/** Scale workload problems that fail the arm (correctness, never speed). */
+function scaleWorkloadProblems(
+  spec: ArmSpec,
+  scale: NonNullable<HttpRepetition["scale"]>,
+): string[] {
+  const { burst, keepAlive, apiScale } = scale;
+
+  return [
+    ...(burst.invalid === 0
+      ? []
+      : [`burst: ${burst.invalid} wrong answer(s): ${burst.firstProblems.join("; ")}`]),
+    ...burst.cleanupProblems.map((p) => `burst cleanup: ${p}`),
+    ...(burst.healthyAfter ? [] : ["burst: the next requests were not healthy"]),
+    ...(apiScale.sequential.invalid + apiScale.concurrent.invalid === 0 &&
+    apiScale.warmup.problems.length === 0
+      ? []
+      : ["api-scale: invalid responses"]),
+    // The PR #168 regression: a Strata 413 must leave the keep-alive connection usable.
+    ...(spec.api === "controller" && (keepAlive.first !== 413 || keepAlive.second !== 200)
+      ? [`keep-alive after 413: ${keepAlive.first} then ${keepAlive.second}`]
+      : []),
+  ];
 }
 
 // ---------------------------------------------------------------------------
@@ -756,6 +865,23 @@ async function measureRuntime(
         for (const name of targets)
           results[name] = await measureTarget(server.baseUrl, TARGETS[name], policy);
 
+        const rssAfterLoad = server.rssKiB();
+        const scale = controllers === 8 ? await scaleWorkload(spec, server) : undefined;
+        const scaleFailures = scale ? scaleWorkloadProblems(spec, scale) : [];
+
+        if (scaleFailures.length > 0) {
+          failed.set(id, [
+            ...(failed.get(id) ?? []),
+            ...scaleFailures.map((p) => `${runtime}: ${p}`),
+          ]);
+          check(
+            `arm ${id} ${runtime} repetition ${rep + 1}: scaling workload correctness`,
+            false,
+            scaleFailures.join("; "),
+          );
+          continue;
+        }
+
         const invalid = targets
           .flatMap((name) => [results[name].sequential.invalid, results[name].concurrent.invalid])
           .reduce((a, b) => a + b, 0);
@@ -783,9 +909,15 @@ async function measureRuntime(
           ...(runtime === "node" && "startupMs" in server && server.startupMs !== undefined
             ? {
                 startupMs: server.startupMs,
-                rssKiB: { afterStart: rssStart, afterLoad: server.rssKiB() },
+                rssKiB: {
+                  afterStart: rssStart,
+                  afterLoad: rssAfterLoad,
+                  ...(scale ? { afterBurst: server.rssKiB() } : {}),
+                  peak: server.peakRssKiB(),
+                },
               }
             : {}),
+          ...(scale ? { scale } : {}),
         };
 
         reps.push(entry);
@@ -1208,6 +1340,7 @@ async function main(): Promise<boolean> {
     schemaVersion: SCHEMA_VERSION,
     generatedAt: new Date().toISOString(),
     islandCount: islands,
+    controllerCount: controllers,
     baseline: {
       startingMainSha: git("merge-base", "HEAD", "origin/main"),
       headSha: git("rev-parse", "HEAD"),
@@ -1236,6 +1369,7 @@ async function main(): Promise<boolean> {
       warmup: policy.warmup,
       requests: policy.requests,
       concurrency: policy.concurrency,
+      burstRounds: policy.burstRounds,
       repetitions: policy.repetitions,
       buildRepetitions: policy.buildRepetitions,
       compression: COMPRESSION,

@@ -150,3 +150,65 @@ describe("assembleArm", () => {
     expect(existsSync("/tmp/x/src")).toBe(false);
   });
 });
+
+describe("controller scaling profile (controllers-8)", () => {
+  function scaleTemplate(extra: Record<string, string> = {}): string {
+    const root = miniTemplate();
+    const put = (path: string, text: string): void => {
+      mkdirSync(join(root, path, ".."), { recursive: true });
+      writeFileSync(join(root, path), text);
+    };
+
+    put("controllers-8/common/src/scale/domain.ts", "domain");
+    put("controllers-8/api-native/src/routes/scale.ts", "native routes");
+    put("controllers-8/api-controller/src/scale.controller.ts", "controllers");
+    put("controllers-8/api-controller/src/api.ts", "controller plugin with eight controllers");
+    for (const [path, text] of Object.entries(extra)) put(path, text);
+
+    return root;
+  }
+
+  const assembleScale = (arm: ArmSpec, template = scaleTemplate()) => {
+    const destination = mkdtempSync(join(tmpdir(), "perf-arm-out-"));
+
+    return {
+      destination,
+      ...assembleArm({ template, destination, arm, tarballs, controllers: 8 }),
+    };
+  };
+
+  it("adds the shared domain to every arm and each arm's own API overlay", () => {
+    const native = assembleScale(spec("A"));
+    const full = assembleScale(spec("D"));
+
+    expect(readFileSync(join(native.destination, "src/scale/domain.ts"), "utf8")).toBe("domain");
+    expect(existsSync(join(native.destination, "src/routes/scale.ts"))).toBe(true);
+    expect(existsSync(join(native.destination, "src/scale.controller.ts"))).toBe(false);
+    expect(readFileSync(join(full.destination, "src/api.ts"), "utf8")).toBe(
+      "controller plugin with eight controllers",
+    );
+    expect(existsSync(join(full.destination, "src/routes/scale.ts"))).toBe(false);
+  });
+
+  it("never lets the profile replace a common file", () => {
+    expect(() =>
+      assembleScale(spec("B"), scaleTemplate({ "controllers-8/api-controller/src/repo.ts": "x" })),
+    ).toThrow(/overrides another file: src\/repo\.ts/);
+    expect(() =>
+      assembleScale(spec("A"), scaleTemplate({ "controllers-8/common/src/page.ts": "x" })),
+    ).toThrow(/overrides another file: src\/page\.ts/);
+  });
+
+  it("refuses the object-return native diagnostic in the scaling profile", () => {
+    expect(() =>
+      assembleArm({
+        template: scaleTemplate(),
+        destination: mkdtempSync(join(tmpdir(), "perf-arm-out-")),
+        arm: spec("A"),
+        tarballs,
+        nativeStyle: "object",
+        controllers: 8,
+      }),
+    ).toThrow(/one-controller profile/);
+  });
+});

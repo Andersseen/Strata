@@ -14,7 +14,7 @@ import type { LatencySummary, Sample } from "./metrics.ts";
  */
 
 export interface Target {
-  readonly name: "api" | "ssr";
+  readonly name: "api" | "ssr" | "api-scale";
   readonly path: string;
   /** Problems with a response; empty means valid. */
   readonly validate: (outcome: { status: number; body: string }) => string[];

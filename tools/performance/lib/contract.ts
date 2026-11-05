@@ -1,3 +1,5 @@
+import { SCALE_MARKERS } from "./api-scale.ts";
+import type { ControllerCount } from "./api-scale.ts";
 import type { ArmId, ArmSpec, IslandCount } from "./arms.ts";
 
 /**
@@ -82,7 +84,11 @@ export interface Expectation {
 }
 
 /** The marker matrix of one arm: presence in the server graph and in the browser output. */
-export function expectationsFor(arm: ArmSpec, islands: IslandCount = 1): Expectation[] {
+export function expectationsFor(
+  arm: ArmSpec,
+  islands: IslandCount = 1,
+  controllers: ControllerCount = 1,
+): Expectation[] {
   const serverComponent = arm.page === "server-component";
   const controller = arm.api === "controller";
   const out: Expectation[] = clientMarkersFor(islands).map((marker) => ({
@@ -138,6 +144,38 @@ export function expectationsFor(arm: ArmSpec, islands: IslandCount = 1): Expecta
     },
   );
 
+  if (controllers !== 1) {
+    const own = controller ? SCALE_MARKERS.controller : SCALE_MARKERS.native;
+    const other = controller ? SCALE_MARKERS.native : SCALE_MARKERS.controller;
+
+    out.push(
+      {
+        marker: own,
+        where: "server",
+        present: true,
+        reason: "this arm's eight-resource API must be in the server graph",
+      },
+      {
+        marker: other,
+        where: "server",
+        present: false,
+        reason: "the other arm's API must be absent",
+      },
+      {
+        marker: SCALE_MARKERS.privateFailure,
+        where: "server",
+        present: true,
+        reason: "the failing handler is server code (positive control)",
+      },
+      ...[own, SCALE_MARKERS.privateFailure].map((marker) => ({
+        marker,
+        where: "browser" as const,
+        present: false,
+        reason: "the scaling API is server-only",
+      })),
+    );
+  }
+
   return out;
 }
 
@@ -152,8 +190,9 @@ export function confidentialityProblems(
   arm: ArmSpec,
   scan: Scan,
   islands: IslandCount = 1,
+  controllers: ControllerCount = 1,
 ): string[] {
-  return expectationsFor(arm, islands).flatMap((e) => {
+  return expectationsFor(arm, islands, controllers).flatMap((e) => {
     const found = (e.where === "server" ? scan.server : scan.browser)[e.marker]?.length ?? 0;
 
     return found > 0 === e.present

@@ -1,3 +1,5 @@
+import { CONTROLLER_COUNTS } from "./api-scale.ts";
+import type { BurstResult, ControllerCount, KeepAliveResult } from "./api-scale.ts";
 import { ISLAND_COUNTS } from "./arms.ts";
 import type { ArmId, IslandCount } from "./arms.ts";
 import type { TargetResult } from "./bench.ts";
@@ -19,8 +21,14 @@ import type { Spread } from "./metrics.ts";
  * MEASURED, ESTIMATED, NOT MEASURED or NOT COMPARABLE.
  */
 
-/** 2: adds `islandCount` (the interactive-island profile the four arms were built with). */
-export const SCHEMA_VERSION = 2;
+/**
+ * 2: adds `islandCount` (the interactive-island profile the four arms were built with).
+ * 3: adds `controllerCount`, `policy.burstRounds`, per-repetition `scale` (eight-resource API
+ *    latency, mixed failure burst, cleanup, keep-alive after 413) and RSS `afterBurst`/`peak`.
+ *    A version-2 report is still read as `controllerCount: 1`.
+ */
+export const SCHEMA_VERSION = 3;
+const READABLE_SCHEMAS = [2, 3];
 
 export type Runtime = "node" | "workerd";
 export const RUNTIMES: readonly Runtime[] = ["node", "workerd"];
@@ -39,7 +47,20 @@ export interface HttpRepetition {
   /** Node only: spawn → first valid answer, polled every 25 ms. Never an isolate cold start. */
   readonly startupMs?: number;
   /** Node only, experimental: resident set size in KiB of the owned server process. */
-  readonly rssKiB?: { readonly afterStart: number | null; readonly afterLoad: number | null };
+  readonly rssKiB?: {
+    readonly afterStart: number | null;
+    readonly afterLoad: number | null;
+    /** After the mixed burst (scaling profile only). */
+    readonly afterBurst?: number | null;
+    /** Kernel high-water mark (Linux `VmHWM`); null where the platform has none. Sampled values are never called a peak. */
+    readonly peak?: number | null;
+  };
+  /** Scaling profile only (`controllerCount` 8). */
+  readonly scale?: {
+    readonly apiScale: TargetResult;
+    readonly burst: BurstResult;
+    readonly keepAlive: KeepAliveResult;
+  };
 }
 
 export interface PresetReport {
@@ -80,6 +101,8 @@ export interface PerfReport {
   readonly generatedAt: string;
   /** Interactive client islands in every arm of this report: 1 (PR #86 baseline) or 3. */
   readonly islandCount: IslandCount;
+  /** Controllers in the API of every arm: 1 (baseline) or 8 (scaling profile). Absent in version 2. */
+  readonly controllerCount?: ControllerCount;
   readonly baseline: {
     readonly startingMainSha: string;
     readonly headSha: string;
@@ -108,6 +131,7 @@ export interface PerfReport {
     readonly warmup: number;
     readonly requests: number;
     readonly concurrency: number;
+    readonly burstRounds?: number;
     readonly repetitions: number;
     readonly buildRepetitions: number;
     readonly compression: { readonly gzipLevel: number; readonly brotliQuality: number };
@@ -127,8 +151,12 @@ const isNumber = (value: unknown): value is number =>
 export function validateReport(report: PerfReport): string[] {
   const problems: string[] = [];
 
-  if (report.schemaVersion !== SCHEMA_VERSION) problems.push("schemaVersion");
+  if (!READABLE_SCHEMAS.includes(report.schemaVersion)) problems.push("schemaVersion");
   if (!ISLAND_COUNTS.includes(report.islandCount)) problems.push("islandCount (1 or 3)");
+
+  const controllers = controllerCountOf(report);
+
+  if (!CONTROLLER_COUNTS.includes(controllers)) problems.push("controllerCount (1 or 8)");
   if (!/^[0-9a-f]{40}$/.test(report.baseline?.startingMainSha ?? ""))
     problems.push("baseline.startingMainSha");
   for (const key of ["os", "arch", "cpu", "node", "npm", "wrangler", "compatibilityDate"] as const)
@@ -177,12 +205,22 @@ export function validateReport(report: PerfReport): string[] {
       if (!arm.correctness.ok && reps.length > 0)
         problems.push(`arm ${arm.id} failed correctness but has ${runtime} latency data`);
 
-      for (const rep of reps)
+      for (const rep of reps) {
         for (const name of ["api", "ssr"] as const)
           if (rep[name].sequential.invalid > 0 || rep[name].concurrent.invalid > 0)
             problems.push(
               `arm ${arm.id} ${runtime} ${name}: invalid responses entered a measurement`,
             );
+        if (controllers === 8) {
+          if (!rep.scale) problems.push(`arm ${arm.id} ${runtime}: no scaling workload`);
+          else if (
+            rep.scale.burst.invalid > 0 ||
+            rep.scale.burst.cleanupProblems.length > 0 ||
+            rep.scale.apiScale.sequential.invalid + rep.scale.apiScale.concurrent.invalid > 0
+          )
+            problems.push(`arm ${arm.id} ${runtime}: a failed scaling workload entered the report`);
+        }
+      }
     }
   }
 
@@ -192,6 +230,10 @@ export function validateReport(report: PerfReport): string[] {
 
   return problems;
 }
+
+/** Version-2 reports predate the controller dimension: they measured one controller. */
+export const controllerCountOf = (report: PerfReport): ControllerCount =>
+  report.controllerCount ?? 1;
 
 // ---------------------------------------------------------------------------
 // Aggregation and tables
@@ -275,7 +317,7 @@ export function renderMarkdown(report: PerfReport): string {
   const build = (arm: ArmReport, preset: Preset): PresetReport => arm.builds[preset];
 
   out.push(
-    `## Comparison, ${report.islandCount} interactive island${report.islandCount === 1 ? "" : "s"} (starting main ${report.baseline.startingMainSha.slice(0, 7)})`,
+    `## Comparison, ${report.islandCount} interactive island${report.islandCount === 1 ? "" : "s"}, ${controllerCountOf(report)} controller${controllerCountOf(report) === 1 ? "" : "s"} (starting main ${report.baseline.startingMainSha.slice(0, 7)})`,
     "",
   );
   out.push(
@@ -397,5 +439,73 @@ export function renderMarkdown(report: PerfReport): string {
     }
   }
 
+  if (controllerCountOf(report) === 8) out.push(...scaleMarkdown(report));
+
   return out.join("\n");
+}
+
+/** The scaling profile's tables: latency of the 8th controller, the burst, cleanup and memory. */
+function scaleMarkdown(report: PerfReport): string[] {
+  const out: string[] = [];
+  const med = (values: readonly (number | null | undefined)[]): string => {
+    const known = values.filter((v): v is number => typeof v === "number");
+
+    const value = median(known);
+
+    return value === null ? "n/a" : formatMs(value);
+  };
+  const kib = (values: readonly (number | null | undefined)[]): string => {
+    const known = values.filter((v): v is number => typeof v === "number");
+
+    const value = median(known);
+
+    return value === null ? "NOT MEASURED" : `${(value / 1024).toFixed(1)} MiB`;
+  };
+
+  for (const runtime of RUNTIMES) {
+    out.push(
+      `**Scaling profile, ${runtime}** — eight-resource API; burst of ${(report.policy.burstRounds ?? 0) * 15} mixed requests (reads, valid/invalid/oversized bodies, denials, handler failures, SSR, island API) at concurrency ${report.policy.concurrency * 2}; medians of ${report.policy.repetitions} repetitions. Latency is information, never a threshold.`,
+      "",
+      table(
+        [
+          "arm",
+          "8th controller p50 (seq)",
+          "burst wall",
+          "burst p50 / p95",
+          "wrong answers",
+          "ledgers released",
+          "keep-alive after 413",
+          "RSS after burst",
+          "peak RSS (VmHWM)",
+        ],
+        report.arms.map((arm) => {
+          const reps = arm.http[runtime];
+
+          if (!arm.correctness.ok || reps.length === 0)
+            return [arm.id, "n/a", "n/a", "n/a", "n/a", "n/a", "n/a", "n/a", "n/a"];
+
+          const scale = reps.map((r) => r.scale!);
+
+          return [
+            arm.id,
+            med(scale.map((s) => s.apiScale.sequential.p50)),
+            med(scale.map((s) => s.burst.wallMs)),
+            `${med(scale.map((s) => s.burst.latency.p50))} / ${med(scale.map((s) => s.burst.latency.p95))}`,
+            String(scale.reduce((sum, s) => sum + s.burst.invalid, 0)),
+            scale.every(
+              (s) => s.burst.cleanupProblems.length === 0 && s.burst.cleanup?.after.open === 0,
+            )
+              ? "all"
+              : "NO",
+            scale.map((s) => `${s.keepAlive.first}→${s.keepAlive.second}`).join(", "),
+            runtime === "node" ? kib(reps.map((r) => r.rssKiB?.afterBurst)) : "NOT MEASURED",
+            runtime === "node" ? kib(reps.map((r) => r.rssKiB?.peak)) : "NOT MEASURED",
+          ];
+        }),
+      ),
+      "",
+    );
+  }
+
+  return out;
 }
