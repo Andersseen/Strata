@@ -1031,8 +1031,21 @@ export async function navigationSuite(
     );
   const status = (): Promise<string | null> =>
     page.locator("product-availability output").textContent();
+  // One NAVIGATION is one main-frame navigation chain: a server redirect hop belongs to the chain
+  // that started it and is not a second document request (F9 classification). Everything else,
+  // including a build-mismatch recovery reload, still counts.
   const documentRequests = (fragment: string): number =>
-    tracked.requests.filter((r) => r.navigation && r.url.includes(fragment)).length;
+    tracked.requests.filter(
+      (r) => r.navigation && r.mainFrame !== false && !r.redirectedFrom && r.url.includes(fragment),
+    ).length;
+  const navigationEvidence = async (fragment: string): Promise<string> =>
+    JSON.stringify({
+      navigations: tracked.requests.filter((r) => r.navigation && r.url.includes(fragment)),
+      skewRecovery: await evaluate<string | null>(
+        page,
+        "(() => { try { return sessionStorage.getItem('strata:skew-recovery'); } catch { return 'unreadable'; } })()",
+      ).catch(() => "unavailable"),
+    });
   const apiCount = (): number =>
     tracked.requests.filter((r) => r.url.endsWith("/api/products/42")).length;
   const refresh = async (): Promise<string | null> => {
@@ -1127,7 +1140,7 @@ export async function navigationSuite(
           sentinelAfterGuard === undefined &&
           documentRequests("/products/42?ref=home") - guardBefore === 1 &&
           page.url().endsWith("/products/42?ref=home#details"),
-        `${page.url()} ${documentRequests("/products/42?ref=home") - guardBefore}`,
+        `${page.url()} ${documentRequests("/products/42?ref=home") - guardBefore} ${await navigationEvidence("/products/42?ref=home")}`,
       ),
       check(
         `${label}: the island works after the guarded navigation`,
