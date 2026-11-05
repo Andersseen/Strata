@@ -490,6 +490,7 @@ export function verifyInstalledTree(context: {
   const problemName = (p: string): string => p.replace(/\s\/\S+$/, "");
 
   console.log(`npm ls --all: exit ${ls.status}; ${problems.length} problem(s)`);
+  for (const problem of problems) console.log(`  npm ls: ${problemName(problem)}`);
   installOk.push(
     check(
       "npm ls --all reports no UNMET, invalid or extraneous Strata, Angular, Analog, Vite, TypeScript or Nitro package",
