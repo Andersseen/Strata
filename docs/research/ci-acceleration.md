@@ -132,6 +132,7 @@ already `cancel-in-progress: false` and are unchanged.
 | [42050868101](https://github.com/Andersseen/Strata/actions/runs/42050868101) | `e5590fc` | failure: multi-isolate step ran after the adversarial smoke removed its reuse root (fixed) | 9.2 min  | 72.5 min |
 | [42053069517](https://github.com/Andersseen/Strata/actions/runs/42053069517) | `e73fc39` | failure: installed-island check L (intermittent, below)                                    | 9.3 min  | 70.9 min |
 | [42055399997](https://github.com/Andersseen/Strata/actions/runs/42055399997) | `0e0323e` | **success**, 11/11 jobs                                                                    | 10.2 min | 68.2 min |
+| [42060660230](https://github.com/Andersseen/Strata/actions/runs/42060660230) | `962b7b5` | **success**, 11/11 jobs                                                                    | 10.2 min | 69.8 min |
 
 42046849111 is the split before the Chromium change; its 18.7 minutes are the 648 s apt stall plus
 the tests.

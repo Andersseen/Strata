@@ -184,6 +184,22 @@ a tag wrong for the whole bound still fails, a dependency-range problem never wa
 of the cancelled transition. Pending and stale-main transitions are still unobserved: **#117 stays open.**
 No tag was moved by hand.
 
+## Hosted evidence
+
+| Workflow                                                                                               | Head      | Result                                                                                                     |
+| ------------------------------------------------------------------------------------------------------ | --------- | ---------------------------------------------------------------------------------------------------------- |
+| CI [42060660230](https://github.com/Andersseen/Strata/actions/runs/42060660230)                        | `962b7b5` | success, 11/11 jobs and Verify, 10.2 min                                                                   |
+| CI [42055399997](https://github.com/Andersseen/Strata/actions/runs/42055399997)                        | `0e0323e` | success, 10.2 min                                                                                          |
+| Extended `registry` [42060084319](https://github.com/Andersseen/Strata/actions/runs/42060084319)       | `4315e08` | success: frozen candidate (`npm ci` on Linux), published tuple, published A/B + rehearsal, published Pages |
+| Extended `adversarial` [42060101479](https://github.com/Andersseen/Strata/actions/runs/42060101479)    | `4315e08` | success: all four source mutations rejected                                                                |
+| Deployed packed [42058285983](https://github.com/Andersseen/Strata/actions/runs/42058285983)           | `419359f` | DEPLOYED GO                                                                                                |
+| Deployed upgrade/rollback [42058305233](https://github.com/Andersseen/Strata/actions/runs/42058305233) | `419359f` | LOCAL REHEARSAL GO, DEPLOYED GO                                                                            |
+| Deployed packed [42053087187](https://github.com/Andersseen/Strata/actions/runs/42053087187)           | `e73fc39` | DEPLOYED NO-GO (F5 residual, fixed; kept as evidence)                                                      |
+| Deployed upgrade/rollback [42053107714](https://github.com/Andersseen/Strata/actions/runs/42053107714) | `e73fc39` | refused before deploying (log-redaction defect in the new fixture, fixed)                                  |
+
+Commits after `4315e08` change only documentation; the deployed and Extended runs therefore qualify
+the final test, fixture and tooling code.
+
 ## Security and confidentiality evidence
 
 Read receipts carry only ids and counts. Private markers (tenant data, credentials, the render-failure
