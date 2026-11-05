@@ -1,0 +1,98 @@
+{
+  "@strata-sc/core": {
+    ".": {
+      "Controller": "function",
+      "ControllerDefinition": "interface",
+      "Delete": "const",
+      "Get": "const",
+      "getControllerDefinition": "function",
+      "HttpMethod": "type",
+      "Patch": "const",
+      "Post": "const",
+      "Put": "const",
+      "RouteDefinition": "interface",
+      "STRATA_VERSION": "const"
+    }
+  },
+  "@strata-sc/analog": {
+    ".": {
+      "ControllerClass": "type",
+      "jsonResponse": "function",
+      "NitroRouter": "interface",
+      "noContent": "function",
+      "registerControllers": "function",
+      "RegisterControllersOptions": "interface",
+      "StrataAnalogApiBoundaryOptions": "interface",
+      "StrataAnalogBoundaryMethod": "type",
+      "StrataAnalogCleanup": "type",
+      "StrataAnalogConfigurationError": "class",
+      "StrataAnalogContext": "type",
+      "StrataAnalogControllerFactory": "type",
+      "StrataAnalogControllerFactoryContext": "interface",
+      "StrataAnalogGuard": "type",
+      "StrataAnalogGuardContext": "interface",
+      "StrataAnalogGuardDecision": "type",
+      "StrataAnalogHeaders": "type",
+      "StrataAnalogHttpError": "class",
+      "StrataAnalogHttpErrorStatus": "type",
+      "StrataAnalogInterceptor": "type",
+      "StrataAnalogInterceptorContext": "interface",
+      "StrataAnalogNativeRoute": "interface",
+      "StrataAnalogNext": "type",
+      "StrataAnalogParams": "type",
+      "StrataAnalogQuery": "type",
+      "StrataAnalogQueryValue": "type",
+      "StrataAnalogRequest": "interface",
+      "StrataAnalogRequestObservation": "interface",
+      "StrataAnalogRequestObserver": "type",
+      "StrataAnalogRequestOutcome": "type",
+      "StrataAnalogRequestPhase": "type",
+      "StrataAnalogRouteInfo": "interface",
+      "StrataAnalogStreamBody": "type",
+      "StrataAnalogStreamChunk": "type",
+      "streamResponse": "function"
+    }
+  },
+  "@strata-sc/server-components": {
+    ".": {
+      "BoundaryFailureCategory": "type",
+      "BuildMismatch": "interface",
+      "BuildRecoveryOutcome": "type",
+      "ClientBoundaryObject": "type",
+      "ClientBoundaryPrimitive": "type",
+      "ClientBoundaryProps": "type",
+      "ClientBoundaryValue": "type",
+      "ClientReferenceDescriptor": "interface",
+      "ClientReferenceInput": "type",
+      "MAX_CLIENT_BOUNDARIES_PER_HOST": "const",
+      "MAX_CLIENT_BOUNDARY_PAYLOAD_BYTES_PER_HOST": "const",
+      "provideClientReferences": "function",
+      "provideSkewRecovery": "function",
+      "provideStrataHydrationObserver": "function",
+      "ServerComponent": "function",
+      "SkewRecoveryOptions": "interface",
+      "StrataBoundaryError": "class",
+      "StrataBuildMismatchError": "class",
+      "StrataClientBoundary": "class",
+      "StrataHydrationObservation": "interface",
+      "StrataHydrationObserver": "type",
+      "StrataHydrationOutcome": "type",
+      "StrataIslandHost": "class"
+    },
+    "./vite": {
+      "ExternalClientComponent": "interface",
+      "ServerComponentsOptions": "interface",
+      "strataServerComponents": "function"
+    },
+    "./navigation": {
+      "StrataDocumentDestination": "type",
+      "StrataDocumentLink": "class",
+      "StrataDocumentNavigateOptions": "interface",
+      "StrataDocumentNavigationError": "class",
+      "StrataDocumentNavigationExtras": "interface",
+      "strataDocumentNavigationGuard": "const",
+      "StrataDocumentNavigator": "class"
+    },
+    "./server-only": {}
+  }
+}

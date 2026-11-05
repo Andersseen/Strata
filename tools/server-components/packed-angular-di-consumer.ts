@@ -14,7 +14,12 @@ import { run } from "../consumer/lib/exec.ts";
 
 import { installFullStackConsumer } from "./lib/full-stack-install.ts";
 import { repoRoot, check, finish, section } from "./lib/harness.ts";
-import { isolatedEnv, startNodeServer } from "./lib/package-consumer.ts";
+import { isolatedEnv, startNodeServer, startWrangler } from "./lib/package-consumer.ts";
+import {
+  checkConfidentiality,
+  compositionMatrix,
+  workerdCharacterization,
+} from "./lib/packed-di-composition.ts";
 
 const fixture = join(repoRoot, "tests", "analog-packed-di-consumer");
 const tmpRoot = mkdtempSync(join(tmpdir(), "strata-packed-angular-di-"));
@@ -28,6 +33,21 @@ const no = (label: string, result: { status: number; stdout: string; stderr: str
   check(label, result.status === 0, `${result.stdout}\n${result.stderr}`.slice(-6_000));
 
 let server: Awaited<ReturnType<typeof startNodeServer>> | undefined;
+let wrangler: Awaited<ReturnType<typeof startWrangler>> | undefined;
+
+/** Stops the Node server once and checks that the consumer's Nitro close hook ran once. */
+async function stopNode(): Promise<void> {
+  if (!server) return;
+  const stopping = server;
+  server = undefined;
+  await stopping.stop();
+  const closeEvents = stopping.output().match(/packed angular DI root closed/g) ?? [];
+  check(
+    "Nitro close hook destroys the consumer-owned Angular root and platform once",
+    closeEvents.length === 1,
+  );
+}
+
 try {
   section("Install the actual Strata tarballs into an isolated Analog consumer");
   const installed = installFullStackConsumer({
@@ -71,6 +91,9 @@ try {
           "src/server/strata/providers.ts",
           "src/server/strata/controller.ts",
           "src/server/strata/public-types.ts",
+          "src/server/strata/composition.providers.ts",
+          "src/server/strata/composition.controller.ts",
+          "src/server/strata/composition.registration.ts",
         ],
       },
       null,
@@ -91,6 +114,10 @@ try {
   no("consumer Vite production build succeeds", built);
   if (built.status !== 0)
     throw new Error("Consumer production build failed; see the compiler output above.");
+
+  section("Browser output: consumer-owned Angular DI server code stays on the server");
+  checkConfidentiality(consumer);
+
   server = await startNodeServer(consumer, env);
 
   const request = (id: string, token: string, delay = 0) =>
@@ -252,6 +279,8 @@ try {
     deniedStream.status === 401 && afterDenied.injectorsCreated === after.injectorsCreated,
   );
 
+  await compositionMatrix(server.baseUrl);
+
   section("Repeat the strict consumer declaration check with TypeScript 5.9.2");
   const ts59Dir = join(tmpRoot, "typescript-59");
   mkdirSync(ts59Dir, { recursive: true });
@@ -271,17 +300,25 @@ try {
   const tsc59 = join(ts59Dir, "node_modules", "typescript", "bin", "tsc");
   const typed59 = run(process.execPath, [tsc59, ...typeArgs], { cwd: consumer, env });
   no("consumer Angular services and Strata API types pass strict TypeScript 5.9.2", typed59);
+
+  await stopNode();
+
+  section("Local workerd (Cloudflare Pages build): the known Angular JIT limit fails safely");
+  const cloudflare = run(process.execPath, [vite, "build"], {
+    cwd: consumer,
+    env: { ...env, BUILD_PRESET: "cloudflare-pages" },
+  });
+  no("consumer Cloudflare Pages build succeeds (no nodejs_compat)", cloudflare);
+  if (cloudflare.status !== 0) throw new Error("Consumer Cloudflare build failed.");
+  checkConfidentiality(consumer, "cloudflare");
+  wrangler = await startWrangler(consumer, env, "/api/native");
+  const running = wrangler;
+  await workerdCharacterization(running.baseUrl, () => running.output());
 } finally {
-  if (server) {
-    await server.stop();
-    const closeEvents = server.output().match(/packed angular DI root closed/g) ?? [];
-    check(
-      "Nitro close hook destroys the consumer-owned Angular root and platform once",
-      closeEvents.length === 1,
-    );
-  }
+  await stopNode();
+  await wrangler?.stop();
   if (process.env["STRATA_KEEP_CONSUMER"] === "1") console.log(`kept consumer: ${consumer}`);
   else rmSync(tmpRoot, { recursive: true, force: true });
 }
 
-finish("packed Angular DI Node consumer qualification");
+finish("packed Angular DI consumer qualification (Node GO, local workerd characterized NO-GO)");

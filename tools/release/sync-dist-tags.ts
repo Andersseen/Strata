@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 
 import { run } from "../consumer/lib/exec.ts";
 
-import { planDistTags } from "./lib/dist-tags.ts";
+import { awaitCompliantDistTags, planDistTags } from "./lib/dist-tags.ts";
 import { readManifest, REGISTRY_PACKAGES } from "./lib/packages.ts";
 
 /**
@@ -39,7 +39,8 @@ function npm(npmArgs: readonly string[]) {
 }
 
 function distTags(name: string): Record<string, string> {
-  const view = npm(["view", name, "dist-tags", "--json"]);
+  // --prefer-online: revalidate npm's local metadata cache on every read.
+  const view = npm(["view", name, "dist-tags", "--json", "--prefer-online"]);
 
   if (view.status !== 0) throw new Error(`npm view ${name} dist-tags failed:\n${view.stderr}`);
 
@@ -73,12 +74,14 @@ for (const pkg of REGISTRY_PACKAGES) {
     }
 
     if (!dryRun) {
-      const after = distTags(name);
-      const remaining = planDistTags(after, version);
-      if (remaining.length > 0) {
-        throw new Error(`dist-tags still out of policy after the update: ${JSON.stringify(after)}`);
-      }
-      console.log(`${label} ${name} dist-tags: ${JSON.stringify(after)}`);
+      const { tags, attempts } = await awaitCompliantDistTags(
+        () => distTags(name),
+        version,
+        (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+      );
+      console.log(
+        `${label} ${name} dist-tags (visible after ${attempts} read(s)): ${JSON.stringify(tags)}`,
+      );
     }
   } catch (error) {
     failed = true;

@@ -5,7 +5,59 @@ The full-stack authorization fixture's protected paths passed with the packed an
 Policy date: 2026-09-17. There is **no production support matrix yet**. Distinguish manifest ranges,
 locally exercised versions, researched candidates and qualified release combinations.
 
+## Current tested tuple and evidence levels (2026-11-05)
+
+This section is the current reconciliation; the sections below keep their historical record. It is
+evidence for one exact tuple on synthetic fixtures, **not** a support range
+([stabilization report](research/m3-m4-contract-stabilization.md)).
+
+**Published versions (npm, 2026-11-05):** `@strata-sc/core` 0.2.2, `@strata-sc/analog` 0.12.0,
+`@strata-sc/server-components` 0.14.0 (`latest` and `next` agree). `@strata-sc/h3` is private and
+unpublished. The pending Changeset makes `@strata-sc/analog` 0.12.1 (patch: an oversized validated
+body no longer desynchronises a Node keep-alive connection); no public API changes.
+
+**Manifest ranges (what the packages declare, not what is qualified):** every package `engines.node`
+`>=22`. `@strata-sc/server-components` peers: `@angular/core`, `@angular/compiler`,
+`@angular/common` (optional), `@angular/router` (optional) `^22.1.7`; `typescript` `^5.9.0 || ^6.0.0`;
+`vite` `>=8.3.0 <9`. `@strata-sc/analog` declares no peer; it depends on `@strata-sc/core` (exact
+version) and `@standard-schema/spec` 1.1.0. Nitro, H3 and Analog are not declared: they come from
+the host application.
+
+**Exact tested tuple (direct dependencies, pinned by the external fixtures):** Node 22.23.1 locally
+(Node 22 on hosted runners); Angular 22.2.3 (core, compiler, common, platform-browser,
+platform-server, router, compiler-cli) with `@angular/build` 22.1.8; Analog platform, router and
+Angular Vite plugin 2.7.2; nitropack 2.13.4; h3 1.15.11; Vite 8.3.0; TypeScript 6.0.3 (declarations
+also 5.9.2); Wrangler 4.135.0 with compatibility date 2026-09-21 and no `nodejs_compat`; Playwright
+1.62.1 Chromium. Each external consumer is a fresh `npm install` without a lockfile, as a real
+consumer would do, so **transitive** versions follow the registry on the day of the run and are
+recorded per run, not pinned: on 2026-11-05 `@analogjs/vite-plugin-nitro` resolved 2.9.6 (2.9.5 on
+2026-11-02) and Rolldown 1.2.0.
+
+| Evidence level     | What it means here                                                                                                  | Current state                                                                                                                                                 |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Manifest range     | What `package.json` accepts                                                                                         | Above. Broader than anything tested; not a claim.                                                                                                             |
+| Exact tested tuple | The versions the fixtures pin, plus the recorded transitive set                                                     | Above, Node + local workerd.                                                                                                                                  |
+| Packed consumer    | Branch tarballs installed outside the workspace, strict TS 6.0.3/5.9.2, Node production (+ workerd where supported) | Mandatory CI. Public API inventory (installed declarations = runtime = reviewed baseline) added 2026-11-05.                                                   |
+| Published registry | The same consumers installing exact npm versions                                                                    | 2026-11-02 tuple (sc 0.13.0) qualified; Extended `registry` suite now runs the full-stack registry consumer weekly.                                           |
+| Local workerd      | `wrangler pages dev` of the Cloudflare Pages preset                                                                 | Supported: controllers, SSR, Server Components, streaming lifecycle. **NO-GO**: consumer Angular DI and `serverFn` (Angular JIT `EvalError`), fails safely.   |
+| Hosted CI          | GitHub-hosted `ubuntu-latest`, the `Verify` aggregate                                                               | Every PR. Extended (weekly/manual) could not start from PR #167 until this work repaired its workflow file.                                                   |
+| Real deployment    | Isolated Cloudflare Pages projects, manual workflows                                                                | Server Components alone: narrow GO (2026-10-12). Full-stack fixture: one published-tuple GO (2026-11-02), earlier NO-GO runs kept. No Node server deployment. |
+| Production support | A maintained, documented promise                                                                                    | **None.** No Strata package is production-supported; every API remains experimental before 1.0.                                                               |
+
+**Experimental or unsupported, precisely:** the H3 v2 adapter (`@strata-sc/h3`, private, strict
+consumer types upstream-blocked); consumer-owned Angular DI and Analog `serverFn` on workerd (NO-GO);
+client-disconnect cancellation through the pinned Nitro adapters (no signal reaches Strata);
+incremental streamed delivery on Cloudflare Pages (buffered); streaming SSR; Angular Router
+activation into a Server Component subtree (document navigation only); arbitrary npm Angular packages
+as islands (one package shape qualified); a module that does not itself assert `server-only` is not
+protected by the firewall. The Vite plugin reads Angular template ASTs through `@angular/compiler`
+exports (`parseTemplate`, `TmplAst*`, `CssSelector`), which Angular does not version as application
+API: any Angular upgrade must re-run the graph and package-consumer qualifications (RISKS R21).
+
 ## Baseline and target selection
+
+_Historical (2026-09-17, M1 target selection). Superseded for the current tuple by the section above;
+kept as recorded._
 
 | Layer           | Evidence today                                                                                                                     | Initial qualification policy                                                                                                                                                                                                                                               |
 | --------------- | ---------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

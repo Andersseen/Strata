@@ -112,4 +112,90 @@ describe("registerControllers — controller inheritance", () => {
     expect(childOne.status).toBe(404);
     expect(instances.sort()).toEqual(["BaseController", "ChildController"]);
   });
+
+  it("serves a re-decorated override from the child and the original from the parent", async () => {
+    @Controller("/base")
+    class BaseController {
+      @Get("/item")
+      item() {
+        return { implementation: "base" };
+      }
+    }
+
+    @Controller("/child")
+    class ChildController extends BaseController {
+      @Get("/item")
+      override item() {
+        return { implementation: "child" };
+      }
+    }
+
+    const request = createNitroLikeApp([BaseController, ChildController]);
+    const [base, child] = await Promise.all([request("/base/item"), request("/child/item")]);
+
+    await expect(base.json()).resolves.toEqual({ implementation: "base" });
+    await expect(child.json()).resolves.toEqual({ implementation: "child" });
+  });
+
+  it("does not register or reroute an undecorated override of a parent's route", async () => {
+    @Controller("/base")
+    class BaseController {
+      @Get("/item")
+      item() {
+        return { implementation: "base" };
+      }
+    }
+
+    @Controller("/child")
+    class ChildController extends BaseController {
+      override item() {
+        return { implementation: "child" };
+      }
+    }
+
+    const router = recordingRouter();
+
+    registerControllers(router, [ChildController]);
+    expect(router.paths()).toEqual([]);
+
+    const request = createNitroLikeApp([BaseController, ChildController]);
+    const [base, child] = await Promise.all([request("/base/item"), request("/child/item")]);
+
+    await expect(base.json()).resolves.toEqual({ implementation: "base" });
+    expect(child.status).toBe(404);
+  });
+
+  // Current contract, pinned: the handler is resolved once, at registration, on the registered
+  // class's prototype chain. A factory may return a subclass instance (it passes the instanceof
+  // check and is `this`), but the registered method runs, not the subclass override.
+  it("calls the registered method, not a subclass override, when the factory returns a subclass", async () => {
+    @Controller("/base")
+    class BaseController {
+      @Get("/item")
+      item() {
+        return { implementation: "base", instance: this.constructor.name };
+      }
+    }
+
+    class SubstituteController extends BaseController {
+      override item() {
+        return { implementation: "substitute", instance: this.constructor.name };
+      }
+    }
+
+    const app = createApp();
+    const router = createRouter({ preemptive: true });
+
+    app.use(router.handler);
+    registerControllers(router, [BaseController], {
+      controllerFactory: () => new SubstituteController(),
+    });
+
+    const response = await toWebHandler(app)(new Request("http://localhost/base/item"));
+
+    await expect(response.json()).resolves.toEqual({
+      implementation: "base",
+      instance: "SubstituteController",
+    });
+  });
 });

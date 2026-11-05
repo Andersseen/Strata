@@ -99,3 +99,42 @@ export function planDistTags(
 
   return changes;
 }
+
+/** How long a dist-tag update may take to become visible on the registry, and how often to look. */
+export const DIST_TAG_VISIBILITY = {
+  attempts: 6,
+  firstDelayMs: 2_000,
+  maxDelayMs: 16_000,
+} as const;
+
+/**
+ * Re-reads the dist-tags after an update until they comply, a bounded number of times.
+ *
+ * npm registry metadata is eventually consistent: a read right after `npm dist-tag add` can still
+ * return the old tags. Two hosted Release runs (2026-11-02 and 2026-11-03) failed exactly so —
+ * `next 0.2.0 → 0.14.0` succeeded, the immediate re-read still said 0.2.0 — although the update
+ * had taken effect. This still fails closed: tags that remain out of policy after every attempt
+ * are an error carrying the last tags read.
+ */
+export async function awaitCompliantDistTags(
+  read: () => Readonly<Record<string, string>>,
+  version: string,
+  wait: (ms: number) => Promise<void>,
+  options: { attempts: number; firstDelayMs: number; maxDelayMs: number } = DIST_TAG_VISIBILITY,
+): Promise<{ readonly tags: Readonly<Record<string, string>>; readonly attempts: number }> {
+  let delay = options.firstDelayMs;
+  let tags: Readonly<Record<string, string>> = {};
+
+  for (let attempt = 1; attempt <= options.attempts; attempt++) {
+    tags = read();
+    if (planDistTags(tags, version).length === 0) return { tags, attempts: attempt };
+    if (attempt < options.attempts) {
+      await wait(delay);
+      delay = Math.min(delay * 2, options.maxDelayMs);
+    }
+  }
+
+  throw new Error(
+    `dist-tags still out of policy after the update (${options.attempts} reads): ${JSON.stringify(tags)}`,
+  );
+}

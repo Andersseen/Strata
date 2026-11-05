@@ -87,15 +87,44 @@ The [Angular DI HTTP composition report](research/analog-di-http-composition.md)
 extends the real Node dev/production runner with the existing guard,
 interceptor, Standard Schema and cleanup contracts. Its 24-request matrix is
 run as three concurrent eight-request batches with an eight-party rendezvous.
-The full packed Angular DI composition remains outside the packed-consumer gate; the existing
-workerd Angular JIT negative qualification remains required.
+The existing workerd Angular JIT negative qualification remains required.
 
-`pnpm test:analog-packed-di-consumer` now adds a separate Node-only packed profile. It builds and
-installs the branch tarballs outside the workspace and verifies strict TypeScript 6 declarations,
-production Nitro HTTP composition, consumer-owned root/request injector lifetimes, authorization,
-24-request isolation, cleanup and close-hook destruction. It does not change the Cloudflare fixture.
-This is a partial profile: see [its report](research/analog-packed-di-consumer.md) for the uncovered
-validation, failure and bundle gates.
+`pnpm test:analog-packed-di-consumer` builds and installs the branch tarballs outside the workspace
+and verifies strict TypeScript 6.0.3 and 5.9.2 declarations, production Nitro HTTP composition,
+consumer-owned root/request injector lifetimes, authorization, 24-request isolation, streaming,
+cleanup and close-hook destruction. Since 2026-11-05 it also runs the **full composition matrix**
+through the installed packages and consumer-owned code
+([stabilization report](research/m3-m4-contract-stabilization.md)): the exact lifecycle order Strata
+ran (recorded by consumer code, closed by `onRequestSettled` keyed by `requestCorrelation`) for
+success, denial, validation, factory/provider/constructor/handler/interceptor failures, `next()`
+misuse, native and replaced responses; a consumer-written Standard Schema; JSON 400/413/415;
+`StrataAnalogHttpError` versus cleanup-failure precedence; exactly-once cleanups; 24 concurrent mixed
+requests with a deterministic rendezvous; a raw keep-alive connection after a 413; server-only DI
+markers, tokens and credentials absent from browser files and hidden source maps (Node and Pages
+builds, with server-side positive controls); and a **local workerd NO-GO characterization**: the
+Angular JIT path answers a generic 500, denials still answer 401 before any factory, every cleanup
+runs, and supported Worker routes keep serving. Active-request shutdown is **not qualified**: Nitro
+exposes no public drain seam the consumer can observe.
+
+Contract checks added by the same work, and where they run:
+
+- `packages/analog/src/body-limit-connection.test.ts` (`pnpm test`): a real `node:http` + H3 v1
+  server and a raw socket; an oversized validated body answers 413 and the same keep-alive
+  connection then serves the next request. Its deterministic regression (the still-incomplete
+  message is not destroyed when the 413 is sent) fails on the previous reader.
+- `tools/server-components/ssr-integrity.test.ts` (`pnpm test:release`, part of `pnpm test`):
+  negative controls for the SSR integrity classifier — an HTTP 200 empty shell, a missing
+  `app-root`, partial renders, error/JIT log lines, boundary defects and escaped canaries never pass.
+- Public API inventory (`pnpm test:full-stack-package-consumer`, and `--registry` in Extended):
+  every installed `exports` subpath has types and runtime targets, declared value exports equal
+  runtime exports, and the whole surface equals `tools/package-consumer/public-api.json`.
+  Regenerate it only for a reviewed change: `STRATA_UPDATE_PUBLIC_API=1`.
+- Hydration commit rollback through the installed tarball (`pnpm test:server-component-package-consumer`,
+  Node and local workerd): one host of `/pair` fails inside `setInput` after three islands were
+  created; it rolls back with node identity intact and one `ErrorHandler` report while the sibling
+  host commits and stays interactive.
+- CI `static` now validates every workflow with a pinned actionlint and runs `pnpm format:check`;
+  CI `runtime` runs `pnpm test:analog`, which no workflow had invoked since September.
 
 | Gate | Required tests                                                                                                                                   | Evidence retained                                                                                                  |
 | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |

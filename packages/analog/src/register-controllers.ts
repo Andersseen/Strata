@@ -1123,6 +1123,26 @@ interface NitroNodeRequest extends AsyncIterable<Uint8Array | string> {
   readonly body?: unknown;
 }
 
+/** The part of Node's `IncomingMessage` (a Readable) the bounded body reader uses. */
+interface NodeReadableRequest {
+  on(event: "data", listener: (chunk: Uint8Array | string) => void): unknown;
+  on(event: "end" | "close", listener: () => void): unknown;
+  on(event: "error", listener: (error: unknown) => void): unknown;
+  off(event: string, listener: (...args: never[]) => void): unknown;
+  resume(): unknown;
+  readonly readableEnded?: boolean;
+}
+
+function isNodeReadable(request: object): request is NodeReadableRequest {
+  const candidate = request as Partial<Record<keyof NodeReadableRequest, unknown>>;
+
+  return (
+    typeof candidate.on === "function" &&
+    typeof candidate.off === "function" &&
+    typeof candidate.resume === "function"
+  );
+}
+
 function createStrataAnalogRequest(
   event: NitroEvent,
   correlationId: string | undefined,
@@ -1529,6 +1549,9 @@ async function readEventTextBounded(event: NitroEvent, limit: number): Promise<s
       return decodeBytes(await readStreamBounded(attached, limit));
     throw new TypeError("Unsupported request body representation.");
   }
+  if (isNodeReadable(nodeRequest)) {
+    return decodeBytes(await readNodeRequestBounded(nodeRequest, limit));
+  }
   const chunks: Uint8Array[] = [];
   let size = 0;
   for await (const chunk of nodeRequest) {
@@ -1537,13 +1560,76 @@ async function readEventTextBounded(event: NitroEvent, limit: number): Promise<s
     if (size > limit) throw new StrataAnalogInputError("body", 413);
     chunks.push(bytes);
   }
+  return decodeBytes(concatenate(chunks, size));
+}
+
+/**
+ * Reads a Node request body up to `limit` bytes. Past the limit it stops collecting and lets the
+ * rest of the body flow to nowhere, exactly as Node drains a body no handler reads, instead of
+ * destroying the request: leaving a `for await` loop early destroys the message, and when that
+ * happens before Node's parser has completed it, the connection's parser falls out of step and
+ * the NEXT request on that keep-alive connection fails with a bare 400 (reproduced on Nitro
+ * node-server; behind a proxy that reuses upstream connections it may be another client's).
+ * Memory stays bounded by `limit`; the drained remainder is discarded as it arrives.
+ */
+function readNodeRequestBounded(request: NodeReadableRequest, limit: number): Promise<Uint8Array> {
+  // Already consumed upstream: nothing left to read, as a `for await` over it would also find.
+  if (request.readableEnded === true) return Promise.resolve(new Uint8Array());
+
+  return new Promise((resolve, reject) => {
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    const detach = (): void => {
+      request.off("data", onData);
+      request.off("end", onEnd);
+      request.off("close", onClose);
+      request.off("error", onError);
+    };
+    const onData = (chunk: Uint8Array | string): void => {
+      const bytes = typeof chunk === "string" ? new TextEncoder().encode(chunk) : chunk;
+      size += bytes.byteLength;
+      if (size > limit) {
+        detach();
+        // Errors while draining (a client that disconnects) concern nobody any more.
+        request.on("error", ignoreDrainError);
+        request.resume();
+        reject(new StrataAnalogInputError("body", 413));
+        return;
+      }
+      chunks.push(bytes);
+    };
+    const onEnd = (): void => {
+      detach();
+      resolve(concatenate(chunks, size));
+    };
+    const onClose = (): void => {
+      detach();
+      reject(new Error("The request body ended before it was complete."));
+    };
+    const onError = (error: unknown): void => {
+      detach();
+      reject(error instanceof Error ? error : new Error("The request body could not be read."));
+    };
+
+    request.on("data", onData);
+    request.on("end", onEnd);
+    request.on("close", onClose);
+    request.on("error", onError);
+  });
+}
+
+function ignoreDrainError(): void {
+  // Intentionally empty: see readNodeRequestBounded.
+}
+
+function concatenate(chunks: readonly Uint8Array[], size: number): Uint8Array {
   const combined = new Uint8Array(size);
   let offset = 0;
   for (const chunk of chunks) {
     combined.set(chunk, offset);
     offset += chunk.byteLength;
   }
-  return decodeBytes(combined);
+  return combined;
 }
 
 async function readStreamBounded(

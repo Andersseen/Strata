@@ -1,8 +1,19 @@
 # Roadmap to 1.0
 
-The M4 adversarial follow-up's local packed and published-registry qualifications passed on `test/full-stack-adversarial-security`. Hosted PR checks remain pending. It replaces transcript-only negative controls with independently rebuilt source mutations through the existing packed consumer. See the [adversarial security report](research/full-stack-adversarial-security.md); M4 and M5 remain open.
+**M3/M4 contract stabilization (2026-11-05, [report](research/m3-m4-contract-stabilization.md)).** Stronger, not
+closed: M3 gains the full composition matrix through installed packages (Node), a fixed production defect (keep-alive
+desynchronisation after an oversized validated body), pinned inheritance/override semantics and a public API inventory
+checked against installed declarations and runtime exports; M4 gains a hydration commit-rollback qualification through
+the installed tarball (Node and local workerd) and negative controls for the SSR integrity classifier. CI now validates
+workflow files, formatting and the internal Analog fixture on every PR, and the Extended workflow can start again.
+Still open for M3: shared SSR/controller Angular DI, workerd Angular DI (upstream JIT), cancellation without a supported
+signal, active-request shutdown, real-application adoption. Still open for M4: a general error-response seam for
+unexpected render failures (HTTP 200 remains possible), Router subtree navigation (document navigation only),
+deployed qualification of the composed path.
 
-The cross-layer tenant authorization qualification is on an open feature PR. Its packed and exact published-registry consumers passed on Node, local workerd and Chromium; PR CI, documentation and registry verification workflows passed. Source-mutated ownership/data-substitution controls and separate Extended workflow runs remain open; this does not close M4 or M5. See the [authorization isolation report](research/full-stack-authorization-isolation.md).
+The M4 adversarial follow-up's local packed and published-registry qualifications passed on `test/full-stack-adversarial-security`. _Reconciled 2026-11-05:_ merged as PR #167; its PR checks and main CI (`bf00a94`) passed. Its Extended `adversarial` job never started: the workflow file was invalid until the stabilization work below. It replaces transcript-only negative controls with independently rebuilt source mutations through the existing packed consumer. See the [adversarial security report](research/full-stack-adversarial-security.md); M4 and M5 remain open.
+
+The cross-layer tenant authorization qualification was merged as PR #166. Its packed and exact published-registry consumers passed on Node, local workerd and Chromium; PR CI, documentation and registry verification workflows passed. Source-mutated ownership/data-substitution controls and separate Extended workflow runs remain open; this does not close M4 or M5. See the [authorization isolation report](research/full-stack-authorization-isolation.md).
 
 Baseline: [STATE](STATE.md). Milestones are capability gates, not calendar promises or mandatory
 version numbers. M1–M4 may produce experimental 0.x releases; M5 produces release candidates.

@@ -36,6 +36,7 @@ import {
   startWrangler,
 } from "./lib/package-consumer.ts";
 import type { RunningServer } from "./lib/package-consumer.ts";
+import { adaptFixtureForPublishedArtifact } from "./lib/registry-fixture.ts";
 import { COMPATIBILITY_DATE } from "./lib/wrangler.ts";
 
 /**
@@ -208,6 +209,12 @@ async function main(): Promise<void> {
       console.log(
         `\nNOT APPLICABLE: ${PACKAGE}@${version} is not on ${REGISTRY} yet (e.g. a Version Packages PR).`,
       );
+      // A NOT APPLICABLE run qualified nothing: make it visible instead of a silent green job.
+      if (process.env["GITHUB_ACTIONS"] === "true") {
+        console.log(
+          `::warning title=Published package not qualified::${PACKAGE}@${version} is not on the registry; nothing was built or verified.`,
+        );
+      }
       evidence.verdicts["Local build"] = "NOT APPLICABLE (version not published)";
       evidence.verdicts["Real deployment"] = "NOT RUN";
       writeEvidence();
@@ -234,6 +241,7 @@ async function main(): Promise<void> {
     !realpathSync(tmpRoot).startsWith(realpathSync(repoRoot)),
   );
   cpSync(fixtureTemplate, consumerDir, { recursive: true });
+  adaptFixtureForPublishedArtifact(consumerDir);
 
   const manifestPath = join(consumerDir, "package.json");
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as {

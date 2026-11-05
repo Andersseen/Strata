@@ -52,6 +52,7 @@ import {
   startWrangler,
 } from "./lib/package-consumer.ts";
 import type { RunningServer, Snapshot } from "./lib/package-consumer.ts";
+import { checkPublicApi } from "./lib/public-api.ts";
 import { COMPATIBILITY_DATE } from "./lib/wrangler.ts";
 
 /**
@@ -92,6 +93,7 @@ const verdict = {
   firewall: false,
   cloudflare: false,
   confidentiality: false,
+  publicApi: false,
 };
 
 const timings: string[] = [];
@@ -274,6 +276,11 @@ try {
     ts59.version,
   );
   verdict.declarations59 = ts59.ok && ts59.version === TS59_VERSION;
+
+  // ------------------------------------------------------------------------
+  section("Public API surface (installed declarations, runtime exports, reviewed baseline)");
+
+  verdict.publicApi = checkPublicApi(consumerDir, env, REGISTRY ? "registry" : "packed");
 
   // ------------------------------------------------------------------------
   section("External production build (Node): graph separation");
@@ -681,6 +688,7 @@ check(
 );
 check("declaration portability (TypeScript 5.9.2)", verdict.declarations59);
 check("declaration portability (TypeScript 6)", verdict.declarations6);
+check("public API surface (declarations = runtime = reviewed baseline)", verdict.publicApi);
 check("Core + Analog controller integration (Node)", verdict.controllerIntegration);
 check("Server Components integration (Node)", verdict.serverComponents);
 check("interactive island + controller HTTP API + navigation (Node)", verdict.island);

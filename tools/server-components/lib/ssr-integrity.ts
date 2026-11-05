@@ -97,6 +97,25 @@ function unescapeAttribute(value: string): string {
     .replaceAll("&amp;", "&");
 }
 
+/**
+ * The document with HTML character references decoded, for the confidentiality check only: a
+ * structured server-only value crosses inside `data-strata-props` as JSON whose quotes are
+ * `&quot;`, which a raw substring search never matches. Numeric references are decoded too.
+ */
+function decodeCharacterReferences(html: string): string {
+  return unescapeAttribute(
+    html
+      .replace(/&#(\d{1,7});/g, (match, code: string) => fromCodePoint(Number(code), match))
+      .replace(/&#x([0-9a-f]{1,6});/gi, (match, code: string) =>
+        fromCodePoint(Number.parseInt(code, 16), match),
+      ),
+  );
+}
+
+function fromCodePoint(code: number, fallback: string): string {
+  return code <= 0x10ffff ? String.fromCodePoint(code) : fallback;
+}
+
 /** The first tag of `selector` carrying a `data-strata-client` attribute for it, as written. */
 function boundaryTag(html: string, selector: string): string | undefined {
   return html.match(new RegExp(`<${selector}\\b[^>]*data-strata-client="${selector}"[^>]*>`))?.[0];
@@ -219,8 +238,10 @@ export function assessSsrDocument(
     }
   }
 
+  const decoded = expected.forbidden ? decodeCharacterReferences(html) : html;
+
   for (const [label, value] of Object.entries(expected.forbidden ?? {})) {
-    if (html.includes(value)) {
+    if (html.includes(value) || decoded.includes(value)) {
       findings.push({
         class: "graph-confidentiality",
         detail: `server-only value "${label}" is in the public document`,

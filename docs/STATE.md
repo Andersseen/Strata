@@ -1,10 +1,35 @@
 # Current implementation audit
 
-## Adversarial full-stack security (local qualification complete; hosted PR checks pending)
+## M3/M4 contract stabilization (branch `stabilize/m3-m4-contract-hardening`; hosted CI pending)
+
+From `origin/main` `bf00a944544d1f6533d4b05a1876449ff59b7dd3` (published core 0.2.2, analog 0.12.0,
+server-components 0.14.0). Full record: [report](research/m3-m4-contract-stabilization.md).
+
+- **Production defect fixed** (`@strata-sc/analog` patch Changeset): on Nitro node-server, a 413 for an oversized
+  `readValidatedJson()`/`readValidatedForm()` body left the keep-alive connection out of step and the next request on
+  it failed with a bare Node `400` (reproduced on every attempt; raw-socket A/B against the real server). The
+  bounded Node reader now drains instead of destroying the message. IMPLEMENTED, UNIT, LOCAL NODE, PACKED CONSUMER.
+- **Release tooling defect fixed:** dist-tag verification failed two hosted Release runs on npm read-after-write lag
+  although the tag moves had succeeded; it now re-reads with bounded backoff and still fails closed. UNIT only.
+- **CI:** the Extended workflow was rejected with zero jobs since PR #167 (`runner.*` in job-level `env`); repaired,
+  and a pinned actionlint now validates every workflow on each PR. `pnpm format:check` and `pnpm test:analog` were
+  not invoked by any workflow; both are now mandatory. Extended's `registry` suite runs the published full-stack tuple.
+- **External consumers:** the packed Angular DI consumer now runs the full composition matrix through installed
+  packages (90 checks) and characterizes the workerd JIT NO-GO as failing safely; the packed Server Components
+  consumer qualifies a hydration commit rollback (Node and local workerd); the full-stack consumer checks the public
+  API inventory against installed declarations, runtime exports and `tools/package-consumer/public-api.json`.
+- **Contracts pinned, unchanged:** inherited-controller overrides and non-virtual factory dispatch; SSR integrity
+  classifier negative controls (an HTTP 200 shell never passes), which also fixed a verifier false negative for
+  HTML-escaped structured canaries.
+- **Not changed and still open:** HTTP 200 for unexpected Server Component render failures (no supported seam);
+  cancellation without an adapter signal; active-request shutdown (no public Nitro drain seam: NOT QUALIFIED);
+  workerd Angular DI; shared SSR/controller DI; Router subtree navigation; streaming SSR; production deployment.
+
+## Adversarial full-stack security (merged PR #167; PR and main CI passed; Extended job first runnable 2026-11-05)
 
 Starting from main `475e36902afb5a751ab7d7124f37682d50c4f07a`, this branch adds source-mutated production consumers for tenant-ownership removal, cross-tenant data substitution and browser-private-marker leakage. All three mutations passed through isolated fixture copies and the existing packed consumer; the exact published-registry tuple also passed. Hosted PR checks remain pending. See the [adversarial security report](research/full-stack-adversarial-security.md). No production isolation or M4/M5/1.0 qualification is claimed.
 
-## Full-stack authorization isolation (qualification in progress)
+## Full-stack authorization isolation (merged PR #166)
 
 From fetched `origin/main` SHA `55be0abae0440c42b86f8a53a77638c582aa3ae7`, branch `test/full-stack-authorization-isolation`, the external consumer passed 402 packed checks and the exact published-registry tuple passed 395 checks on Node, local workerd and Chromium. Strict TS 6/5.9 declarations and private-marker/credential scans pass. PR #166 CI, Entwine docs and registry verification workflows passed. Artifact identities and limits are in [the report](research/full-stack-authorization-isolation.md). Source-mutated ownership/data-substitution controls and separate Extended workflow runs remain open. This does not complete M4/M5 or establish production isolation.
 
