@@ -13,7 +13,6 @@
   "files": [
     "src/check/fetch-event.d.ts",
     "src/server/strata/tenant-authorization.ts",
-    "src/server/strata/protected.controller.ts",
-    "src/server/routes/api/protected-read-count/[id].get.ts"
+    "src/server/strata/protected.controller.ts"
   ]
 }

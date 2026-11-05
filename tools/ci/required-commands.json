@@ -1,5 +1,5 @@
 {
-  "$comment": "Every command the mandatory CI pipeline must run. Baseline: the five-job .github/workflows/ci.yml at 94347ea3b6a991ab68d7e5d1a0c9b397b26b3da5 (`baselineJob`). A command may move between jobs; it may not disappear, run twice, become conditional, tolerate failure, or leave the jobs that the aggregate `Verify` depends on. Removing an entry is a coverage change and needs its own review. Checked by tools/ci/lib/coverage.ts (`pnpm test:ci`).",
+  "$comment": "Every command the mandatory CI pipeline must run. Baseline: the five-job .github/workflows/ci.yml at 94347ea3b6a991ab68d7e5d1a0c9b397b26b3da5 (`baselineJob`); commands added since carry `baselineJob: null` and an `added` reason. A command may move between jobs; it may not disappear, run twice, become conditional, tolerate failure, or leave the jobs that the aggregate `Verify` depends on. Removing an entry is a coverage change and needs its own review. Checked by tools/ci/lib/coverage.ts (`pnpm test:ci`).",
   "aggregateJob": "ci",
   "aggregateName": "Verify",
   "nonMandatoryJobs": ["deploy-www"],
@@ -9,38 +9,142 @@
       "baselineJob": "static",
       "match": "contains"
     },
-    { "run": "pnpm format:check", "baselineJob": "static" },
-    { "run": "pnpm lint", "baselineJob": "static" },
-    { "run": "pnpm typecheck", "baselineJob": "static" },
-    { "run": "pnpm test", "baselineJob": "static" },
-    { "run": "pnpm test:server-components", "baselineJob": "graph" },
-    { "run": "pnpm test:server-component-navigation", "baselineJob": "graph" },
-    { "run": "pnpm test:server-component-defer", "baselineJob": "graph" },
-    { "run": "pnpm test:server-component-server-only", "baselineJob": "graph" },
-    { "run": "pnpm test:server-component-optimized-deps", "baselineJob": "graph" },
-    { "run": "pnpm test:server-component-dev", "baselineJob": "graph" },
-    { "run": "pnpm test:server-component-security", "baselineJob": "runtime" },
-    { "run": "pnpm test:server-component-request-context", "baselineJob": "runtime" },
-    { "run": "pnpm test:server-component-failures", "baselineJob": "runtime" },
-    { "run": "pnpm test:server-component-ssr-response", "baselineJob": "runtime" },
-    { "run": "pnpm test:server-component-authorization", "baselineJob": "runtime" },
-    { "run": "pnpm test:analog", "baselineJob": "runtime" },
-    { "run": "pnpm test:analog-streaming", "baselineJob": "runtime" },
-    { "run": "pnpm test:analog-observability", "baselineJob": "runtime" },
-    { "run": "pnpm test:analog-correlation", "baselineJob": "runtime" },
-    { "run": "pnpm test:analog-headers", "baselineJob": "runtime" },
-    { "run": "pnpm test:analog-forms", "baselineJob": "runtime" },
-    { "run": "pnpm test:server-component-package-consumer", "baselineJob": "consumers" },
-    { "run": "pnpm test:server-component-installed-island", "baselineJob": "consumers" },
-    { "run": "pnpm test:server-component-deployment-skew", "baselineJob": "consumers" },
-    { "run": "pnpm test:full-stack-package-consumer", "baselineJob": "consumers" },
-    { "run": "pnpm test:full-stack-adversarial-security:smoke", "baselineJob": "consumers" },
-    { "run": "pnpm test:analog-packed-di-consumer", "baselineJob": "consumers" },
-    { "run": "pnpm test:full-stack-deployed-cloudflare", "baselineJob": "consumers" },
-    { "run": "pnpm test:server-components:cloudflare", "baselineJob": "consumers" },
-    { "run": "pnpm test:package-consumer", "baselineJob": "consumers" },
-    { "run": "pnpm --filter @strata-sc/www test:e2e", "baselineJob": "apps" },
-    { "run": "pnpm test:www:server-components", "baselineJob": "apps" },
-    { "run": "pnpm test:relay:server-components", "baselineJob": "apps" }
+    {
+      "run": "pnpm format:check",
+      "baselineJob": "static"
+    },
+    {
+      "run": "pnpm lint",
+      "baselineJob": "static"
+    },
+    {
+      "run": "pnpm typecheck",
+      "baselineJob": "static"
+    },
+    {
+      "run": "pnpm test",
+      "baselineJob": "static"
+    },
+    {
+      "run": "pnpm test:server-components",
+      "baselineJob": "graph"
+    },
+    {
+      "run": "pnpm test:server-component-navigation",
+      "baselineJob": "graph"
+    },
+    {
+      "run": "pnpm test:server-component-defer",
+      "baselineJob": "graph"
+    },
+    {
+      "run": "pnpm test:server-component-server-only",
+      "baselineJob": "graph"
+    },
+    {
+      "run": "pnpm test:server-component-optimized-deps",
+      "baselineJob": "graph"
+    },
+    {
+      "run": "pnpm test:server-component-dev",
+      "baselineJob": "graph"
+    },
+    {
+      "run": "pnpm test:server-component-security",
+      "baselineJob": "runtime"
+    },
+    {
+      "run": "pnpm test:server-component-request-context",
+      "baselineJob": "runtime"
+    },
+    {
+      "run": "pnpm test:server-component-failures",
+      "baselineJob": "runtime"
+    },
+    {
+      "run": "pnpm test:server-component-ssr-response",
+      "baselineJob": "runtime"
+    },
+    {
+      "run": "pnpm test:server-component-authorization",
+      "baselineJob": "runtime"
+    },
+    {
+      "run": "pnpm test:analog",
+      "baselineJob": "runtime"
+    },
+    {
+      "run": "pnpm test:analog-streaming",
+      "baselineJob": "runtime"
+    },
+    {
+      "run": "pnpm test:analog-observability",
+      "baselineJob": "runtime"
+    },
+    {
+      "run": "pnpm test:analog-correlation",
+      "baselineJob": "runtime"
+    },
+    {
+      "run": "pnpm test:analog-headers",
+      "baselineJob": "runtime"
+    },
+    {
+      "run": "pnpm test:analog-forms",
+      "baselineJob": "runtime"
+    },
+    {
+      "run": "pnpm test:server-component-package-consumer",
+      "baselineJob": "consumers"
+    },
+    {
+      "run": "pnpm test:server-component-installed-island",
+      "baselineJob": "consumers"
+    },
+    {
+      "run": "pnpm test:server-component-deployment-skew",
+      "baselineJob": "consumers"
+    },
+    {
+      "run": "pnpm test:full-stack-package-consumer",
+      "baselineJob": "consumers"
+    },
+    {
+      "run": "pnpm test:full-stack-adversarial-security:smoke",
+      "baselineJob": "consumers"
+    },
+    {
+      "run": "pnpm test:analog-packed-di-consumer",
+      "baselineJob": "consumers"
+    },
+    {
+      "run": "pnpm test:full-stack-deployed-cloudflare",
+      "baselineJob": "consumers"
+    },
+    {
+      "run": "pnpm test:server-components:cloudflare",
+      "baselineJob": "consumers"
+    },
+    {
+      "run": "pnpm test:package-consumer",
+      "baselineJob": "consumers"
+    },
+    {
+      "run": "pnpm --filter @strata-sc/www test:e2e",
+      "baselineJob": "apps"
+    },
+    {
+      "run": "pnpm test:www:server-components",
+      "baselineJob": "apps"
+    },
+    {
+      "run": "pnpm test:relay:server-components",
+      "baselineJob": "apps"
+    },
+    {
+      "run": "pnpm test:full-stack-multi-isolate",
+      "baselineJob": null,
+      "added": "F6 multi-isolate reproduction (docs/research/pre1-runtime-hardening.md)"
+    }
   ]
 }

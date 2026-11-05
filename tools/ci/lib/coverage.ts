@@ -11,7 +11,10 @@ import { parse } from "yaml";
 
 export interface RequiredCommand {
   readonly run: string;
-  readonly baselineJob: string;
+  /** The job of the five-job baseline pipeline; `null` for a command added after it. */
+  readonly baselineJob: string | null;
+  /** Why a command without a baseline job became mandatory. */
+  readonly added?: string;
   /** `exact` (default) compares the whole trimmed `run:` block; `contains` accepts a multi-line block containing it. */
   readonly match?: "exact" | "contains";
 }

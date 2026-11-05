@@ -8,6 +8,7 @@ import {
   AUTHORIZATION_MUTATION,
   BROWSER_CONFIDENTIALITY_MUTATION,
   DATA_SUBSTITUTION_MUTATION,
+  READ_BEFORE_AUTHORIZATION_MUTATION,
   classifyMutationRun,
   cleanupTemporaryDirectory,
   copyAndMutateFixture,
@@ -90,6 +91,10 @@ try {
         "ALPHA_CONFIDENTIAL_71c1: absent from every browser file, source map included",
       expectedMarker: "ALPHA_CONFIDENTIAL_71c1",
     },
+    {
+      mutation: READ_BEFORE_AUTHORIZATION_MUTATION,
+      expectedFailure: "each protected API response carries its own read receipt",
+    },
   ];
   const scenarios = process.argv.includes("--smoke") ? allScenarios.slice(0, 1) : allScenarios;
   const selectedScenario = process.argv.find((arg) => arg.startsWith("--scenario="))?.split("=")[1];
@@ -101,14 +106,16 @@ try {
             ? mutation === DATA_SUBSTITUTION_MUTATION
             : selectedScenario === "browser"
               ? mutation === BROWSER_CONFIDENTIALITY_MUTATION
-              : false,
+              : selectedScenario === "read-before-authorization"
+                ? mutation === READ_BEFORE_AUTHORIZATION_MUTATION
+                : false,
       )
     : scenarios;
   if (selectedScenario && selectedScenarios.length !== 1) {
     check(
       "requested adversarial scenario is recognized",
       false,
-      `unknown scenario: ${selectedScenario}; use authorization, data, or browser`,
+      `unknown scenario: ${selectedScenario}; use authorization, data, browser, or read-before-authorization`,
     );
     failed = true;
   }

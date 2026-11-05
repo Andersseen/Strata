@@ -140,3 +140,15 @@ export const BROWSER_CONFIDENTIALITY_MUTATION: SourceMutation = {
   before: 'signal("Availability: not checked")',
   after: 'signal("Availability: ALPHA_CONFIDENTIAL_71c1")',
 };
+
+/**
+ * Reads the private resource in the controller guard BEFORE authorizing. Every response stays a
+ * correct status with correct data, so only the invocation-owned read receipt (F6) can reject it.
+ */
+export const READ_BEFORE_AUTHORIZATION_MUTATION: SourceMutation = {
+  name: "read the protected resource before authorization",
+  path: "src/server/strata/protected.controller.ts",
+  before: "  const status = authorize(resolveTenant(request.headers), owner);",
+  after:
+    "  readProtectedResource(id, request); // intentional adversarial read before authorization\n  const status = authorize(resolveTenant(request.headers), owner);",
+};

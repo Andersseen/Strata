@@ -46,6 +46,56 @@ export function protectedMatrixMatches(replies: readonly ProtectedReply[]): bool
   );
 }
 
+/**
+ * Invocation-owned repository-read observation (F6, docs/research/pre1-runtime-hardening.md).
+ *
+ * Each protected request carries a fresh `x-fixture-read-observation` UUID; the fixture reports the
+ * reads made while serving THAT request on ITS OWN response as `x-fixture-read-receipt`
+ * (`<id>;reads=<n>;resources=<ids>`). Nothing is read back with a second request, so the proof
+ * holds when consecutive requests reach different Worker isolates. A missing receipt, a receipt for
+ * another id, or a conflicting id is a failure: absence of evidence is never "zero reads".
+ */
+export const READ_OBSERVATION_HEADER = "x-fixture-read-observation";
+export const READ_RECEIPT_HEADER = "x-fixture-read-receipt";
+
+export interface ReadReceipt {
+  readonly id: string;
+  readonly resources: readonly string[];
+}
+
+/** Parses a receipt; `undefined` unless it is well formed, for `id`, consistent and conflict-free. */
+export function parseReadReceipt(header: string | null, id: string): ReadReceipt | undefined {
+  const match = header?.match(/^([0-9a-f-]{36});reads=(\d+);resources=([a-z,-]*)$/);
+  if (!match || match[1] !== id) return undefined;
+  const resources = match[3] ? match[3].split(",") : [];
+  if (resources.length !== Number(match[2])) return undefined;
+
+  return { id, resources };
+}
+
+/**
+ * Every response must carry its own receipt, and the protected reads it records must be exactly the
+ * expected ones: one read of the owner's resource for an authorized request, none otherwise.
+ */
+export function readObservationsMatch(
+  observed: readonly { readonly id: string; readonly receipt: string | null }[],
+  expected: readonly (readonly string[])[],
+): boolean {
+  return (
+    observed.length === expected.length &&
+    observed.every(({ id, receipt }, index) => {
+      const parsed = parseReadReceipt(receipt, id);
+
+      return !!parsed && JSON.stringify(parsed.resources) === JSON.stringify(expected[index]);
+    })
+  );
+}
+
+const observed = (id: string, response: Response) => ({
+  id,
+  receipt: response.headers.get(READ_RECEIPT_HEADER),
+});
+
 export interface Reply {
   readonly status: number;
   readonly headers: Headers;
@@ -349,7 +399,7 @@ export async function httpSuite(
   );
 
   const apiReadIds = Array.from({ length: 9 }, () => randomUUID());
-  const apiProbe = (index: number) => ({ "x-fixture-read-observation": apiReadIds[index]! });
+  const apiProbe = (index: number) => ({ [READ_OBSERVATION_HEADER]: apiReadIds[index]! });
   const protectedMatrix = await Promise.all([
     fetch(`${base}/api/protected/alpha/products/alpha-product`, {
       headers: { cookie: "strata-test-credential=opaque-test-alpha", ...apiProbe(0) },
@@ -390,18 +440,56 @@ export async function httpSuite(
       headers: JSON.stringify([...response.headers]),
     })),
   );
-  const apiReadCounts = await Promise.all(
-    apiReadIds.map(
-      async (id) =>
-        json<{ reads: number }>(await get(`${base}/api/protected-read-count/${id}`)).reads,
-    ),
-  );
+  const apiReads = protectedMatrix.map((response, index) => observed(apiReadIds[index]!, response));
+  const expectedApiReads = [
+    ["alpha-product"],
+    ["beta-product"],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    ["beta-product"],
+  ];
   ok.push(
     check(
       `${label}: protected controller enforces tenant ownership, rejects invalid/duplicate cookies, and returns safe 404`,
-      protectedMatrixMatches(protectedResponses) &&
-        JSON.stringify(apiReadCounts) === JSON.stringify([1, 1, 0, 0, 0, 0, 0, 0, 1]),
-      JSON.stringify({ responses: protectedResponses, repositoryReads: apiReadCounts }),
+      protectedMatrixMatches(protectedResponses),
+      JSON.stringify({ responses: protectedResponses }),
+    ),
+    check(
+      `${label}: each protected API response carries its own read receipt: one owner read when authorized, none when denied`,
+      readObservationsMatch(apiReads, expectedApiReads),
+      JSON.stringify(apiReads),
+    ),
+    check(
+      `${label}: negative control: verifier rejects a denied response whose receipt records a private read`,
+      !readObservationsMatch(
+        apiReads.map((reply, index) =>
+          index === 2 ? { ...reply, receipt: `${reply.id};reads=1;resources=beta-product` } : reply,
+        ),
+        expectedApiReads,
+      ),
+    ),
+    check(
+      `${label}: negative control: verifier rejects an authorized 200 without a recorded read, a missing receipt and another request's receipt`,
+      !readObservationsMatch(
+        apiReads.map((reply, index) =>
+          index === 0 ? { ...reply, receipt: `${reply.id};reads=0;resources=` } : reply,
+        ),
+        expectedApiReads,
+      ) &&
+        !readObservationsMatch(
+          apiReads.map((reply, index) => (index === 3 ? { ...reply, receipt: null } : reply)),
+          expectedApiReads,
+        ) &&
+        !readObservationsMatch(
+          apiReads.map((reply, index) =>
+            index === 1 ? { ...reply, receipt: apiReads[8]!.receipt } : reply,
+          ),
+          expectedApiReads,
+        ),
     ),
     check(
       `${label}: negative control: verifier rejects a cross-tenant 200 as if the ownership check were removed`,
@@ -431,22 +519,45 @@ export async function httpSuite(
     ),
   );
 
+  const ssrReadIds = Array.from({ length: 5 }, () => randomUUID());
+  const ssrProbe = (index: number) => ({ [READ_OBSERVATION_HEADER]: ssrReadIds[index]! });
+  // Live negative control in THIS runtime: a route that reads before denying. The verifier must
+  // see the read through the receipt although status and body are a correct denial.
+  const negativeId = randomUUID();
+  const readBeforeDeny = await fetch(`${base}/api/negative-control/read-before-deny`, {
+    headers: { [READ_OBSERVATION_HEADER]: negativeId },
+  });
+  const readBeforeDenyBody = await readBeforeDeny.text();
+  const readBeforeDenyReceipt = observed(negativeId, readBeforeDeny);
+  ok.push(
+    check(
+      `${label}: negative control: a 403 that read before denying is caught by its receipt, not by status or body`,
+      readBeforeDeny.status === 403 &&
+        readBeforeDenyBody === '{"error":"forbidden"}' &&
+        !hasCanary(readBeforeDenyBody).length &&
+        readObservationsMatch([readBeforeDenyReceipt], [["alpha-product"]]) &&
+        !readObservationsMatch([readBeforeDenyReceipt], [[]]),
+      JSON.stringify({ status: readBeforeDeny.status, ...readBeforeDenyReceipt }),
+    ),
+  );
+
   const protectedDocuments = await Promise.all([
     fetch(`${base}/protected/alpha`, {
-      headers: { cookie: "strata-test-credential=opaque-test-alpha" },
+      headers: { cookie: "strata-test-credential=opaque-test-alpha", ...ssrProbe(0) },
     }),
     fetch(`${base}/protected/beta`, {
-      headers: { cookie: "strata-test-credential=opaque-test-beta" },
+      headers: { cookie: "strata-test-credential=opaque-test-beta", ...ssrProbe(1) },
     }),
     fetch(`${base}/protected/beta?tenant=alpha`, {
       headers: {
         cookie: "strata-test-credential=opaque-test-alpha",
         "x-tenant": "beta",
+        ...ssrProbe(2),
       },
     }),
-    fetch(`${base}/protected/alpha`),
+    fetch(`${base}/protected/alpha`, { headers: ssrProbe(3) }),
     fetch(`${base}/protected/unknown`, {
-      headers: { cookie: "strata-test-credential=opaque-test-alpha" },
+      headers: { cookie: "strata-test-credential=opaque-test-alpha", ...ssrProbe(4) },
     }),
   ]);
   const protectedDocs = await Promise.all(
@@ -456,8 +567,8 @@ export async function httpSuite(
       body: await response.text(),
     })),
   );
-  const ssrReadCounts = protectedDocs.map((document) =>
-    Number(document.body.match(/data-protected-reads="(\d+)"/)?.[1] ?? 0),
+  const ssrReads = protectedDocuments.map((response, index) =>
+    observed(ssrReadIds[index]!, response),
   );
   ok.push(
     check(
@@ -466,22 +577,27 @@ export async function httpSuite(
         protectedDocs.every((r) => r.cache === "no-store") &&
         protectedDocs[0]!.body.includes("Alpha private catalog") &&
         protectedDocs[0]!.body.includes('data-tenant="alpha"') &&
-        protectedDocs[0]!.body.includes('data-protected-reads="1"') &&
         protectedDocs[0]!.body.includes("protected-tenant-island") &&
         protectedDocs[1]!.body.includes("Beta private catalog") &&
         protectedDocs[1]!.body.includes('data-tenant="beta"') &&
         !protectedDocs[2]!.body.includes("protected-tenant-island") &&
-        protectedDocs[2]!.body.includes('data-protected-reads="0"') &&
         !protectedDocs[3]!.body.includes("protected-tenant-island") &&
-        protectedDocs.every((r) => !hasCanary(r.body).length) &&
-        JSON.stringify(ssrReadCounts) === JSON.stringify([1, 1, 0, 0, 0]),
+        protectedDocs.every((r) => !hasCanary(r.body).length),
       JSON.stringify({
         documents: protectedDocs.map(({ status, cache, body }) => ({ status, cache, body })),
-        repositoryReads: ssrReadCounts,
       }),
+    ),
+    check(
+      `${label}: each protected SSR document carries its own read receipt: one owner read when authorized, none when denied`,
+      readObservationsMatch(ssrReads, [["alpha-product"], ["beta-product"], [], [], []]),
+      JSON.stringify(ssrReads),
     ),
   );
 
+  const overlapSsrReadIds = Array.from({ length: 24 }, () => randomUUID());
+  const overlapExpectedReads = Array.from({ length: 24 }, (_, index) =>
+    Math.floor(index / 2) % 4 === 0 ? [`${index % 2 === 0 ? "alpha" : "beta"}-product`] : [],
+  );
   const overlapCases = Array.from({ length: 24 }, (_, index) => {
     const tenant = index % 2 === 0 ? "alpha" : "beta";
     const other = tenant === "alpha" ? "beta" : "alpha";
@@ -498,17 +614,17 @@ export async function httpSuite(
       headers: {
         ...(cookie ? { cookie } : {}),
         "x-tenant": other,
+        [READ_OBSERVATION_HEADER]: overlapSsrReadIds[index]!,
       },
     }).then(async (response) => ({
       status: response.status,
       body: await response.text(),
       cache: response.headers.get("cache-control"),
+      read: observed(overlapSsrReadIds[index]!, response),
     }));
   });
   const overlapReplies = await Promise.all(overlapCases);
-  const overlapReadCounts = overlapReplies.map((reply) =>
-    Number(reply.body.match(/data-protected-reads="(\d+)"/)?.[1] ?? 0),
-  );
+  const overlapReads = overlapReplies.map((reply) => reply.read);
   const overlapApiReadIds = Array.from({ length: 24 }, () => randomUUID());
   const overlapApiCases = Array.from({ length: 24 }, (_, index) => {
     const tenant = index % 2 === 0 ? "alpha" : "beta";
@@ -524,21 +640,17 @@ export async function httpSuite(
     return fetch(`${base}/api/protected/${target}/products/${target}-product`, {
       headers: {
         ...(cookie ? { cookie } : {}),
-        "x-fixture-read-observation": overlapApiReadIds[index]!,
+        [READ_OBSERVATION_HEADER]: overlapApiReadIds[index]!,
       },
     }).then(async (response) => ({
       status: response.status,
       cache: response.headers.get("cache-control"),
       body: await response.text(),
+      read: observed(overlapApiReadIds[index]!, response),
     }));
   });
   const overlapApiReplies = await Promise.all(overlapApiCases);
-  const overlapApiReadCounts = await Promise.all(
-    overlapApiReadIds.map(
-      async (id) =>
-        json<{ reads: number }>(await get(`${base}/api/protected-read-count/${id}`)).reads,
-    ),
-  );
+  const overlapApiReads = overlapApiReplies.map((reply) => reply.read);
   ok.push(
     check(
       `${label}: 24 overlapping SSR requests keep request identity isolated across owners, denials and invalid credentials`,
@@ -558,13 +670,9 @@ export async function httpSuite(
       `statuses=${overlapReplies.map((reply) => reply.status).join(",")}`,
     ),
     check(
-      `${label}: 24 overlapping SSR requests observe reads only for authorized documents`,
-      overlapReadCounts.every((reads, index) => {
-        const mode = Math.floor(index / 2) % 4;
-
-        return reads === (mode === 0 ? 1 : 0);
-      }),
-      JSON.stringify(overlapReadCounts),
+      `${label}: 24 overlapping SSR requests observe reads only for authorized documents, each in its own response`,
+      readObservationsMatch(overlapReads, overlapExpectedReads),
+      JSON.stringify(overlapReads),
     ),
     check(
       `${label}: 24 overlapping protected API requests keep authorization and read observations isolated`,
@@ -578,15 +686,10 @@ export async function httpSuite(
           !hasCanary(reply.body).length &&
           (expected === 200 ? reply.body.includes("private catalog") : true)
         );
-      }) &&
-        overlapApiReadCounts.every((reads, index) => {
-          const mode = Math.floor(index / 2) % 4;
-
-          return reads === (mode === 0 ? 1 : 0);
-        }),
+      }) && readObservationsMatch(overlapApiReads, overlapExpectedReads),
       JSON.stringify({
         statuses: overlapApiReplies.map((reply) => reply.status),
-        reads: overlapApiReadCounts,
+        reads: overlapApiReads,
       }),
     ),
   );

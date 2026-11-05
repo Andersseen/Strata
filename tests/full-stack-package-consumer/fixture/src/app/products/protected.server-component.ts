@@ -25,11 +25,7 @@ interface ProtectedContext {
   imports: [ProtectedTenantIsland, StrataClientBoundary],
   template: `@if (result(); as result) {
     @if (result.status === 200) {
-      <main
-        id="protected-result"
-        [attr.data-tenant]="result.tenant"
-        [attr.data-protected-reads]="result.reads"
-      >
+      <main id="protected-result" [attr.data-tenant]="result.tenant">
         <h1>{{ result.label }}</h1>
         <protected-tenant-island
           [tenant]="result.tenant"
@@ -37,7 +33,7 @@ interface ProtectedContext {
         />
       </main>
     } @else {
-      <main id="protected-denied" data-protected-reads="0">{{ result.message }}</main>
+      <main id="protected-denied">{{ result.message }}</main>
     }
   }`,
 })
@@ -54,12 +50,8 @@ export class ProtectedTenantServerComponent {
     if (status === 404) return { status, message: "Resource not found" };
     if (status === 401) return { status, message: "Authentication required" };
     if (status === 403) return { status, message: "Access denied" };
-    const resource = readProtectedResource(`${owner}-product`);
-    return {
-      status: 200,
-      tenant: resource!.tenant,
-      label: resource!.label,
-      reads: resource!.readCount,
-    };
+    // `this.context` is non-null here: `resolveTenant` needs its headers to authorize.
+    const resource = readProtectedResource(`${owner}-product`, this.context!);
+    return { status: 200, tenant: resource!.tenant, label: resource!.label };
   });
 }

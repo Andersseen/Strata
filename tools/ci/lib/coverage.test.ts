@@ -33,6 +33,12 @@ function errorsAfter(edit: (workflow: Workflow) => void): readonly string[] {
   return checkCoverage(stringify(workflow), inventory).errors;
 }
 
+function jobOf(workflow: Workflow, id: string): Workflow["jobs"][string] {
+  const job = workflow.jobs[id];
+  if (!job) throw new Error(`no job ${id}`);
+  return job;
+}
+
 function stepOf(workflow: Workflow, run: string): Record<string, unknown> {
   for (const job of Object.values(workflow.jobs))
     for (const step of job.steps ?? []) if (step["run"] === run) return step;
@@ -52,14 +58,19 @@ describe("mandatory CI coverage", () => {
   it("the inventory matches the pre-split baseline pipeline command for command", () => {
     // The baseline is the five-job pipeline these commands were taken from. Every baseline job is
     // still represented, and no inventory entry is unattributed.
-    const jobs = new Set(inventory.commands.map((command) => command.baselineJob));
+    const baseline = inventory.commands.filter((command) => command.baselineJob !== null);
+    const jobs = new Set(baseline.map((command) => command.baselineJob));
     expect([...jobs].sort()).toEqual(["apps", "consumers", "graph", "runtime", "static"]);
-    expect(inventory.commands).toHaveLength(34);
+    expect(baseline).toHaveLength(34);
+    // Every later addition says why it became mandatory.
+    expect(
+      inventory.commands.filter((command) => command.baselineJob === null && !command.added),
+    ).toEqual([]);
   });
 
   it("rejects a removed suite", () => {
     const errors = errorsAfter((workflow) => {
-      const job = workflow.jobs["consumers-islands"];
+      const job = jobOf(workflow, "consumers-islands");
       job.steps = job.steps.filter(
         (step) => step["run"] !== "pnpm test:server-component-installed-island",
       );
@@ -71,7 +82,7 @@ describe("mandatory CI coverage", () => {
 
   it("rejects a suite that runs twice", () => {
     const errors = errorsAfter((workflow) => {
-      workflow.jobs["apps"].steps.push({ run: "pnpm test:server-component-failures" });
+      jobOf(workflow, "apps").steps.push({ run: "pnpm test:server-component-failures" });
     });
     expect(errors).toContain("required command runs 2 times: pnpm test:server-component-failures");
   });
@@ -94,19 +105,19 @@ describe("mandatory CI coverage", () => {
   it("rejects a conditional or failure-tolerant mandatory job", () => {
     expect(
       errorsAfter((workflow) => {
-        workflow.jobs["runtime-analog"].if = "github.event_name == 'push'";
+        jobOf(workflow, "runtime-analog").if = "github.event_name == 'push'";
       }),
     ).toContain("mandatory job `runtime-analog` must be unconditional");
     expect(
       errorsAfter((workflow) => {
-        workflow.jobs["runtime-analog"]["continue-on-error"] = true;
+        jobOf(workflow, "runtime-analog")["continue-on-error"] = true;
       }),
     ).toContain("mandatory job `runtime-analog` must not set continue-on-error");
   });
 
   it("rejects a mandatory job that Verify does not depend on", () => {
     const errors = errorsAfter((workflow) => {
-      workflow.jobs["ci"].needs = workflow.jobs["ci"].needs!.filter((id) => id !== "graph-dev");
+      jobOf(workflow, "ci").needs = jobOf(workflow, "ci").needs!.filter((id) => id !== "graph-dev");
     });
     expect(errors).toContain("`Verify` does not need `graph-dev`");
   });
@@ -114,10 +125,10 @@ describe("mandatory CI coverage", () => {
   it("rejects a suite moved to a non-mandatory job", () => {
     const errors = errorsAfter((workflow) => {
       const step = stepOf(workflow, "pnpm test:analog-forms");
-      workflow.jobs["runtime-analog"].steps = workflow.jobs["runtime-analog"].steps.filter(
+      jobOf(workflow, "runtime-analog").steps = jobOf(workflow, "runtime-analog").steps.filter(
         (candidate) => candidate !== step,
       );
-      workflow.jobs["deploy-www"].steps.push(step);
+      jobOf(workflow, "deploy-www").steps.push(step);
     });
     expect(errors).toContain(
       "required command is outside the mandatory jobs (deploy-www): pnpm test:analog-forms",
@@ -127,18 +138,18 @@ describe("mandatory CI coverage", () => {
   it("rejects an aggregate gate that can pass without every result", () => {
     expect(
       errorsAfter((workflow) => {
-        delete workflow.jobs["ci"].if;
+        delete jobOf(workflow, "ci").if;
       }),
     ).toContain("aggregate job must run with `if: always()` so a failed or skipped need fails it");
     expect(
       errorsAfter((workflow) => {
-        const gate = workflow.jobs["ci"].steps[0] as { env: Record<string, string> };
+        const gate = jobOf(workflow, "ci").steps[0] as { env: Record<string, string> };
         gate.env["EXPECTED_JOBS"] = "10";
       }),
     ).toContain("aggregate gate EXPECTED_JOBS (10) must equal the 11 needed jobs");
     expect(
       errorsAfter((workflow) => {
-        workflow.jobs["ci"].steps[0]["run"] = "echo ok";
+        jobOf(workflow, "ci").steps[0]!["run"] = "echo ok";
       }),
     ).toContain("aggregate gate must fail on any result other than success");
   });
@@ -158,7 +169,7 @@ describe("mandatory CI coverage", () => {
 
   it("rejects an unlisted suite in a mandatory job", () => {
     const errors = errorsAfter((workflow) => {
-      workflow.jobs["apps"].steps.push({ run: "pnpm test:something-new" });
+      jobOf(workflow, "apps").steps.push({ run: "pnpm test:something-new" });
     });
     expect(errors).toContain(
       "command in `apps` is not in tools/ci/required-commands.json: pnpm test:something-new",

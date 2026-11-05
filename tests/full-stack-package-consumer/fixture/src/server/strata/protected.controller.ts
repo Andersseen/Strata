@@ -34,10 +34,7 @@ export class ProtectedProductsController {
         headers: { "cache-control": "no-store", "content-type": "application/json" },
       });
     }
-    const resource = readProtectedResource(
-      id,
-      request.headers.get("x-fixture-read-observation") ?? undefined,
-    );
+    const resource = readProtectedResource(id, request);
     // The guard guarantees the owner relationship before the private read.
     if (!resource)
       return new Response('{"error":"not_found"}', {
@@ -48,7 +45,6 @@ export class ProtectedProductsController {
       headers: {
         "cache-control": "no-store",
         "content-type": "application/json",
-        "x-fixture-protected-reads": "1",
       },
     });
   }

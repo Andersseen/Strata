@@ -328,9 +328,10 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  # An INSTALLED Angular library (npm tarball, two versions) as Strata client islands.
+  # An INSTALLED Angular library (npm tarball, two versions) as Strata client islands, and the
+  # consumer-owned Angular DI composition over the packed tarballs.
   consumers-islands:
-    name: Packed consumer (installed Angular library islands)
+    name: Packed consumer (installed Angular library islands, Angular DI)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -352,6 +353,11 @@ jobs:
       - name: Server Component installed-island qualification
         run: pnpm test:server-component-installed-island
 
+      # Consumer-owned Angular DI over the packed tarballs, isolated to Nitro Node (includes the
+      # keep-alive-after-413 connection check).
+      - name: Packed Angular DI consumer (Node only)
+        run: pnpm test:analog-packed-di-consumer
+
       - name: Upload failure diagnostics
         if: failure()
         uses: actions/upload-artifact@v4
@@ -364,9 +370,9 @@ jobs:
           retention-days: 7
 
   # All three packed packages in ONE installed Analog app, its source-mutation smoke and the
-  # consumer-owned Angular DI composition.
+  # multi-isolate authorization-observation reproduction.
   consumers-full-stack:
-    name: Packed consumer (full stack, adversarial smoke, Angular DI)
+    name: Packed consumer (full stack, adversarial smoke, multi-isolate)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -392,9 +398,11 @@ jobs:
       - name: Full-stack adversarial source-mutation smoke
         run: pnpm test:full-stack-adversarial-security:smoke
 
-      # Consumer-owned Angular DI over the same packed tarballs, isolated to Nitro Node.
-      - name: Packed Angular DI consumer (Node only)
-        run: pnpm test:analog-packed-di-consumer
+      # F6: independent Node and workerd instances behind a round-robin router. The pre-fix
+      # cross-request read-back must fail; the invocation-owned read receipts must pass. Reuses the
+      # verified packed install of the full-stack step above (STRATA_ADVERSARIAL_REUSE_ROOT).
+      - name: Full-stack multi-isolate authorization observation (Node + Node + workerd)
+        run: pnpm test:full-stack-multi-isolate
 
       - name: Upload failure diagnostics
         if: failure()
