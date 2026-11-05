@@ -1,5 +1,12 @@
 # Testing strategy and evidence
 
+Pre-1.0 hardening ([report](research/pre1-runtime-hardening.md)): mandatory CI runs in eleven jobs whose command set is fixed by
+`tools/ci/required-commands.json` and checked by `pnpm test:ci`. New: `pnpm test:full-stack-multi-isolate`
+(F6 reproduction across independent Node and workerd instances, mandatory), read receipts and the
+read-before-deny negative control in every full-stack `httpSuite` run, a fourth adversarial mutation
+(read before authorization), the SSR failure-contract checks (500/no-store/no partial output/overlap),
+and the keep-alive-after-413 socket check on Nitro node-server (0.12.0 is the negative control).
+
 The full-stack security fixture now runs source-mutated external production consumers. The ownership-removal, data-substitution and browser-marker mutations passed actual Node, workerd and Chromium paths; the registry consumer also passed at exact published versions. Hosted PR checks remain pending. See [full-stack adversarial security](research/full-stack-adversarial-security.md) for evidence limits and run details.
 
 The protected external full-stack tenant fixture passed its 402-check packed consumer and 395-check exact published-registry consumer on Nitro Node, local workerd and Chromium, including concurrency, status/cache, graph and credential/private-marker scans. PR #166 hosted CI, documentation and registry verification workflows passed. Source-mutated ownership-removal and tenant-substitution controls and separate Extended workflow runs remain open. See the [authorization report](research/full-stack-authorization-isolation.md).

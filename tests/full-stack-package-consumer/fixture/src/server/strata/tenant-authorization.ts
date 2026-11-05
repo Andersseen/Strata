@@ -33,28 +33,83 @@ const tenantForResource: Readonly<Record<string, Tenant>> = {
   "beta-product": "beta",
 };
 
-const protectedReads = new Map<string, number>();
+/**
+ * TEST-ONLY repository-read observation (docs/research/pre1-runtime-hardening.md, F6).
+ *
+ * A qualification request may carry one `x-fixture-read-observation` UUID. The fixture's Nitro
+ * plugin opens a ledger for it when the request starts and, in Nitro's `beforeResponse` hook,
+ * reports that ledger on the SAME response as `x-fixture-read-receipt` and closes it. Every
+ * protected read made while serving that request is recorded in its ledger.
+ *
+ * The observation therefore never leaves the invocation (and so the isolate) that executed the
+ * reads: it is valid when a distributed runtime serves consecutive requests from different
+ * isolates. The previous design kept counters in module state and read them back with a second
+ * request, which another Worker isolate answered with 0 (F6).
+ *
+ * The receipt carries the observation id, the read count and the resource ids that were read;
+ * never tenant data, labels or markers. No ledger, no receipt: a response without one fails the
+ * verifier instead of counting as "zero reads".
+ */
+export const READ_OBSERVATION_HEADER = "x-fixture-read-observation";
+export const READ_RECEIPT_HEADER = "x-fixture-read-receipt";
 
-/** Test-only per-request read count; values contain no tenant or resource identity. */
-export function takeProtectedReads(observationId: string): number {
-  const reads = protectedReads.get(observationId) ?? 0;
-  protectedReads.delete(observationId);
+const OBSERVATION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
-  return reads;
+export interface ReadLedger {
+  readonly id: string;
+  readonly reads: string[];
+  /** Another in-flight request in this isolate already owns the id: the receipt says so. */
+  readonly conflict: boolean;
 }
 
-/** Authorization runs before this read function is called. */
-export function readProtectedResource(id: string, observationId?: string) {
+/**
+ * One store per isolate (realm), not per module instance: Analog bundles this file twice, into the
+ * Nitro server bundle (plugins, controllers) and into the Angular SSR renderer bundle. A
+ * module-local Map would leave SSR reads in a second, never-reported ledger. `Symbol.for` resolves
+ * to the same key in both copies; the store still never crosses an isolate, which is the point.
+ */
+const LEDGERS = Symbol.for("strata.fixture.protected-read-ledgers");
+const openLedgers: Map<string, ReadLedger> = ((globalThis as Record<symbol, unknown>)[LEDGERS] ??=
+  new Map<string, ReadLedger>()) as Map<string, ReadLedger>;
+
+/** Opens the request's ledger; malformed or absent ids open none (and produce no receipt). */
+export function openReadObservation(id: string | null | undefined): ReadLedger | undefined {
+  if (!id || !OBSERVATION_ID.test(id)) return undefined;
+  if (openLedgers.has(id)) return { id, reads: [], conflict: true };
+  const ledger: ReadLedger = { id, reads: [], conflict: false };
+  openLedgers.set(id, ledger);
+
+  return ledger;
+}
+
+/** Closes the request's own ledger and formats its receipt. */
+export function closeReadObservation(ledger: ReadLedger): string {
+  if (openLedgers.get(ledger.id) === ledger) openLedgers.delete(ledger.id);
+
+  return `${ledger.id};reads=${ledger.reads.length};resources=${ledger.reads.join(",")}${
+    ledger.conflict ? ";conflict" : ""
+  }`;
+}
+
+/** Releases a ledger whose response never reached `beforeResponse` (error paths). */
+export function discardReadObservation(ledger: ReadLedger): void {
+  if (openLedgers.get(ledger.id) === ledger) openLedgers.delete(ledger.id);
+}
+
+/**
+ * Authorization runs before this read function is called. It takes the request's headers so every
+ * caller hands over the request it serves: the read is recorded in that request's ledger without
+ * the caller choosing whether to report it.
+ */
+export function readProtectedResource(id: string, request: { readonly headers: Headers }) {
   const tenant = tenantForResource[id];
   if (!tenant) return null;
-  if (observationId) {
-    protectedReads.set(observationId, (protectedReads.get(observationId) ?? 0) + 1);
-  }
+  const observationId = request.headers.get(READ_OBSERVATION_HEADER);
+  if (observationId) openLedgers.get(observationId)?.reads.push(id);
   return {
     tenant,
     label: tenant === "alpha" ? "Alpha private catalog" : "Beta private catalog",
     privateMarker: tenant === "alpha" ? "ALPHA_CONFIDENTIAL_71c1" : "BETA_CONFIDENTIAL_93d2",
-    readCount: 1,
   } as const;
 }
 

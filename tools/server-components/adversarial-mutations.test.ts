@@ -5,17 +5,18 @@ import { join } from "node:path";
 
 import { afterEach, describe, it } from "vitest";
 
-import { packageTreeValidationRoot } from "./lib/full-stack-install.ts";
 import {
   AUTHORIZATION_MUTATION,
   BROWSER_CONFIDENTIALITY_MUTATION,
   DATA_SUBSTITUTION_MUTATION,
+  READ_BEFORE_AUTHORIZATION_MUTATION,
   applySourceMutation,
   classifyMutationRun,
   cleanupTemporaryDirectory,
   copyAndMutateFixture,
   digestSource,
 } from "./lib/adversarial-mutations.ts";
+import { packageTreeValidationRoot } from "./lib/full-stack-install.ts";
 
 const roots: string[] = [];
 const fixture = (source: string): string => {
@@ -44,6 +45,7 @@ describe("adversarial source mutations", () => {
       AUTHORIZATION_MUTATION,
       DATA_SUBSTITUTION_MUTATION,
       BROWSER_CONFIDENTIALITY_MUTATION,
+      READ_BEFORE_AUTHORIZATION_MUTATION,
     ].map((mutation) => {
       const root = fixture(`before\n${mutation.before}\nafter\n`);
       const digest = applySourceMutation(root, { ...mutation, path: "source.ts" });
@@ -55,6 +57,22 @@ describe("adversarial source mutations", () => {
       return digest;
     });
     assert.equal(new Set(digests).size, digests.length);
+  });
+
+  it("each mutation has exactly one pristine target in the real full-stack fixture", () => {
+    const fixtureRoot = new URL(
+      "../../tests/full-stack-package-consumer/fixture/",
+      import.meta.url,
+    );
+    for (const mutation of [
+      AUTHORIZATION_MUTATION,
+      DATA_SUBSTITUTION_MUTATION,
+      BROWSER_CONFIDENTIALITY_MUTATION,
+      READ_BEFORE_AUTHORIZATION_MUTATION,
+    ]) {
+      const source = readFileSync(new URL(mutation.path, fixtureRoot), "utf8");
+      assert.equal(source.split(mutation.before).length - 1, 1, mutation.name);
+    }
   });
 
   it("rejects unknown, ambiguous, and already-mutated targets", () => {

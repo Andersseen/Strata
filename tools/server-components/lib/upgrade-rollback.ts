@@ -20,18 +20,20 @@ export type Side = "a" | "b";
 
 /**
  * Release A → release B. The default pair is the latest two published server-components minors
- * on the latest published core and analog (0.12.0 → 0.13.0 until 2026-11-05; see the M5 report).
- * `@strata-sc/analog` 0.12.1 is not published, so no pair can contain it yet.
+ * on the latest published core and analog. Since 2026-11-05 that analog is 0.12.1 (the keep-alive
+ * after 413 patch), on BOTH arms: the only package that differs between A and B stays
+ * @strata-sc/server-components, whose client assets are what the skew and rollback checks exercise.
+ * The M5 runs used analog 0.12.0 on both arms (docs/research/m5-production-qualification.md).
  */
 export const DEFAULT_PAIR: Readonly<Record<Side, VersionTuple>> = {
   a: {
     "@strata-sc/core": "0.2.2",
-    "@strata-sc/analog": "0.12.0",
+    "@strata-sc/analog": "0.12.1",
     "@strata-sc/server-components": "0.13.0",
   },
   b: {
     "@strata-sc/core": "0.2.2",
-    "@strata-sc/analog": "0.12.0",
+    "@strata-sc/analog": "0.12.1",
     "@strata-sc/server-components": "0.14.0",
   },
 };

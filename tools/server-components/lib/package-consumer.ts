@@ -542,6 +542,10 @@ export interface RequestRecord {
   readonly type: string;
   readonly url: string;
   readonly navigation: boolean;
+  /** Main-frame request (a navigation of the page itself, not of an iframe). */
+  readonly mainFrame?: boolean;
+  /** The URL this request is a redirect hop of: the same navigation, not a new one (F9). */
+  readonly redirectedFrom?: string;
 }
 
 export interface Tracked {
@@ -572,10 +576,13 @@ export async function openTracked(): Promise<Tracked> {
   });
   page.on("pageerror", (error) => errors.push(`pageerror: ${error.message}`));
   page.on("request", (request) => {
+    const redirectedFrom = request.redirectedFrom()?.url();
     requests.push({
       type: request.resourceType(),
       url: request.url(),
       navigation: request.isNavigationRequest(),
+      mainFrame: request.frame() === page.mainFrame(),
+      ...(redirectedFrom ? { redirectedFrom } : {}),
     });
   });
 

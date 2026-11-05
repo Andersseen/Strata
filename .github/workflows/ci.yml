@@ -1,22 +1,34 @@
 name: CI
 
-# One pipeline, five parallel jobs plus an aggregate `Verify` gate. Every job builds the packages itself
-# (jobs share nothing), so wall time is the slowest group instead of the sum of all steps. The slow,
-# external-dependent or informational suites live in extended.yml (weekly cron + manual).
+# One pipeline: eleven parallel jobs plus the aggregate `Verify` gate. Jobs share nothing: each checks
+# out the same SHA and builds what it needs from source, so wall time is the slowest job instead of the
+# sum of all steps. The job grouping comes from measured hosted step timings
+# (docs/research/ci-acceleration.md): no single job carries more than ~6 minutes of test commands.
+#
+# Every mandatory command is listed in tools/ci/required-commands.json. `pnpm test:ci` (run by the
+# `static` job through `pnpm test`) fails when a listed command is missing, duplicated, made
+# conditional, allowed to fail, or placed in a job that `Verify` does not depend on.
+#
+# The slow, external-dependent or informational suites live in extended.yml (weekly cron + manual).
 on:
   push:
     branches: [main]
   pull_request:
 
+# Pull requests: a newer push to the same PR cancels the superseded run (no runner time on obsolete
+# commits). Pushes to main: one group per SHA and never cancelled, so every main commit gets its own
+# complete `Verify` (the Release workflow authorizes only the exact SHA of a successful Verify; a
+# cancelled main run used to leave its commit with no Verify at all, run 42041343959).
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
 
 jobs:
-  # Fast gate: build, type-aware lint, typecheck, unit tests (includes the performance-tool self-tests).
+  # Fast gate: workflow validation, build, type-aware lint, typecheck, unit tests (includes the
+  # release, performance-tool and CI-coverage self-tests).
   static:
     name: Lint, typecheck and unit tests
     runs-on: ubuntu-latest
@@ -55,11 +67,12 @@ jobs:
       - name: Test
         run: pnpm test
 
-  # Production build, SSR, hydration and graph firewall PoCs of the Server Component fixture.
-  graph:
-    name: Server Component graph (build, SSR, hydration, firewall)
+  # Production build, SSR, hydration, document navigation, @defer and the build-graph firewall of the
+  # Server Component fixture.
+  graph-ssr:
+    name: Server Component graph (build, SSR, hydration, navigation, firewall)
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 20
     env:
       STRATA_KEEP_CONSUMER: "1"
     steps:
@@ -72,6 +85,7 @@ jobs:
 
       - uses: ./.github/actions/setup
         with:
+          build: packages
           playwright: "true"
 
       - name: Server-component graph PoC (production build, SSR, hydration)
@@ -88,6 +102,39 @@ jobs:
       - name: Server-only modules (build-graph firewall)
         run: pnpm test:server-component-server-only
 
+      # Failure-only: keep the server logs and the built server output so an intermittent SSR failure
+      # (HTTP 200 with an empty page) can be diagnosed. Never runs on success and changes no result.
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ssr-diagnostics-graph-ssr
+          path: |
+            ${{ runner.temp }}/strata-diagnostics
+            apps/analog-fixture/dist
+            /tmp/strata-*-consumer-*/consumer/dist
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # The dependency optimizer over installed packages and the real Analog/Vite dev server.
+  graph-dev:
+    name: Server Component graph (dependency optimizer, dev server)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      STRATA_KEEP_CONSUMER: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Diagnostics directory
+        run: echo "STRATA_DIAGNOSTICS_DIR=$RUNNER_TEMP/strata-diagnostics" >> "$GITHUB_ENV"
+
+      - uses: ./.github/actions/setup
+        with:
+          build: packages
+          playwright: "true"
+
       # Packed, externally installed npm packages through Vite's dependency optimizer and production
       # builds: server-only package modules, barrels and dynamic imports are refused with the Strata
       # diagnostic and never served; private markers are scanned in assets and source maps.
@@ -100,53 +147,81 @@ jobs:
       - name: Server Component dev server (graph regeneration, reload semantics, live firewall)
         run: pnpm test:server-component-dev
 
-      # Failure-only: an intermittent SSR failure (HTTP 200 with an empty page, `JIT compiler unavailable`)
-      # leaves no trace on the runner. Keep the server logs and the built server output so the next
-      # occurrence can be diagnosed. Never runs on success and changes no result.
       - name: Upload failure diagnostics
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: ssr-diagnostics-graph
+          name: ssr-diagnostics-graph-dev
           path: |
             ${{ runner.temp }}/strata-diagnostics
             apps/analog-fixture/dist
-            /tmp/strata-adversarial-security-*
             /tmp/strata-*-consumer-*/consumer/dist
           if-no-files-found: ignore
           retention-days: 7
 
-  # Runtime contracts on Node and local workerd: confidentiality, request context, failures, authorization.
-  runtime:
-    name: Server Component runtime contracts (Node + workerd)
+  # Buffered SSR failure/recovery and request-context isolation on Node and local workerd.
+  runtime-failures:
+    name: Server Component runtime (failure recovery, request context; Node + workerd)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
     env:
       STRATA_KEEP_CONSUMER: "1"
     steps:
       - name: Checkout
         uses: actions/checkout@v7
 
-      # `runner.*` is not available in job-level `env`, so the diagnostics directory is set here.
       - name: Diagnostics directory
         run: echo "STRATA_DIAGNOSTICS_DIR=$RUNNER_TEMP/strata-diagnostics" >> "$GITHUB_ENV"
 
       - uses: ./.github/actions/setup
         with:
+          build: packages
+          playwright: "true"
+
+      # Failure contract for buffered SSR + document navigation, sibling-host isolation, Back/re-entry.
+      - name: Server Component failure and recovery (Node + workerd)
+        run: pnpm test:server-component-failures
+
+      # Angular's public REQUEST_CONTEXT token, per-render Analog providers, deterministic 24-request overlap.
+      - name: Server Component request context (Node + workerd)
+        run: pnpm test:server-component-request-context
+
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ssr-diagnostics-runtime-failures
+          path: |
+            ${{ runner.temp }}/strata-diagnostics
+            apps/analog-fixture/dist
+            /tmp/strata-*-consumer-*/consumer/dist
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # Confidentiality, SSR response status and authorization on Node and local workerd, plus the internal
+  # Analog fixture contracts.
+  runtime-security:
+    name: Server Component runtime (confidentiality, SSR response, authorization; Node + workerd)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      STRATA_KEEP_CONSUMER: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Diagnostics directory
+        run: echo "STRATA_DIAGNOSTICS_DIR=$RUNNER_TEMP/strata-diagnostics" >> "$GITHUB_ENV"
+
+      - uses: ./.github/actions/setup
+        with:
+          build: packages
           playwright: "true"
 
       # Server-owned DATA stays off every public surface, scanned with synthetic canaries and a PUBLIC
       # positive control. No external secrets.
       - name: Server Component data confidentiality (synthetic canaries, Node + workerd)
         run: pnpm test:server-component-security
-
-      # Angular's public REQUEST_CONTEXT token, per-render Analog providers, deterministic 24-request overlap.
-      - name: Server Component request context (Node + workerd)
-        run: pnpm test:server-component-request-context
-
-      # Failure contract for buffered SSR + document navigation, sibling-host isolation, Back/re-entry.
-      - name: Server Component failure and recovery (Node + workerd)
-        run: pnpm test:server-component-failures
 
       # Consumer-owned expected-service recovery can set a response status through Analog's public
       # per-request response token. Unexpected render failures stay a separate HTTP-200 limitation control.
@@ -157,9 +232,36 @@ jobs:
       - name: Server Component authorization isolation (Node + workerd)
         run: pnpm test:server-component-authorization
 
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ssr-diagnostics-runtime-security
+          path: |
+            ${{ runner.temp }}/strata-diagnostics
+            apps/analog-fixture/dist
+            /tmp/strata-*-consumer-*/consumer/dist
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # The internal Analog fixture (no browser): HTTP contract, DI composition, streaming, observability,
+  # correlation, header and form validation on Node, the Vite dev server and local workerd.
+  runtime-analog:
+    name: Analog runtime contracts (Node + dev + workerd)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # tools/analog/* drive HTTP only; no suite here launches Chromium.
+      - uses: ./.github/actions/setup
+        with:
+          build: packages
+
       # The internal Analog fixture in dev and production: controller/HTTP contract, guards, interceptors,
       # Standard Schema validation, response helpers, the SPEC-003 Angular DI composition matrix and the
-      # client-bundle scan. Until this step it ran in no workflow (it left CI with the old publish job).
+      # client-bundle scan.
       - name: Analog fixture contracts (dev + production)
         run: pnpm test:analog
 
@@ -187,38 +289,24 @@ jobs:
       - name: Analog validated forms (Node + dev + workerd)
         run: pnpm test:analog-forms
 
-      # Failure-only: an intermittent SSR failure (HTTP 200 with an empty page, `JIT compiler unavailable`)
-      # leaves no trace on the runner. Keep the server logs and the built server output so the next
-      # occurrence can be diagnosed. Never runs on success and changes no result.
-      - name: Upload failure diagnostics
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ssr-diagnostics-runtime
-          path: |
-            ${{ runner.temp }}/strata-diagnostics
-            apps/analog-fixture/dist
-            /tmp/strata-*-consumer-*/consumer/dist
-          if-no-files-found: ignore
-          retention-days: 7
-
-  # The PACKED packages installed with npm into real apps outside the workspace. Never publishes.
-  consumers:
-    name: Packed-package consumers (outside the workspace)
+  # The PACKED Server Components package installed with npm into an app outside the workspace, and the
+  # TypeScript 5.9 packed-package consumer. Never publishes.
+  consumers-package:
+    name: Packed consumer (Server Components package, TypeScript 6.0 + 5.9)
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 20
     env:
       STRATA_KEEP_CONSUMER: "1"
     steps:
       - name: Checkout
         uses: actions/checkout@v7
 
-      # `runner.*` is not available in job-level `env`, so the diagnostics directory is set here.
       - name: Diagnostics directory
         run: echo "STRATA_DIAGNOSTICS_DIR=$RUNNER_TEMP/strata-diagnostics" >> "$GITHUB_ENV"
 
       - uses: ./.github/actions/setup
         with:
+          build: packages
           playwright: "true"
 
       # Tarball and declarations (TypeScript 6 and 5.9), Node build/SSR/hydration, server-only firewall,
@@ -226,10 +314,128 @@ jobs:
       - name: Server Component packed-package consumer (outside the workspace)
         run: pnpm test:server-component-package-consumer
 
-      # An INSTALLED Angular library (npm tarball, two versions) as Strata client islands: build-time and
-      # browser-time reference matrices on Nitro Node and local workerd, package upgrade and cache behaviour.
+      - name: Packed-package consumer (TypeScript 5.9.2)
+        run: pnpm test:package-consumer
+
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ssr-diagnostics-consumers-package
+          path: |
+            ${{ runner.temp }}/strata-diagnostics
+            /tmp/strata-*-consumer-*/consumer/dist
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # An INSTALLED Angular library (npm tarball, two versions) as Strata client islands, and the
+  # consumer-owned Angular DI composition over the packed tarballs.
+  consumers-islands:
+    name: Packed consumer (installed Angular library islands, Angular DI)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      STRATA_KEEP_CONSUMER: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Diagnostics directory
+        run: echo "STRATA_DIAGNOSTICS_DIR=$RUNNER_TEMP/strata-diagnostics" >> "$GITHUB_ENV"
+
+      - uses: ./.github/actions/setup
+        with:
+          build: packages
+          playwright: "true"
+
+      # Build-time and browser-time reference matrices on Nitro Node and local workerd, package upgrade
+      # and cache behaviour.
       - name: Server Component installed-island qualification
         run: pnpm test:server-component-installed-island
+
+      # Consumer-owned Angular DI over the packed tarballs, isolated to Nitro Node (includes the
+      # keep-alive-after-413 connection check).
+      - name: Packed Angular DI consumer (Node only)
+        run: pnpm test:analog-packed-di-consumer
+
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ssr-diagnostics-consumers-islands
+          path: |
+            ${{ runner.temp }}/strata-diagnostics
+            /tmp/strata-*-consumer-*/consumer/dist
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # All three packed packages in ONE installed Analog app, its source-mutation smoke and the
+  # multi-isolate authorization-observation reproduction.
+  consumers-full-stack:
+    name: Packed consumer (full stack, adversarial smoke, multi-isolate)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      STRATA_KEEP_CONSUMER: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Diagnostics directory
+        run: echo "STRATA_DIAGNOSTICS_DIR=$RUNNER_TEMP/strata-diagnostics" >> "$GITHUB_ENV"
+
+      - uses: ./.github/actions/setup
+        with:
+          build: packages
+          playwright: "true"
+
+      # A Strata controller behind a public HTTP API called by a hydrated [strataClient] island next to
+      # a server-only @ServerComponent().
+      - name: Full-stack packed-package consumer (core + analog + server-components)
+        run: pnpm test:full-stack-package-consumer
+
+      # F6: independent Node and workerd instances behind a round-robin router. The pre-fix
+      # cross-request read-back must fail; the invocation-owned read receipts must pass. Reuses the
+      # verified packed install of the full-stack step above (STRATA_ADVERSARIAL_REUSE_ROOT); it runs before the adversarial smoke,
+      # which removes that root when it finishes.
+      - name: Full-stack multi-isolate authorization observation (Node + Node + workerd)
+        run: pnpm test:full-stack-multi-isolate
+
+      # Real source mutation through the independently packed production consumer; smoke one fault per PR.
+      - name: Full-stack adversarial source-mutation smoke
+        run: pnpm test:full-stack-adversarial-security:smoke
+
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ssr-diagnostics-consumers-full-stack
+          path: |
+            ${{ runner.temp }}/strata-diagnostics
+            /tmp/strata-adversarial-security-*
+            /tmp/strata-*-consumer-*/consumer/dist
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # Deployment version skew and the Cloudflare Pages builds on local workerd. PR-safe: no account, no
+  # secrets, no deployment (the manual full-stack-deployed-cloudflare.yml deploys).
+  consumers-edge:
+    name: Packed consumer (deployment skew, Cloudflare local workerd)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      STRATA_KEEP_CONSUMER: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Diagnostics directory
+        run: echo "STRATA_DIAGNOSTICS_DIR=$RUNNER_TEMP/strata-diagnostics" >> "$GITHUB_ENV"
+
+      - uses: ./.github/actions/setup
+        with:
+          build: packages
+          playwright: "true"
 
       # Two independently built releases of the packed consumer (identity A, identity B, and one without),
       # a document of one served with the script of another, on Nitro Node and LOCAL workerd (not a deployed
@@ -237,21 +443,7 @@ jobs:
       - name: Server Component deployment skew (two-build matrix, Node + local workerd)
         run: pnpm test:server-component-deployment-skew
 
-      # All three packed packages in ONE Analog app: a Strata controller behind a public HTTP API called by a
-      # hydrated [strataClient] island next to a server-only @ServerComponent().
-      - name: Full-stack packed-package consumer (core + analog + server-components)
-        run: pnpm test:full-stack-package-consumer
-
-      # Real source mutation through the independently packed production consumer; smoke one fault per PR.
-      - name: Full-stack adversarial source-mutation smoke
-        run: pnpm test:full-stack-adversarial-security:smoke
-
-      # Consumer-owned Angular DI over the same packed tarballs, isolated to Nitro Node.
-      - name: Packed Angular DI consumer (Node only)
-        run: pnpm test:analog-packed-di-consumer
-
-      # The same packed packages built for Cloudflare Pages and verified black-box on local workerd. PR-safe:
-      # no account, no secrets, no deployment (the manual full-stack-deployed-cloudflare.yml deploys).
+      # The full-stack packed packages built for Cloudflare Pages and verified black-box on local workerd.
       - name: Full-stack Cloudflare build + local workerd rehearsal (no deployment)
         run: pnpm test:full-stack-deployed-cloudflare
 
@@ -259,21 +451,14 @@ jobs:
       - name: Server-component PoC on Cloudflare Pages (local Wrangler runtime)
         run: pnpm test:server-components:cloudflare
 
-      - name: Packed-package consumer (TypeScript 5.9.2)
-        run: pnpm test:package-consumer
-
-      # Failure-only: an intermittent SSR failure (HTTP 200 with an empty page, `JIT compiler unavailable`)
-      # leaves no trace on the runner. Keep the server logs and the built server output so the next
-      # occurrence can be diagnosed. Never runs on success and changes no result.
       - name: Upload failure diagnostics
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: ssr-diagnostics-consumers
+          name: ssr-diagnostics-consumers-edge
           path: |
             ${{ runner.temp }}/strata-diagnostics
             apps/analog-fixture/dist
-            /tmp/strata-adversarial-security-*
             /tmp/strata-*-consumer-*/consumer/dist
           if-no-files-found: ignore
           retention-days: 7
@@ -282,7 +467,7 @@ jobs:
   apps:
     name: Website and Relay (dogfood, Playwright)
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -300,25 +485,45 @@ jobs:
       - name: Relay Server Component dogfood (graph, SSR, shared state, Playwright)
         run: pnpm test:relay:server-components
 
-  # Single required check. Branch protection and `deploy-www` depend on this one name, whatever the
-  # number of parallel jobs behind it.
+  # Single required check. Branch protection, `deploy-www` and the Release authorizer
+  # (tools/release/lib/verify-run.ts) depend on this one name, whatever the number of parallel jobs.
+  # `if: always()` makes it run (and fail) when a needed job failed, was cancelled or was skipped:
+  # only an explicit `success` from every needed job, and exactly the expected number of them, passes.
   ci:
     name: Verify
     if: always()
-    needs: [static, graph, runtime, consumers, apps]
+    needs:
+      - static
+      - graph-ssr
+      - graph-dev
+      - runtime-failures
+      - runtime-security
+      - runtime-analog
+      - consumers-package
+      - consumers-islands
+      - consumers-full-stack
+      - consumers-edge
+      - apps
     runs-on: ubuntu-latest
     steps:
       - name: Every parallel job succeeded
         env:
+          EXPECTED_JOBS: "11"
           RESULTS: ${{ join(needs.*.result, ' ') }}
         run: |
           echo "job results: $RESULTS"
+          count=0
           for result in $RESULTS; do
+            count=$((count + 1))
             if [ "$result" != "success" ]; then
-              echo "::error::at least one parallel job did not succeed"
+              echo "::error::at least one parallel job did not succeed ($result)"
               exit 1
             fi
           done
+          if [ "$count" -ne "$EXPECTED_JOBS" ]; then
+            echo "::error::expected $EXPECTED_JOBS job results, got $count"
+            exit 1
+          fi
 
   deploy-www:
     name: Deploy official website to Cloudflare Pages
@@ -327,6 +532,12 @@ jobs:
     # (which produces a push to main). Pull requests only run validation.
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    # Main CI runs are no longer cancelled, so two merges can reach this job together. Serialize the
+    # production deployment and never cancel one that has started (a half-finished upload); GitHub
+    # keeps only the newest pending run, so the newest main commit is deployed last.
+    concurrency:
+      group: deploy-www-production
+      cancel-in-progress: false
     permissions:
       contents: read
       deployments: write

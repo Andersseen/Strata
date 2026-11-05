@@ -231,7 +231,6 @@ try {
     "src/check/fetch-event.d.ts",
     "src/server/strata/tenant-authorization.ts",
     "src/server/strata/protected.controller.ts",
-    "src/server/routes/api/protected-read-count/[id].get.ts",
     "src/app/products/protected.server-component.ts",
     "src/app/products/protected-tenant-island.component.ts",
     "src/check/declarations.ts",
@@ -425,6 +424,7 @@ try {
   const nodeHttp = await httpSuite(node.baseUrl, "node", {
     lifecycle: true,
     log: () => node.output(),
+    keepAliveAfter413: true,
   });
   const nodeIsland = await islandSuite(node.baseUrl, "node");
   const nodeNavigation = await navigationSuite(node.baseUrl, "node");

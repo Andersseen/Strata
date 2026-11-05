@@ -1,5 +1,12 @@
 # Strata 1.0 exit criteria
 
+**Pre-1.0 hardening 2026-11-05 ([report](research/pre1-runtime-hardening.md)).** No item is ticked. Matrix: PASS 1, PARTIAL 27, BLOCKED 0,
+NOT RUN 4. The render-failure item (#15) moves from BLOCKED to PARTIAL: a supported public seam exists
+and an application-owned contract is qualified packed, on local workerd and deployed, but Strata does
+not provide it as API and no real application uses it. First DEPLOYED GO for the published A/B
+upgrade/rollback (#21) and the authorization fixture (F6 resolved); the versioning policy for #26 is
+written in [COMPATIBILITY](COMPATIBILITY.md) and awaits review. Issue #117 stays open.
+
 **M5 qualification 2026-11-05 ([report](research/m5-production-qualification.md)).** No item is ticked or unticked. The report holds a
 traceability matrix of all 32 criteria: 1 PASS (already ticked), 26 PARTIAL, 1 BLOCKED (unexpected render
 failures answer HTTP 200), 4 NOT RUN (real application). Stronger now: a reproducible frozen published

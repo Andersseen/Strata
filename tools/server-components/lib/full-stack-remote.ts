@@ -20,7 +20,7 @@ import { captureResponse, headerBlock, variantsOf } from "./leak-scan.ts";
 import type { CapturedResponse } from "./leak-scan.ts";
 import { openTracked } from "./package-consumer.ts";
 import type { Tracked } from "./package-consumer.ts";
-import { classifyReply, classifyTransportError } from "./response-classification.ts";
+import { classifyReply, classifyTransportError, sameDocument } from "./response-classification.ts";
 import type { AnomalySample } from "./response-classification.ts";
 
 /**
@@ -395,6 +395,25 @@ const API_CASES: Expectation[] = [
   { path: "/api/products/999", status: 404, type: "application/json", body: "" },
 ];
 
+/**
+ * A concurrent answer is correct when it is its own resource's baseline, echoes no request id and
+ * leaks nothing. Documents are compared like the classifier does (`sameDocument`): Angular numbers
+ * its `__nghData__` templates per isolate, so two Cloudflare isolates render byte-different but
+ * equivalent pages (F5). This comparator still used byte equality, so deployed run 42053087187
+ * counted 4 "anomalies" for which the classifier, comparing canonically, produced no sample.
+ */
+export function bodyMatchesBaseline(
+  baseline: string,
+  body: string,
+  requestIds: readonly string[],
+): boolean {
+  return (
+    sameDocument(baseline, body) &&
+    !requestIds.some((id) => body.includes(id)) &&
+    privateLeaks(body).length === 0
+  );
+}
+
 async function round(
   base: string,
   kind: FullStackRound["kind"],
@@ -434,10 +453,7 @@ async function round(
         const statusOk =
           reply.status === expected.status &&
           !!reply.headers.get("content-type")?.includes(expected.type);
-        const bodyOk =
-          reply.body === expected.body &&
-          !ids.some((id) => reply.body.includes(id)) &&
-          privateLeaks(reply.body).length === 0;
+        const bodyOk = bodyMatchesBaseline(expected.body, reply.body, ids);
 
         if (statusOk) succeeded++;
         else failed++;
