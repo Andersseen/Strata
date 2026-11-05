@@ -93,6 +93,16 @@
       "strataDocumentNavigationGuard": "const",
       "StrataDocumentNavigator": "class"
     },
+    "./ssr": {
+      "provideStrataSsrFailureHandler": "function",
+      "STRATA_SSR_FAILURE_DOCUMENT": "const",
+      "StrataSsrFailure": "interface",
+      "StrataSsrFailureOptions": "interface",
+      "StrataSsrFailurePhase": "type",
+      "StrataSsrRender": "type",
+      "StrataSsrResponse": "interface",
+      "withStrataSsrFailureContract": "function"
+    },
     "./server-only": {}
   }
 }

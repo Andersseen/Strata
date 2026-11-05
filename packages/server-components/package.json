@@ -41,6 +41,10 @@
       "types": "./dist/fesm2022/navigation/index.d.ts",
       "default": "./dist/fesm2022/navigation/index.js"
     },
+    "./ssr": {
+      "types": "./dist/fesm2022/ssr/index.d.ts",
+      "default": "./dist/fesm2022/ssr/index.js"
+    },
     "./server-only": {
       "types": "./dist/server-only/index.d.ts",
       "default": "./dist/server-only.js"
@@ -54,7 +58,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "vite build && ngc -p tsconfig.runtime.json && ngc -p tsconfig.navigation.json",
+    "build": "vite build && ngc -p tsconfig.runtime.json && ngc -p tsconfig.navigation.json && ngc -p tsconfig.ssr.json",
     "clean": "rm -rf dist",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run"
