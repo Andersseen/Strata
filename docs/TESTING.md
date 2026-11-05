@@ -155,6 +155,15 @@ The merge CI stopped at lint before building core's exported declarations; consu
 was skipped. Build prerequisites before type-aware lint on a fresh checkout, retain all gates, and
 link the remote result. Local lint with preexisting `dist` does not prove that bootstrap path.
 
+## Fresh install versus frozen candidate (2026-11-05)
+
+`pnpm test:full-stack-registry-consumer` installs the published tuple fresh (transitive versions float) and
+detects ecosystem drift; with `STRATA_CANDIDATE_CAPTURE=<dir>` a fully passing run writes the qualified tree.
+`pnpm test:full-stack-frozen-candidate` reinstalls the committed `tests/full-stack-candidate` with `npm ci` and
+refuses any identity difference. Both run the same consumer contract. The scaling benchmark profile is
+`STRATA_PERF_ISLANDS=3 STRATA_PERF_CONTROLLERS=8 pnpm test:full-stack-performance`. Both are Extended-only
+(registry access, long runtime). See [the M5 report](research/m5-production-qualification.md).
+
 ## CI layout
 
 `ci.yml` runs five parallel jobs behind one aggregate `Verify` check (branch protection and `deploy-www` depend

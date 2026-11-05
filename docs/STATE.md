@@ -1,5 +1,20 @@
 # Current implementation audit
 
+## M5 production qualification (branch `stabilize/m5-production-qualification`, PR #170)
+
+Tooling, tests, CI and documentation only; no package change ([report](research/m5-production-qualification.md)).
+
+- **Frozen candidate** `318670103337b243` (`tests/full-stack-candidate`): core 0.2.2, analog 0.12.0,
+  server-components 0.14.0 with the complete captured npm tree. `pnpm test:full-stack-frozen-candidate`
+  reinstalls it with `npm ci` and passes the full Node/workerd/Chromium consumer (PUBLISHED REGISTRY, local).
+  Fresh installs remain the drift detector.
+- **Controller scaling profile** (`STRATA_PERF_CONTROLLERS=8`): eight controllers / 32 native routes,
+  request-scoped ledger, guard, schema, 1 MiB limit, failure burst with cleanup accounting and the 413
+  keep-alive regression, in all four arms.
+- **Upgrade/rollback** moves to the published pair server-components 0.13.0 → 0.14.0 and adds a
+  deployment-aware phase (local rehearsal by default; real deployment only through the manual workflow).
+- analog 0.12.1 is still unpublished (`VERSION_REQUIRED`); issue #117 stays open.
+
 ## M3/M4 contract stabilization (branch `stabilize/m3-m4-contract-hardening`; hosted CI pending)
 
 From `origin/main` `bf00a944544d1f6533d4b05a1876449ff59b7dd3` (published core 0.2.2, analog 0.12.0,

@@ -1,5 +1,11 @@
 # Strata 1.0 exit criteria
 
+**M5 qualification 2026-11-05 ([report](research/m5-production-qualification.md)).** No item is ticked or unticked. The report holds a
+traceability matrix of all 32 criteria: 1 PASS (already ticked), 26 PARTIAL, 1 BLOCKED (unexpected render
+failures answer HTTP 200), 4 NOT RUN (real application). Stronger now: a reproducible frozen published
+candidate; resource evidence with a controller/provider scaling dimension, cleanup under a failure burst and
+the 413 keep-alive regression; upgrade/rollback on the newer published pair with a deployment-aware phase.
+
 **Reconciliation 2026-11-05 ([stabilization report](research/m3-m4-contract-stabilization.md)).** No item below is
 ticked or unticked by this work: every one still lacks a qualified release candidate, hosted and deployed evidence or a
 real application. Items that became **stronger**: Angular/Analog integration (full composition matrix through the packed

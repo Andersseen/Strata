@@ -286,6 +286,12 @@ consumer, and hosted CI evidence must be recorded separately ([report](research/
   (same `core` 0.2.2 and `analog` 0.12.0) is qualified on Node and local workerd, including stale-asset skew in
   both directions and bounded recovery ([report](research/full-stack-registry-upgrade-rollback.md)). A real
   deployed upgrade/rollback is NOT RUN; M5 stays planned.
+- Evidence (2026-11-05, [M5 report](research/m5-production-qualification.md)): a frozen, reproducible published candidate
+  (`318670103337b243`) passes the full-stack consumer from its captured lock; the benchmark gained the
+  controller/provider scaling dimension, a mixed failure burst with cleanup accounting and peak RSS; the
+  published pair server-components 0.13.0 → 0.14.0 passes local upgrade/rollback plus a deployment-aware
+  rehearsal. Cloudflare isolate cold start and Worker memory remain NOT MEASURED; no real consumer. M5 stays
+  planned (in progress).
 - Gate: every [1.0 exit criterion](RELEASE-1.0.md) has evidence for the same candidate and supported
   matrix; real consumer uses controllers/services and production Server Components, including the
   selected navigation path. Agree consumer-specific observation duration and service objectives
