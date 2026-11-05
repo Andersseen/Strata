@@ -125,8 +125,8 @@ describe("concurrent-round body comparison (F5 residual, deployed run 4205308718
   it("still rejects any other difference, an echoed request id or a private canary", () => {
     expect(bodyMatchesBaseline(doc("t0"), doc("t3", "Product 7"), ["req-1"])).toBe(false);
     expect(bodyMatchesBaseline(doc("t0"), `${doc("t0")}req-1`, ["req-1"])).toBe(false);
-    expect(bodyMatchesBaseline(doc("t0"), doc("t0", "ALPHA_CONFIDENTIAL_71c1"), ["req-1"])).toBe(
-      false,
-    );
+    // Identical to its baseline, yet carrying a private canary: still rejected.
+    const leaky = doc("t0", "ALPHA_CONFIDENTIAL_71c1");
+    expect(bodyMatchesBaseline(leaky, leaky, ["req-1"])).toBe(false);
   });
 });
