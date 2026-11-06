@@ -1141,6 +1141,7 @@ export default withStrataSsrFailureContract(render(App, config), {
 | Error handled by your own code (`try`/`catch`, fallback markup)       | unchanged: it never reaches `ErrorHandler`                                                           |
 | Unexpected error reaching `ErrorHandler` during the render            | **500**, `cache-control: no-store`, `STRATA_SSR_FAILURE_DOCUMENT` (or your static `failureDocument`) |
 | Render rejection (bootstrap, `provideAppInitializer`, `render` threw) | the same 500                                                                                         |
+| Broken integration (see below), healthy-looking or not                | the same 500, on **every** request, with a `[strata:ssr]` log line naming the fix                    |
 
 On a failure the partial document, its hydration state (`ng-state`, `ngh`) and every Strata boundary
 are discarded. Headers the failed render **added** are removed and headers it **changed** are restored,
@@ -1148,16 +1149,33 @@ so nothing it wrote (a tenant header, a cookie, a cacheable `cache-control`) is 
 callback runs once per failed request; `errorNames` is safe to log, `errors` holds the original values
 and is private (it may carry request or tenant data). A throwing reporter is ignored.
 
-Failure state is a `WeakMap` entry keyed by the response object, created when the wrapper starts and
-deleted before it returns: concurrent requests cannot see or clear each other's failure, and a failed
-request does not affect the next one. Outside a wrapped render (in the browser, an error after the
-response was chosen, or a handler without the wrapper) the handler keeps Angular's native behaviour.
+Failure state is a non-enumerable slot on the response object, created when the wrapper starts and
+removed before it returns: concurrent requests cannot see or clear each other's failure, and a failed
+request does not affect the next one. Outside a wrapped render (in the browser, or an error after the
+response was chosen) the handler keeps Angular's native behaviour.
+
+The two halves prove they met on every render, so a broken integration fails loudly on the first
+request instead of answering HTTP 200 for a failed page in production:
+
+| Composition                                                                                 | Result                                                     |
+| ------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| Two copies of the package, this protocol (a shared library, a peer variant)                 | works: both halves use the request's own slot              |
+| Wrapper without the provider, or the provider given the wrong token                         | refused: HTTP 500, phase `integration`                     |
+| Provider without the wrapper                                                                | refused: the bootstrap rejects, the host answers its error |
+| A copy older than this protocol (`@strata-sc/server-components` ≤ 0.15) next to a newer one | refused: HTTP 500                                          |
+
+A copy that loads its own second `@angular/core` (a library left external to the SSR bundle) cannot reach
+your application's `ErrorHandler`, so it also counts as a missing provider and is refused. Put such a
+library in `ssr.noExternal`.
+
+Two copies that are **both** ≤ 0.15 cannot be detected and answer HTTP 200 for a failed render: upgrade.
+The inner function of `withStrataSsrFailureContract` must be a real Angular render; wrapping a cache of
+finished documents counts as a render no handler took part in.
 
 Not covered: streaming SSR (`renderStream`) and anything after the response is committed; errors after
 hydration in the browser (they are Angular's and yours, as above); build-time server-only violations
 (the build fails, nothing is served); a second application `ErrorHandler` (this provider replaces it);
-an expected HTTP error, which stays your status. The provider and the wrapper must come from one
-installed copy of the package.
+an expected HTTP error, which stays your status.
 
 ## Deployment compatibility
 
