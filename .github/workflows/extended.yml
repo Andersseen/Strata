@@ -14,6 +14,10 @@ name: Extended checks
 #   integrity    the packed Server Components consumer with many independent rebuilds, each followed by
 #                cold-start overlapping first requests (docs/research/server-component-ssr-integrity-v07.md)
 #   adversarial  three independently packed, installed, source-mutated full-stack consumers
+#   rc0          the RC0 qualification (docs/research/rc0-production-qualification.md): the production
+#                Nitro node-server process for the source-packed and the frozen published candidate
+#                (hosted PRODUCTION-PROCESS evidence, not a deployment), the duplicated-install arms of
+#                the /ssr contract, and the RC readiness report with its non-publishing rehearsal
 #
 # - Weekly (Monday 04:00 UTC) runs all suites; `workflow_dispatch` runs one or all with custom workload.
 # - No deployment, no npm publication, no Cloudflare secrets, no write to any external service
@@ -31,7 +35,7 @@ on:
         description: Which suite to run
         type: choice
         default: all
-        options: [all, performance, performance-scaling, registry, types, integrity, adversarial]
+        options: [all, performance, performance-scaling, registry, types, integrity, adversarial, rc0]
       islands:
         description: "Performance: island profile. one (default, the PR #86 baseline), three, or both (same job and runner, then a comparison)"
         type: choice
@@ -66,6 +70,77 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  node-production:
+    name: Node production process (${{ matrix.candidate }} candidate, Nitro node-server, hosted Linux)
+    if: github.event_name == 'schedule' || inputs.suite == 'all' || inputs.suite == 'rc0'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        candidate: [source-packed, frozen]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup
+        with:
+          build: packages
+          playwright: "true"
+
+      - name: Evidence file
+        run: echo "STRATA_NODE_PRODUCTION_OUT=$RUNNER_TEMP/node-production-${{ matrix.candidate }}.json" >> "$GITHUB_ENV"
+
+      - name: Production entry under mixed concurrent load
+        run: |
+          if [ "${{ matrix.candidate }}" = "frozen" ]; then
+            pnpm test:node-production:frozen
+          else
+            pnpm test:node-production
+          fi
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: node-production-${{ matrix.candidate }}-evidence
+          path: ${{ env.STRATA_NODE_PRODUCTION_OUT }}
+          if-no-files-found: ignore
+          retention-days: 30
+
+  ssr-duplicate-install:
+    name: SSR contract with a duplicated package installation (Node + local workerd)
+    if: github.event_name == 'schedule' || inputs.suite == 'all' || inputs.suite == 'rc0'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup
+        with:
+          build: packages
+
+      - name: Duplicated installed-package consumers
+        run: pnpm test:server-component-ssr-duplicate-install
+
+  rc-readiness:
+    name: RC readiness report and non-publishing prerelease rehearsal
+    if: github.event_name == 'schedule' || inputs.suite == 'all' || inputs.suite == 'rc0'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup
+        with:
+          build: "false"
+
+      # NO-GO is a state, not an error: --report prints it and fails only on a broken rehearsal.
+      - name: RC readiness
+        run: pnpm release:rc:rehearse | tee -a "$GITHUB_STEP_SUMMARY"
+
   adversarial:
     name: Full-stack source-mutated security qualification (Node + workerd + Chromium)
     if: github.event_name == 'schedule' || inputs.suite == 'all' || inputs.suite == 'adversarial'
