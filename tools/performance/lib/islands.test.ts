@@ -16,10 +16,11 @@ import {
   exactJsonProblems,
   expectationsFor,
   islandInteractionProblems,
+  islandReplayProblems,
   islandsFor,
   ssrProblems,
 } from "./contract.ts";
-import type { IslandObservation } from "./contract.ts";
+import type { IslandObservation, IslandReplayObservation } from "./contract.ts";
 
 const spec = (id: string): ArmSpec => ARMS.find((a) => a.id === id)!;
 const tarballs = {
@@ -438,5 +439,56 @@ describe("islandInteractionProblems", () => {
     expect(
       islandInteractionProblems(specs, withOverride(0, { before: "Availability: available" })),
     ).toEqual(['availability: initial state "Availability: available"']);
+  });
+});
+
+describe("islandReplayProblems", () => {
+  const specs = islandsFor(3);
+  const good = (): IslandReplayObservation[] =>
+    specs.map((s, i) => ({
+      id: s.id,
+      count: 1,
+      reused: true,
+      clicks: i === 0 ? 2 : 1,
+      requestsBeforeHydration: 0,
+      requests: i === 0 ? 2 : 1,
+      status: s.afterClick,
+    }));
+  const patched = (patch: Partial<IslandReplayObservation>): IslandReplayObservation[] =>
+    good().map((o, i) => (i === 1 ? { ...o, ...patch } : o));
+
+  it("accepts one effect per early click, after hydration", () => {
+    expect(islandReplayProblems(specs, good())).toEqual([]);
+  });
+
+  it("rejects a lost click", () => {
+    expect(islandReplayProblems(specs, patched({ requests: 0 }))).toContain(
+      "stock: 0 API request(s) for 1 early click(s)",
+    );
+  });
+
+  it("rejects a click that ran twice", () => {
+    expect(islandReplayProblems(specs, patched({ requests: 2 }))).toContain(
+      "stock: 2 API request(s) for 1 early click(s)",
+    );
+  });
+
+  it("rejects a request made before hydration", () => {
+    expect(islandReplayProblems(specs, patched({ requestsBeforeHydration: 1 }))).toContain(
+      "stock: 1 request(s) before hydration",
+    );
+  });
+
+  it("rejects replaced nodes, duplicates, a wrong result and a missing island", () => {
+    expect(islandReplayProblems(specs, patched({ reused: false }))).toContain(
+      "stock: hydration did not reuse the SSR nodes",
+    );
+    expect(islandReplayProblems(specs, patched({ count: 2 }))).toContain(
+      "stock: 2 elements, expected exactly 1",
+    );
+    expect(islandReplayProblems(specs, patched({ status: "Stock: error 500" }))).toHaveLength(1);
+    expect(islandReplayProblems(specs, good().slice(1))).toEqual([
+      "availability: island missing from the page",
+    ]);
   });
 });

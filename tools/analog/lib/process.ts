@@ -10,6 +10,7 @@ export interface ManagedProcess {
   readonly command: string;
   output(): string;
   hasExited(): boolean;
+  /** Stops the process and everything in its group; a survivor after SIGKILL is an error. */
   stop(): Promise<void>;
 }
 
@@ -19,6 +20,11 @@ export interface HttpResult {
   body: string;
 }
 
+/**
+ * A port that was free a moment ago. It is released before the caller's server binds it, so it
+ * only suits a server that binds it at once and opens no other socket first. A server that cannot
+ * meet that (Wrangler: see startPagesDev) must bind port 0 and announce the port it got.
+ */
 export async function findFreePort(): Promise<number> {
   return new Promise((resolve, reject) => {
     const server = createServer();
@@ -100,26 +106,55 @@ export function spawnManaged(
       // The group is already gone.
     }
   };
+  const groupAlive = (): boolean => {
+    if (child.pid === undefined) return false;
+
+    try {
+      process.kill(-child.pid, 0);
+
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  const groupGone = async (timeoutMs: number): Promise<boolean> => {
+    const deadline = Date.now() + timeoutMs;
+
+    while (groupAlive() && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+
+    return !groupAlive();
+  };
 
   return {
     command: `${command} ${args.join(" ")}`,
     output: () => output,
     hasExited: () => exited,
     async stop(): Promise<void> {
-      if (exited) {
-        keepServerLog(`${command} ${args.join(" ")}`, output);
+      if (!exited) {
+        const done = new Promise<void>((resolve) => child.once("exit", () => resolve()));
 
-        return;
+        signal("SIGTERM");
+
+        const timer = setTimeout(() => signal("SIGKILL"), 5_000);
+
+        await done;
+        clearTimeout(timer);
       }
 
-      const done = new Promise<void>((resolve) => child.once("exit", () => resolve()));
+      // The leader's exit says nothing about its group: Wrangler can die during startup and leave a
+      // workerd behind, holding its sockets into the next phase.
+      if (!(await groupGone(2_000))) {
+        signal("SIGKILL");
+        if (!(await groupGone(2_000))) {
+          keepServerLog(`${command} ${args.join(" ")}`, output);
+          throw new Error(
+            `Process group of "${command}" survived SIGKILL:\n${output.slice(-2_000)}`,
+          );
+        }
+      }
 
-      signal("SIGTERM");
-
-      const timer = setTimeout(() => signal("SIGKILL"), 5_000);
-
-      await done;
-      clearTimeout(timer);
       keepServerLog(`${command} ${args.join(" ")}`, output);
     },
   };

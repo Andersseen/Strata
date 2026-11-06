@@ -82,6 +82,10 @@ if (command === "classify") {
   output("state", decision.state);
   output("unpublished", decision.unpublished.join(","));
   output(
+    "release-candidate",
+    String(packages.some(({ version }) => /^\d+\.\d+\.\d+-rc\./.test(version))),
+  );
+  output(
     "server-components-unpublished",
     String(decision.unpublished.includes("@strata-sc/server-components")),
   );

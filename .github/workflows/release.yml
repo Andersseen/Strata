@@ -108,6 +108,16 @@ jobs:
           # Unset, a stable 1.x version is BLOCKED: see classifyRelease.
           STRATA_RELEASE_STABLE_1_0: ${{ vars.STRATA_RELEASE_STABLE_1_0 }}
 
+      # A green CI is not enough to publish a release candidate: the evidence ledger must name this
+      # code, and every proof in it must still read back from GitHub and npm. Stable and 0.x versions
+      # do not pass through here. See docs/specs/004-first-release-candidate.md.
+      - name: Authorize release candidate
+        if: steps.state.outputs.state == 'PUBLISH_REQUIRED' && steps.state.outputs.release-candidate == 'true'
+        run: node --experimental-strip-types tools/release/rc-readiness.ts --phase=pre --publishing
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+
       # Close the window in which a queued release can become stale while its
       # dependencies are installing and building. Verify again immediately
       # before the one step that can version or publish.

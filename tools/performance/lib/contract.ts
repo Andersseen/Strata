@@ -625,3 +625,43 @@ export function islandInteractionProblems(
 
   return problems;
 }
+
+export interface IslandReplayObservation {
+  readonly id: IslandSpec["id"];
+  readonly count: number;
+  readonly reused: boolean;
+  /** Clicks made while no application script had run. */
+  readonly clicks: number;
+  /** Requests issued before the scripts were released: a click there had a handler it must not have. */
+  readonly requestsBeforeHydration: number;
+  /** Requests issued in all, once the page was quiet. */
+  readonly requests: number;
+  readonly status: string;
+}
+
+/** Judges event replay: each click before hydration ran exactly once, and only after hydration. */
+export function islandReplayProblems(
+  specs: readonly IslandSpec[],
+  observations: readonly IslandReplayObservation[],
+): string[] {
+  const problems: string[] = [];
+
+  for (const spec of specs) {
+    const o = observations.find((observation) => observation.id === spec.id);
+
+    if (!o) {
+      problems.push(`${spec.id}: island missing from the page`);
+      continue;
+    }
+    if (o.count !== 1) problems.push(`${spec.id}: ${o.count} elements, expected exactly 1`);
+    if (!o.reused) problems.push(`${spec.id}: hydration did not reuse the SSR nodes`);
+    if (o.requestsBeforeHydration !== 0)
+      problems.push(`${spec.id}: ${o.requestsBeforeHydration} request(s) before hydration`);
+    if (o.requests !== o.clicks)
+      problems.push(`${spec.id}: ${o.requests} API request(s) for ${o.clicks} early click(s)`);
+    if (o.status !== spec.afterClick)
+      problems.push(`${spec.id}: shows "${o.status}", expected "${spec.afterClick}"`);
+  }
+
+  return problems;
+}

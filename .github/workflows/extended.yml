@@ -129,7 +129,7 @@ jobs:
     name: RC readiness report and non-publishing prerelease rehearsal
     if: github.event_name == 'schedule' || inputs.suite == 'all' || inputs.suite == 'rc0'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       # Full history: Changesets hangs deepening a shallow clone that has no remote.
       - name: Checkout
@@ -137,13 +137,20 @@ jobs:
         with:
           fetch-depth: 0
 
+      # The rehearsal packs and installs the versioned tuple.
       - uses: ./.github/actions/setup
         with:
-          build: "false"
+          build: packages
 
-      # NO-GO is a state, not an error: --report prints it and fails only on a broken rehearsal.
-      - name: RC readiness
-        run: pnpm release:rc:rehearse | tee -a "$GITHUB_STEP_SUMMARY"
+      # NO-GO is a state, not an error: --report prints it and fails only on a broken rehearsal. This
+      # job is the evidence of the rehearsal and of nothing else: a green run never authorizes a
+      # release. Only `pnpm release:rc:check` does, and pipefail keeps the rehearsal's exit status.
+      - name: RC readiness (report only, not an authorization)
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -o pipefail
+          pnpm release:rc:rehearse | tee -a "$GITHUB_STEP_SUMMARY"
 
   adversarial:
     name: Full-stack source-mutated security qualification (Node + workerd + Chromium)

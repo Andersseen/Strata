@@ -1,5 +1,11 @@
 # Strata 1.0 exit criteria
 
+**RC0 blocker closure 2026-11-06.** No item is ticked; the matrix is unchanged (PASS 1, PARTIAL 27, BLOCKED 0, NOT RUN
+4). The four real-application requirements stay open and the RC tooling cannot mark them: they have no proof kind.
+Cloudflare isolate cold start and memory stay unmeasured, with the decision on them pending. Stable requirement ids
+live in [SPEC-004](specs/004-first-release-candidate.md#requirements) and the
+[support contract](COMPATIBILITY.md#rc0-support-contract).
+
 **RC0 qualification 2026-11-06 ([report](research/rc0-production-qualification.md)).** No item is ticked; the matrix is
 unchanged (PASS 1, PARTIAL 27, BLOCKED 0, NOT RUN 4). This checklist stays authoritative for GA; the
 [RC process](specs/004-first-release-candidate.md) is a step before it and ticks nothing. Stronger: #15 (a broken

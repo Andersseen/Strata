@@ -25,19 +25,28 @@ const SPECIFIER = '"@strata-sc/server-components/ssr"';
 const EXAMPLE = "src/check/ssr-failure-example.ts";
 const ANALOG_EXAMPLE = "src/check/ssr-failure-analog.ts";
 
+/** `provideStrataSsrFailureHandler` returns `EnvironmentProviders`, and `integration` exists. */
+export const SSR_PROTOCOL_SINCE = "0.17.0";
+
 const parts = (version: string): number[] =>
   version
     .split("-")[0]!
     .split(".")
     .map((part) => Number.parseInt(part, 10));
 
-/** Whether an exact published version predates the `/ssr` entry. */
-export function predatesSsrEntry(version: string): boolean {
+function predates(version: string, since: string): boolean {
   const [a, b, c] = parts(version);
-  const [x, y, z] = parts(SSR_ENTRY_SINCE);
+  const [x, y, z] = parts(since);
 
   return a! !== x! ? a! < x! : b! !== y! ? b! < y! : c! < z!;
 }
+
+/** Whether an exact published version predates the `/ssr` entry. */
+export const predatesSsrEntry = (version: string): boolean => predates(version, SSR_ENTRY_SINCE);
+
+/** Whether a version predates the 0.17.0 `/ssr` types, so the migration check cannot apply. */
+export const predatesSsrProtocol = (version: string): boolean =>
+  predates(version, SSR_PROTOCOL_SINCE);
 
 /** Rewrites the fixture copy to the consumer-owned recipe. Returns the touched files. */
 export function applySsrRecipeBridge(consumerDir: string): string[] {

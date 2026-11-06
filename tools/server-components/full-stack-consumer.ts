@@ -63,7 +63,7 @@ import {
 } from "./lib/package-consumer.ts";
 import type { RunningServer, Snapshot } from "./lib/package-consumer.ts";
 import { checkPublicApi } from "./lib/public-api.ts";
-import { ssrBridged } from "./lib/ssr-recipe-bridge.ts";
+import { predatesSsrProtocol, ssrBridged } from "./lib/ssr-recipe-bridge.ts";
 import { treeDigest } from "./lib/upgrade-rollback.ts";
 import { COMPATIBILITY_DATE } from "./lib/wrangler.ts";
 
@@ -239,7 +239,11 @@ try {
   // ------------------------------------------------------------------------
   section("Declaration portability (TypeScript 6 and 5.9, skipLibCheck: false)");
 
-  const ts6 = tscDeclarations(consumerDir, "TypeScript 6", env, { ssrEntry: !bridged });
+  const ssrMigration = !bridged && !predatesSsrProtocol(installedServerComponents.version);
+  const ts6 = tscDeclarations(consumerDir, "TypeScript 6", env, {
+    ssrEntry: !bridged,
+    ssrMigration,
+  });
 
   check("TypeScript 6.0.3 is the declaration consumer", ts6.version === "6.0.3", ts6.version);
   verdict.declarations6 = ts6.ok && ts6.version === "6.0.3";
@@ -268,6 +272,7 @@ try {
           "src/check/ssr-failure-example.ts",
           "src/check/ssr-failure-analog.ts",
         ]),
+    ...(ssrMigration ? ["tsconfig.check.ssr-migration.json", "src/check/ssr-migration.ts"] : []),
   ]) {
     const destination = join(ts59Dir, file);
     mkdirSync(dirname(destination), { recursive: true });
@@ -317,7 +322,10 @@ try {
       verdict.install;
   }
 
-  const ts59 = tscDeclarations(ts59Dir, "TypeScript 5.9", env, { ssrEntry: !bridged });
+  const ts59 = tscDeclarations(ts59Dir, "TypeScript 5.9", env, {
+    ssrEntry: !bridged,
+    ssrMigration,
+  });
 
   check(
     `TypeScript ${TS59_VERSION} is the declaration consumer`,
