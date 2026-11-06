@@ -191,6 +191,7 @@ main:focus {
   margin-left: auto;
 }
 .nav-links a {
+  background: transparent;
   color: var(--strata-muted);
   font-size: 0.86rem;
   font-weight: 660;
