@@ -84,7 +84,9 @@ See [SPEC-004](../specs/004-first-release-candidate.md#how-a-verdict-is-computed
 design, until the sequence there has run. The ledger no longer holds a candidate: the previous one predates these
 changes.
 
-## Verdict (first pass)
+## Verdict
+
+First pass; superseded by the update above where they disagree.
 
 **RC0: NO-GO today, with a short mechanical path to GO.** Nothing found blocks an RC technically. What blocks it
 is that the fixes live in this branch: the corrected release pipeline has not published anything yet, and the
@@ -309,7 +311,9 @@ stopped before multi-isolate, adversarial smoke, deployment skew, Cloudflare reh
 and upgrade suites, because the shared checkout moved. Those passed in hosted CI or Extended, except as listed above,
 and were not run locally on the final tree.
 
-## Remaining blockers, ranked (first pass; `pnpm release:rc:check` is current)
+## Remaining blockers, ranked
+
+First pass; `pnpm release:rc:check` prints the current list.
 
 1. **Release pipeline fix unobserved.** Merge this PR. Release should repair `next` and, after the Version PR,
    publish 0.17.0 without manual help. Failure here must stop the RC.
