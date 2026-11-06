@@ -1,7 +1,7 @@
-import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
-import { basename, join } from "node:path";
+import { readdirSync, readFileSync, rmSync } from "node:fs";
+import { join } from "node:path";
 
-import { VERSION_VISIBILITY, planDistTags } from "./dist-tags.ts";
+import { VERSION_VISIBILITY, isPrerelease, planDistTags } from "./dist-tags.ts";
 import type { RetryBound } from "./dist-tags.ts";
 import type { RegistryReader } from "./registry.ts";
 
@@ -52,30 +52,11 @@ export function changesetFiles(dir: string): string[] {
     .map((file) => join(dir, file));
 }
 
-/**
- * The Changesets a pre-mode `changeset version` already consumed. Pre mode keeps those files on
- * disk and lists them in `.changeset/pre.json`; `changesets/action` filters them out, so counting
- * them would classify a versioned prerelease as VERSION_REQUIRED forever and never publish it.
- */
-export function consumedPreChangesets(dir: string): ReadonlySet<string> {
-  const file = join(dir, "pre.json");
-  if (!existsSync(file)) return new Set();
-
-  const state = JSON.parse(readFileSync(file, "utf8")) as {
-    readonly mode?: string;
-    readonly changesets?: readonly string[];
-  };
-
-  return new Set(state.mode === "pre" ? (state.changesets ?? []) : []);
-}
-
 export function countChangesets(dir: string): ChangesetCounts & { readonly emptyFiles: string[] } {
   const emptyFiles: string[] = [];
-  const consumed = consumedPreChangesets(dir);
   let nonEmpty = 0;
 
   for (const file of changesetFiles(dir)) {
-    if (consumed.has(basename(file, ".md"))) continue;
     if (isEmptyChangeset(readFileSync(file, "utf8"))) emptyFiles.push(file);
     else nonEmpty++;
   }
@@ -95,10 +76,24 @@ const blocked = (reason: string): ReleaseDecision => ({
   published: [],
 });
 
+/**
+ * One `major` Changeset outside pre mode, or `changeset pre exit`, versions a package to a stable
+ * `1.0.0`, and nothing else in the flow would stop that from publishing to `latest`. A stable 1.x is
+ * the General Availability decision of docs/RELEASE-1.0.md, so it needs an explicit, separate
+ * authorization: the repository variable STRATA_RELEASE_STABLE_1_0 set to "authorized".
+ */
+function unauthorizedStable(packages: readonly LocalPackage[]): string | undefined {
+  return packages.find(
+    ({ version }) => Number(version.split(".")[0]) >= 1 && !isPrerelease(version),
+  )?.name;
+}
+
 export async function classifyRelease(input: {
   readonly changesets: ChangesetCounts;
   readonly packages: readonly LocalPackage[];
   readonly readRegistry: RegistryReader;
+  /** The maintainer's explicit General Availability authorization. */
+  readonly stableAuthorized?: boolean;
 }): Promise<ReleaseDecision> {
   const { changesets, readRegistry } = input;
   const packages = input.packages.filter((pkg) => !pkg.private);
@@ -116,6 +111,13 @@ export async function classifyRelease(input: {
     if (!EXACT_SEMVER.test(pkg.version) || pkg.version === "0.0.0") {
       return blocked(`${pkg.name} has no releasable version ("${pkg.version}")`);
     }
+  }
+
+  const stable = input.stableAuthorized ? undefined : unauthorizedStable(packages);
+  if (stable) {
+    return blocked(
+      `${stable} is a stable 1.x version: General Availability needs STRATA_RELEASE_STABLE_1_0=authorized (docs/RELEASE-1.0.md)`,
+    );
   }
 
   const published: string[] = [];

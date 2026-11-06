@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "target": "1.0.0-rc.0",
+  "candidate": "pending",
+  "rows": [
+    {
+      "id": "placeholder",
+      "requirement": "filled when the qualification results are recorded",
+      "gate": "blocker",
+      "rank": 1,
+      "status": "NOT RUN",
+      "candidate": null,
+      "link": null,
+      "note": "placeholder"
+    }
+  ]
+}

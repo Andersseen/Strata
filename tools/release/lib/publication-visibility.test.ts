@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -52,7 +52,7 @@ function timeline(options: { commitAtMs?: number; provenance?: boolean } = {}) {
     committed() ? { latest: "0.15.0", next: "0.14.0" } : { latest: "0.14.0", next: "0.14.0" };
   const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200 });
 
-  const fetchImpl = ((input: RequestInfo | URL) => {
+  const fetchImpl = ((input: string | URL) => {
     const url = String(input);
 
     if (url.endsWith(`/-/package/${NAME.replace("/", "%2f")}/dist-tags`)) {
@@ -235,10 +235,8 @@ describe("authoritative decisions against a stale cached packument", () => {
 });
 
 describe("integrity and provenance of a committed version", () => {
-  const committed = async (provenance = true) => {
-    const line = timeline({ commitAtMs: 0, provenance });
-    return createAuthoritativeReader(line.fetchImpl);
-  };
+  const committed = (provenance = true) =>
+    Promise.resolve(createAuthoritativeReader(timeline({ commitAtMs: 0, provenance }).fetchImpl));
   const tags =
     (reader: RegistryReader): RegistryReader =>
     async (name, version) => {
@@ -349,41 +347,72 @@ describe("integrity and provenance of a committed version", () => {
   });
 });
 
-describe("Changesets pre mode", () => {
+describe("Changesets pre mode (layout of @changesets/cli 3, measured by the prerelease dry run)", () => {
   const dirs: string[] = [];
   afterEach(() => {
     for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
   });
 
-  function changesetDir(pre: unknown): string {
-    const dir = mkdtempSync(join(tmpdir(), "strata-pre-"));
-    dirs.push(dir);
-    const changesets = join(dir, ".changeset");
-    mkdirSync(changesets);
-    writeFileSync(join(changesets, "consumed.md"), '---\n"@strata-sc/core": major\n---\n\nRC.\n');
-    writeFileSync(join(changesets, "pending.md"), '---\n"@strata-sc/core": patch\n---\n\nFix.\n');
-    if (pre !== undefined) writeFileSync(join(changesets, "pre.json"), JSON.stringify(pre));
-    return changesets;
-  }
-
-  it("does not count Changesets a prerelease version already consumed", () => {
-    const counts = countChangesets(
-      changesetDir({ mode: "pre", tag: "rc", changesets: ["consumed", "pending"] }),
+  it("does not count Changesets a prerelease version moved to .changeset/pre/", () => {
+    const changesets = join(mkdtempSync(join(tmpdir(), "strata-pre-")), ".changeset");
+    dirs.push(dirname(changesets));
+    mkdirSync(join(changesets, "pre"), { recursive: true });
+    writeFileSync(join(changesets, "pre.json"), '{"mode":"pre","tag":"rc"}');
+    writeFileSync(
+      join(changesets, "pre", "consumed.md"),
+      '---\n"@strata-sc/core": major\n---\n\nRC.\n',
     );
 
-    expect(counts).toMatchObject({ empty: 0, nonEmpty: 0 });
+    expect(countChangesets(changesets)).toMatchObject({ empty: 0, nonEmpty: 0 });
+
+    writeFileSync(join(changesets, "new.md"), '---\n"@strata-sc/core": patch\n---\n\nFix.\n');
+    expect(countChangesets(changesets).nonEmpty).toBe(1);
+  });
+});
+
+describe("stable 1.x guard (General Availability is a separate decision)", () => {
+  const none = { empty: 0, nonEmpty: 0 };
+  const missing: RegistryReader = () => Promise.resolve({ status: "missing" });
+
+  it.each(["1.0.0", "1.2.3", "2.0.0"])("blocks a stable %s", async (version) => {
+    const decision = await classifyRelease({
+      changesets: none,
+      packages: [{ name: NAME, version }],
+      readRegistry: missing,
+    });
+
+    expect(decision.state).toBe("BLOCKED");
+    expect(decision.reason).toMatch(/STRATA_RELEASE_STABLE_1_0/);
   });
 
-  it("still counts a Changeset added after the prerelease was versioned", () => {
-    expect(
-      countChangesets(changesetDir({ mode: "pre", tag: "rc", changesets: ["consumed"] })).nonEmpty,
-    ).toBe(1);
+  it.each(["1.0.0-rc.0", "1.0.0-rc.12", "0.16.0"])("publishes %s", async (version) => {
+    const decision = await classifyRelease({
+      changesets: none,
+      packages: [{ name: NAME, version }],
+      readRegistry: missing,
+    });
+
+    expect(decision.state).toBe("PUBLISH_REQUIRED");
   });
 
-  it("counts everything outside pre mode and after `changeset pre exit`", () => {
-    expect(countChangesets(changesetDir(undefined)).nonEmpty).toBe(2);
-    expect(
-      countChangesets(changesetDir({ mode: "exit", tag: "rc", changesets: ["consumed"] })).nonEmpty,
-    ).toBe(2);
+  it("lets a stable version through only with the explicit authorization", async () => {
+    const decision = await classifyRelease({
+      changesets: none,
+      packages: [{ name: NAME, version: "1.0.0" }],
+      readRegistry: missing,
+      stableAuthorized: true,
+    });
+
+    expect(decision.state).toBe("PUBLISH_REQUIRED");
+  });
+
+  it("does not block a Version Packages PR, only the publication of its result", async () => {
+    const decision = await classifyRelease({
+      changesets: { empty: 0, nonEmpty: 1 },
+      packages: [{ name: NAME, version: "1.0.0" }],
+      readRegistry: missing,
+    });
+
+    expect(decision.state).toBe("VERSION_REQUIRED");
   });
 });

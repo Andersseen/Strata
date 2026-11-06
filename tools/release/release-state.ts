@@ -72,7 +72,12 @@ async function githubHas(path: string): Promise<boolean | undefined> {
 
 if (command === "classify") {
   const changesets = countChangesets(join(repoRoot, ".changeset"));
-  const decision = await classifyRelease({ changesets, packages, readRegistry });
+  const decision = await classifyRelease({
+    changesets,
+    packages,
+    readRegistry,
+    stableAuthorized: process.env["STRATA_RELEASE_STABLE_1_0"] === "authorized",
+  });
 
   output("state", decision.state);
   output("unpublished", decision.unpublished.join(","));

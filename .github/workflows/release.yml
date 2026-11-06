@@ -15,7 +15,7 @@ name: Release
 #   non-private package whose version is not on npm yet, with npm provenance,
 #   and creates the git tags and GitHub Releases. Stable versions go to the
 #   `latest` dist-tag; prereleases (Changesets pre mode) go to their pre tag and
-#   `next` (ADR-005, docs/specs/SPEC-008-release-candidate.md). It then aligns the
+#   `next` (ADR-005, docs/specs/004-first-release-candidate.md). It then aligns the
 #   dist-tags of the current versions (idempotent; repairs anything published
 #   off-policy). When @strata-sc/server-components was published, or a previous
 #   run died before finishing it, the registry consumer verifies that exact version.
@@ -104,6 +104,9 @@ jobs:
       - name: Classify release state
         id: state
         run: node --experimental-strip-types tools/release/release-state.ts classify --prepare
+        env:
+          # Unset, a stable 1.x version is BLOCKED: see classifyRelease.
+          STRATA_RELEASE_STABLE_1_0: ${{ vars.STRATA_RELEASE_STABLE_1_0 }}
 
       # Close the window in which a queued release can become stale while its
       # dependencies are installing and building. Verify again immediately
