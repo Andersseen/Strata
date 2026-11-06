@@ -1,14 +1,14 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { findFreePort, httpGet, spawnManaged } from "../analog/lib/process.ts";
+import { httpGet } from "../analog/lib/process.ts";
 import { listFiles } from "../analog/lib/scan.ts";
 
 import { all, createAppGate } from "./lib/app-gate.ts";
 import { check, repoRoot, section } from "./lib/harness.ts";
 import type { OutputGraph } from "./lib/harness.ts";
 import { isNodeBuiltin, moduleGraph } from "./lib/module-graph.ts";
-import { resolveWrangler } from "./lib/wrangler.ts";
+import { resolveWrangler, startPagesDev } from "./lib/wrangler.ts";
 
 /**
  * `pnpm test:www:server-components`: the official website dogfoods the
@@ -190,42 +190,18 @@ gate.build("Cloudflare", [], { BUILD_PRESET: "cloudflare-pages" });
 // (compatibility date, nodejs_compat) applies exactly as on deploy.
 {
   const wrangler = resolveWrangler();
-  const port = await findFreePort();
-  const inspectorPort = await findFreePort();
 
   console.log(`\nwrangler: ${wrangler.reported} (pinned ${wrangler.pinned})`);
 
-  const server = spawnManaged(
-    process.execPath,
-    [
-      wrangler.bin,
-      "pages",
-      "dev",
-      "dist/analog/public",
-      "--ip",
-      "127.0.0.1",
-      "--port",
-      String(port),
-      "--inspector-port",
-      String(inspectorPort),
-      "--persist-to",
-      "dist/.wrangler-state",
-      "--log-level",
-      "warn",
-    ],
-    {
-      cwd: wwwDir,
-      env: {
-        CI: "true",
-        NO_COLOR: "1",
-        WRANGLER_SEND_METRICS: "false",
-        WRANGLER_LOG_PATH: join(distDir, ".wrangler-logs"),
-      },
-    },
-  );
+  const pages = await startPagesDev({
+    bin: wrangler.bin,
+    cwd: wwwDir,
+    readyPath: "/",
+    timeoutMs: 60_000,
+  });
   const result = await gate.withServer(
-    server,
-    `http://127.0.0.1:${port}`,
+    pages.process,
+    pages.baseUrl,
     "Wrangler Pages (workerd)",
     60_000,
     checkSsr,

@@ -44,7 +44,7 @@ import {
 } from "./lib/api-scale.ts";
 import { ARMS, assembleArm, parseIslandCount, strataPackagesOf } from "./lib/arms.ts";
 import type { ArmId, ArmSpec } from "./lib/arms.ts";
-import { measureTarget, startNodeServer, startWithPortRetry, timedGet } from "./lib/bench.ts";
+import { measureTarget, startNodeServer, timedGet } from "./lib/bench.ts";
 import type { Target } from "./lib/bench.ts";
 import { evaluateBudgets } from "./lib/budgets.ts";
 import {
@@ -577,12 +577,7 @@ async function start(runtime: Runtime, runDir: string): Promise<Running> {
     return { ...server, peakRssKiB: () => peakRssKiB(server.pid) };
   }
 
-  // `findFreePort` is a pick-then-bind race; a collision is retried, anything else is not.
-  const server = await startWithPortRetry(
-    () => startWrangler(runDir, env, "/api/products/42"),
-    3,
-    (attempt) => console.log(`  workerd start ${attempt} hit a port collision; starting again`),
-  );
+  const server = await startWrangler(runDir, env, "/api/products/42");
 
   return {
     baseUrl: server.baseUrl,

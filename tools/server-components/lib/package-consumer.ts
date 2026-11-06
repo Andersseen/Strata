@@ -21,7 +21,7 @@ import type { ManagedProcess } from "../../analog/lib/process.ts";
 import { listFiles } from "../../analog/lib/scan.ts";
 import { run } from "../../consumer/lib/exec.ts";
 
-import { COMPATIBILITY_DATE } from "./wrangler.ts";
+import { COMPATIBILITY_DATE, startPagesDev } from "./wrangler.ts";
 
 /**
  * Helpers of `pnpm test:server-component-package-consumer`
@@ -374,7 +374,6 @@ export async function startServer(
 ): Promise<RunningServer> {
   const server = spawnManaged(command, args, { cwd: options.cwd, env: options.env });
   const baseUrl = `http://127.0.0.1:${options.port}`;
-  const output = (): string => stripVTControlCharacters(server.output());
 
   try {
     await waitForHttp(`${baseUrl}${options.readyPath}`, server, options.timeoutMs ?? 90_000);
@@ -382,6 +381,12 @@ export async function startServer(
     await server.stop();
     throw error;
   }
+
+  return runningServer(server, baseUrl);
+}
+
+function runningServer(server: ManagedProcess, baseUrl: string): RunningServer {
+  const output = (): string => stripVTControlCharacters(server.output());
 
   return {
     baseUrl,
@@ -495,44 +500,15 @@ export async function startWrangler(
   env: NodeJS.ProcessEnv,
   readyPath = "/product",
 ): Promise<RunningServer> {
-  const port = await findFreePort();
-  const inspectorPort = await findFreePort();
-  const bin = join(consumerDir, "node_modules", "wrangler", "bin", "wrangler.js");
+  const pages = await startPagesDev({
+    bin: join(consumerDir, "node_modules", "wrangler", "bin", "wrangler.js"),
+    cwd: consumerDir,
+    env,
+    readyPath,
+    compatibilityDate: COMPATIBILITY_DATE,
+  });
 
-  return startServer(
-    process.execPath,
-    [
-      bin,
-      "pages",
-      "dev",
-      "dist/analog/public",
-      "--ip",
-      "127.0.0.1",
-      "--port",
-      String(port),
-      "--inspector-port",
-      String(inspectorPort),
-      "--compatibility-date",
-      COMPATIBILITY_DATE,
-      "--persist-to",
-      "dist/.wrangler-state",
-      "--log-level",
-      "info",
-    ],
-    {
-      cwd: consumerDir,
-      env: {
-        ...env,
-        CI: "true",
-        NO_COLOR: "1",
-        WRANGLER_SEND_METRICS: "false",
-        WRANGLER_LOG_PATH: join(consumerDir, "dist", ".wrangler-logs"),
-      },
-      port,
-      readyPath,
-      timeoutMs: 120_000,
-    },
-  );
+  return runningServer(pages.process, pages.baseUrl);
 }
 
 // ---------------------------------------------------------------------------
