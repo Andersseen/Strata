@@ -46,6 +46,8 @@ const gate = createAppGate({
   baseUrlEnv: "STRATA_WWW_BASE_URL",
   serverOnlyMarkers: SERVER_ONLY,
   clientMarkers: [MARKERS.client],
+  // The Doqs pages quote plugin diagnostics as prose. Every other scan still covers them.
+  documentationMarker: "by apps/www/scripts/public-docs.ts. Do not edit.",
   serverModules: [
     "src/app/server-components/server-components-showcase.component.ts",
     "src/app/server-components/server-component-facts.repository.ts",

@@ -250,7 +250,11 @@ export function checkBrowserGraph(graph: OutputGraph = nodeBrowserGraph()): void
  * surrogate) must not drag its build entry (`/vite`) or what that uses into
  * the browser graph.
  */
-export function checkNoBuildTools(graph: OutputGraph): void {
+export function checkNoBuildTools(
+  graph: OutputGraph,
+  /** Files of published documentation: prose may quote a diagnostic without shipping the tool. */
+  isDocumentation: (file: string) => boolean = () => false,
+): void {
   const require = createRequire(join(repoRoot, "packages", "server-components", "package.json"));
   const sources = {
     typescript: readFileSync(require.resolve("typescript"), "utf8"),
@@ -268,7 +272,7 @@ export function checkNoBuildTools(graph: OutputGraph): void {
       continue;
     }
 
-    const found = graphFilesWith(graph, needle);
+    const found = graphFilesWith(graph, needle).filter((file) => !isDocumentation(file));
 
     check(`${label} absent from the browser output`, found.length === 0, found.join(", "));
   }

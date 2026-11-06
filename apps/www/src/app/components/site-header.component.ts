@@ -56,7 +56,7 @@ import { ThemeToggleComponent } from "./theme-toggle.component";
   template: `<header class="site-header" [class.is-scrolled]="scrolled()">
       <a class="skip-link" href="#main">Skip to content</a>
       <nav class="nav-wrap" aria-label="Primary navigation">
-        <a class="brand" href="#top" aria-label="Strata home"
+        <a class="brand" href="/" aria-label="Strata home"
           ><img class="brand-logo" src="/strata-mark.svg" width="28" height="28" alt="" /><span
             >strata</span
           ></a
@@ -67,7 +67,7 @@ import { ThemeToggleComponent } from "./theme-toggle.component";
               <volt-navigation-menu-item
                 ><a
                   voltNavigationMenuLink
-                  [href]="'#' + link.id"
+                  [href]="'/#' + link.id"
                   [active]="active() === link.id"
                   [attr.aria-current]="active() === link.id ? 'location' : null"
                   >{{ link.label }}</a
@@ -75,14 +75,8 @@ import { ThemeToggleComponent } from "./theme-toggle.component";
               >
             }
             <volt-navigation-menu-item
-              ><a
-                voltNavigationMenuLink
-                class="nav-external"
-                [href]="links.docs"
-                target="_blank"
-                rel="noopener noreferrer"
-                >Docs <lmn-arrow-up-right [size]="12" /></a
-            ></volt-navigation-menu-item>
+              ><a voltNavigationMenuLink [href]="links.docs">Docs</a></volt-navigation-menu-item
+            >
           </volt-navigation-menu-list>
         </volt-navigation-menu>
         <div class="nav-actions">
@@ -138,7 +132,7 @@ import { ThemeToggleComponent } from "./theme-toggle.component";
               <volt-navigation-menu-item move="fade-left"
                 ><a
                   voltNavigationMenuLink
-                  [href]="'#' + link.id"
+                  [href]="'/#' + link.id"
                   [active]="active() === link.id"
                   (click)="close()"
                   >{{ link.label }}</a
@@ -148,13 +142,7 @@ import { ThemeToggleComponent } from "./theme-toggle.component";
           </volt-navigation-menu-list>
         </volt-navigation-menu>
         <div class="mobile-menu-foot">
-          <a
-            voltButton
-            class="primary-action"
-            [href]="links.gettingStarted"
-            target="_blank"
-            rel="noopener noreferrer"
-            moveWhileTap="press"
+          <a voltButton class="primary-action" [href]="links.gettingStarted" moveWhileTap="press"
             >Read the docs <lmn-arrow-up-right [size]="16"
           /></a>
           <a

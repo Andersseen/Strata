@@ -1,7 +1,11 @@
 import analog from "@analogjs/platform";
+import { doqPrerenderRoutes } from "@doqs/analog";
+import { doqDeterministicMarkdown } from "@doqs/analog/vite";
 import { strataServerComponents } from "@strata-sc/server-components/vite";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "vite";
+
+import { doqPaths } from "./src/doq.paths";
 
 // Pages deploys one directory. Analog normally keeps the server and public
 // output separate, so Cloudflare builds intentionally emit both into its
@@ -46,7 +50,13 @@ export default defineConfig(() => ({
         process.env["VITEST"] === undefined && process.env["STRATA_SERVER_COMPONENTS"] !== "off",
     }),
     tailwindcss(),
-    analog({ ssr: true, ...cloudflareOutput }),
+    analog({
+      ssr: true,
+      content: { highlighter: "prism" },
+      prerender: { routes: async () => ["/", ...doqPrerenderRoutes(doqPaths)] },
+      ...cloudflareOutput,
+    }),
+    doqDeterministicMarkdown(),
   ],
   test: {
     environment: "jsdom",
