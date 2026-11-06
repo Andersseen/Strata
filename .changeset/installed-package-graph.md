@@ -1,5 +1,0 @@
----
-"@strata-sc/server-components": minor
----
-
-Close the installed-package and worker gaps of the server-only contract. A browser import of a package entry that asserts server-only, or re-exports a module that does, is now refused when it is resolved, through Vite's own client resolution and package `exports`, with a diagnostic naming the importer, the package entry, the re-export chain and the fix. Safe subpaths of the same package stay usable. Access that never parses a module is now refused too: `?raw`, `?url` and `?inline` of an asserting package module (including a direct dev server request), `new URL(…, import.meta.url)` of an asserting package or app module, and every worker graph (`?worker`, `new Worker(new URL(…))`), which Vite bundles without the application's plugins. A build that shipped such a module through one of these paths now fails: move the reference behind the Server Component boundary or import a subpath that does not reach it. `export { type T } from` is no longer treated as a runtime re-export. No new public API. Unmarked package code is still not detected.
