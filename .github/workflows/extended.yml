@@ -35,7 +35,8 @@ on:
         description: Which suite to run
         type: choice
         default: all
-        options: [all, performance, performance-scaling, registry, types, integrity, adversarial, rc0]
+        options:
+          [all, performance, performance-scaling, registry, types, integrity, adversarial, rc0]
       islands:
         description: "Performance: island profile. one (default, the PR #86 baseline), three, or both (same job and runner, then a comparison)"
         type: choice
