@@ -193,6 +193,27 @@ four failures, all resolved and then rerun:
 Evidence by level: Node production, local workerd and Chromium are in the packed consumer and the full-stack consumer.
 `test:full-stack-deployed-cloudflare` ran as a local rehearsal. **No real Cloudflare deployment was run from this branch.**
 
+## Hosted CI and Extended
+
+HOSTED CI run [42196635514](https://github.com/Andersseen/Strata/actions/runs/42196635514), head `e1e3468`: `Verify` and
+every mandatory job pass. No job was added and no suite weakened.
+
+| Measure                      | `main` run 42179720559 | This branch |
+| ---------------------------- | ---------------------: | ----------: |
+| Wall (created to last job)   |               12.9 min |    10.3 min |
+| Runner time                  |               72.0 min |    62.5 min |
+| Server Components packed job |                7.1 min |    10.2 min |
+| Optimizer and dev server job |                5.5 min |     6.1 min |
+
+Wall time sits at the top of the 9 to 10 minute baseline (#172 measured 9.2 to 10.2). One pair of runs is noise for most
+jobs: several unrelated jobs were faster here. The packed job's +3.1 minutes is real, because the new real-Angular
+scenarios run there, and it is now the critical path. If it grows further, it is the first candidate to split.
+
+Extended run [42196703209](https://github.com/Andersseen/Strata/actions/runs/42196703209), `suite=all`, on the same head:
+all jobs pass, including SSR integrity with repeated independent builds, the source-mutated security qualification on Node,
+workerd and Chromium, and the browser size budgets. Its registry jobs exercise **published** packages, so they show no
+regression in those flows and say nothing about this unreleased change.
+
 ## Remaining limitations
 
 - **Unmarked code is not classified.** `?raw` of an unmarked private helper builds, even when a marked module imports it,
