@@ -19,6 +19,7 @@
   "files": [
     "src/index.ts",
     "src/leaky.ts",
+    "src/leaky-barrel.ts",
     "src/negatives.ts",
     "src/second.ts",
     "src/server-only.d.ts"

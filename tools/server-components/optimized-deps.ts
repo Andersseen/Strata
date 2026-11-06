@@ -5,6 +5,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -16,7 +17,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { build as viteBuild, createServer } from "vite";
 import type { InlineConfig } from "vite";
 
-import { findFilesContaining } from "../analog/lib/scan.ts";
+import { findFilesContaining, listFiles } from "../analog/lib/scan.ts";
 
 import { check, finish, section } from "./lib/harness.ts";
 
@@ -36,6 +37,11 @@ import { check, finish, section } from "./lib/harness.ts";
  * request that fails for another reason (syntax error, unresolved package)
  * cannot pass as a security result. A positive control proves the private
  * markers exist and are served when the firewall is off.
+ *
+ * It also qualifies the package graph itself
+ * (docs/research/installed-package-graph-hardening.md): re-export forms, cycles,
+ * an Angular Package Format layout, and the access that never parses a module
+ * (`?raw`, `?url`, workers, `new URL`), each with its firewall-off exposure.
  */
 
 process.on("unhandledRejection", (reason) => {
@@ -52,6 +58,7 @@ process.on("unhandledRejection", (reason) => {
 const TITLE = "Server-only firewall vs the dependency optimizer";
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const KIT = "@acme/server-kit";
+const APF = "@acme/apf-kit";
 
 const PUBLIC = [
   "STRATA_FIXTURE_PUBLIC_ROOT",
@@ -59,6 +66,9 @@ const PUBLIC = [
   "STRATA_FIXTURE_PUBLIC_TYPES",
   "STRATA_FIXTURE_PUBLIC_LAZY",
   "STRATA_FIXTURE_PUBLIC_COND_BROWSER",
+  "STRATA_FIXTURE_PUBLIC_CYCLE",
+  "STRATA_FIXTURE_PUBLIC_INLINE_TYPES",
+  "STRATA_FIXTURE_PUBLIC_APF",
 ];
 const PRIVATE = [
   "STRATA_FIXTURE_SERVER_ONLY",
@@ -137,10 +147,208 @@ const SCENARIOS: readonly Scenario[] = [
   },
 ];
 
+const INSTALLED = "node_modules/@acme/server-kit";
+const INSTALLED_APF = "node_modules/@acme/apf-kit/fesm2022";
+
+/** Re-export forms and package layouts. Dev and production, against the installed tarballs. */
+const GRAPH_SCENARIOS: readonly Scenario[] = [
+  {
+    name: "safe re-export cycle terminates",
+    code: `import { CYCLE_A } from "${KIT}/cycle-safe"; console.log(CYCLE_A);`,
+    expect: "safe",
+    marker: "STRATA_FIXTURE_PUBLIC_CYCLE",
+  },
+  {
+    name: "inline type-only re-export of a server-only module (TypeScript source)",
+    code: `import { PUBLIC_INLINE_TYPES } from "${KIT}/inline-types"; console.log(PUBLIC_INLINE_TYPES);`,
+    expect: "safe",
+    marker: "STRATA_FIXTURE_PUBLIC_INLINE_TYPES",
+  },
+  {
+    name: "browser condition of a barrel whose node condition is server-only",
+    code: `import { COND } from "${KIT}/cond-barrel"; console.log(COND);`,
+    expect: "safe",
+    marker: "STRATA_FIXTURE_PUBLIC_COND_BROWSER",
+  },
+  {
+    name: "APF primary entry re-exporting a shared chunk",
+    code: `import { PUBLIC_APF } from "${APF}"; console.log(PUBLIC_APF);`,
+    expect: "safe",
+    marker: "STRATA_FIXTURE_PUBLIC_APF",
+  },
+  {
+    name: "APF safe secondary entry of a package with a server-only one",
+    code: `import { apfLabel } from "${APF}/safe"; console.log(apfLabel());`,
+    expect: "safe",
+    marker: "STRATA_FIXTURE_PUBLIC_APF",
+  },
+  {
+    name: "named re-export of a barrel",
+    code: `import { format } from "${KIT}/named-barrel"; console.log(format("x"));`,
+    expect: "forbidden",
+    names: [`${INSTALLED}/named-barrel.js`, `${INSTALLED}/barrel.js`, `${INSTALLED}/secret.js`],
+  },
+  {
+    name: "namespace re-export",
+    code: `import { format } from "${KIT}/namespace-barrel"; console.log(format("x"));`,
+    expect: "forbidden",
+    names: [`${INSTALLED}/namespace-barrel.js`, `${INSTALLED}/secret.js`],
+  },
+  {
+    name: "re-export cycle with a server-only module behind it",
+    code: `import { A } from "${KIT}/cycle-secret"; console.log(A);`,
+    expect: "forbidden",
+    names: [
+      `${INSTALLED}/cycle-secret-a.js`,
+      `${INSTALLED}/cycle-secret-b.js`,
+      `${INSTALLED}/secret.js`,
+    ],
+  },
+  {
+    name: "package subpath import (#secret) inside a barrel",
+    code: `import { reveal } from "${KIT}/subpath-import"; console.log(reveal());`,
+    expect: "forbidden",
+    names: [`${INSTALLED}/subpath-import.js`, `${INSTALLED}/secret.js`],
+  },
+  {
+    name: "re-export across packages",
+    code: `import { apfReveal } from "${KIT}/foreign"; console.log(apfReveal());`,
+    expect: "forbidden",
+    names: [`${INSTALLED}/foreign.js`, `${INSTALLED_APF}/acme-apf-kit-server.mjs`],
+  },
+  {
+    name: "CommonJS entry requiring the assertion",
+    code: `import { LEGACY } from "${KIT}/legacy"; console.log(LEGACY);`,
+    expect: "forbidden",
+    names: [`${INSTALLED}/legacy.cjs`],
+  },
+  {
+    name: "APF server-only secondary entry",
+    code: `import { apfReveal } from "${APF}/server"; console.log(apfReveal());`,
+    expect: "forbidden",
+    names: [`${INSTALLED_APF}/acme-apf-kit-server.mjs`],
+  },
+  {
+    name: "APF barrel entry (safe named export selected)",
+    code: `import { PUBLIC_APF } from "${APF}/barrel"; console.log(PUBLIC_APF);`,
+    expect: "forbidden",
+    names: [`${INSTALLED_APF}/acme-apf-kit-barrel.mjs`, `${INSTALLED_APF}/acme-apf-kit-server.mjs`],
+  },
+];
+
+const WORKER_IMPORTING = `import W from "./worker.ts?worker"; new W();`;
+const APP_SECRET = [
+  `import "@strata-sc/server-components/server-only";`,
+  `globalThis.strataFixtureApp = "STRATA_FIXTURE_SERVER_ONLY";`,
+].join("\n");
+
+interface Access {
+  readonly name: string;
+  readonly code: string;
+  /** Further modules of the app, by `src/`-relative name. */
+  readonly files?: Readonly<Record<string, string>>;
+  /** Whether the dev server takes part: a worker is an ordinary module graph there. */
+  readonly dev?: boolean;
+}
+
+/**
+ * Access that never parses the module, so its own assertion cannot run, and
+ * graphs Vite bundles without the app's plugins. Every one of these shipped the
+ * private markers before this suite covered it, and still does with the firewall
+ * off: that exposure is measured below as the negative control.
+ */
+const ACCESS_SCENARIOS: readonly Access[] = [
+  {
+    name: "?raw of a server-only subpath",
+    code: `import s from "${KIT}/secret?raw"; console.log(s);`,
+    dev: true,
+  },
+  {
+    name: "?url of a server-only subpath",
+    code: `import s from "${KIT}/secret?url"; console.log(s);`,
+    dev: true,
+  },
+  {
+    name: "?url&inline of a server-only subpath",
+    code: `import s from "${KIT}/secret?url&inline"; console.log(s);`,
+  },
+  {
+    name: "dynamic ?raw",
+    code: `import("${KIT}/secret?raw").then(console.log);`,
+    dev: true,
+  },
+  {
+    name: "?raw through a node_modules path",
+    code: `import s from "/node_modules/@acme/server-kit/secret.js?raw"; console.log(s);`,
+    dev: true,
+  },
+  {
+    name: "import.meta.glob with ?raw",
+    code: `console.log(import.meta.glob("/node_modules/@acme/server-kit/secret.js", { query: "?raw", eager: true }));`,
+    dev: true,
+  },
+  {
+    name: "new URL of a package module",
+    code: `console.log(new URL("../node_modules/@acme/server-kit/secret.js", import.meta.url));`,
+  },
+  {
+    name: "new URL of an app module",
+    code: `console.log(new URL("./app-secret.ts", import.meta.url));`,
+    files: { "app-secret.ts": APP_SECRET },
+  },
+  { name: "?worker of a package module", code: `import W from "${KIT}/effect?worker"; new W();` },
+  {
+    name: "?worker&inline of a package module",
+    code: `import W from "${KIT}/effect?worker&inline"; new W();`,
+  },
+  {
+    name: "new Worker of a package module",
+    code: `new Worker(new URL("../node_modules/@acme/server-kit/effect.js", import.meta.url), { type: "module" });`,
+  },
+  {
+    name: "new Worker of an app module",
+    code: `new Worker(new URL("./app-secret.ts", import.meta.url), { type: "module" });`,
+    files: { "app-secret.ts": APP_SECRET },
+  },
+  {
+    name: "app worker importing a package module",
+    code: WORKER_IMPORTING,
+    files: { "worker.ts": `import "${KIT}/effect";` },
+  },
+  {
+    name: "app worker importing a package module with ?raw",
+    code: WORKER_IMPORTING,
+    files: { "worker.ts": `import s from "${KIT}/secret?raw"; console.log(s);` },
+  },
+  {
+    name: "app worker importing an app module",
+    code: WORKER_IMPORTING,
+    files: { "worker.ts": `import "./app-secret.ts";`, "app-secret.ts": APP_SECRET },
+  },
+];
+
+/** Allowed access: the firewall must not cost a worker or a URL that reaches nothing forbidden. */
+const LEGAL_ACCESS: readonly Access[] = [
+  {
+    name: "?raw of a safe subpath",
+    code: `import s from "${KIT}/format?raw"; console.log(s);`,
+  },
+  {
+    name: "worker importing a safe subpath",
+    code: WORKER_IMPORTING,
+    files: { "worker.ts": `import { format } from "${KIT}/format"; console.log(format("x"));` },
+  },
+  {
+    name: "new URL of a safe package module",
+    code: `console.log(new URL("../node_modules/@acme/server-kit/format.js", import.meta.url));`,
+  },
+];
+
 // ---------------------------------------------------------------------------
 // Environment: packed packages installed outside the repository
 
-const work = mkdtempSync(join(tmpdir(), "strata-optimized-deps-"));
+// Real path: macOS links the temp directory, and Vite reports resolved ids.
+const work = realpathSync(mkdtempSync(join(tmpdir(), "strata-optimized-deps-")));
 const env = { ...process.env };
 
 for (const key of Object.keys(env)) if (/^(npm_|pnpm_)/i.test(key)) delete env[key];
@@ -172,6 +380,7 @@ if (!existsSync(join(repoRoot, "packages/server-components/dist/vite.js"))) {
 }
 
 const kitTarball = pack(join(repoRoot, "tests/server-component-optimized-deps/kit"));
+const apfTarball = pack(join(repoRoot, "tests/server-component-optimized-deps/apf-kit"));
 const pluginTarball = pack(join(repoRoot, "packages/server-components"));
 
 /** An app with the kit and the plugin installed from tarballs; vite/typescript are its peers (linked, offline). */
@@ -198,6 +407,7 @@ function createApp(name: string, kitMode: "packed" | "linked", html = false): st
       "--ignore-scripts",
       "--legacy-peer-deps",
       `file:${linkedKit}`,
+      apfTarball,
       pluginTarball,
     );
   } else {
@@ -209,6 +419,7 @@ function createApp(name: string, kitMode: "packed" | "linked", html = false): st
       "--ignore-scripts",
       "--legacy-peer-deps",
       kitTarball,
+      apfTarball,
       pluginTarball,
     );
   }
@@ -258,10 +469,12 @@ interface DevOptions {
   readonly enabled?: boolean;
   readonly cold?: boolean;
   readonly optimizeDeps?: NonNullable<InlineConfig["optimizeDeps"]>;
+  /** URLs a page could request directly, with no importer. */
+  readonly direct?: readonly string[];
 }
 
 async function dev(app: string, code: string, options: DevOptions = {}): Promise<DevResult> {
-  const { enabled = true, cold = true, optimizeDeps = {} } = options;
+  const { enabled = true, cold = true, optimizeDeps = {}, direct = [] } = options;
   const strata = await installedPlugin(app);
   const logs: string[] = [];
 
@@ -308,7 +521,7 @@ async function dev(app: string, code: string, options: DevOptions = {}): Promise
   const startupMs = performance.now() - started;
   const base = (server.resolvedUrls?.local[0] ?? "").replace(/\/$/, "");
   const crawlStarted = performance.now();
-  const queue = ["/src/entry.ts"];
+  const queue = ["/src/entry.ts", ...direct];
   const seen = new Map<string, number>();
   let bodies = "";
   let errorBodies = "";
@@ -358,8 +571,11 @@ async function dev(app: string, code: string, options: DevOptions = {}): Promise
 const messageOf = (text: string): string => {
   const at = text.indexOf("[strata]");
 
-  // Vite's terminal logger appends its own `Plugin:` / `File:` lines and a code frame to the message.
-  return (at === -1 ? text : text.slice(at)).split(/\n\s+(?:at |Plugin: |File: )/)[0] ?? text;
+  // Vite's terminal logger appends its own `Plugin:` / `File:` lines and a code frame to the message,
+  // and an uncaught optimizer rejection prints Node's own `file:///…` header after a served body.
+  return (
+    (at === -1 ? text : text.slice(at)).split(/\n\s+(?:at |Plugin: |File: )|\nfile:\/\//)[0] ?? text
+  );
 };
 
 function checkScenario(
@@ -445,6 +661,7 @@ function startupIn(
       `while (queue.length) { const u = queue.shift(); if (seen.has(u)) continue; seen.add(u);`,
       `  const r = await fetch(base + u); const t = await r.text(); console.log("STATUS", r.status, u);`,
       `  console.log("BODY", t);`,
+      `  if (r.status >= 400) continue;`,
       `  for (const m of t.matchAll(/(?:from|import\\()\\s*["'](\\/[^"']+)["']/g)) queue.push(m[1]); }`,
       `await s.close();`,
     ].join("\n"),
@@ -488,10 +705,17 @@ function checkStartup(
 
   const message = messageOf(result.output);
 
+  // Two orderings, both closed. The optimizer's rejection ends the process (Vite
+  // does not catch it), or the import is refused first and the rejection follows
+  // if the server stays up. This harness closes it after the crawl.
+  const exited = result.status !== 0 && result.status !== null;
+  const refusedAtImport = /STATUS 500 \/src\/entry\.ts/.test(result.output);
+  const refusedDeeper = /STATUS 5\d\d \/node_modules\/\.vite\/deps\//.test(result.output);
+
   return [
     check(
-      `${label}: dev server exits non-zero before serving`,
-      result.status !== 0 && result.status !== null,
+      `${label}: refused before anything forbidden is served`,
+      exited || refusedAtImport || refusedDeeper,
       `exit ${result.status}`,
     ),
     check(
@@ -620,6 +844,62 @@ section("Dev, optimizeDeps.exclude (served unbundled: the module-graph check ref
   verdict["dev exclude"] = all;
 }
 
+section("Dev, package graph: re-export forms and APF layout, cold cache");
+{
+  let all = true;
+
+  for (const scenario of GRAPH_SCENARIOS) {
+    all = checkScenario(scenario.name, scenario, await dev(app, scenario.code)) && all;
+  }
+
+  verdict["dev package graph"] = all;
+}
+
+section("Dev, access that never parses the module");
+{
+  const results: boolean[] = [];
+
+  for (const scenario of ACCESS_SCENARIOS.filter((entry) => entry.dev)) {
+    const open = await dev(app, scenario.code, { enabled: false });
+    const closed = await dev(app, scenario.code);
+    const exposed = /\?url/.test(scenario.name)
+      ? open.logs.length >= 0 && !open.refused
+      : open.privateServed.length > 0;
+
+    results.push(
+      check(`${scenario.name}: exposed with the firewall off (control)`, exposed),
+      checkScenario(
+        scenario.name,
+        { ...scenario, expect: "forbidden", names: [`${INSTALLED}/secret.js`] },
+        closed,
+      ),
+    );
+  }
+
+  const urls = ["raw", "url", "inline"].map((query) => `/node_modules/${KIT}/secret.js?${query}`);
+  const open = await dev(app, "console.log(1);", { enabled: false, direct: urls });
+  const closed = await dev(app, "console.log(1);", { direct: urls });
+
+  results.push(
+    check(
+      "direct request for ?raw, no importer: served with the firewall off (control)",
+      open.privateServed.length > 0,
+    ),
+    check(
+      "direct request for ?raw, ?url and ?inline: refused, the entry itself still served",
+      closed.statuses.filter((status) => status === 500).length === urls.length &&
+        closed.statuses.includes(200),
+      closed.statuses.join(","),
+    ),
+    check("direct request: no private marker served", closed.privateServed.length === 0),
+    check(
+      "direct request: the payload carries no frame, source or machine path",
+      !closed.errorBodies.includes(work) && !/"frame":"[^"]/.test(closed.errorBodies),
+    ),
+  );
+  verdict["dev access without a parse"] = results.every(Boolean);
+}
+
 section("Failures that are not the firewall do not count as a firewall pass");
 {
   const syntax = await dev(app, `import { x } from "${KIT}/broken"; console.log(x);`);
@@ -673,13 +953,9 @@ section("Cache regeneration: an assertion added to an already optimized installe
   writeFileSync(format, `import "@strata-sc/server-components/server-only";\n${original}`);
 
   // The optimizer cache is keyed by the lockfile and the config, not by the
-  // package's files: an in-place edit does not invalidate it. Measured, not
-  // claimed away; the three recoveries below must all refuse.
+  // package's files, so the chunk is stale. The entry itself is read from its
+  // file at the import, so it is refused anyway, on a warm cache too.
   const stale = await dev(app, safe.code, { cold: false });
-
-  console.log(
-    `  info  warm cache after an in-place edit: ${stale.refused ? "refused" : "served the cached chunk (documented limitation: restart with --force)"}`,
-  );
 
   const forced = await dev(app, safe.code, { cold: false, optimizeDeps: { force: true } });
   const cold = await dev(app, safe.code, { cold: true });
@@ -688,7 +964,46 @@ section("Cache regeneration: an assertion added to an already optimized installe
 
   const recovered = await dev(app, safe.code, { cold: true });
 
+  // What the import cannot see: a module the entry reaches by an ordinary import
+  // inside the stale chunk. This is the documented limit, measured so that a
+  // change in Vite or in the firewall shows up here.
+  const lazy = join(app, "node_modules/@acme/server-kit/internal/impl.js");
+  const lazyOriginal = readFileSync(lazy, "utf8");
+  const importing = `import { PRIVATE_IMPL } from "${KIT}/internal-user"; console.log(PRIVATE_IMPL);`;
+  const manifest = join(app, "node_modules/@acme/server-kit/package.json");
+  const manifestOriginal = readFileSync(manifest, "utf8");
+  const user = join(app, "node_modules/@acme/server-kit/internal-user.js");
+
+  writeFileSync(
+    user,
+    `import { PRIVATE_IMPL } from "./internal/impl.js";\nexport { PRIVATE_IMPL };\n`,
+  );
+  writeFileSync(
+    manifest,
+    manifestOriginal.replace(
+      `"./format": "./format.js",`,
+      `"./format": "./format.js",\n    "./internal-user": "./internal-user.js",`,
+    ),
+  );
+  await dev(app, importing, { enabled: true, cold: true });
+  writeFileSync(lazy, `import "@strata-sc/server-components/server-only";\n${lazyOriginal}`);
+
+  const deepStale = await dev(app, importing, { cold: false });
+  const deepCold = await dev(app, importing, { cold: true });
+
+  writeFileSync(lazy, lazyOriginal);
+  writeFileSync(manifest, manifestOriginal);
+  rmSync(user);
+  console.log(
+    `  info  in-place edit behind an ordinary import, warm cache: ${deepStale.refused ? "refused" : "served the stale chunk (unsupported edit: restart with --force)"}`,
+  );
+
   verdict["cache regeneration"] = [
+    check("warm cache: the edited entry is refused at the import", stale.refused),
+    check(
+      "cold cache: an in-place edit behind an ordinary import is refused",
+      deepCold.refused && deepCold.logs.includes(DIAGNOSTIC),
+    ),
     check(
       "force: re-optimization refuses the new assertion",
       forced.refused && forced.logs.includes(DIAGNOSTIC),
@@ -705,6 +1020,27 @@ section("Cache regeneration: an assertion added to an already optimized installe
   ].every(Boolean);
 }
 
+section("Cache states of a forbidden entry");
+{
+  const barrel = SCENARIOS[6] as Scenario;
+  const off = await dev(app, barrel.code, { enabled: false, cold: true });
+  const warmFromUnprotected = await dev(app, barrel.code, { cold: false });
+  const fresh = createApp("app-fresh", "packed");
+  const freshInstall = await dev(fresh, barrel.code, { cold: false });
+
+  verdict["cache states"] = [
+    check("an unprotected run leaves a chunk with the markers", off.privateServed.length > 0),
+    check(
+      "warm cache written by an unprotected run: refused, nothing private served",
+      warmFromUnprotected.refused && warmFromUnprotected.privateServed.length === 0,
+    ),
+    check(
+      "fresh install, no cache yet: refused, nothing private served",
+      freshInstall.refused && freshInstall.privateServed.length === 0,
+    ),
+  ].every(Boolean);
+}
+
 // ---------------------------------------------------------------------------
 // Production
 
@@ -712,11 +1048,21 @@ async function productionBuild(
   appDir: string,
   code: string,
   ssr: boolean,
+  options: {
+    readonly enabled?: boolean;
+    readonly files?: Access["files"];
+    /** Plugins ahead of Strata's: they answer `resolveId` before it is asked. */
+    readonly before?: readonly object[];
+  } = {},
 ): Promise<{ outDir: string; error?: string }> {
+  const { enabled = true, files = {}, before = [] } = options;
   const strata = await installedPlugin(appDir);
   const outDir = join(appDir, ssr ? "dist-ssr" : "dist");
 
+  rmSync(join(appDir, "src"), { recursive: true, force: true });
+  mkdirSync(join(appDir, "src"));
   writeFileSync(join(appDir, "src/entry.ts"), code);
+  for (const [name, text] of Object.entries(files)) writeFileSync(join(appDir, "src", name), text);
   writeFileSync(join(appDir, "index.html"), `<script type="module" src="/src/entry.ts"></script>`);
   rmSync(outDir, { recursive: true, force: true });
 
@@ -725,7 +1071,10 @@ async function productionBuild(
       root: appDir,
       configFile: false,
       logLevel: "silent",
-      plugins: [strata({ root: appDir, sourceDir: "src", generatedDir: "src/.strata" })],
+      plugins: [
+        ...before,
+        strata({ root: appDir, sourceDir: "src", generatedDir: "src/.strata", enabled }),
+      ],
       ...(ssr ? { ssr: { noExternal: true } } : {}),
       build: {
         outDir,
@@ -741,16 +1090,33 @@ async function productionBuild(
   }
 }
 
+/**
+ * The private markers in `dir`, as plain text or inside a base64 data URL:
+ * below `assetsInlineLimit`, `?url` and `new URL()` write a file into a chunk
+ * encoded, where a substring scan would call it clean.
+ */
+function exposedIn(dir: string): string[] {
+  if (!existsSync(dir)) return [];
+
+  return listFiles(dir).flatMap((file) => {
+    const text = readFileSync(join(dir, file), "utf8");
+    const decoded = [...text.matchAll(/;base64,([A-Za-z0-9+/=]+)/g)]
+      .map(([, data]) => Buffer.from(data as string, "base64").toString("utf8"))
+      .join("\n");
+
+    return PRIVATE.filter((marker) => text.includes(marker) || decoded.includes(marker)).map(
+      (marker) => `${marker}@${file}`,
+    );
+  });
+}
+
 section("Production builds (vite build), browser graph with source maps");
 {
   let all = true;
 
-  for (const scenario of SCENARIOS) {
+  for (const scenario of [...SCENARIOS, ...GRAPH_SCENARIOS]) {
     const result = await productionBuild(app, scenario.code, false);
-    const leaked = PRIVATE.filter(
-      (marker) =>
-        existsSync(result.outDir) && findFilesContaining(result.outDir, marker).length > 0,
-    );
+    const leaked = exposedIn(result.outDir);
 
     if (scenario.expect === "safe") {
       all =
@@ -788,6 +1154,134 @@ section("Production builds (vite build), browser graph with source maps");
   }
 
   verdict["production browser graph"] = all;
+}
+
+section("Production: access that never parses a module, and worker graphs");
+{
+  const results: boolean[] = [];
+
+  for (const scenario of ACCESS_SCENARIOS) {
+    const options = scenario.files ? { files: scenario.files } : {};
+    const open = await productionBuild(app, scenario.code, false, { ...options, enabled: false });
+    const openExposure = exposedIn(open.outDir);
+    const closed = await productionBuild(app, scenario.code, false, options);
+    const leaked = exposedIn(closed.outDir);
+    const message = messageOf(closed.error ?? "");
+
+    results.push(
+      check(
+        `${scenario.name}: firewall off, the build ships the markers (control)`,
+        open.error === undefined && openExposure.length > 0,
+        open.error?.slice(0, 200) ?? openExposure.join(","),
+      ),
+      check(
+        `${scenario.name}: refused with the Strata diagnostic`,
+        closed.error?.includes(DIAGNOSTIC) === true,
+        closed.error?.slice(0, 200),
+      ),
+      check(
+        `${scenario.name}: nothing private in the output`,
+        leaked.length === 0,
+        leaked.join(","),
+      ),
+      check(
+        `${scenario.name}: the diagnostic has a reason and no machine path or private value`,
+        message.includes("Reason: ") &&
+          !message.includes(work) &&
+          !message.includes(repoRoot) &&
+          PRIVATE.every((marker) => !message.includes(marker)),
+        message.slice(0, 300),
+      ),
+    );
+  }
+
+  for (const scenario of LEGAL_ACCESS) {
+    const result = await productionBuild(
+      app,
+      scenario.code,
+      false,
+      scenario.files ? { files: scenario.files } : {},
+    );
+
+    results.push(
+      check(`${scenario.name}: builds`, result.error === undefined, result.error?.slice(0, 300)),
+      check(`${scenario.name}: nothing private`, exposedIn(result.outDir).length === 0),
+    );
+  }
+
+  // A plugin ahead of Strata's answers the import, so `resolveId` is never asked and only the
+  // `load` guard sees the query. Without that guard this is a successful build with the source.
+  const earlier = {
+    name: "fixture:resolves-first",
+    enforce: "pre",
+    resolveId: (source: string) =>
+      source === "fixture:secret"
+        ? join(app, "node_modules/@acme/server-kit/secret.js") + "?raw"
+        : null,
+  };
+  const aliased = `import s from "fixture:secret"; console.log(s);`;
+  const unguarded = await productionBuild(app, aliased, false, {
+    before: [earlier],
+    enabled: false,
+  });
+  const unguardedExposure = exposedIn(unguarded.outDir);
+  const guarded = await productionBuild(app, aliased, false, { before: [earlier] });
+
+  results.push(
+    check(
+      "query id resolved by an earlier plugin: firewall off, the build ships the markers (control)",
+      unguarded.error === undefined && unguardedExposure.length > 0,
+      unguarded.error?.slice(0, 200),
+    ),
+    check(
+      "query id resolved by an earlier plugin: refused at load with the Strata diagnostic",
+      guarded.error?.includes(DIAGNOSTIC) === true,
+      guarded.error?.slice(0, 200),
+    ),
+    check(
+      "query id resolved by an earlier plugin: nothing private in the output",
+      exposedIn(guarded.outDir).length === 0,
+    ),
+  );
+
+  const shown = await productionBuild(
+    app,
+    `console.log(${JSON.stringify(`import "@strata-sc/server-components/server-only";`)});`,
+    false,
+  );
+
+  results.push(
+    check(
+      "a page that displays the assertion as text is not refused",
+      shown.error === undefined,
+      shown.error?.slice(0, 300),
+    ),
+  );
+  verdict["production access without a parse, and worker graphs"] = results.every(Boolean);
+}
+
+section("Diagnostic: what a refused package import says");
+{
+  const result = await productionBuild(app, SCENARIOS[7]?.code ?? "", false);
+  const message = messageOf(result.error ?? "");
+
+  console.log(message);
+  verdict["diagnostic names importer, entry, chain, assertion and fix"] = [
+    check("names the client importer", message.includes("Imported from: src/entry.ts")),
+    check("names the package entry", message.includes(`Package entry: ${KIT}/chain`)),
+    check(
+      "prints the chain with package-relative paths",
+      message.includes(
+        `${INSTALLED}/chain.js → ${INSTALLED}/barrel.js → ${INSTALLED}/secret.js, which declares`,
+      ),
+    ),
+    check(
+      "names the assertion",
+      message.includes(`import "@strata-sc/server-components/server-only";`),
+    ),
+    check("gives the supported fix", message.includes("package subpath that does not reach")),
+    check("says the package itself is not refused", message.includes("not the package")),
+  ].every(Boolean);
 }
 
 section("Production server graph (positive control: the same markers ARE in the server bundle)");

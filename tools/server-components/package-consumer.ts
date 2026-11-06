@@ -125,6 +125,11 @@ const KIT_PACKAGE = "@strata-test/kit";
 
 const TS59_VERSION = "5.9.2";
 
+/** Only `@strata-test/kit/server` holds it; the Server Component renders its length. */
+const KIT_CANARY = "STRATA_KIT_SERVER_ONLY_CANARY_6D1B94E2A07C";
+/** Every value that must stay out of the browser graph. */
+const PRIVATE_MARKERS = [...SERVER_MARKERS, KIT_CANARY] as const;
+
 const sanitize = (text: string): string => stripVTControlCharacters(text);
 const all = (results: readonly boolean[]): boolean => results.every(Boolean);
 
@@ -139,13 +144,14 @@ const PRODUCT_PAGE: SsrExpectation = {
     "server-computed evidence": `data-evidence="${EXPECTED_EVIDENCE}"`,
     "public nested stock": "In stock: 12",
     "installed package island output": "STRATA_PACKAGE_ANGULAR_WIDGET_CLIENT",
+    "value computed by a server-only package module": `data-kit-server="${KIT_CANARY.length}"`,
   },
   boundaries: [
     { selector: "add-to-cart", protocol: "2" },
     { selector: "acme-product-picker", protocol: "2" },
     { selector: "legacy-counter", protocol: "1" },
   ],
-  forbidden: Object.fromEntries(SERVER_MARKERS.map((marker) => [marker, marker])),
+  forbidden: Object.fromEntries(PRIVATE_MARKERS.map((marker) => [marker, marker])),
 };
 
 /** Repeated independent builds per run: bounded for CI; the extended gate raises it. */
@@ -735,6 +741,34 @@ try {
   consumerManifest.dependencies[WIDGETS_PACKAGE] = `file:${widgetsTarball}`;
   consumerManifest.dependencies[KIT_PACKAGE] = `file:${kitTarball}`;
   writeFileSync(consumerManifestPath, `${JSON.stringify(consumerManifest, null, 2)}\n`);
+
+  // The legitimate use of a server-only package module. Only this run installs the kit, so the
+  // shared fixture template stays free of it. Every Node, workerd and Chromium check below runs
+  // with this import in place.
+  const productDetails = join(
+    consumerDir,
+    "src",
+    "app",
+    "product",
+    "product-details.server-component.ts",
+  );
+
+  writeFileSync(
+    productDetails,
+    readFileSync(productDetails, "utf8")
+      .replace(
+        'import { ProductPickerComponent } from "@strata-test/angular-widgets";',
+        'import { ProductPickerComponent } from "@strata-test/angular-widgets";\nimport { readKitSecret } from "@strata-test/kit/server";',
+      )
+      .replace(
+        '<article [attr.data-evidence]="evidence">',
+        '<article [attr.data-evidence]="evidence" [attr.data-kit-server]="kitServer">',
+      )
+      .replace(
+        "protected readonly evidence =",
+        "protected readonly kitServer = readKitSecret();\n  protected readonly evidence =",
+      ),
+  );
   pristine = snapshotDir(consumerDir, NOT_SOURCE);
 
   const installArgs = [
@@ -1039,7 +1073,7 @@ try {
 
   const nodeOk: boolean[] = [];
 
-  for (const marker of SERVER_MARKERS) {
+  for (const marker of PRIVATE_MARKERS) {
     nodeOk.push(
       check(
         `${marker}: absent from every browser file`,
@@ -1060,7 +1094,7 @@ try {
       ),
     ),
   );
-  for (const marker of SERVER_MARKERS) {
+  for (const marker of PRIVATE_MARKERS) {
     nodeOk.push(
       check(
         `${marker}: present in the Node server output (positive control)`,
@@ -1181,7 +1215,7 @@ try {
     ),
     check(
       "SSR HTML exposes no server implementation marker as public data",
-      SERVER_MARKERS.every((marker) => !html.includes(marker)),
+      PRIVATE_MARKERS.every((marker) => !html.includes(marker)),
     ),
     check(
       "the server log shows no JIT compilation fallback or error",
@@ -1323,7 +1357,7 @@ try {
     ),
     check(
       "no loaded script carries a server marker; the client marker was loaded",
-      observation.scripts.every((s) => SERVER_MARKERS.every((m) => !s.body.includes(m))) &&
+      observation.scripts.every((s) => PRIVATE_MARKERS.every((m) => !s.body.includes(m))) &&
         observation.scripts.some((s) => s.body.includes(MARKERS.client)),
     ),
     check(
@@ -1486,7 +1520,7 @@ try {
 
   verdict.node = all(nodeOk);
   verdict.confidentiality = all(
-    SERVER_MARKERS.map((marker) => filesWith(browser, marker).length === 0).concat(
+    PRIVATE_MARKERS.map((marker) => filesWith(browser, marker).length === 0).concat(
       serverSourcesInBrowser.length === 0,
     ),
   );
@@ -1536,7 +1570,7 @@ try {
       ),
       check(
         `${label}: it prints neither a marker nor the module's contents`,
-        SERVER_MARKERS.every((marker) => !output.includes(marker)),
+        PRIVATE_MARKERS.every((marker) => !output.includes(marker)),
       ),
     );
     restoreDir(consumerDir, pristine!, NOT_SOURCE);
@@ -1562,13 +1596,12 @@ try {
   );
 
   // Module resolution forms and package boundaries (docs/research/server-component-graph-security-v06.md).
-  const KIT_CANARY = "STRATA_KIT_SERVER_ONLY_CANARY_6D1B94E2A07C";
   const KIT_MARKER = "STRATA_KIT_BROWSER_SAFE_MARKER";
   const REPOSITORY_MODULE = "src/app/product/product.repository.ts";
   const ASSERTS =
     /Reason: the module declares `import "@strata-sc\/server-components\/server-only";`/;
   const PACKAGE_ASSERTS =
-    /Reason: the importer asserts server-only, but the pre-scan of sourceDir did not register it \(it lives outside sourceDir, for example in an installed or linked package/;
+    /Reason: the module declares `import "@strata-sc\/server-components\/server-only";`\. An installed package is not exempt/;
   const withLeak = (imports: string, member: string) => (source: string) =>
     `${imports}\n${source.replace("protected readonly marker = CLIENT_MARKER;", `protected readonly marker = CLIENT_MARKER;\n  protected readonly leak = ${member};`)}`;
 
@@ -1602,7 +1635,7 @@ try {
     const output = sanitize(`${result.stdout}\n${result.stderr}`);
     const diagnostic =
       output.match(
-        /\[strata\][^\n]*(?:\n(?:Imported from|Reason|Move|Import|A package)[^\n]*)*/,
+        /\[strata\][^\n]*(?:\n(?:Package entry|Imported from|Reason|Move|Import|A package|Do not)[^\n]*)*/,
       )?.[0] ?? "";
 
     console.log(`\n${label}:\n${diagnostic}`);
@@ -1637,7 +1670,7 @@ try {
       ),
       check(
         `${label}: nothing printed carries a server-only marker`,
-        [...SERVER_MARKERS, KIT_CANARY].every((marker) => !output.includes(marker)),
+        PRIVATE_MARKERS.every((marker) => !output.includes(marker)),
       ),
     );
     restoreDir(consumerDir, pristine!, NOT_SOURCE);
@@ -1646,6 +1679,7 @@ try {
 
   const ADD_TO_CART = "src/app/product/add-to-cart.component.ts";
   const KIT = "node_modules/@strata-test/kit/dist";
+  const WIDGETS = "node_modules/@strata-test/angular-widgets/dist/fesm2022";
 
   expectGraphFailure({
     label: "tsconfig path alias (@app/*)",
@@ -1718,8 +1752,104 @@ try {
         "formatPrice(100)",
       ),
     },
+    module: `${KIT}/barrel.js`,
+    importer: ADD_TO_CART,
+    reason: new RegExp(
+      `Reason: it re-exports a server-only module: ${KIT}/barrel\\.js → ${KIT}/server\\.js`,
+    ),
+  });
+  expectGraphFailure({
+    label: "chained package barrel",
+    files: {
+      [ADD_TO_CART]: withLeak(
+        `import { formatPrice } from "@strata-test/kit/chain";`,
+        "formatPrice(100)",
+      ),
+    },
+    module: `${KIT}/chain.js`,
+    importer: ADD_TO_CART,
+    reason: new RegExp(
+      `Reason: it re-exports a server-only module: ${KIT}/chain\\.js → ${KIT}/barrel\\.js → ${KIT}/server\\.js`,
+    ),
+  });
+  expectGraphFailure({
+    label: "ngc-compiled package barrel (safe component selected)",
+    files: {
+      [ADD_TO_CART]: withLeak(
+        `import { ProductPickerComponent } from "@strata-test/angular-widgets/leaky-barrel";`,
+        "ProductPickerComponent.name",
+      ),
+    },
+    module: `${WIDGETS}/leaky-barrel.js`,
+    importer: ADD_TO_CART,
+    reason: new RegExp(
+      `Reason: it re-exports a server-only module: ${WIDGETS}/leaky-barrel\\.js → ${WIDGETS}/leaky\\.js`,
+    ),
+  });
+  expectGraphFailure({
+    label: "dynamic import of a package barrel",
+    files: {
+      [ADD_TO_CART]: (source) => `${source}\nvoid import("@strata-test/kit/barrel");\n`,
+    },
+    module: `${KIT}/barrel.js`,
+    importer: ADD_TO_CART,
+    reason: /Reason: it re-exports a server-only module/,
+  });
+  expectGraphFailure({
+    label: "@defer block lazy-loading a server-only package component",
+    files: {
+      [ADD_TO_CART]: (source) =>
+        `import { LeakyPickerComponent } from "@strata-test/angular-widgets/leaky";\n${source}`
+          .replace(
+            'selector: "add-to-cart",',
+            'selector: "add-to-cart",\n  imports: [LeakyPickerComponent],',
+          )
+          .replace(
+            "<output>Count:",
+            "@defer (on idle) { <acme-leaky-picker /> }\n    <output>Count:",
+          ),
+    },
+    module: `${WIDGETS}/leaky.js`,
+    reason: PACKAGE_ASSERTS,
+  });
+  expectGraphFailure({
+    label: "?raw of a package module",
+    files: {
+      [ADD_TO_CART]: withLeak(`import raw from "@strata-test/kit/server?raw";`, "raw.length"),
+    },
+    module: `${KIT}/server.js?raw`,
+    importer: ADD_TO_CART,
+    reason: PACKAGE_ASSERTS,
+  });
+  expectGraphFailure({
+    label: "?url of a package module",
+    files: {
+      [ADD_TO_CART]: withLeak(`import url from "@strata-test/kit/server?url";`, "url.length"),
+    },
+    module: `${KIT}/server.js?url`,
+    importer: ADD_TO_CART,
+    reason: PACKAGE_ASSERTS,
+  });
+  expectGraphFailure({
+    label: "new URL of a package module",
+    files: {
+      [ADD_TO_CART]: withLeak(
+        "",
+        'new URL("../../../node_modules/@strata-test/kit/dist/server.js", import.meta.url).href',
+      ),
+    },
+    module: "assets/",
+    reason: /Reason: an output file of the browser build is a copy of a module/,
+  });
+  expectGraphFailure({
+    label: "app worker importing a server-only package module",
+    files: {
+      "src/app/product/kit.worker.ts":
+        'import { readKitSecret } from "@strata-test/kit/server";\npostMessage(readKitSecret());\n',
+      [ADD_TO_CART]: withLeak(`import KitWorker from "./kit.worker?worker";`, "KitWorker.name"),
+    },
     module: `${KIT}/server.js`,
-    importer: `${KIT}/barrel.js`,
+    importer: "src/app/product/kit.worker.ts",
     reason: PACKAGE_ASSERTS,
   });
   expectGraphFailure({
@@ -1751,9 +1881,85 @@ try {
             '<acme-leaky-picker [strataClient]="{}" />\n    <legacy-counter',
           ),
     },
-    module: "node_modules/@strata-test/angular-widgets/dist/fesm2022/leaky.js",
+    module: `${WIDGETS}/leaky.js`,
     reason: PACKAGE_ASSERTS,
   });
+
+  // A build where Angular has its own error to report. Vite gives no order between Angular's
+  // diagnostics and this plugin's refusal, and either may be printed: the qualification is that
+  // every ordering fails, with an actionable cause, and leaves nothing private behind.
+  {
+    restoreDir(consumerDir, pristine, NOT_SOURCE);
+    writeFileSync(
+      join(consumerDir, ADD_TO_CART),
+      withLeak(
+        `import { formatPrice } from "@strata-test/kit/chain";`,
+        "formatPrice(100)",
+      )(readFileSync(join(consumerDir, ADD_TO_CART), "utf8")).replace(
+        "<output>Count:",
+        "<output>{{ noSuchMember }}</output><output>Count:",
+      ),
+    );
+    clean();
+
+    const result = vite(["build"]);
+    const output = sanitize(`${result.stdout}\n${result.stderr}`);
+    const strata = output.includes("[strata] Server-only module entered the browser graph");
+    const angular = /noSuchMember/.test(output);
+
+    console.log(`  info  ordering with an Angular error: strata=${strata} angular=${angular}`);
+    firewall.push(
+      check(
+        "Angular error and a forbidden package import: the build fails",
+        result.status !== 0,
+        output.slice(-400),
+      ),
+      check(
+        "Angular error and a forbidden package import: an actionable cause is printed",
+        strata || angular,
+        output.slice(-400),
+      ),
+      check(
+        "Angular error and a forbidden package import: nothing private in any browser file",
+        PRIVATE_MARKERS.every((marker) => filesWith(graphFiles(browserDirs), marker).length === 0),
+      ),
+    );
+    restoreDir(consumerDir, pristine, NOT_SOURCE);
+    clean();
+  }
+
+  // Negative control: the same `?raw` import with the firewall off must expose the canary, or the
+  // refusals above prove nothing about it.
+  {
+    restoreDir(consumerDir, pristine, NOT_SOURCE);
+    writeFileSync(
+      join(consumerDir, "vite.config.ts"),
+      readFileSync(join(consumerDir, "vite.config.ts"), "utf8").replace(
+        "root: import.meta.dirname,",
+        "root: import.meta.dirname,\n      enabled: false,",
+      ),
+    );
+    writeFileSync(
+      join(consumerDir, ADD_TO_CART),
+      withLeak(
+        `import raw from "@strata-test/kit/server?raw";`,
+        "raw.length",
+      )(readFileSync(join(consumerDir, ADD_TO_CART), "utf8")),
+    );
+    clean();
+
+    const result = vite(["build"]);
+
+    firewall.push(
+      check(
+        "negative control: with the firewall off the ?raw build ships the package canary",
+        result.status === 0 && filesWith(graphFiles(browserDirs), KIT_CANARY).length > 0,
+        sanitize(result.stderr).slice(-400),
+      ),
+    );
+    restoreDir(consumerDir, pristine, NOT_SOURCE);
+    clean();
+  }
 
   // Legal controls: the same alias and package forms, with nothing server-only behind them.
   restoreDir(consumerDir, pristine, NOT_SOURCE);
@@ -1799,9 +2005,7 @@ import type { ProductRepository as RepositoryType } from "@app/product/types-bar
     ),
     check(
       "legal control: no server-only canary (consumer or package) reaches any browser file",
-      [...SERVER_MARKERS, KIT_CANARY].every(
-        (marker) => filesWith(legalBrowser, marker).length === 0,
-      ),
+      PRIVATE_MARKERS.every((marker) => filesWith(legalBrowser, marker).length === 0),
     ),
   );
   restoreDir(consumerDir, pristine, NOT_SOURCE);
@@ -1821,7 +2025,7 @@ import type { ProductRepository as RepositoryType } from "@app/product/types-bar
   firewall.push(
     check(
       "a failed scenario does not contaminate the next build: markers still split",
-      SERVER_MARKERS.every((m) => filesWith(graphFiles(browserDirs), m).length === 0) &&
+      PRIVATE_MARKERS.every((m) => filesWith(graphFiles(browserDirs), m).length === 0) &&
         filesWith(
           graphFiles(browserDirs).filter((f) => f.endsWith(".js")),
           MARKERS.client,
@@ -2091,6 +2295,7 @@ import type { ProductRepository as RepositoryType } from "@app/product/types-bar
     "product",
     "product-details.server-component.ts",
   );
+  const serverFileBefore = readFileSync(serverFile, "utf8");
 
   try {
     const { page } = devTracked;
@@ -2198,10 +2403,7 @@ import type { ProductRepository as RepositoryType } from "@app/product/types-bar
       ),
     );
   } finally {
-    writeFileSync(
-      serverFile,
-      readFileSync(join(fixtureTemplate, "src/app/product/product-details.server-component.ts")),
-    );
+    writeFileSync(serverFile, serverFileBefore);
     await devTracked.close();
     await dev.stop();
     servers.length = 0;
@@ -2259,7 +2461,7 @@ import type { ProductRepository as RepositoryType } from "@app/product/types-bar
       existsSync(join(workerDir, "index.js")),
     ),
   );
-  for (const marker of SERVER_MARKERS) {
+  for (const marker of PRIVATE_MARKERS) {
     cfOk.push(
       check(
         `${marker}: in the Worker graph`,
@@ -2317,7 +2519,7 @@ import type { ProductRepository as RepositoryType } from "@app/product/types-bar
     ),
     check(
       "workerd: no server marker in the HTML",
-      SERVER_MARKERS.every((m) => !cfResponse.body.includes(m)),
+      PRIVATE_MARKERS.every((m) => !cfResponse.body.includes(m)),
     ),
     check(
       "workerd: no code-generation or JIT error in the runtime log",
@@ -2381,7 +2583,7 @@ import type { ProductRepository as RepositoryType } from "@app/product/types-bar
     check(
       "workerd: no console error/warning; no server marker in any loaded script",
       cfBrowser.errors.length === 0 &&
-        cfBrowser.scripts.every((s) => SERVER_MARKERS.every((m) => !s.body.includes(m))),
+        cfBrowser.scripts.every((s) => PRIVATE_MARKERS.every((m) => !s.body.includes(m))),
       cfBrowser.errors.join(" | "),
     ),
   );

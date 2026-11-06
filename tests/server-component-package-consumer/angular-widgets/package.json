@@ -16,6 +16,10 @@
       "types": "./dist/fesm2022/leaky.d.ts",
       "default": "./dist/fesm2022/leaky.js"
     },
+    "./leaky-barrel": {
+      "types": "./dist/fesm2022/leaky-barrel.d.ts",
+      "default": "./dist/fesm2022/leaky-barrel.js"
+    },
     "./negatives": {
       "types": "./dist/fesm2022/negatives.d.ts",
       "default": "./dist/fesm2022/negatives.js"

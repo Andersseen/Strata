@@ -4,5 +4,6 @@ import "@strata-sc/server-components/server-only";
 const KIT_SERVER_CANARY = "STRATA_KIT_SERVER_ONLY_CANARY_6D1B94E2A07C";
 
 export function readKitSecret() {
-  return KIT_SERVER_CANARY.length;
+  // Computed at runtime: a bundler folds `.length` of a literal and drops the canary from the graph.
+  return [...KIT_SERVER_CANARY].filter((character) => character !== " ").length;
 }
