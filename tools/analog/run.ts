@@ -1763,10 +1763,22 @@ async function main(): Promise<void> {
       };
     });
 
+    // What Nitro traces beside the missing entry is not part of the claim: hosted run 42220794647
+    // traced no tslib at all on a tree that had just passed, and 12 local builds did not repeat it.
+    // Printed in full, because that run left nothing to tell the two shapes apart.
+    if (!tracedFiles.includes("tslib.es6.mjs")) {
+      const serverModules = join(distDir, "analog", "server", "node_modules");
+
+      console.log(
+        `  note G2 traced no tslib.es6.mjs. ${g2Prod.note}; ` +
+          `server node_modules: ${existsSync(serverModules) ? readdirSync(serverModules).join(", ") : "absent"}`,
+      );
+    }
+
     check(
       "G2 failure cause: Node's `import`+`node` tslib entry is missing from the server output",
-      !g2Prod.ok && !nodeEntryTraced && tracedFiles.includes("tslib.es6.mjs"),
-      `traced: ${tracedFiles}`,
+      !g2Prod.ok && !nodeEntryTraced,
+      `traced: ${tracedFiles}; ${g2Prod.note}`,
     );
   }
 
