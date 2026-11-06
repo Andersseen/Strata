@@ -1,8 +1,15 @@
-import { describe, expect, it } from "vitest";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+import { afterAll, describe, expect, it } from "vitest";
 
 import { stripQuery } from "./module-id.js";
 import {
   SERVER_ONLY_SPECIFIER,
+  createInstalledFacts,
+  emittedServerOnly,
+  findServerOnlyChain,
   reExportChain,
   scanServerOnlyModules,
   serverOnlyFacts,
@@ -69,6 +76,8 @@ describe("serverOnlyFacts", () => {
       `export { B } from "./named";`,
       `export * as C from "./namespace";`,
       `export { type D } from "./inline-type";`,
+      `export { type F, G } from "./mixed";`,
+      `export {} from "./side-effect";`,
       `export type { E } from "./type-only";`,
       `export { a };`,
     ].join("\n");
@@ -77,7 +86,8 @@ describe("serverOnlyFacts", () => {
       "./star",
       "./named",
       "./namespace",
-      "./inline-type",
+      "./mixed",
+      "./side-effect",
     ]);
   });
 });
@@ -216,5 +226,165 @@ describe("stripQuery", () => {
     for (const id of ["/a/x.ts", "/a/x.ts?raw", "/a/x.ts?url", "/a/x.ts?import&raw", "/a/x.ts?"]) {
       expect(stripQuery(id)).toBe("/a/x.ts");
     }
+  });
+});
+
+describe("findServerOnlyChain", () => {
+  /** A package as `{ file: source }`, resolved by exact relative name. */
+  const walk = (files: Record<string, string>, entry: string, limit?: number) =>
+    findServerOnlyChain(
+      entry,
+      (file) => (file in files ? serverOnlyFacts(file, files[file] as string) : undefined),
+      (specifier) => Promise.resolve(specifier in files ? specifier : undefined),
+      limit,
+    );
+
+  it("names the entry alone when it asserts", async () => {
+    await expect(walk({ a: MARK }, "a")).resolves.toEqual({ chain: ["a"], truncated: false });
+  });
+
+  it("follows wildcard, named and namespace re-exports to the assertion", async () => {
+    const files = {
+      star: `export * from "named";`,
+      named: `export { x } from "namespace";`,
+      namespace: `export * as y from "secret";`,
+      secret: MARK,
+    };
+
+    await expect(walk(files, "star")).resolves.toEqual({
+      chain: ["star", "named", "namespace", "secret"],
+      truncated: false,
+    });
+  });
+
+  it("reports a shortest chain, in declaration order", async () => {
+    const files = {
+      entry: `export * from "long"; export * from "second"; export * from "first";`,
+      long: `export * from "longer";`,
+      longer: `export * from "secret";`,
+      first: `export * from "secret";`,
+      second: `export * from "secret";`,
+      secret: MARK,
+    };
+
+    await expect(walk(files, "entry")).resolves.toEqual({
+      chain: ["entry", "second", "secret"],
+      truncated: false,
+    });
+  });
+
+  it("does not follow an ordinary import, a type-only re-export or an unresolved specifier", async () => {
+    const files = {
+      entry: [
+        `import "secret";`,
+        `import { a } from "secret";`,
+        `export type { T } from "secret";`,
+        `export { type U } from "secret";`,
+        `export * from "missing";`,
+      ].join("\n"),
+      secret: MARK,
+    };
+
+    await expect(walk(files, "entry")).resolves.toEqual({ truncated: false });
+  });
+
+  it("terminates on cycles and still finds what lies behind them", async () => {
+    const cycle = { a: `export * from "b";`, b: `export * from "a"; export * from "c";` };
+
+    await expect(walk({ ...cycle, c: `export const safe = 1;` }, "a")).resolves.toEqual({
+      truncated: false,
+    });
+    await expect(walk({ ...cycle, c: MARK }, "a")).resolves.toEqual({
+      chain: ["a", "b", "c"],
+      truncated: false,
+    });
+    await expect(walk({ a: `export * from "a";` }, "a")).resolves.toEqual({ truncated: false });
+  });
+
+  it("reports a walk it stopped at its limit, without a verdict", async () => {
+    const files = { a: `export * from "b";`, b: `export * from "c";`, c: MARK };
+
+    await expect(walk(files, "a", 2)).resolves.toEqual({ truncated: true });
+  });
+});
+
+describe("createInstalledFacts", () => {
+  const dir = mkdtempSync(join(tmpdir(), "strata-installed-facts-"));
+  const write = (name: string, text: string): string => {
+    const file = join(dir, name);
+
+    writeFileSync(file, text);
+
+    return file;
+  };
+
+  afterAll(() => rmSync(dir, { recursive: true, force: true }));
+
+  it("reads assertions and re-exports from every script extension a package ships", () => {
+    const facts = createInstalledFacts();
+
+    for (const name of ["a.js", "a.mjs", "a.cjs", "a.ts", "a.mts"]) {
+      expect(facts(write(name, MARK))?.asserted, name).toBe(true);
+    }
+    expect(facts(write("b.mjs", `export*from"./c.mjs";`))?.reExports).toEqual(["./c.mjs"]);
+  });
+
+  it("has nothing to say about declarations, other files and missing paths", () => {
+    const facts = createInstalledFacts();
+
+    expect(facts(write("types.d.ts", MARK))).toBeUndefined();
+    expect(facts(write("style.css", MARK))).toBeUndefined();
+    expect(facts(join(dir, "missing.js"))).toBeUndefined();
+  });
+
+  it("sees a changed file, and skips the parse of one with nothing to find", () => {
+    const facts = createInstalledFacts();
+    const file = write("edited.js", `export const safe = 1;`);
+
+    expect(facts(file)).toEqual({ asserted: false, reExports: [] });
+    write("edited.js", MARK);
+    expect(facts(file)?.asserted).toBe(true);
+  });
+
+  it("does not take the specifier in a comment or a string for the assertion", () => {
+    const facts = createInstalledFacts();
+
+    expect(facts(write("doc.js", `// ${MARK}\nexport const a = ${JSON.stringify(MARK)};`))).toEqual(
+      { asserted: false, reExports: [] },
+    );
+  });
+});
+
+describe("emittedServerOnly", () => {
+  const base64 = (text: string): string => Buffer.from(text).toString("base64");
+  const chunk = (code: string) => ({ type: "chunk", fileName: "assets/c.js", code }) as const;
+  const asset = (fileName: string, source: string | Uint8Array, originalFileNames?: string[]) =>
+    ({ type: "asset", fileName, source, ...(originalFileNames && { originalFileNames }) }) as const;
+
+  it("finds a copied module, as text or as bytes, under its original name too", () => {
+    expect(emittedServerOnly(asset("assets/s.js", MARK))).toBe("assets/s.js");
+    expect(emittedServerOnly(asset("assets/s.ts", new TextEncoder().encode(MARK)))).toBe(
+      "assets/s.ts",
+    );
+    expect(emittedServerOnly(asset("assets/s.bin", MARK, ["node_modules/p/s.js"]))).toBe(
+      "assets/s.bin",
+    );
+  });
+
+  it("finds a module inlined as a data URL, whatever its media type", () => {
+    for (const type of ["text/javascript", "video/mp2t", "application/octet-stream"]) {
+      expect(
+        emittedServerOnly(chunk(`new URL("data:${type};base64,${base64(MARK)}", import.meta.url)`)),
+      ).toBe("assets/c.js");
+    }
+  });
+
+  it("does not refuse a page that displays the assertion, or an unrelated file", () => {
+    expect(emittedServerOnly(chunk(`const sample = ${JSON.stringify(MARK)};`))).toBeUndefined();
+    expect(emittedServerOnly(asset("assets/guide.md", MARK))).toBeUndefined();
+    expect(emittedServerOnly(asset("assets/safe.js", `export const a = 1;`))).toBeUndefined();
+    expect(
+      emittedServerOnly(chunk(`"data:image/png;base64,${base64("plain bytes")}"`)),
+    ).toBeUndefined();
   });
 });
