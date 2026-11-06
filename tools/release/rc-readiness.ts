@@ -51,6 +51,13 @@ async function rehearsePrerelease(): Promise<string[]> {
   const env = { ...base, CI: "true" };
 
   try {
+    // Changesets deepens a shallow clone forever when, as here, it has no remote.
+    const shallow = execFileSync("git", ["rev-parse", "--is-shallow-repository"], {
+      cwd: repoRoot,
+      encoding: "utf8",
+    }).trim();
+    if (shallow === "true") throw new Error("the rehearsal needs full history (fetch-depth: 0).");
+
     execFileSync("git", ["clone", "--quiet", repoRoot, clone]);
     execFileSync("git", ["remote", "remove", "origin"], { cwd: clone });
     symlinkSync(join(repoRoot, "node_modules"), join(clone, "node_modules"));
@@ -59,7 +66,7 @@ async function rehearsePrerelease(): Promise<string[]> {
       execFileSync(
         process.execPath,
         [join(repoRoot, "node_modules", "@changesets", "cli", "bin.js"), ...command],
-        { cwd: clone, env, stdio: "pipe" },
+        { cwd: clone, env, stdio: "pipe", timeout: 120_000 },
       );
     const versions = () =>
       REGISTRY_PACKAGES.map(({ dir: pkgDir }) => readManifest(join(clone, pkgDir)).version);
