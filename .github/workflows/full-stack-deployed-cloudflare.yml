@@ -1,4 +1,6 @@
 name: Qualify Full-Stack Strata on Cloudflare
+# The API exposes no dispatch inputs: the title is how the RC gate tells these runs apart.
+run-name: Qualify Full-Stack Strata on Cloudflare (${{ inputs.source || 'packed' }})
 
 # Manually triggered, REAL deployment qualification of the complete Strata full-stack path
 # (@strata-sc/core + @strata-sc/analog + @strata-sc/server-components) on an isolated

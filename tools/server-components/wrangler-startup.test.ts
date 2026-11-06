@@ -187,11 +187,11 @@ describe("local workerd startup (real Wrangler)", { timeout: 120_000 }, () => {
       expect(new Set(servers.map(({ baseUrl }) => baseUrl)).size).toBe(3);
       for (const { baseUrl } of servers) expect(await answers(baseUrl)).toBe(true);
 
-      await servers[0]!.stop();
+      await servers[0].stop();
 
-      expect(await answers(servers[0]!.baseUrl)).toBe(false);
-      expect(await answers(servers[1]!.baseUrl)).toBe(true);
-      expect(await answers(servers[2]!.baseUrl)).toBe(true);
+      expect(await answers(servers[0].baseUrl)).toBe(false);
+      expect(await answers(servers[1].baseUrl)).toBe(true);
+      expect(await answers(servers[2].baseUrl)).toBe(true);
     } finally {
       await Promise.all(servers.map((server) => server.stop()));
     }
