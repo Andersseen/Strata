@@ -9,13 +9,17 @@ These documents are plain Markdown in `docs/`, compiled to a static site by
 not generate API documentation from code and does not decide what is true: the rules in the
 [documentation index](README.md#sources-of-truth) still apply.
 
-The site is separate from the official Analog website in [`apps/www`](../apps/www/package.json), which is
-deployed to Cloudflare Pages and is unaffected by this workflow.
-
 ## Published site
 
-Pull requests run `entwine check` only. A push to `main` rebuilds and publishes to GitHub Pages
-through [`entwine.yml`](../.github/workflows/entwine.yml). Live at <https://andersseen.github.io/Strata/>. The repository's Pages source is **GitHub Actions** (Settings → Pages → Build and deployment); if it is ever disabled, the deploy job fails with a 404 until it is set again.
+Readers get [Doqs](https://github.com/Andersseen/doqs) inside the official website, at
+<https://strata-www.pages.dev/docs>. `apps/www/scripts/public-docs.ts` generates those pages from this
+directory and the package READMEs, so edit the sources and run `pnpm www:docs:sync`; a test fails on stale
+pages. Only pages listed there are public: reports, risks and state stay internal, and links to them
+point at GitHub.
+
+Entwine stays the maintainer's internal tool and dogfooding. Every pull request and push to `main` runs
+`entwine check` through [`entwine.yml`](../.github/workflows/entwine.yml); it publishes nothing. GitHub
+Pages serves only a redirect to the Doqs documentation (`deploy-docs-redirect` in `ci.yml`).
 
 ## Local commands
 

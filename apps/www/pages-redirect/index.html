@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Strata documentation has moved</title>
+    <meta name="robots" content="noindex" />
+    <link rel="canonical" href="https://strata-www.pages.dev/docs" />
+    <meta http-equiv="refresh" content="0; url=https://strata-www.pages.dev/docs" />
+    <script>
+      // Deployed as both index.html and 404.html, so old deep links land on their new page.
+      const moved = {
+        "GETTING-STARTED": "/docs/getting-started",
+        COMPATIBILITY: "/docs/compatibility",
+        INTEGRATIONS: "/docs/integrations",
+      };
+      const page = location.pathname.replace(/^\/Strata\/?/, "").replace(/\/$/, "");
+      location.replace(`https://strata-www.pages.dev${moved[page] ?? "/docs"}${location.hash}`);
+    </script>
+  </head>
+  <body>
+    <p>
+      The Strata documentation has moved to
+      <a href="https://strata-www.pages.dev/docs">strata-www.pages.dev/docs</a>.
+    </p>
+  </body>
+</html>
