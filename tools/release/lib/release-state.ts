@@ -1,7 +1,8 @@
 import { readdirSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 
-import { planDistTags } from "./dist-tags.ts";
+import { VERSION_VISIBILITY, isPrerelease, planDistTags } from "./dist-tags.ts";
+import type { RetryBound } from "./dist-tags.ts";
 import type { RegistryReader } from "./registry.ts";
 
 /**
@@ -75,10 +76,24 @@ const blocked = (reason: string): ReleaseDecision => ({
   published: [],
 });
 
+/**
+ * One `major` Changeset outside pre mode, or `changeset pre exit`, versions a package to a stable
+ * `1.0.0`, and nothing else in the flow would stop that from publishing to `latest`. A stable 1.x is
+ * the General Availability decision of docs/RELEASE-1.0.md, so it needs an explicit, separate
+ * authorization: the repository variable STRATA_RELEASE_STABLE_1_0 set to "authorized".
+ */
+function unauthorizedStable(packages: readonly LocalPackage[]): string | undefined {
+  return packages.find(
+    ({ version }) => Number(version.split(".")[0]) >= 1 && !isPrerelease(version),
+  )?.name;
+}
+
 export async function classifyRelease(input: {
   readonly changesets: ChangesetCounts;
   readonly packages: readonly LocalPackage[];
   readonly readRegistry: RegistryReader;
+  /** The maintainer's explicit General Availability authorization. */
+  readonly stableAuthorized?: boolean;
 }): Promise<ReleaseDecision> {
   const { changesets, readRegistry } = input;
   const packages = input.packages.filter((pkg) => !pkg.private);
@@ -98,12 +113,19 @@ export async function classifyRelease(input: {
     }
   }
 
+  const stable = input.stableAuthorized ? undefined : unauthorizedStable(packages);
+  if (stable) {
+    return blocked(
+      `${stable} is a stable 1.x version: General Availability needs STRATA_RELEASE_STABLE_1_0=authorized (docs/RELEASE-1.0.md)`,
+    );
+  }
+
   const published: string[] = [];
   const unpublished: string[] = [];
 
   for (const pkg of packages) {
     try {
-      const lookup = await readRegistry(pkg.name);
+      const lookup = await readRegistry(pkg.name, pkg.version);
       const present = lookup.status === "found" && pkg.version in lookup.versions;
       (present ? published : unpublished).push(pkg.name);
     } catch (error) {
@@ -175,6 +197,10 @@ export interface PublicationVerdict {
 export async function verifyPublication(input: {
   readonly packages: readonly LocalPackage[];
   readonly readRegistry: RegistryReader;
+  /** Downloads a tarball and returns its integrity; requires an authoritative reader. */
+  readonly readTarballIntegrity?: (tarball: string) => Promise<string>;
+  /** Packages that must carry an npm provenance attestation: the ones this run published. */
+  readonly requireProvenance?: ReadonlySet<string>;
 }): Promise<PublicationVerdict> {
   const packages = input.packages.filter((pkg) => !pkg.private);
   const local = new Map(packages.map((pkg) => [pkg.name, pkg]));
@@ -183,7 +209,7 @@ export async function verifyPublication(input: {
   for (const pkg of packages) {
     let lookup;
     try {
-      lookup = await input.readRegistry(pkg.name);
+      lookup = await input.readRegistry(pkg.name, pkg.version);
     } catch (error) {
       problems.push(
         `${pkg.name}: registry unreadable (${error instanceof Error ? error.message : String(error)})`,
@@ -209,6 +235,29 @@ export async function verifyPublication(input: {
     for (const { tag, from, to } of planDistTags(lookup.distTags, pkg.version)) {
       problems.push(`${pkg.name} dist-tag "${tag}" is ${from ?? "absent"}, expected ${to}`);
     }
+
+    if (input.requireProvenance?.has(pkg.name) && !published.dist?.provenance) {
+      problems.push(`${pkg.name}@${pkg.version} has no npm provenance attestation`);
+    }
+
+    if (input.readTarballIntegrity) {
+      if (!published.dist) {
+        problems.push(`${pkg.name}@${pkg.version} has no dist metadata to verify`);
+        continue;
+      }
+      try {
+        const actual = await input.readTarballIntegrity(published.dist.tarball);
+        if (actual !== published.dist.integrity) {
+          problems.push(
+            `${pkg.name}@${pkg.version} tarball integrity ${actual} does not match the registry's ${published.dist.integrity}`,
+          );
+        }
+      } catch (error) {
+        problems.push(
+          `${pkg.name}@${pkg.version}: tarball unreadable (${error instanceof Error ? error.message : String(error)})`,
+        );
+      }
+    }
   }
 
   return { ok: problems.length === 0, problems };
@@ -226,11 +275,7 @@ export async function verifyPublication(input: {
 export async function verifyPublicationEventually(
   verify: () => Promise<PublicationVerdict>,
   wait: (ms: number) => Promise<void>,
-  options: { attempts: number; firstDelayMs: number; maxDelayMs: number } = {
-    attempts: 6,
-    firstDelayMs: 2_000,
-    maxDelayMs: 16_000,
-  },
+  options: RetryBound = VERSION_VISIBILITY,
 ): Promise<PublicationVerdict & { readonly attempts: number }> {
   let delay = options.firstDelayMs;
   let verdict = await verify();

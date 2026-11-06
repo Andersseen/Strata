@@ -24,17 +24,19 @@ export type Side = "a" | "b";
  * after 413 patch), on BOTH arms: the only package that differs between A and B stays
  * @strata-sc/server-components, whose client assets are what the skew and rollback checks exercise.
  * The M5 runs used analog 0.12.0 on both arms (docs/research/m5-production-qualification.md).
+ * Since 2026-11-06 both arms carry the real `/ssr` entry. A pair across that boundary cannot run: the
+ * older arm needs the consumer recipe, so the two installations would no longer share one source.
  */
 export const DEFAULT_PAIR: Readonly<Record<Side, VersionTuple>> = {
   a: {
     "@strata-sc/core": "0.2.2",
     "@strata-sc/analog": "0.12.1",
-    "@strata-sc/server-components": "0.13.0",
+    "@strata-sc/server-components": "0.15.0",
   },
   b: {
     "@strata-sc/core": "0.2.2",
     "@strata-sc/analog": "0.12.1",
-    "@strata-sc/server-components": "0.14.0",
+    "@strata-sc/server-components": "0.16.0",
   },
 };
 

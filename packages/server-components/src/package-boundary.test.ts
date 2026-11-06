@@ -236,7 +236,7 @@ describe("ssr entry", () => {
     }
   });
 
-  it("holds failure state only in a WeakMap keyed by the request's response object", () => {
+  it("holds no module state: failure state lives on the request's own response object", () => {
     for (const name of files) {
       const source = readFileSync(join(ssrDir, name), "utf8");
 
@@ -245,7 +245,7 @@ describe("ssr entry", () => {
       expect(
         moduleState.map(([, binding, kind]) => `${binding}:${kind}`),
         name,
-      ).toEqual(name === "failure-contract.ts" ? ["rendering:WeakMap"] : []);
+      ).toEqual([]);
       expect(source, name).not.toMatch(/^let /m);
     }
   });

@@ -1,5 +1,12 @@
 # Technical risk register
 
+RC0 qualification (2026-11-06, [report](research/rc0-production-qualification.md)): the recurring Release failure was
+misdiagnosed as read lag; `npm publish` returns 56 to 96 s before npm commits the version. Fixed in tooling, with no
+real publish observed yet. A failed run could not recover while Changesets were pending; it now can. The `/ssr` risk
+of a silent HTTP 200 with duplicated installs is closed for current versions; two copies both at ≤ 0.16 remain
+undetectable. New accepted behaviour: a broken `/ssr` composition fails every request. Open: #117 transitions; Cloudflare
+isolate cold start and memory; no persistent Node deployment.
+
 Pre-1.0 hardening (2026-11-05, [report](research/pre1-runtime-hardening.md)): F6 (per-isolate authorization counters) and a residual of F5
 (byte comparison in the full-stack concurrency round) are resolved and deployed-qualified. F7 (Pages
 alias convergence) and F9 (double document request) were not reproduced; F7 keeps the immutable-artifact

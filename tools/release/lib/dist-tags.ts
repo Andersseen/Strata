@@ -100,12 +100,60 @@ export function planDistTags(
   return changes;
 }
 
-/** How long a dist-tag update may take to become visible on the registry, and how often to look. */
-export const DIST_TAG_VISIBILITY = {
-  attempts: 6,
+/** A bounded backoff: `attempts` reads, the delay doubling from `firstDelayMs` up to `maxDelayMs`. */
+export interface RetryBound {
+  readonly attempts: number;
+  readonly firstDelayMs: number;
+  readonly maxDelayMs: number;
+}
+
+/**
+ * Publication has three separate states, and each bound below belongs to one transition
+ * (docs/research/rc0-production-qualification.md, "Publication visibility"):
+ *
+ *   ACCEPTED    `npm publish` / `changeset publish` returned success
+ *   COMMITTED   the uncached `/<name>/<version>` document answers with its integrity
+ *   PROPAGATED  the CDN-cached abbreviated packument `npm install` reads shows it too
+ *
+ * ACCEPTED is not COMMITTED. The registry's own `time[version]` of the last three provenance
+ * publishes is 56 s (server-components 0.14.0), 76 s (server-components 0.15.0) and 96 s (analog
+ * 0.12.1) AFTER changeset printed "Successfully published". The previous 46 s bound could not
+ * survive that: Release run 42181130222 gave up 25 s before npm committed 0.15.0.
+ *
+ * VERSION_VISIBILITY allows about 10.5 minutes, 6.6 times the worst measurement.
+ */
+export const VERSION_VISIBILITY: RetryBound = {
+  attempts: 24,
+  firstDelayMs: 5_000,
+  maxDelayMs: 30_000,
+};
+
+/** A dist-tag write read back on the uncached endpoint: about 1.8 minutes (longest seen: 8 s). */
+export const DIST_TAG_VISIBILITY: RetryBound = {
+  attempts: 10,
   firstDelayMs: 2_000,
   maxDelayMs: 16_000,
-} as const;
+};
+
+/** The packuments carry `max-age=300`: one full CDN lifetime plus margin, about 8 minutes. */
+export const PACKUMENT_PROPAGATION: RetryBound = {
+  attempts: 18,
+  firstDelayMs: 15_000,
+  maxDelayMs: 30_000,
+};
+
+/** The total wait a bound allows. */
+export function boundMs({ attempts, firstDelayMs, maxDelayMs }: RetryBound): number {
+  let total = 0;
+  let delay = firstDelayMs;
+
+  for (let attempt = 1; attempt < attempts; attempt++) {
+    total += delay;
+    delay = Math.min(delay * 2, maxDelayMs);
+  }
+
+  return total;
+}
 
 /**
  * Re-reads the dist-tags after an update until they comply, a bounded number of times.
@@ -117,16 +165,16 @@ export const DIST_TAG_VISIBILITY = {
  * are an error carrying the last tags read.
  */
 export async function awaitCompliantDistTags(
-  read: () => Readonly<Record<string, string>>,
+  read: () => Readonly<Record<string, string>> | Promise<Readonly<Record<string, string>>>,
   version: string,
   wait: (ms: number) => Promise<void>,
-  options: { attempts: number; firstDelayMs: number; maxDelayMs: number } = DIST_TAG_VISIBILITY,
+  options: RetryBound = DIST_TAG_VISIBILITY,
 ): Promise<{ readonly tags: Readonly<Record<string, string>>; readonly attempts: number }> {
   let delay = options.firstDelayMs;
   let tags: Readonly<Record<string, string>> = {};
 
   for (let attempt = 1; attempt <= options.attempts; attempt++) {
-    tags = read();
+    tags = await read();
     if (planDistTags(tags, version).length === 0) return { tags, attempts: attempt };
     if (attempt < options.attempts) {
       await wait(delay);
@@ -140,27 +188,50 @@ export async function awaitCompliantDistTags(
 }
 
 /**
+ * A version npm accepted that the bound never saw committed. Deliberately not "publish failed":
+ * the version may still appear, so the remedy is a re-run, never a republish.
+ */
+export class VersionVisibilityLag extends Error {
+  override readonly name = "VersionVisibilityLag";
+}
+
+/**
  * After `changeset publish` reported success, npm may not show the new VERSION for a while
  * (Release run 42034642481: published, then "not on npm; skipping" seconds later, so `next` was
- * never moved and verification failed). A package this run published is therefore re-read with
- * the same bounded backoff instead of being skipped, and is an error if it never appears.
+ * never moved and verification failed; run 42181130222: not visible after 46 s, committed at 76 s).
+ * A package this run published is therefore re-read with a bounded backoff instead of being
+ * skipped. A read that throws (timeout, 5xx) counts as "not yet" and is named in the final error,
+ * so an outage reads differently from lag.
  */
 export async function awaitVersionVisible(
   isVisible: () => boolean | Promise<boolean>,
   wait: (ms: number) => Promise<void>,
-  options: { attempts: number; firstDelayMs: number; maxDelayMs: number } = DIST_TAG_VISIBILITY,
+  options: RetryBound = VERSION_VISIBILITY,
 ): Promise<number> {
   let delay = options.firstDelayMs;
+  let unreadable: string | undefined;
 
   for (let attempt = 1; attempt <= options.attempts; attempt++) {
-    if (await isVisible()) return attempt;
+    try {
+      if (await isVisible()) return attempt;
+      unreadable = undefined;
+    } catch (error) {
+      unreadable = error instanceof Error ? error.message : String(error);
+    }
     if (attempt < options.attempts) {
       await wait(delay);
       delay = Math.min(delay * 2, options.maxDelayMs);
     }
   }
 
-  throw new Error(
-    `the published version is still not visible on npm after ${options.attempts} reads`,
+  const span = `${options.attempts} reads over ${Math.round(boundMs(options) / 1000)} s`;
+
+  if (unreadable !== undefined) {
+    throw new Error(`the registry was unreadable on the last of ${span}: ${unreadable}`);
+  }
+
+  throw new VersionVisibilityLag(
+    `VISIBILITY LAG: npm accepted this publish but the version is still not committed after ${span}. ` +
+      "Do not republish. Re-run the failed Release job: it is idempotent and resumes from the registry state.",
   );
 }

@@ -8,6 +8,7 @@ Only the next actionable slice receives a detailed spec. Milestone-level intent 
 | [SPEC-001: packed consumer compilation baseline](001-packed-consumer-compilation.md)                        | Blocked   | `9d2635e` | M1        |
 | [SPEC-002: H3 consumer type closure](002-h3-consumer-type-closure.md)                                       | Blocked   | `f258fc3` | M1        |
 | [SPEC-003: Analog request lifecycle and Angular DI feasibility](003-analog-request-lifecycle-angular-di.md) | In review | `c671ba4` | M2        |
+| [SPEC-004: First 1.0 release candidate](004-first-release-candidate.md)                                     | Ready     | `ff3f1a4` | M5        |
 
 Two tracks run side by side. **H3 consumer qualification** (SPEC-001, SPEC-002): both were
 executed and remain Blocked; SPEC-002's measured no-go is upstream-blocked by H3/crossws

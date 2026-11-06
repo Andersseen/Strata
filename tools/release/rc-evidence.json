@@ -1,0 +1,77 @@
+{
+  "schema": 1,
+  "target": "1.0.0-rc.0",
+  "candidate": "ea580f018a43b7cf6493f0927844f7002600788d",
+  "rows": [
+    {
+      "id": "release-pipeline-observed",
+      "requirement": "One real Release run through the visibility fix, without manual repair",
+      "gate": "blocker",
+      "rank": 1,
+      "status": "NOT RUN",
+      "candidate": null,
+      "link": null,
+      "note": "needs this PR merged and a real publish"
+    },
+    {
+      "id": "published-tuple-requalified",
+      "requirement": "Frozen, deployed and A/B qualification of the tuple that contains the /ssr fix",
+      "gate": "blocker",
+      "rank": 2,
+      "status": "NOT RUN",
+      "candidate": null,
+      "link": null,
+      "note": "the /ssr fix is unpublished; recapture after the next publish"
+    },
+    {
+      "id": "support-contract-review",
+      "requirement": "Maintainer review of the RC0 support contract",
+      "gate": "blocker",
+      "rank": 3,
+      "status": "NOT RUN",
+      "candidate": null,
+      "link": null,
+      "note": "proposed in docs/COMPATIBILITY.md"
+    },
+    {
+      "id": "real-application",
+      "requirement": "A real application on the production path",
+      "gate": "accepted",
+      "rank": 1,
+      "status": "NOT RUN",
+      "candidate": null,
+      "link": null,
+      "note": "separately authorized; required for GA"
+    },
+    {
+      "id": "persistent-node",
+      "requirement": "A persistent Node deployment",
+      "gate": "accepted",
+      "rank": 2,
+      "status": "NOT RUN",
+      "candidate": null,
+      "link": null,
+      "note": "no authorized target; hosted production-process evidence only"
+    },
+    {
+      "id": "cloudflare-cold-start-memory",
+      "requirement": "Cloudflare isolate cold start and Worker memory",
+      "gate": "accepted",
+      "rank": 3,
+      "status": "NOT RUN",
+      "candidate": null,
+      "link": null,
+      "note": "the platform exposes no reliable measurement"
+    },
+    {
+      "id": "issue-117-transitions",
+      "requirement": "Hosted pending and stale-main Release transitions",
+      "gate": "accepted",
+      "rank": 4,
+      "status": "NOT RUN",
+      "candidate": null,
+      "link": null,
+      "note": "issue #117 stays open; simulated evidence does not count"
+    }
+  ]
+}

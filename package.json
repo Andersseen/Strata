@@ -67,6 +67,9 @@
     "test:server-component-authorization": "node --experimental-strip-types tools/server-components/authorization.ts",
     "test:server-component-failures": "node --experimental-strip-types tools/server-components/failures.ts",
     "test:server-component-ssr-response": "node --experimental-strip-types tools/server-components/ssr-response.ts",
+    "test:node-production": "node --experimental-strip-types tools/server-components/node-production.ts",
+    "test:node-production:frozen": "node --experimental-strip-types tools/server-components/node-production.ts --frozen",
+    "test:server-component-ssr-duplicate-install": "node --experimental-strip-types tools/server-components/ssr-duplicate-install.ts",
     "test:server-component-dev": "node --experimental-strip-types tools/server-components/dev.ts",
     "test:full-stack-package-consumer": "node --experimental-strip-types tools/server-components/full-stack-consumer.ts",
     "test:full-stack-multi-isolate": "node --experimental-strip-types tools/server-components/multi-isolate.ts",
@@ -101,6 +104,8 @@
     "release:packages:dry-run": "node --experimental-strip-types tools/release/publish-packages.ts --dry-run",
     "release:state": "node --experimental-strip-types tools/release/release-state.ts classify",
     "release:verify": "node --experimental-strip-types tools/release/release-state.ts verify",
+    "release:rc:check": "node --experimental-strip-types tools/release/rc-readiness.ts",
+    "release:rc:rehearse": "node --experimental-strip-types tools/release/rc-readiness.ts --report --prerelease-dry-run",
     "release:sync-dist-tags": "node --experimental-strip-types tools/release/sync-dist-tags.ts",
     "release:sync-dist-tags:dry-run": "node --experimental-strip-types tools/release/sync-dist-tags.ts --dry-run"
   },

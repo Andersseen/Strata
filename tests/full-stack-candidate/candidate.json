@@ -1,9 +1,9 @@
 {
   "schema": 1,
-  "id": "402f33e953f9a04b",
-  "capturedAt": "2026-11-05T15:49:23.160Z",
-  "sourceSha": "419359f71f5ee7c0873a6d1e854d9b49fc695ffc",
-  "fixtureSourceDigest": "d3dd7119a712d253fd8c00f5bc927293cc4293e39a6d9b483d1aeaa728d45761",
+  "id": "893a15145303f585",
+  "capturedAt": "2026-11-06T11:04:12.637Z",
+  "sourceSha": "9e2bba95dff4529c6366866df9493ac5e56b29c5",
+  "fixtureSourceDigest": "672c64d904411155224ac20f952c50e224b5be690da49f275d63d28e2ad2dc0c",
   "registry": "https://registry.npmjs.org",
   "strata": {
     "@strata-sc/core": {
@@ -17,9 +17,9 @@
       "integrity": "sha512-0ytlP1rpn5zNhUUtFo2gB6oQzvim8h9jxNBFwMYyavnnUqgHbZYauXeDQXX6Q16Aa/a+wLkMAcqwGIfqLmV4aw=="
     },
     "@strata-sc/server-components": {
-      "version": "0.14.0",
-      "tarball": "https://registry.npmjs.org/@strata-sc/server-components/-/server-components-0.14.0.tgz",
-      "integrity": "sha512-GoaNuTU/cOJgVme9hyXziAjD7bmszRmxZUah8yaDUcrMv7T5Kw/qgH4IJSqILs6Q8Ng78VssKq5MXugQWkj7bw=="
+      "version": "0.16.0",
+      "tarball": "https://registry.npmjs.org/@strata-sc/server-components/-/server-components-0.16.0.tgz",
+      "integrity": "sha512-4MRsUyFqn5SzOu4HJGSeBfLP3gcsuGiJ8sPzcC6qMMvlDTJ15MqvpnlSifYejPFdpMmVq7OjDVfdz79rI/psPg=="
     }
   },
   "direct": {
@@ -33,7 +33,7 @@
       "@angular/router": "22.2.3",
       "@strata-sc/analog": "0.12.1",
       "@strata-sc/core": "0.2.2",
-      "@strata-sc/server-components": "0.14.0",
+      "@strata-sc/server-components": "0.16.0",
       "h3": "1.15.11",
       "rxjs": "7.8.2",
       "zod": "4.6.5",
@@ -54,12 +54,12 @@
   },
   "trees": {
     "consumer": {
-      "digest": "29a0d6045b3f5e9f49291aee7fad48411d083fab37acb97139387fafb786355b",
+      "digest": "1ab63a8dcd137941eef6c9c65131d3f11615d31c53fa7861d27ec3d1bf9e5ef2",
       "packages": 869,
       "lockfileVersion": 3
     },
     "consumer-ts59": {
-      "digest": "97059fbec7c5cf519854395444515f940a755cbbfd69a612a8c166822ce7a896",
+      "digest": "de2fc479aadfce142b29a291996b6717350afe6ad6bc7c72241b523c99c2e235",
       "packages": 80,
       "lockfileVersion": 3
     }

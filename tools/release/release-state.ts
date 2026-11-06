@@ -2,8 +2,13 @@ import { appendFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { PACKUMENT_PROPAGATION } from "./lib/dist-tags.ts";
 import { readManifest, REGISTRY_PACKAGES } from "./lib/packages.ts";
-import { createRegistryReader } from "./lib/registry.ts";
+import {
+  createAuthoritativeReader,
+  createRegistryReader,
+  createTarballIntegrityReader,
+} from "./lib/registry.ts";
 import {
   classifyRelease,
   countChangesets,
@@ -20,10 +25,18 @@ import {
  *              non-zero on BLOCKED. With --prepare, PUBLISH_REQUIRED also
  *              removes empty Changesets from the release checkout (never
  *              committed) so changesets/action runs its publish script.
- *   verify     fail unless the registry holds every public package at its
- *              exact manifest version with the right dependencies and dist-tags.
- *              Tag and GitHub Release gaps for the packages this run published
- *              (--published, comma-separated) are reported as warnings.
+ *   verify     COMMITTED: fail unless the uncached registry endpoints hold every
+ *              public package at its exact manifest version with the right
+ *              dependencies and dist-tags, a tarball matching its recorded
+ *              integrity and, for the packages this run published (--published,
+ *              comma-separated), a provenance attestation.
+ *              PROPAGATED: then fail unless the CDN-cached packument `npm install`
+ *              reads shows the same state, reported separately: that failure
+ *              means "committed, not yet installable", never "republish".
+ *              Tag and GitHub Release gaps for --published are warnings.
+ *
+ * Every decision reads the authoritative endpoints: a stale packument must not
+ * make a committed version look unpublished.
  */
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -34,7 +47,7 @@ const published = (rest.find((arg) => arg.startsWith("--published="))?.split("="
   .filter(Boolean);
 
 const packages = REGISTRY_PACKAGES.map(({ dir }) => readManifest(join(repoRoot, dir)));
-const readRegistry = createRegistryReader();
+const readRegistry = createAuthoritativeReader();
 
 function output(name: string, value: string): void {
   if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `${name}=${value}\n`);
@@ -59,7 +72,12 @@ async function githubHas(path: string): Promise<boolean | undefined> {
 
 if (command === "classify") {
   const changesets = countChangesets(join(repoRoot, ".changeset"));
-  const decision = await classifyRelease({ changesets, packages, readRegistry });
+  const decision = await classifyRelease({
+    changesets,
+    packages,
+    readRegistry,
+    stableAuthorized: process.env["STRATA_RELEASE_STABLE_1_0"] === "authorized",
+  });
 
   output("state", decision.state);
   output("unpublished", decision.unpublished.join(","));
@@ -81,12 +99,27 @@ if (command === "classify") {
     process.exitCode = 1;
   }
 } else if (command === "verify") {
-  // Bounded re-reads while a just-published version is not yet visible (Release run
-  // 42034642481); any other problem, or one that persists, still fails.
+  // Bounded re-reads while a just-published version is not yet committed (Release runs
+  // 42034642481 and 42181130222); any other problem, or one that persists, still fails.
+  const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
   const verdict = await verifyPublicationEventually(
-    () => verifyPublication({ packages, readRegistry }),
-    (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    () =>
+      verifyPublication({
+        packages,
+        readRegistry,
+        readTarballIntegrity: createTarballIntegrityReader(),
+        requireProvenance: new Set(published),
+      }),
+    wait,
   );
+  // Only meaningful once committed; the bound covers one full `max-age=300` CDN lifetime.
+  const propagation = verdict.ok
+    ? await verifyPublicationEventually(
+        () => verifyPublication({ packages, readRegistry: createRegistryReader() }),
+        wait,
+        PACKUMENT_PROPAGATION,
+      )
+    : undefined;
 
   for (const name of published) {
     const version = packages.find((pkg) => pkg.name === name)?.version;
@@ -98,10 +131,19 @@ if (command === "classify") {
       console.log(`::warning::GitHub Release ${name}@${version} is missing`);
   }
 
-  if (verdict.ok) {
+  if (verdict.ok && propagation?.ok) {
     summary(
-      "### Registry verification: PASS\nEvery public package is on npm at its manifest version.",
+      `### Registry verification: PASS\nEvery public package is committed on npm at its manifest version (${verdict.attempts} read(s)) and visible to \`npm install\` (${propagation.attempts} read(s)).`,
     );
+  } else if (verdict.ok) {
+    const problems = propagation?.problems ?? [];
+    summary(
+      `### Registry verification: PROPAGATION LAG\nCommitted on npm, but the cached packument \`npm install\` reads is still behind:\n- ${problems.join("\n- ")}\n\nDo not republish. Re-run this job once the CDN catches up.`,
+    );
+    console.error(
+      `::error::Propagation lag (committed, not yet installable):\n${problems.join("\n")}`,
+    );
+    process.exitCode = 1;
   } else {
     summary(`### Registry verification: FAIL\n- ${verdict.problems.join("\n- ")}`);
     console.error(`::error::Registry verification failed:\n${verdict.problems.join("\n")}`);

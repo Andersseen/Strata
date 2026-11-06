@@ -202,12 +202,17 @@ export async function islandsSmoke({
       const deadline = Date.now() + timeoutMs;
       let settled: Record<string, string> = await statusesOf();
 
-      // The handler exists only once THIS island is hydrated: click until it answers.
-      while (Date.now() < deadline) {
-        await page.click(clickable, { force: true, timeout: 2_000 });
+      const issued = (): number =>
+        tracked.requests.filter((request) => request.url.endsWith(spec.apiPath)).length;
+      const answered = (): boolean => settled[spec.id] !== spec.initial && settled[spec.id] !== "";
+
+      // The handler exists only once THIS island is hydrated: click until it answers. A request
+      // already on its way IS the answer: clicking again while a cold workerd isolate takes over
+      // 150 ms would add a second, legitimate request and fail the exactly-one check below.
+      while (Date.now() < deadline && !answered()) {
+        if (issued() === 0) await page.click(clickable, { force: true, timeout: 2_000 });
         await new Promise((resolve) => setTimeout(resolve, 150));
         settled = await statusesOf();
-        if (settled[spec.id] !== spec.initial && settled[spec.id] !== "") break;
       }
 
       const shape = await evaluate<{ count: number; reused: boolean }>(

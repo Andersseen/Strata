@@ -71,9 +71,64 @@ qualified with the equivalent consumer-owned recipe
 (`tests/full-stack-package-consumer/recipes/ssr-failure-contract.ts`). Streaming SSR and
 already-committed responses are not covered.
 
-## Frozen release candidate (2026-11-05, recaptured)
+## RC0 support contract
 
-Current: `402f33e953f9a04b` (core 0.2.2 / **analog 0.12.1** / server-components 0.14.0), recaptured from
+Proposed 2026-11-06 for maintainer review ([report](research/rc0-production-qualification.md),
+[SPEC-004](specs/004-first-release-candidate.md)). No RC exists yet. This narrows what an RC may promise and
+changes no API.
+
+**Tuple.** Node 22; Angular 22.2.3; Analog 2.7.2; Vite 8.3.0; Nitro 2.13.4; H3 1.15.11; TypeScript 6.0.3 or 5.9.2;
+Wrangler 4.135.0; compatibility date 2026-09-21, no flags. One exact tuple, not a range.
+
+### Supported for RC evaluation
+
+| Capability                                          | Evidence                                                        |
+| --------------------------------------------------- | --------------------------------------------------------------- |
+| Node 22 with Nitro `node-server`                    | PRODUCTION PROCESS on hosted Linux; no persistent deployment    |
+| Cloudflare Pages, pinned compatibility settings     | DEPLOYED, source-packed and published                           |
+| Standard decorators and the reviewed public API     | installed declarations = runtime exports = inventory            |
+| Buffered Server Component SSR                       | packed, published, deployed                                     |
+| Opt-in `/ssr` failure handling                      | packed, deployed; integration refusal on Node and local workerd |
+| Explicit document navigation                        | Chromium, packed and deployed                                   |
+| Installed Angular client islands                    | packed, Chromium                                                |
+| Application-owned authorization, request isolation  | packed, multi-isolate, adversarial, deployed                    |
+| Graph confidentiality of **explicitly marked** code | tarballs, Node and workerd builds                               |
+| Serialization and boundary protocol v1/v2           | unchanged; `1`/`2` accepted as documented                       |
+| Build identity, bounded skew recovery               | deployed A/B on published tuples                                |
+| Release, retained-artifact rollback                 | deployed A/B on published tuples                                |
+
+### Experimental
+
+| Capability                         | Limitation                                                             |
+| ---------------------------------- | ---------------------------------------------------------------------- |
+| `@defer` and hydration composition | documented rules only; no real application                             |
+| Controller `serverFn` coexistence  | Node only                                                              |
+| `streamResponse()`                 | finite bodies; no failure signal after a body fails; buffered on Pages |
+| Observation and correlation hooks  | not tracing or telemetry                                               |
+| Angular DI in controllers          | Node; not shared with SSR                                              |
+
+### Unsupported
+
+| Capability                                       | Reason                                                          |
+| ------------------------------------------------ | --------------------------------------------------------------- |
+| Angular JIT-dependent integrations on workerd    | upstream; fails safely                                          |
+| Streaming SSR                                    | the `/ssr` contract covers buffered rendering only              |
+| Client-disconnect cancellation                   | no transport signal through the pinned adapters                 |
+| Router subtree Server Component activation       | document navigation only                                        |
+| `@strata-sc/h3` and its H3 v2 adapter            | private; upstream strict-type blockers (SPEC-002)               |
+| Confidentiality of unmarked modules              | ownership only; mark them `server-only`                         |
+| Duplicated Strata or Angular installs            | `/ssr` refuses incompatible ones; other entries are unqualified |
+| Other package compositions or framework versions | not qualified                                                   |
+
+## Frozen release candidate (2026-11-06)
+
+Current: `893a15145303f585` (core 0.2.2 / analog 0.12.1 / **server-components 0.16.0**), the first line with the real
+`/ssr` export and the PR #175 graph hardening as published. Source-packed work is a separate candidate
+([report](research/rc0-production-qualification.md)).
+
+## Previous frozen candidate (2026-11-05, recaptured)
+
+Then current: `402f33e953f9a04b` (core 0.2.2 / **analog 0.12.1** / server-components 0.14.0), recaptured from
 a passing fresh registry run and reproduced with `npm ci`; consumer lock 869 packages, TS 5.9 lock 80,
 same toolchain as below ([report](research/pre1-runtime-hardening.md)). The previous candidate,
 kept as history below, used analog 0.12.0.

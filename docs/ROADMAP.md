@@ -1,5 +1,10 @@
 # Roadmap to 1.0
 
+**RC0 qualification (2026-11-06, [report](research/rc0-production-qualification.md)).** M5 now has a defined route:
+[SPEC-004](specs/004-first-release-candidate.md), a proposed [support contract](COMPATIBILITY.md#rc0-support-contract) and
+an executable gate. RC0 is NO-GO until the fixed pipeline publishes and that tuple is requalified. GA still needs
+real-application adoption, a separately authorized task.
+
 **Pre-1.0 hardening (2026-11-05, [report](research/pre1-runtime-hardening.md)).** M4: the general unexpected-render response seam is no longer
 missing; an application-owned contract over public APIs is qualified (packed, local workerd, deployed),
 and whether Strata exports it is the next API decision. M5: the full-stack deployed qualification and
