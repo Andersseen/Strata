@@ -972,6 +972,16 @@ async function islandNegativeControls(armD: ArmState, record: RecordControl): Pr
       "the stock island's API request is aborted: its state never updates (arm D, Node)",
       { island: "stock", kind: "block-api" },
     ],
+    [
+      "island-duplicate-request",
+      "each stock click issues a second request: exactly-one must see it (arm D, Node)",
+      { island: "stock", kind: "duplicate-request" },
+    ],
+    [
+      "island-replay-lost",
+      "the queued early clicks are dropped before replay: the replay proof must see it (arm D, Node)",
+      { island: "availability", kind: "lose-replay" },
+    ],
   ];
 
   // One of three islands missing from the server render.
