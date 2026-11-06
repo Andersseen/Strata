@@ -326,9 +326,11 @@ export const RC_REQUIREMENTS: readonly RcRequirement[] = [
   },
 ];
 
-/** A change to any of these invalidates `release-pipeline-observed`. */
+/**
+ * A change to any of these invalidates `release-pipeline-observed`. The Changesets configuration is
+ * not one: entering the RC line changes it on purpose, and the candidate's identity records it.
+ */
 export const RELEASE_PIPELINE_PATHS: readonly RegExp[] = [
-  /^tools\/release\//,
+  /^tools\/release\/(?!rc-evidence\.json$)/,
   /^\.github\/workflows\/release\.yml$/,
-  /^\.changeset\/config\.json$/,
 ];

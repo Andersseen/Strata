@@ -1,5 +1,12 @@
 # Technical risk register
 
+RC0 blocker closure (2026-11-06, [report](research/rc0-production-qualification.md)): the workerd port race is closed
+at its cause. Node and Vite harness servers keep a much smaller pick-then-bind window. The three-island double request
+was a harness defect, not a runtime one. Open: run 42220794647's Analog G2 trace variation, unreproduced in 12 local
+builds and unexplained, on an upstream characterization outside the supported path; it failed `main` and blocked
+Release once, and now prints its evidence instead of failing on the listing. New dependency: the smoke detects
+hydration through Angular's private `__ngContext__`, so a rename fails every smoke rather than passing one.
+
 RC0 qualification (2026-11-06, [report](research/rc0-production-qualification.md)): the recurring Release failure was
 misdiagnosed as read lag; `npm publish` returns 56 to 96 s before npm commits the version. Fixed in tooling, with no
 real publish observed yet. A failed run could not recover while Changesets were pending; it now can. The `/ssr` risk

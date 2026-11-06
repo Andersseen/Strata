@@ -74,51 +74,83 @@ already-committed responses are not covered.
 ## RC0 support contract
 
 Proposed 2026-11-06 for maintainer review ([report](research/rc0-production-qualification.md),
-[SPEC-004](specs/004-first-release-candidate.md)). No RC exists yet. This narrows what an RC may promise and
-changes no API.
+[SPEC-004](specs/004-first-release-candidate.md)). No RC exists yet. This narrows what an RC may promise. Ids
+are stable; cite them instead of a table position.
 
-**Tuple.** Node 22; Angular 22.2.3; Analog 2.7.2; Vite 8.3.0; Nitro 2.13.4; H3 1.15.11; TypeScript 6.0.3 or 5.9.2;
-Wrangler 4.135.0; compatibility date 2026-09-21, no flags. One exact tuple, not a range.
+**Strata tuple.** `@strata-sc/core`, `@strata-sc/analog` and `@strata-sc/server-components`, all at the same
+`1.0.0-rc.N`. A mix with any other version, including a `0.x` line, is outside the contract.
+
+**Framework tuple.** Node 22; Angular 22.2.3; Analog 2.7.2; Vite 8.3.0; Nitro 2.13.4; H3 1.15.11; TypeScript 6.0.3 or
+5.9.2; Wrangler 4.135.0; compatibility date 2026-09-21, no flags. One exact tuple, not a range. No peer range
+widens for it.
 
 ### Supported for RC evaluation
 
-| Capability                                          | Evidence                                                        |
-| --------------------------------------------------- | --------------------------------------------------------------- |
-| Node 22 with Nitro `node-server`                    | PRODUCTION PROCESS on hosted Linux; no persistent deployment    |
-| Cloudflare Pages, pinned compatibility settings     | DEPLOYED, source-packed and published                           |
-| Standard decorators and the reviewed public API     | installed declarations = runtime exports = inventory            |
-| Buffered Server Component SSR                       | packed, published, deployed                                     |
-| Opt-in `/ssr` failure handling                      | packed, deployed; integration refusal on Node and local workerd |
-| Explicit document navigation                        | Chromium, packed and deployed                                   |
-| Installed Angular client islands                    | packed, Chromium                                                |
-| Application-owned authorization, request isolation  | packed, multi-isolate, adversarial, deployed                    |
-| Graph confidentiality of **explicitly marked** code | tarballs, Node and workerd builds                               |
-| Serialization and boundary protocol v1/v2           | unchanged; `1`/`2` accepted as documented                       |
-| Build identity, bounded skew recovery               | deployed A/B on published tuples                                |
-| Release, retained-artifact rollback                 | deployed A/B on published tuples                                |
+| Id                   | Capability                                                                 | Evidence                                                        |
+| -------------------- | -------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `SC-NODE`            | Node 22 with Nitro `node-server`                                           | PRODUCTION PROCESS on hosted Linux; no persistent deployment    |
+| `SC-PAGES`           | Cloudflare Pages preset, pinned compatibility settings                     | DEPLOYED, source-packed and published                           |
+| `SC-API`             | Standard decorators and the reviewed public API                            | installed declarations = runtime exports = inventory            |
+| `SC-SSR`             | Buffered Server Component SSR                                              | packed, published, deployed                                     |
+| `SC-SSR-FAILURE`     | Opt-in `/ssr` failure handling, the safe SSR configuration of this profile | packed, deployed; integration refusal on Node and local workerd |
+| `SC-NAVIGATION`      | Explicit document navigation                                               | Chromium, packed and deployed                                   |
+| `SC-ISLANDS`         | Client islands: one and three per page, installed Angular library islands  | packed, Chromium, hydrated and replayed interaction             |
+| `SC-AUTHORIZATION`   | Application-owned authorization, request isolation                         | packed, multi-isolate, adversarial, deployed                    |
+| `SC-CONFIDENTIALITY` | Graph confidentiality of **explicitly marked** code                        | tarballs, Node and workerd builds                               |
+| `SC-PROTOCOL`        | Serialization and boundary protocol v1/v2                                  | unchanged; `1`/`2` accepted as documented                       |
+| `SC-BUILD-IDENTITY`  | Build identity, and one bounded reload on deployment skew                  | deployed A/B on published tuples                                |
+| `SC-ROLLBACK`        | Release, retained-artifact rollback                                        | deployed A/B on published tuples                                |
+
+`SC-SSR-FAILURE` is required for the supported SSR profile: both halves, `withStrataSsrFailureContract` around the
+real Angular render and `provideStrataSsrFailureHandler` in the server application configuration. Without
+them a failed render can still answer HTTP 200.
+
+**Dependencies the contract carries.** The build plugin reads `@angular/compiler` template-AST exports ([R21](RISKS.md))
+and islands hydrate from the `ngh` annotation Angular writes. Both are why this is one exact tuple: another Angular
+version is outside the contract until it is qualified.
+
+**Separate injectors.** Controller Angular DI and SSR rendering do not share an injector, and a request's
+controller scope is not visible to a Server Component. They are two runtimes that happen to use the same library.
 
 ### Experimental
 
-| Capability                         | Limitation                                                             |
-| ---------------------------------- | ---------------------------------------------------------------------- |
-| `@defer` and hydration composition | documented rules only; no real application                             |
-| Controller `serverFn` coexistence  | Node only                                                              |
-| `streamResponse()`                 | finite bodies; no failure signal after a body fails; buffered on Pages |
-| Observation and correlation hooks  | not tracing or telemetry                                               |
-| Angular DI in controllers          | Node; not shared with SSR                                              |
+| Id                 | Capability                         | Limitation                                                                       |
+| ------------------ | ---------------------------------- | -------------------------------------------------------------------------------- |
+| `EX-DEFER`         | `@defer` and hydration composition | the combinations in `pnpm test:server-component-defer` only; no real application |
+| `EX-SERVERFN`      | Controller `serverFn` coexistence  | Node only                                                                        |
+| `EX-STREAM`        | `streamResponse()`                 | finite bodies; no failure signal after a body fails; buffered on Pages           |
+| `EX-OBSERVATION`   | Observation and correlation hooks  | not tracing or telemetry                                                         |
+| `EX-CONTROLLER-DI` | Angular DI in controllers          | Node; not shared with SSR                                                        |
 
 ### Unsupported
 
-| Capability                                       | Reason                                                          |
-| ------------------------------------------------ | --------------------------------------------------------------- |
-| Angular JIT-dependent integrations on workerd    | upstream; fails safely                                          |
-| Streaming SSR                                    | the `/ssr` contract covers buffered rendering only              |
-| Client-disconnect cancellation                   | no transport signal through the pinned adapters                 |
-| Router subtree Server Component activation       | document navigation only                                        |
-| `@strata-sc/h3` and its H3 v2 adapter            | private; upstream strict-type blockers (SPEC-002)               |
-| Confidentiality of unmarked modules              | ownership only; mark them `server-only`                         |
-| Duplicated Strata or Angular installs            | `/ssr` refuses incompatible ones; other entries are unqualified |
-| Other package compositions or framework versions | not qualified                                                   |
+| Id                 | Capability                                                                                     | Reason                                                          |
+| ------------------ | ---------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `NO-JIT-WORKERD`   | Angular JIT-dependent integrations on workerd, including Angular DI controllers and `serverFn` | upstream; fails safely                                          |
+| `NO-STREAMING-SSR` | Streaming SSR                                                                                  | the `/ssr` contract covers buffered rendering only              |
+| `NO-SPA`           | Server Components through SPA or Router subtree navigation                                     | document navigation only                                        |
+| `NO-DISCONNECT`    | Client-disconnect cancellation                                                                 | no transport signal through the pinned adapters                 |
+| `NO-H3-V2`         | `@strata-sc/h3` and its H3 v2 adapter                                                          | private; upstream strict-type blockers (SPEC-002)               |
+| `NO-UNMARKED`      | Confidentiality of unmarked modules                                                            | ownership only; mark them `server-only`                         |
+| `NO-DUPLICATES`    | Duplicated Strata or Angular installs                                                          | `/ssr` refuses incompatible ones; other entries are unqualified |
+| `NO-OTHER`         | Other package compositions or framework versions                                               | not qualified                                                   |
+
+### Migration: `/ssr` in server-components 0.17.0
+
+0.17.0 changes the public types of the opt-in entry, and it changes behaviour.
+
+| Change                                                                            | What to do                                                                                          |
+| --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `provideStrataSsrFailureHandler` returns `EnvironmentProviders`, not `Provider[]` | Register it in the server `ApplicationConfig`. It no longer spreads, and a component cannot host it |
+| `StrataSsrFailurePhase` gains `"integration"`                                     | An exhaustive `switch` or a `Record` over the phases must handle it                                 |
+| A wrapper without a connected provider fails every request with HTTP 500          | Register both halves. A provider without a compatible wrapper rejects the bootstrap                 |
+| The inner render must be a real Angular render                                    | Do not wrap a cache of finished documents                                                           |
+
+The recommended form is compiled in the installed consumer on TypeScript 6 and 5.9
+(`tests/full-stack-package-consumer/fixture/src/check/ssr-migration.ts`). Duplicated copies are refused or
+work only where [the matrix](research/rc0-production-qualification.md#ssr-installation-integrity) says so:
+two copies both at 0.16 or older cannot be detected, and an old wrapper beside a new provider that loads a
+second Angular still answers HTTP 200.
 
 ## Frozen release candidate (2026-11-06)
 

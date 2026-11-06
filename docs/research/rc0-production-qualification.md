@@ -8,7 +8,83 @@ Evidence levels, never interchangeable: UNIT, LOCAL NODE, LOCAL WORKERD, PACKED 
 HOSTED CI, PRODUCTION PROCESS (a real production build and process on a hosted runner), DEPLOYED (a public
 Cloudflare endpoint), REAL APPLICATION.
 
-## Verdict
+## Update: qualification blockers closed (2026-11-06, branch `fix/rc0-qualification-reliability`)
+
+Start: `main` `79f7764`. Published: core 0.2.2, analog 0.12.1, server-components 0.16.0; manifest 0.17.0 is
+versioned (#179) and unpublished, because CI of `79f7764` failed. The sections below keep the first pass's record;
+where they disagree, this one holds.
+
+| Defect                           | Layer    | Cause                                                                               | Resolution                                                              |
+| -------------------------------- | -------- | ----------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `bind(): Address already in use` | harness  | numbers picked from the ephemeral pool, while Wrangler opens port-0 sockets from it | Wrangler binds port 0 and announces its port; no retry remains          |
+| Orphan workerd after startup     | harness  | `stop()` ignored the group once its leader had exited                               | `stop()` reaps the process group and fails if anything survives SIGKILL |
+| Double island request            | harness  | it clicked until the UI changed, and Angular queues early clicks for replay         | hydrated and replay proofs separated; exact counts                      |
+| One-island smoke                 | harness  | it accepted any number of requests above zero                                       | the same exact proofs as three islands                                  |
+| RC gate could say GO on one row  | tooling  | rows were only read if supplied; the candidate was compared with itself             | code catalog; verified proofs, identities and tuples                    |
+| Rehearsal job could not fail     | workflow | `\| tee` without `pipefail`                                                         | `pipefail`                                                              |
+| Analog G2 check on `main`        | harness  | **not determined**, see below                                                       | asserts the stated cause; prints the evidence if it recurs              |
+
+### workerd startup
+
+Run 42210806375's log cannot name the socket: colliding the HTTP port and the inspector port locally produced the
+same message. Only those two sockets had caller-chosen numbers. `workerd` shows the rest at port 0 (`--socket-addr=entry=…:0`,
+`--inspector-addr=…:0`, `--debug-port=…:0`), and the two processes and Wrangler's loopback servers hold about ten
+listeners. `listen(0)` uses one parity of the ephemeral range, about 14,000 ports on Linux, so the harness's two
+released numbers and Wrangler's own binds draw from one small pool. No sleep or fixed port fixes that. `--port 0
+--inspector-port 0` removes the numbers, and the port is read from Wrangler's `Ready on` line.
+
+`startPagesDev` in `tools/server-components/lib/wrangler.ts` is now the only way the tools start local workerd, and
+`startWithPortRetry` is gone. Node and Vite servers still use `findFreePort`: they bind at once and open nothing
+first, so the window is far smaller, but it is not zero. The Angular JIT characterization is unchanged. Regression:
+`tools/server-components/wrangler-startup.test.ts`, which runs real Wrangler: the collision itself, a start with 64
+ports held, three simultaneous instances, stop-one isolation, successive restarts, and group cleanup.
+
+### Three islands
+
+The first pass's hypothesis is now shown, and the defect is not in Strata. A directed run held the scripts, clicked,
+released them, and logged DOM clicks and `fetch` calls in the page, on arms A (no Strata) and D, Node and workerd:
+
+| Clicks before hydration | Clicks after | `fetch` calls, all four combinations |
+| ----------------------- | ------------ | ------------------------------------ |
+| 0                       | 1            | 1                                    |
+| 1                       | 0            | 1                                    |
+| 2                       | 0            | 2                                    |
+| 1                       | 1            | 2                                    |
+
+`provideClientHydration()` enables incremental hydration and with it event replay, so the SSR button carries
+`jsaction="click:;"` and early clicks queue. The old loop saw no request and no change, and clicked again. A baseline run
+reproduced the failure on **arm A**, which contains no Strata code. Replay bypasses `[disabled]`, so `k` early clicks
+are `k` requests: correct for `k` interactions.
+
+Rejected with evidence: duplicate handlers (one `fetch` per click on every arm), request duplication by the component
+(same), and late observation (the count is now taken in the page and compared with the network).
+
+Each page load now proves one thing, on one and three islands. **Hydrated**: wait for hydration without touching
+the page, click once, and require one request and an unchanged neighbour. **Replay**: click with scripts held
+(twice on the first island), require no request yet, and one effect per click afterwards. Assertions kept: SSR node
+reuse, independence, no hydration errors, canaries. Negative controls added: `island-duplicate-request` and
+`island-replay-lost`.
+
+Repetition fixed in advance: 8 per arm and runtime on the three-island profile, with no stopping on success. Result:
+64 of 64, LOCAL NODE and LOCAL WORKERD, darwin-arm64, on the builds where the old loop had just failed on arm A
+workerd. The four deliberate faults were each rejected on those builds.
+
+### Analog G2 on `main`
+
+Run 42220794647 failed `G2 failure cause` with `traced: none` on `79f7764`, the same tree as passing PR run 42219627272. The check also required `tslib.es6.mjs` in Nitro's trace, which is not what it claims. 12 local builds all
+traced `package.json, tslib.es6.mjs`, so the variation was **not reproduced and its cause is unknown**. It is also odd:
+with no traced `tslib`, Node should reach the fixture's own copy, yet that run still classified G2-prod as failing, and
+it left no log to explain why. The check now asserts its stated claim, the missing Node entry and the failed
+render, and prints the server error and the traced packages whenever the trace differs. It stays an open item, in
+[RISKS](../RISKS.md), and it is an upstream characterization, not a supported path.
+
+### What the gate reads now
+
+See [SPEC-004](../specs/004-first-release-candidate.md#how-a-verdict-is-computed). `release:rc:check` reports NO-GO, by
+design, until the sequence there has run. The ledger no longer holds a candidate: the previous one predates these
+changes.
+
+## Verdict (first pass)
 
 **RC0: NO-GO today, with a short mechanical path to GO.** Nothing found blocks an RC technically. What blocks it
 is that the fixes live in this branch: the corrected release pipeline has not published anything yet, and the
@@ -233,7 +309,7 @@ stopped before multi-isolate, adversarial smoke, deployment skew, Cloudflare reh
 and upgrade suites, because the shared checkout moved. Those passed in hosted CI or Extended, except as listed above,
 and were not run locally on the final tree.
 
-## Remaining blockers, ranked
+## Remaining blockers, ranked (first pass; `pnpm release:rc:check` is current)
 
 1. **Release pipeline fix unobserved.** Merge this PR. Release should repair `next` and, after the Version PR,
    publish 0.17.0 without manual help. Failure here must stop the RC.

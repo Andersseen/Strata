@@ -1,5 +1,10 @@
 # Roadmap to 1.0
 
+**RC0 blocker closure (2026-11-06).** The technical blockers of the qualification are closed in tooling and the
+gate verifies its evidence. What remains is operational and ordered in
+[SPEC-004](specs/004-first-release-candidate.md#publishing-an-rc): publish 0.17.0, requalify it, enter the RC line,
+qualify the candidate, publish, qualify from npm.
+
 **RC0 qualification (2026-11-06, [report](research/rc0-production-qualification.md)).** M5 now has a defined route:
 [SPEC-004](specs/004-first-release-candidate.md), a proposed [support contract](COMPATIBILITY.md#rc0-support-contract) and
 an executable gate. RC0 is NO-GO until the fixed pipeline publishes and that tuple is requalified. GA still needs

@@ -1,6 +1,6 @@
 # SPEC-004: First 1.0 release candidate
 
-- Status: **Ready.** The validation tooling is implemented; the release itself needs maintainer
+- Status: **Ready.** The gate and its rehearsal are implemented; the release itself needs maintainer
   authorization and is not started by this spec. The current verdict is in the
   [RC0 report](../research/rc0-production-qualification.md).
 - Baseline: `ff3f1a4` (`main`, after PR #175)
@@ -57,36 +57,77 @@ Analog, Vite, Nitro and Wrangler versions, the full dependency tree and the Node
 toolchain. The supported runtime combinations are the "Supported for RC evaluation" rows of the
 [COMPATIBILITY](../COMPATIBILITY.md#rc0-support-contract) contract, and nothing else.
 
-## Mandatory checks
+## Requirements
 
-Each check must pass on the candidate SHA. `tools/release/rc-evidence.json` records the status, link and
-candidate of each; `pnpm release:rc:check` refuses a PASS obtained on another candidate.
+The catalog in `tools/release/lib/rc-catalog.ts` lists every requirement, with a stable id, its class
+(`blocker` or `accepted`), its phase and the exact workflow, jobs and steps that prove it. Reports and
+reviews cite these ids; positional numbers are not stable references. `tools/release/rc-evidence.json`
+records results against the catalog and can neither omit a requirement nor reclassify one.
 
-| Check                                                      | How                                                                          |
-| ---------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| Aggregate CI `Verify`                                      | `ci.yml`, all jobs, exact SHA                                                |
-| Fixed release pipeline observed on a real publish          | one real Release run after the visibility fix, success without manual repair |
-| Published baseline: no tag drift, frozen candidate current | `pnpm release:rc:check`                                                      |
-| Source-packed candidate, full consumer                     | `pnpm test:full-stack-package-consumer` (mandatory CI)                       |
-| Frozen published candidate                                 | Extended `registry-frozen-candidate`                                         |
-| Node production process, hosted Linux                      | Extended `node-production`, both candidates                                  |
-| SSR integration integrity                                  | Extended `ssr-duplicate-install`                                             |
-| Adversarial and multi-isolate security                     | Extended `adversarial`, mandatory `test:full-stack-multi-isolate`            |
-| Deployed Cloudflare, candidate on the public endpoint      | `Qualify Full-Stack Strata on Cloudflare`, `source=packed` or `registry`     |
-| Deployed upgrade and retained-artifact rollback            | the same workflow, `source=upgrade-rollback`                                 |
-| Browser size budgets                                       | Extended `performance`                                                       |
-| Prerelease rehearsal                                       | `pnpm release:rc:rehearse` (non-publishing)                                  |
+**Phase `pre` authorizes publication.** It asks only for what can exist before the RC does:
+
+| Id                          | Proves                                                      | Artifact          |
+| --------------------------- | ----------------------------------------------------------- | ----------------- |
+| `ci-verify`                 | aggregate CI `Verify` on the candidate's main push          | source-packed     |
+| `release-pipeline-observed` | a real publish through the current pipeline, no repair      | none              |
+| `baseline-frozen`           | `npm ci` of the frozen published 0.x tuple                  | baseline registry |
+| `baseline-deployed`         | that tuple on Cloudflare Pages                              | baseline registry |
+| `baseline-upgrade-rollback` | deployed upgrade and retained-artifact rollback onto it     | baseline registry |
+| `island-interaction`        | one and three islands, hydrated and replayed, all four arms | source-packed     |
+| `performance-scaling`       | controller scaling and browser size budgets                 | source-packed     |
+| `ssr-duplicate-install`     | `/ssr` with duplicated installations                        | source-packed     |
+| `node-production-source`    | Node production process on hosted Linux                     | source-packed     |
+| `adversarial-security`      | source-mutated security qualification                       | source-packed     |
+| `deployed-source-packed`    | the candidate on Cloudflare Pages                           | source-packed     |
+| `prerelease-rehearsal`      | `pnpm release:rc:rehearse`                                  | none              |
+| `support-contract-review`   | the maintainer's merged review                              | none              |
+
+**Phase `post` qualifies the exact artifacts on npm**: `rc-publication`, `rc-frozen`, `rc-node-production`,
+`rc-deployed` and `rc-upgrade-rollback`. It also reads npm: every version at the target, with the recorded
+integrity and a provenance attestation, `next` on the RC and `latest` not on it.
+
+A row is bound to one tuple, so 0.x baseline evidence cannot pass as the RC, and the first RC is not
+needed to authorize itself.
+
+## How a verdict is computed
+
+The ledger says where to look; it is not believed. A row that cannot be checked is a blocker.
+
+- **PASS needs proof.** A hosted row names a run id. The gate reads the run from the GitHub API and
+  requires the catalog's workflow, event, repository, exact jobs and steps, each concluded `success`. A
+  failed, cancelled, skipped or pending job, or a step skipped because the run only opened a Version PR,
+  does not count. A manually written URL is not accepted as proof.
+- **Candidate identity.** `candidate` records the commit and, recomputed from it, the `packages/` tree
+  hash, the `pnpm-lock.yaml` digest, the configuration digest and the package versions.
+- **Tuple identity.** `baseline` and `published` record each artifact's version and sha512 integrity, the
+  frozen candidate id and the harness commit. The frozen candidate committed at that commit must be
+  exactly this tuple, and npm must serve that integrity.
+- **Harness.** Hosted runs check out one commit, so a run's harness is its own head SHA. Source-packed
+  rows tie it to the candidate, registry rows to the tuple's harness commit.
+
+Evidence is reused across commits only when the diff is computed to allow it:
+
+| Between                                             | Allowed diff                                                                                                                     |
+| --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| A run and its anchor; the candidate and `HEAD`      | documentation: `docs/**`, root `*.md`, the ledger. `packages/**` READMEs are excluded, because they ship in tarballs             |
+| The candidate and the publishing commit             | also versioning: `.changeset/**`, changelogs, and manifests that are identical once versions and `@strata-sc/*` pins are removed |
+| A `release-pipeline-observed` run and the candidate | anything except `tools/release/**` (the ledger aside) and `release.yml`                                                          |
+
+`pnpm release:rc:check` exits 1 on NO-GO. `--report` prints the verdict and exits 0: that run, and the
+Extended job built on it, prove the rehearsal only and never authorize a release. Release itself runs
+`--phase=pre --publishing` before it publishes any `-rc.` version.
 
 ## Risks an RC may accept
 
-Accepted risks are listed in the ledger with `gate: accepted`, printed by the check and repeated in the
-RC's release notes. An RC may ship with: no real-application adoption; no persistent Node deployment;
+Accepted risks are the catalog's `accepted` rows, printed by the check and repeated in the RC's release
+notes. They have no proof kind, so the ledger cannot mark them PASS: real-application adoption stays
+outside this tooling. An RC may ship with: no real-application adoption; no persistent Node deployment;
 Cloudflare isolate cold start and memory not measurable; hosted #117 pending and stale-main transitions
 not yet observed; the documented upstream limitations. None of these may be accepted for GA.
 
 ## Failures that prohibit publishing
 
-- Any `gate: blocker` row not PASS on this candidate, or any `pnpm release:rc:check` blocker.
+- Any `pnpm release:rc:check` blocker. Release enforces this for every `-rc.` version.
 - Any confidentiality, authorization or request-isolation failure, at any evidence level.
 - A browser size budget exceeded.
 - A candidate that cannot be reproduced with `npm ci`.
@@ -95,14 +136,32 @@ not yet observed; the documented upstream limitations. None of these may be acce
 
 ## Publishing an RC
 
-Maintainer-authorized, through the normal pipeline, from a reviewed PR. Never from a development branch.
-The commands were rehearsed by `pnpm release:rc:rehearse`.
+Maintainer-authorized, through the normal pipeline, from reviewed PRs. Never from a development branch. Each
+step's result decides the next; a failure stops the sequence. The commands were rehearsed by
+`pnpm release:rc:rehearse`.
+
+**1. Baseline.** Merging to `main` with a pending version publishes it: the merge's CI, then Release. Confirm
+the Release run published, with `Align npm dist-tags` and `Verify npm registry, tags and GitHub Releases`
+green. That run is `release-pipeline-observed`.
+
+**2. Recapture the baseline.** In a PR, move `DEFAULT_PAIR` in `tools/server-components/lib/upgrade-rollback.ts`
+to the two latest minors and capture:
+
+```sh
+STRATA_CANDIDATE_CAPTURE="$PWD/tests/full-stack-candidate" pnpm test:full-stack-registry-consumer
+pnpm test:full-stack-frozen-candidate
+```
+
+Its merge commit is the baseline's `harnessSha`. On that commit run Extended (`suite=registry`) and
+`Qualify Full-Stack Strata on Cloudflare` with `source=registry` and `source=upgrade-rollback`.
+
+**3. Enter the RC line.** The merge of this PR is the candidate.
 
 ```sh
 git switch -c release/rc-entry origin/main
-# 1. One version line for the RC: in .changeset/config.json set
+# One version line for the RC: in .changeset/config.json set
 #    "fixed": [["@strata-sc/core", "@strata-sc/analog", "@strata-sc/server-components"]]
-# 2. A major for all three, the only way a 0.x line reaches 1.0.0-rc.0:
+# A major for all three, the only way a 0.x line reaches 1.0.0-rc.0:
 cat > .changeset/rc-entry.md <<'NOTES'
 ---
 "@strata-sc/core": major
@@ -114,18 +173,26 @@ First 1.0 release candidate. See docs/COMPATIBILITY.md for the supported combina
 NOTES
 pnpm changeset pre enter rc
 git add .changeset && git commit -m "chore(release): enter the 1.0 release candidate line"
-# 3. Open a PR, merge it after review. CI then Release open "Version Packages";
-#    review that it shows 1.0.0-rc.0 for all three, and merge it. Release publishes.
 ```
 
-Changesets publishes to the `rc` dist-tag, the pre-mode tag. `release:sync-dist-tags` then moves `next`
-to the RC, so ADR-005's `@next` holds; `latest` never moves. Afterwards recapture and requalify:
+Release then opens "Version Packages". **Do not merge it yet.**
 
-```sh
-STRATA_CANDIDATE_CAPTURE="$PWD/tests/full-stack-candidate" pnpm test:full-stack-registry-consumer
-pnpm test:full-stack-frozen-candidate
-gh workflow run "Qualify Full-Stack Strata on Cloudflare" -f source=registry
-```
+**4. Qualify the candidate.** On the candidate commit run Extended with `suite=all`, `islands=both`, and
+`Qualify Full-Stack Strata on Cloudflare` with `source=packed`.
+
+**5. Record and review.** In a PR that changes only the ledger and documentation, set `candidate` from
+`pnpm release:rc:check --print-candidate=<sha>`, set `baseline`, and fill each row with its run id. The
+maintainer's merge of this PR is `support-contract-review`: its number goes in that row in a further
+ledger-only PR, or the row names an earlier review PR. `pnpm release:rc:check` must print GO.
+
+**6. Publish.** Check that "Version Packages" shows `1.0.0-rc.0` for all three and merge it. CI runs, and Release
+re-runs the gate with `--publishing` before publishing. Changesets publishes to the `rc` dist-tag, the
+pre-mode tag. `release:sync-dist-tags` then moves `next` to the RC, so ADR-005's `@next` holds; `latest`
+never moves.
+
+**7. Qualify the artifacts.** Repeat step 2's capture and runs for the RC, add Extended `suite=rc0` for
+`rc-node-production`, fill `published` and the `rc-*` rows, and run `pnpm release:rc:check --phase=post`. RC0
+is finished only when that prints GO.
 
 ## Superseding an RC
 
@@ -155,14 +222,18 @@ Remaining evidence is listed per criterion in the [RC0 report](../research/rc0-p
 ## Acceptance criteria
 
 1. `pnpm release:rc:check` prints a verdict with ranked blockers and exits 1 on NO-GO.
-2. A PASS row without a link, or from another candidate, does not count.
-3. The rehearsal shows all three at `1.0.0-rc.0`, then `1.0.0-rc.1` after a one-package fix, and a stable
-   `1.0.0` refused without authorization, without network writes.
+2. A ledger that omits, adds or reclassifies a requirement, or claims a PASS without proof, is NO-GO.
+3. A PASS counts only if its run reads back as successful on an allowed commit for the right artifact.
+4. A release candidate cannot publish through Release without a GO for its own code.
+5. The rehearsal shows all three at `1.0.0-rc.0` with installed exports and exact dependencies, then
+   `1.0.0-rc.1` after a one-package fix, `latest` unmoved, and a stable `1.0.0` refused without
+   authorization, without network writes.
 
 ## Required tests
 
-`tools/release/lib/rc-readiness.test.ts`, `tools/release/lib/publication-visibility.test.ts` (stable guard),
-and `pnpm release:rc:rehearse`, also run by the Extended `rc0` suite.
+`tools/release/lib/rc-readiness.test.ts` (adversarial ledgers, hosted results, identities and tuples),
+`tools/release/lib/publication-visibility.test.ts` (stable guard), and `pnpm release:rc:rehearse`, also run
+by the Extended `rc0` suite.
 
 ## Compatibility concerns
 

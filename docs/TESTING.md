@@ -1,5 +1,12 @@
 # Testing strategy and evidence
 
+RC0 blocker closure ([report](research/rc0-production-qualification.md)): no mandatory job or command was added.
+`tools/server-components/wrangler-startup.test.ts` (in `pnpm test:release`) runs real Wrangler: collision, held ports,
+simultaneous and successive starts, group cleanup. The performance smoke proves hydrated and replayed interaction
+separately on both island profiles, counted in the page; never replace either with a click-until-it-changes loop.
+`tools/release/lib/rc-readiness.test.ts` is adversarial: a change to the gate must keep every refusal. The prerelease
+rehearsal now needs built packages, because it packs and installs the rc.0 tuple.
+
 RC0 qualification ([report](research/rc0-production-qualification.md)): Extended gains the `rc0` suite: `pnpm test:node-production`
 (source-packed and `:frozen`), `pnpm test:server-component-ssr-duplicate-install` (nine arms with positive and negative
 controls) and `pnpm release:rc:rehearse`. `tools/release/lib/publication-visibility.test.ts` replays Release run

@@ -1,5 +1,19 @@
 # Current implementation audit
 
+## RC0 blocker closure (branch `fix/rc0-qualification-reliability`)
+
+Published: core 0.2.2, analog 0.12.1, server-components 0.16.0. Manifest 0.17.0 (`/ssr` integrity) is unpublished:
+Release refused `79f7764` because its CI failed. **No RC exists, and no evidence is recorded for one.**
+
+- **Local workerd**: every socket bound by the kernel, one start path, and process-group cleanup.
+- **Islands**: the double request was the harness re-clicking into Angular's event replay; arm A reproduces it. Hydrated
+  and replayed interaction are separate, exact proofs on one and three islands.
+- **RC gate**: code catalog, hosted proofs read from GitHub, identity recomputed from git, separate `pre` and `post`
+  phases. Release runs it before publishing any `-rc.` version.
+- **Open**: the Analog G2 trace variation is unexplained, see [RISKS](RISKS.md).
+
+[Report](research/rc0-production-qualification.md#update-qualification-blockers-closed-2026-11-06-branch-fixrc0-qualification-reliability).
+
 ## RC0 qualification (branch `stabilize/rc0-production-qualification`)
 
 [Report](research/rc0-production-qualification.md). Published tuple: core 0.2.2, analog 0.12.1, server-components 0.16.0,

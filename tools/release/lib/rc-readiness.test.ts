@@ -628,6 +628,26 @@ describe("publishing the candidate", () => {
   });
 });
 
+describe("the observed pipeline", () => {
+  it("survives entering the RC line and recording evidence", async () => {
+    const before = sha("before-entry");
+
+    COMMITS[before] = {
+      ...COMMITS[CANDIDATE]!,
+      ".changeset/config.json": '{"fixed":[]}',
+      "tools/release/rc-evidence.json": "earlier",
+    };
+
+    const input = facts({
+      hosted: hosted((run) =>
+        run.path.endsWith("release.yml") ? { ...run, headSha: before } : run,
+      ),
+    });
+
+    await expect(blockerIds(input)).resolves.not.toContain("release-pipeline-observed");
+  });
+});
+
 describe("tuples", () => {
   it("does not need a published RC to authorize the first one", async () => {
     const ledger = { ...goodLedger(), published: null };
