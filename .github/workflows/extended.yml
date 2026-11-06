@@ -129,7 +129,7 @@ jobs:
     name: RC readiness report and non-publishing prerelease rehearsal
     if: github.event_name == 'schedule' || inputs.suite == 'all' || inputs.suite == 'rc0'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       # Full history: Changesets hangs deepening a shallow clone that has no remote.
       - name: Checkout

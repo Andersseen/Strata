@@ -16,7 +16,7 @@ export function tscDeclarations(
   dir: string,
   label: string,
   env: NodeJS.ProcessEnv,
-  options: { readonly ssrEntry: boolean } = { ssrEntry: true },
+  options: { readonly ssrEntry: boolean; readonly ssrMigration?: boolean } = { ssrEntry: true },
 ): { ok: boolean; version: string } {
   const tsc = join(dir, "node_modules", "typescript", "bin", "tsc");
   const version = installedVersion(dir, "typescript");
@@ -25,6 +25,7 @@ export function tscDeclarations(
     "tsconfig.check.server.json",
     "tsconfig.check.authorization-server.json",
     "tsconfig.check.authorization-component.json",
+    ...(options.ssrMigration ? ["tsconfig.check.ssr-migration.json"] : []),
   ];
   const results = configs.map((config) =>
     run(process.execPath, [tsc, "-p", config, "--listFiles", "--noEmit"], { cwd: dir, env }),
