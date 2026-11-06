@@ -82,6 +82,24 @@ function installedTuple(
   mkdirSync(tarballs);
   mkdirSync(consumer);
 
+  // `pnpm pack` rewrites `workspace:*` from the links it finds, so the clone needs its own: a link
+  // to this checkout would pin the version it has, not the one the rehearsal just wrote.
+  const sharedModules = join(clone, "node_modules");
+
+  rmSync(sharedModules);
+  execFileSync(
+    "pnpm",
+    [
+      "install",
+      "--frozen-lockfile",
+      "--prefer-offline",
+      "--ignore-scripts",
+      "--filter",
+      "./packages/*",
+    ],
+    { cwd: clone, stdio: "pipe", timeout: 180_000 },
+  );
+
   for (const { dir: pkgDir } of REGISTRY_PACKAGES) {
     const built = join(repoRoot, pkgDir, "dist");
 
@@ -107,6 +125,9 @@ function installedTuple(
     ],
     { cwd: consumer, stdio: "pipe", timeout: 120_000 },
   );
+
+  rmSync(sharedModules, { recursive: true, force: true });
+  symlinkSync(join(repoRoot, "node_modules"), sharedModules);
 
   const installed = NAMES.map(
     (name) =>
