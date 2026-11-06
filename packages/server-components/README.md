@@ -1162,13 +1162,13 @@ request instead of answering HTTP 200 for a failed page in production:
 | Two copies of the package, this protocol (a shared library, a peer variant)                 | works: both halves use the request's own slot              |
 | Wrapper without the provider, or the provider given the wrong token                         | refused: HTTP 500, phase `integration`                     |
 | Provider without the wrapper                                                                | refused: the bootstrap rejects, the host answers its error |
-| A copy older than this protocol (`@strata-sc/server-components` ≤ 0.15) next to a newer one | refused: HTTP 500                                          |
+| A copy older than this protocol (`@strata-sc/server-components` ≤ 0.16) next to a newer one | refused: HTTP 500                                          |
 
 A copy that loads its own second `@angular/core` (a library left external to the SSR bundle) cannot reach
 your application's `ErrorHandler`, so it also counts as a missing provider and is refused. Put such a
 library in `ssr.noExternal`.
 
-Two copies that are **both** ≤ 0.15 cannot be detected and answer HTTP 200 for a failed render: upgrade.
+Two copies that are **both** ≤ 0.16 cannot be detected and answer HTTP 200 for a failed render: upgrade.
 The inner function of `withStrataSsrFailureContract` must be a real Angular render; wrapping a cache of
 finished documents counts as a render no handler took part in.
 

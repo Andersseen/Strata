@@ -47,7 +47,7 @@ import type { RunningServer } from "./lib/package-consumer.ts";
  */
 
 const PACKAGE = "@strata-sc/server-components";
-/** The last release without the cross-copy protocol. */
+/** A published release without the cross-copy protocol (every release up to 0.16.0). */
 const OLD_VERSION = process.env["STRATA_SSR_OLD_VERSION"] ?? "0.15.0";
 const PROTOCOL_KEY = "@strata-sc/server-components:ssr-failure-contract";
 
