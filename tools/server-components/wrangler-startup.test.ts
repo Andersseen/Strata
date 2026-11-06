@@ -69,21 +69,44 @@ describe("pagesDevArgs", () => {
 });
 
 describe("ManagedProcess.stop", { timeout: 30_000 }, () => {
-  const script = (body: string): readonly string[] => ["--input-type=module", "-e", body];
-  /** A child of the leader, in its process group, that ignores SIGTERM and reports its pid. */
-  const STUBBORN_CHILD = `
-        const child = spawn(process.execPath, ["-e", "process.on('SIGTERM',()=>{});setInterval(()=>{},1000)"], { stdio: "ignore" });
-    console.log("child=" + child.pid);
-  `;
-  const childPid = async (server: ManagedProcess): Promise<number> => {
-    await until(() => /child=\d+/.test(server.output()));
+  let dir: string;
+  /** A leader whose child is in its process group, ignores SIGTERM and reports its pid. */
+  const leader = (name: string, tail: string): string => {
+    const file = join(dir, name);
 
-    return Number(/child=(\d+)/.exec(server.output())?.[1]);
+    writeFileSync(
+      file,
+      `import { spawn } from "node:child_process";
+       const child = spawn(process.execPath, [${JSON.stringify(join(dir, "stubborn.mjs"))}], { stdio: "ignore" });
+       console.log("child=" + child.pid);
+       ${tail}`,
+    );
+
+    return file;
+  };
+  const childPid = async (server: ManagedProcess): Promise<number> => {
+    await until(() => /child=\d+/.test(server.output()), 15_000);
+
+    const pid = Number(/child=(\d+)/.exec(server.output())?.[1]);
+
+    expect(pid, `no child pid in: ${server.output()}`).toBeGreaterThan(0);
+
+    return pid;
   };
 
+  beforeAll(() => {
+    dir = mkdtempSync(join(tmpdir(), "strata-process-group-"));
+    writeFileSync(
+      join(dir, "stubborn.mjs"),
+      'process.on("SIGTERM", () => {}); setInterval(() => {}, 1000);',
+    );
+  });
+
+  afterAll(() => rmSync(dir, { recursive: true, force: true }));
+
   it("removes a survivor of a leader that already exited", async () => {
-    const server = spawnManaged(process.execPath, script(`${STUBBORN_CHILD} process.exit(1);`), {
-      cwd: tmpdir(),
+    const server = spawnManaged(process.execPath, [leader("exits.mjs", "process.exit(1);")], {
+      cwd: dir,
     });
     const pid = await childPid(server);
 
@@ -98,8 +121,8 @@ describe("ManagedProcess.stop", { timeout: 30_000 }, () => {
   it("removes a child that outlives the leader's SIGTERM", async () => {
     const server = spawnManaged(
       process.execPath,
-      script(`${STUBBORN_CHILD} setInterval(() => {}, 1000);`),
-      { cwd: tmpdir() },
+      [leader("stays.mjs", "setInterval(() => {}, 1000);")],
+      { cwd: dir },
     );
     const pid = await childPid(server);
 
@@ -112,7 +135,9 @@ describe("ManagedProcess.stop", { timeout: 30_000 }, () => {
   });
 
   it("can be stopped twice", async () => {
-    const server = spawnManaged(process.execPath, script("process.exit(0);"), { cwd: tmpdir() });
+    const server = spawnManaged(process.execPath, [leader("once.mjs", "process.exit(0);")], {
+      cwd: dir,
+    });
 
     await until(() => server.hasExited());
     await server.stop();
