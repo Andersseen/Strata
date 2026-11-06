@@ -1,5 +1,11 @@
 # Strata 1.0 exit criteria
 
+**RC0 qualification 2026-11-06 ([report](research/rc0-production-qualification.md)).** No item is ticked; the matrix is
+unchanged (PASS 1, PARTIAL 27, BLOCKED 0, NOT RUN 4). This checklist stays authoritative for GA; the
+[RC process](specs/004-first-release-candidate.md) is a step before it and ticks nothing. Stronger: #15 (a broken
+`/ssr` integration now fails closed), the Node entry (first hosted production-process run, not a deployment), one
+identified frozen candidate on published 0.16.0. Issue #117 stays open.
+
 **Installed package graph (branch `fix/server-only-installed-package-graph`, [report](research/installed-package-graph-hardening.md)).**
 No item is ticked; the matrix is unchanged (PASS 1, PARTIAL 27, BLOCKED 0, NOT RUN 4). #7, #8, #9 and #23 stay PARTIAL with
 stronger evidence. Query access, `new URL()` and worker graphs shipped marked modules in successful builds and are now

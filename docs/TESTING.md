@@ -1,5 +1,11 @@
 # Testing strategy and evidence
 
+RC0 qualification ([report](research/rc0-production-qualification.md)): Extended gains the `rc0` suite: `pnpm test:node-production`
+(source-packed and `:frozen`), `pnpm test:server-component-ssr-duplicate-install` (nine arms with positive and negative
+controls) and `pnpm release:rc:rehearse`. `tools/release/lib/publication-visibility.test.ts` replays Release run
+42181130222 on a virtual clock. No mandatory job or command was added. Not reproducible locally: hosted Release
+transitions, real publishing, and public Cloudflare deployment.
+
 SSR failure contract ([report](research/ssr-failure-contract.md)): unit tests of request-owned failure
 tracking (`packages/server-components/src/ssr/failure-contract.test.ts`), package-boundary checks for
 the `/ssr` entry, and the existing mandatory full-stack packed consumer, which now imports the contract

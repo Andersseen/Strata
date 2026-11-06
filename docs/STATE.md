@@ -1,5 +1,16 @@
 # Current implementation audit
 
+## RC0 qualification (branch `stabilize/rc0-production-qualification`)
+
+[Report](research/rc0-production-qualification.md). Published tuple: core 0.2.2, analog 0.12.1, server-components 0.16.0,
+frozen as `893a15145303f585`. `next` of server-components is still 0.14.0 until the fixed Release runs.
+
+- **Release**: acceptance, commitment and propagation are separate states; decisions read uncached registry endpoints.
+  UNIT and live read-only. No real publish through it yet.
+- **`/ssr`**: per-request slot and a render handshake; a broken integration refuses with HTTP 500. Unpublished.
+- **Node**: hosted production-process evidence for both candidates. No deployed Node.
+- **RC gate**: `pnpm release:rc:check`, `pnpm release:rc:rehearse`, a stable `1.x` guard.
+
 ## Installed package graph integrity (branch `fix/server-only-installed-package-graph`)
 
 Package change: `@strata-sc/server-components` minor, no new API
