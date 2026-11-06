@@ -1,5 +1,0 @@
----
-"@strata-sc/server-components": minor
----
-
-The opt-in `/ssr` failure contract no longer fails open when its two halves do not meet. Failure state moved from a module-level `WeakMap` to a non-enumerable, per-request slot on the response object, so two installed copies of the package now share one request's contract and a failed render answers HTTP 500 instead of a silent HTTP 200. Both halves also prove they took part in every render: a wrapper without a connected `provideStrataSsrFailureHandler()` (provider missing, wrong response token, a copy older than this protocol) answers HTTP 500 with the new failure phase `"integration"`, even for a healthy-looking document, and a provider without a compatible wrapper rejects the bootstrap. `provideStrataSsrFailureHandler` now returns `EnvironmentProviders`, so it cannot be registered on a component. Migration: an application that registered only one of the two halves must add the other; `withStrataSsrFailureContract` must wrap a real Angular render, not a cache of finished documents.
