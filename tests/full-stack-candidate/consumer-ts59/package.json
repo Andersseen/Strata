@@ -5,7 +5,7 @@
   "dependencies": {
     "@strata-sc/core": "0.2.2",
     "@strata-sc/analog": "0.12.1",
-    "@strata-sc/server-components": "0.14.0",
+    "@strata-sc/server-components": "0.15.0",
     "@analogjs/router": "2.7.2",
     "@angular/core": "22.2.3",
     "@angular/common": "22.2.3",

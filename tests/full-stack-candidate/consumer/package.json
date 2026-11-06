@@ -21,7 +21,7 @@
     "@angular/router": "22.2.3",
     "@strata-sc/analog": "0.12.1",
     "@strata-sc/core": "0.2.2",
-    "@strata-sc/server-components": "0.14.0",
+    "@strata-sc/server-components": "0.15.0",
     "h3": "1.15.11",
     "rxjs": "7.8.2",
     "zod": "4.6.5",
