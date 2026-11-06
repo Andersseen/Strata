@@ -2,7 +2,9 @@
   "name": "@acme/server-kit",
   "version": "1.0.0",
   "type": "module",
-  "sideEffects": false,
+  "sideEffects": [
+    "./effect.js"
+  ],
   "exports": {
     ".": "./index.js",
     "./format": "./format.js",
@@ -20,12 +22,30 @@
       "node": "./cond.node.js",
       "default": "./cond.browser.js"
     },
+    "./named-barrel": "./named-barrel.js",
+    "./namespace-barrel": "./namespace-barrel.js",
+    "./cycle-safe": "./cycle-safe-a.js",
+    "./cycle-secret": "./cycle-secret-a.js",
+    "./subpath-import": "./subpath-import.js",
+    "./cond-barrel": {
+      "browser": "./cond.browser.js",
+      "node": "./cond-barrel.node.js",
+      "default": "./cond.browser.js"
+    },
+    "./inline-types": "./inline-types.ts",
+    "./effect": "./effect.js",
+    "./foreign": "./foreign.js",
+    "./legacy": "./legacy.cjs",
     "./package.json": "./package.json",
     "./broken": "./broken.js"
   },
   "files": [
     "*.js",
-    "*.d.ts",
+    "*.cjs",
+    "*.ts",
     "internal"
-  ]
+  ],
+  "imports": {
+    "#secret": "./secret.js"
+  }
 }

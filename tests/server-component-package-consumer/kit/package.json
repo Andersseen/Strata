@@ -23,6 +23,10 @@
     "./barrel": {
       "types": "./dist/barrel.d.ts",
       "default": "./dist/barrel.js"
+    },
+    "./chain": {
+      "types": "./dist/chain.d.ts",
+      "default": "./dist/chain.js"
     }
   }
 }

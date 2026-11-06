@@ -31,6 +31,7 @@ export default config(
       // Plain JavaScript npm package packed and installed by the optimizer-firewall check; one module is
       // deliberately syntactically invalid.
       "tests/server-component-optimized-deps/kit/**",
+      "tests/server-component-optimized-deps/apf-kit/**",
       // The package-island library is compiled by Angular ngc in a temporary external package with
       // its own installed compiler/peer graph; it is intentionally outside workspace type services.
       "tests/server-component-package-consumer/angular-widgets/**",

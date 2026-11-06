@@ -85,9 +85,10 @@ the only part sent to the browser; `ProductDetails` and `ProductRepository` stay
 Props are plain data only (see [Client boundary protocol](#client-boundary-protocol)).
 
 The `server-only` import marks a module that must never enter the browser graph: importing it from
-a client module, directly or dynamically, or through a `?raw`/`?url` query, fails the production
-build with a `[strata]` diagnostic. A barrel that re-exports a marked module becomes server-only
-itself. See [Server-only modules](#server-only-modules).
+a client module or a worker, directly or dynamically, through a `?raw`/`?url` query or by
+`new URL()`, fails the production build with a `[strata]` diagnostic. A barrel that re-exports a
+marked module becomes server-only itself, in an installed package too. See
+[Server-only modules](#server-only-modules).
 
 ## External Angular package islands
 
@@ -801,14 +802,16 @@ the diagnostic says `unavailable` instead of naming one.
 
 ### Module resolution and packages
 
-| Import written in an app module                                     | Followed when scanning re-exports |   Refused in the browser graph   |
-| ------------------------------------------------------------------- | :-------------------------------: | :------------------------------: |
-| `./x`, `../x`, `./dir` (index), `./x.js` → `./x.ts`, `?raw`, `?url` |                yes                |               yes                |
-| Vite `resolve.alias` (`~app/x`, `@/x`)                              |                yes                |               yes                |
-| tsconfig `paths` / `baseUrl` (`@app/x`)                             |                yes                |               yes                |
-| `import()`, `@defer` lazy chunks                                    |                n/a                |               yes                |
-| Package root or exported subpath                                    |        no (never crawled)         | yes, when it asserts server-only |
-| `import.meta.glob`, import-then-`export { X }`                      |                no                 |         yes (load time)          |
+| Import written in an app module                                     |                  Followed when scanning re-exports                   |             Refused in the browser graph              |
+| ------------------------------------------------------------------- | :------------------------------------------------------------------: | :---------------------------------------------------: |
+| `./x`, `../x`, `./dir` (index), `./x.js` → `./x.ts`, `?raw`, `?url` |                                 yes                                  |                          yes                          |
+| Vite `resolve.alias` (`~app/x`, `@/x`)                              |                                 yes                                  |                          yes                          |
+| tsconfig `paths` / `baseUrl` (`@app/x`)                             |                                 yes                                  |                          yes                          |
+| `import()`, `@defer` lazy chunks                                    |                                 n/a                                  |                          yes                          |
+| Package root or exported subpath                                    | from the entry the browser reaches, through Vite's client resolution | yes, when it asserts or re-exports a module that does |
+| `import.meta.glob`, import-then-`export { X }`                      |                                  no                                  |                    yes (load time)                    |
+| Worker graph (`?worker`, `new Worker(new URL(…))`)                  |                    as above, with the same checks                    |                          yes                          |
+| `new URL(…, import.meta.url)`, CSS `url()` of an asserting file     |                                  no                                  |             yes (the emitted output file)             |
 
 Aliases are read from Vite's resolved config; the tsconfig is `tsconfig.app.json`, else
 `tsconfig.json`, in the app root (or the optional `tsconfig` plugin option, app-relative). **A module
@@ -816,11 +819,36 @@ the pre-scan cannot see is not exempt:** the client environment checks the resol
 module it resolves or loads, so an unmodelled resolution form is still refused at build or load time;
 only its diagnostic is less specific.
 
-A package is never trusted by name. If an installed or linked package module (a package root, a
-subpath, a barrel) imports `@strata-sc/server-components/server-only`, the client build fails when
-that import is resolved, whether or not the package appears in `clientComponents`: the registry
-authorizes an Angular component reference, not a server-only dependency. A browser-safe package root
-or subpath builds and ships normally. The `vite` dev server pre-bundles dependencies with Rolldown
+A package is never trusted by name, and it is judged per entry, not as a whole. When browser code
+reaches a package module, the plugin resolves it with Vite's own client resolution (package `exports`,
+the `browser` and `import` conditions, `imports` such as `#internal`, aliases) and follows that entry's
+`export … from` statements (`export *`, `export { X }`, `export * as X`, through barrels, across
+packages, with cycles handled). If the entry asserts `@strata-sc/server-components/server-only` or
+re-exports a module that does, the build fails there, whichever export the importer selected and
+whether or not the package appears in `clientComponents`: the registry authorizes an Angular component
+reference, not a server-only dependency. The diagnostic names the importer, the package entry, the
+chain with package-relative paths, the assertion and the fix:
+
+```text
+[strata] Server-only module entered the browser graph: node_modules/acme/chain.js
+Package entry: acme/chain
+Imported from: src/app/cart.component.ts
+Reason: it re-exports a server-only module: node_modules/acme/chain.js → node_modules/acme/barrel.js → node_modules/acme/secret.js, which declares `import "@strata-sc/server-components/server-only";`. …
+```
+
+An unrelated safe subpath of the same package keeps working, and so does a Server Component that
+imports the server-only subpath: the walk runs only for what the browser graph reaches, after the
+compiler has dropped type-only imports. It follows re-exports of the reached entry only, never the
+rest of `node_modules`, and stops at 4,096 modules with a warning; ordinary imports are then met by
+the bundler itself. An asserting module is also refused under any query (`?raw`, `?url`, `?inline`),
+in a worker bundle, and as an emitted file when `new URL()` or CSS `url()` copies or inlines it.
+
+**Only the assertion classifies a module.** The firewall cannot tell that unmarked code is confidential:
+`?raw` of an unmarked private helper builds, even if a marked module imports it. Mark every module that
+must stay on the server. The recognized form is the plain side-effect import; a package that uses
+`require()` or `import {} from` is refused when it is loaded as a module, but not under a query.
+
+The `vite` dev server pre-bundles dependencies with Rolldown
 before the module graph sees them; the plugin therefore also registers a plugin in
 `optimizeDeps.rolldownOptions.plugins` that fails the optimizer run when a pre-bundled package module
 asserts server-only, directly, through a package barrel or through a dynamic import. No chunk is
@@ -828,11 +856,14 @@ produced and the diagnostic names the module and the importers the optimizer rep
 that started the chain is not recoverable under optimization and the message says so. A dependency
 scanned or `include`d at startup that reaches the assertion ends the `vite` dev process with that
 diagnostic (Vite 8.3.0 does not catch the failed first optimizer run); one found later answers 504.
-One refused entry fails its whole optimizer batch. A `[strata]` dev error reaches the browser as its
-message only: no code frame, source or stack. The optimizer cache is keyed by the lockfile, not by
-package contents: after adding the assertion to an installed package in place, restart `vite` with
-`--force`. Packages that leak without asserting remain undetected
-([report](../../docs/research/server-component-optimized-dependency-firewall-v09.md)).
+One refused entry fails its whole optimizer batch. A direct import of an entry is usually refused
+before that, at the import, with the full diagnostic above. A `[strata]` dev error reaches the browser
+as its message only: no code frame, source or stack. The optimizer cache is keyed by the lockfile, not
+by package contents. Editing `node_modules` in place is not a supported workflow: an entry the app
+imports directly is re-read and refused, but a module behind an ordinary import stays in the stale
+chunk until `vite --force` or a cold cache. Packages that leak without asserting remain undetected
+([optimizer report](../../docs/research/server-component-optimized-dependency-firewall-v09.md),
+[package graph report](../../docs/research/installed-package-graph-hardening.md)).
 
 Recipe (server-only repository → Server Component → public DTO → island): see
 [Server-only recipe](#server-only-recipe).

@@ -7,8 +7,9 @@ import {
   rmdirSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, join, resolve, sep } from "node:path";
+import { dirname, isAbsolute, join, resolve, sep } from "node:path";
 
+import { createIdResolver } from "vite";
 import type {
   Connect,
   DevEnvironment,
@@ -45,7 +46,12 @@ import { stripQuery } from "./module-id.js";
 import { serverOnlyOptimizerPlugin } from "./optimizer.js";
 import { createModuleResolver, findTsconfig } from "./resolve.js";
 import type { ViteAlias } from "./resolve.js";
-import { SERVER_ONLY_SPECIFIER } from "./server-only.js";
+import {
+  SERVER_ONLY_SPECIFIER,
+  createInstalledFacts,
+  emittedServerOnly,
+  findServerOnlyChain,
+} from "./server-only.js";
 
 /**
  * Experimental build transform of the server-component graph
@@ -67,7 +73,9 @@ import { SERVER_ONLY_SPECIFIER } from "./server-only.js";
  * does, implicitly, every module that re-exports one (`export … from`).
  * Resolving or loading a forbidden module in the `client` environment, under
  * any query (`?raw`, `?url`, …), statically or through `import()`, fails the
- * build. Server environments are never restricted.
+ * build, and the same holds for an installed package entry that asserts or
+ * re-exports the assertion, and for the worker bundles the client environment
+ * spawns. Server environments are never restricted.
  *
  * Under `vite` (dev) the graph is derived again after every source edit that
  * can change it (docs/research/server-component-dev-hmr.md), as one
@@ -120,6 +128,11 @@ const SOURCE_FILE = /\.(ts|html)$/;
 /** How long a reload waits for the dev watcher to report the surrogates just written. */
 const SURROGATE_EVENT_TIMEOUT_MS = 2_000;
 const PLUGIN_NAME = "strata:server-components";
+/**
+ * Queries Vite adds to an ordinary module load (a version hash, a timestamp, the
+ * import marker). Such a load is parsed, so the module's own assertion runs.
+ */
+const PLAIN_LOAD_QUERY = /^\?(?:(?:[vt]=[^&]*|import)(?:&|$))+$/;
 
 const nodeGeneratedFiles: GeneratedFiles = {
   list: (dir) => (existsSync(dir) ? listFiles(dir) : []),
@@ -203,6 +216,13 @@ export function strataServerComponents(options: ServerComponentsOptions): Plugin
    * `buildStart`; the dev server uses its own module graph instead.
    */
   const parents = new Map<string, string>();
+  /** Vite's resolver for the graph checks, without the dev server's rewrite to optimized chunks. */
+  let resolveModule: ReturnType<typeof createIdResolver> | undefined;
+  /** Optimized chunks live here: bundler output, not a package module. */
+  let cacheDir: string | undefined;
+  const installedFacts = createInstalledFacts();
+  /** One build reads one file system, so an entry is walked once. The dev server walks every time. */
+  const walks = new Map<string, Promise<readonly string[] | undefined>>();
   /** True for `vite build`: the compilation contract and the build barrier apply to builds only. */
   let building = false;
   /**
@@ -279,6 +299,203 @@ export function strataServerComponents(options: ServerComponentsOptions): Plugin
     const file = stripQuery(id);
 
     return isInside(sourceDir, file) || isInside(generatedDir, file);
+  };
+
+  /** The module file `specifier` names for `environment`, as Vite resolves it, without a query. */
+  const moduleFile = async (
+    environment: Parameters<NonNullable<typeof resolveModule>>[0],
+    specifier: string,
+    importer: string,
+  ): Promise<string | undefined> => {
+    const id = await resolveModule?.(environment, specifier, importer).catch(() => undefined);
+    const file = id === undefined ? undefined : stripQuery(id);
+
+    return file !== undefined &&
+      isAbsolute(file) &&
+      !(cacheDir !== undefined && isInside(cacheDir, file))
+      ? file
+      : undefined;
+  };
+
+  /**
+   * The re-export chain from `file`, a module outside the scanned sources, to a
+   * server-only assertion. App modules are the graph's: only the rest is walked.
+   */
+  const packageChain = (
+    plugin: PluginContext,
+    file: string,
+  ): Promise<readonly string[] | undefined> => {
+    if (inApp(file)) return Promise.resolve(undefined);
+
+    const known = building ? walks.get(file) : undefined;
+
+    if (known) return known;
+
+    const walk = findServerOnlyChain(file, installedFacts, (specifier, importer) =>
+      moduleFile(plugin.environment, specifier, importer),
+    ).then(({ chain, truncated }) => {
+      if (truncated) {
+        plugin.warn(
+          `[strata] Stopped following the re-exports of ${displayPath(file, root)} at the analysis limit. Modules beyond it are still refused when the bundler loads them.`,
+        );
+      }
+
+      return chain;
+    });
+
+    if (building) walks.set(file, walk);
+
+    return walk;
+  };
+
+  /**
+   * The checks every browser graph runs: the `client` environment's and, through
+   * `worker.plugins`, the bundle of each worker it spawns. Vite builds those in
+   * a separate bundler pass, without the app's plugins, under the name `client`.
+   */
+  const browserGraph: Pick<Plugin, "resolveId" | "load" | "generateBundle"> = {
+    async resolveId(source, importer, resolveOptions) {
+      if (!enabled || this.environment.name !== "client" || !importer) return null;
+
+      // Only a marked module imports the assertion, and a marked module inside
+      // sourceDir is stopped at its own import site below. Reaching this means
+      // one the pre-scan never saw (outside sourceDir) is being loaded.
+      if (source === SERVER_ONLY_SPECIFIER) {
+        this.error(
+          browserGraphError(
+            { kind: "server-only-specifier" },
+            importer,
+            firstImporter(this, importer, parents),
+            context,
+            importChain(this, importer, parents).slice(0, -1),
+          ),
+        );
+      }
+
+      // A package entry is refused here, before the bundler or the optimizer
+      // loads it. This is the only check a query import of one meets: `?raw`,
+      // `?url` and `?worker` never parse the module, so its assertion never runs.
+      // The dependency scan only discovers (it sees imports a compiler would
+      // drop as type-only), and what it finds is checked when it is really used.
+      // Vite passes `scan` at runtime without typing it on this hook; without
+      // it this check would merely run during the scan too, which fails closed.
+      if (!(resolveOptions as { scan?: boolean }).scan && !source.startsWith("\0")) {
+        const file = await moduleFile(this.environment, source, importer);
+        const chain = file === undefined ? undefined : await packageChain(this, file);
+
+        if (chain) {
+          this.error(
+            browserGraphError(
+              {
+                kind: "server-only-package",
+                entry: source.startsWith(".") || source.startsWith("/") ? undefined : source,
+                chain,
+              },
+              `${file}${source.slice(stripQuery(source).length)}`,
+              importer,
+              context,
+              importChain(this, importer, parents),
+            ),
+          );
+        }
+      }
+
+      // A path is always resolved and checked. A bare specifier is resolved
+      // here only when the generation's resolver (Vite aliases, tsconfig
+      // `paths`) says it names an app module, so ordinary package imports pay
+      // nothing more; whatever else Vite resolves is stopped by `load` below.
+      if (
+        !source.startsWith(".") &&
+        !source.startsWith("/") &&
+        graph.resolve(source, stripQuery(importer)) === undefined
+      ) {
+        return null;
+      }
+
+      const resolved = await this.resolve(source, importer, { ...resolveOptions, skipSelf: true });
+
+      if (!resolved) return null;
+
+      if (failure !== undefined && inApp(resolved.id)) this.error(failClosedMessage());
+
+      const forbidden = forbiddenIn(resolved.id);
+
+      if (!forbidden) return null;
+
+      // A Server Component imported as a module is replaced by its surrogate.
+      // A query import of one (`?raw`, `?url`) would ship its source or its
+      // file instead, so that fails like any other server-only module.
+      if (forbidden.kind === "server-component" && resolved.id === forbidden.file) {
+        return graph.bySource.get(forbidden.file)?.surrogate ?? null;
+      }
+
+      this.error(
+        browserGraphError(
+          forbidden,
+          resolved.id,
+          importer,
+          context,
+          importChain(this, importer, parents),
+        ),
+      );
+    },
+
+    // A forbidden module reaching the browser graph by any other path (e.g. a
+    // glob import or an alias that bypasses the check above) fails the build
+    // instead of leaking.
+    load(id) {
+      if (!enabled || this.environment.name !== "client") return null;
+
+      if (failure !== undefined && inApp(id)) this.error(failClosedMessage());
+
+      const forbidden = forbiddenIn(id);
+
+      if (forbidden) {
+        const importer = firstImporter(this, id, parents);
+
+        this.error(
+          browserGraphError(
+            forbidden,
+            id,
+            importer,
+            context,
+            importer ? importChain(this, importer, parents) : [],
+          ),
+        );
+      }
+
+      const file = stripQuery(id);
+      const query = id.slice(file.length);
+
+      // Normally refused at `resolveId`. This covers a query id that reached `load`
+      // without it, because a plugin ahead of this one resolved the import: text or
+      // a URL is about to be made of the file, and nothing will parse it.
+      if (query === "" || PLAIN_LOAD_QUERY.test(query)) return null;
+
+      return packageChain(this, file).then((chain) => {
+        if (chain) {
+          this.error(
+            browserGraphError({ kind: "server-only-package", chain }, id, undefined, context),
+          );
+        }
+
+        return null;
+      });
+    },
+
+    generateBundle(_options, bundle) {
+      if (!enabled || this.environment.name !== "client") return;
+
+      for (const output of Object.values(bundle)) {
+        const emitted = emittedServerOnly(output);
+
+        if (emitted !== undefined) {
+          this.error(
+            browserGraphError({ kind: "server-only-emitted" }, emitted, undefined, context),
+          );
+        }
+      }
+    },
   };
 
   /** What a source edit means for the graph; computed once per watcher event. */
@@ -443,6 +660,16 @@ export function strataServerComponents(options: ServerComponentsOptions): Plugin
             ? { rolldownOptions: { plugins: [serverOnlyOptimizerPlugin(context)] } }
             : {}),
         },
+        // Vite concatenates this with the app's own `worker.plugins`.
+        ...(enabled
+          ? {
+              worker: {
+                plugins: () => [
+                  { name: `${PLUGIN_NAME}:worker`, enforce: "pre" as const, ...browserGraph },
+                ],
+              },
+            }
+          : {}),
         ssr: { noExternal: [RUNTIME_PACKAGE, ...clientComponents.map((entry) => entry.module)] },
       };
     },
@@ -456,6 +683,10 @@ export function strataServerComponents(options: ServerComponentsOptions): Plugin
 
       // `resolve.alias` is shared by every environment.
       aliases = resolved.resolve.alias;
+      // `scan` keeps the dev server from answering with an optimized chunk, which
+      // says nothing about the package module behind it.
+      resolveModule = createIdResolver(resolved, { scan: true });
+      cacheDir = resolved.cacheDir;
       refresh();
     },
 
@@ -473,7 +704,10 @@ export function strataServerComponents(options: ServerComponentsOptions): Plugin
     },
 
     buildStart() {
-      if (this.environment?.name === "client") parents.clear();
+      if (this.environment?.name === "client") {
+        parents.clear();
+        walks.clear();
+      }
       if (building && this.environment) activeBuilds.add(this.environment.name);
     },
 
@@ -608,90 +842,7 @@ export function strataServerComponents(options: ServerComponentsOptions): Plugin
       return isClient && pass.decision.reload ? ([] satisfies EnvironmentModuleNode[]) : undefined;
     },
 
-    async resolveId(source, importer, resolveOptions) {
-      if (!enabled || this.environment.name !== "client" || !importer) return null;
-
-      // Only a marked module imports the assertion, and a marked module inside
-      // sourceDir is stopped at its own import site below. Reaching this means
-      // one the pre-scan never saw (outside sourceDir) is being loaded.
-      if (source === SERVER_ONLY_SPECIFIER) {
-        this.error(
-          browserGraphError(
-            { kind: "server-only-specifier" },
-            importer,
-            firstImporter(this, importer, parents),
-            context,
-            importChain(this, importer, parents).slice(0, -1),
-          ),
-        );
-      }
-
-      // A path is always resolved and checked. A bare specifier is resolved
-      // here only when the generation's resolver (Vite aliases, tsconfig
-      // `paths`) says it names an app module, so ordinary package imports pay
-      // nothing; whatever else Vite resolves is stopped by `load` below.
-      if (
-        !source.startsWith(".") &&
-        !source.startsWith("/") &&
-        graph.resolve(source, stripQuery(importer)) === undefined
-      ) {
-        return null;
-      }
-
-      const resolved = await this.resolve(source, importer, { ...resolveOptions, skipSelf: true });
-
-      if (!resolved) return null;
-
-      if (failure !== undefined && inApp(resolved.id)) this.error(failClosedMessage());
-
-      const forbidden = forbiddenIn(resolved.id);
-
-      if (!forbidden) return null;
-
-      // A Server Component imported as a module is replaced by its surrogate.
-      // A query import of one (`?raw`, `?url`) would ship its source or its
-      // file instead, so that fails like any other server-only module.
-      if (forbidden.kind === "server-component" && resolved.id === forbidden.file) {
-        return graph.bySource.get(forbidden.file)?.surrogate ?? null;
-      }
-
-      this.error(
-        browserGraphError(
-          forbidden,
-          resolved.id,
-          importer,
-          context,
-          importChain(this, importer, parents),
-        ),
-      );
-    },
-
-    // A forbidden module reaching the browser graph by any other path (e.g. a
-    // glob import or an alias that bypasses the check above) fails the build
-    // instead of leaking.
-    load(id) {
-      if (!enabled || this.environment.name !== "client") return null;
-
-      if (failure !== undefined && inApp(id)) this.error(failClosedMessage());
-
-      const forbidden = forbiddenIn(id);
-
-      if (forbidden) {
-        const importer = firstImporter(this, id, parents);
-
-        this.error(
-          browserGraphError(
-            forbidden,
-            id,
-            importer,
-            context,
-            importer ? importChain(this, importer, parents) : [],
-          ),
-        );
-      }
-
-      return null;
-    },
+    ...browserGraph,
   };
 }
 

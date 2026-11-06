@@ -13,7 +13,16 @@ export type BrowserForbidden =
   | { readonly kind: "server-component"; readonly file: string }
   | { readonly kind: "server-only"; readonly module: ServerOnlyModule }
   | { readonly kind: "server-only-specifier" }
-  | { readonly kind: "server-only-optimized" };
+  | { readonly kind: "server-only-optimized" }
+  | {
+      /** Reached outside `sourceDir`, typically in an installed package. */
+      readonly kind: "server-only-package";
+      /** The bare specifier the importer wrote; absent for a path, which may name the machine. */
+      readonly entry?: string | undefined;
+      /** The entry module, then each re-export, down to the module that asserts. */
+      readonly chain: readonly string[];
+    }
+  | { readonly kind: "server-only-emitted" };
 
 export interface BrowserGraphContext {
   readonly root: string;
@@ -69,6 +78,15 @@ function reasonOf(forbidden: BrowserForbidden, context: BrowserGraphContext): st
       return `the importer asserts server-only, but the pre-scan of sourceDir did not register it (it lives outside sourceDir, for example in an installed or linked package, or the import is not the plain side-effect form \`${ASSERTION}\`). A package is not exempt from the server-only contract because it is listed in clientComponents or installed from npm.`;
     case "server-only-optimized":
       return `it declares \`${ASSERTION}\` and is part of a dependency the dev server pre-bundles for the browser (optimizeDeps). It is reached from a browser-visible import, directly, through a package re-export or through a dynamic import. Dependency pre-bundling collapses a package's internal imports, so only the importers the optimizer reports are listed and the app import that started the chain may be unavailable.`;
+    case "server-only-emitted":
+      return `an output file of the browser build is a copy of a module that declares \`${ASSERTION}\`. \`new URL(…, import.meta.url)\` and CSS \`url()\` copy or inline a file without loading it as a module, so the assertion cannot run; this check reads the emitted file instead.`;
+    case "server-only-package": {
+      const chain = forbidden.chain.map((file) => displayPath(file, context.root));
+
+      return chain.length === 1
+        ? `the module declares \`${ASSERTION}\`. An installed package is not exempt from the server-only contract.`
+        : `it re-exports a server-only module: ${chain.join(" → ")}, which declares \`${ASSERTION}\`. A module that re-exports a server-only module is server-only for the browser, whichever of its exports the importer selects.`;
+    }
     case "server-only": {
       const { module } = forbidden;
 
@@ -87,6 +105,10 @@ function reasonOf(forbidden: BrowserForbidden, context: BrowserGraphContext): st
 
 function adviceOf(forbidden: BrowserForbidden): string {
   switch (forbidden.kind) {
+    case "server-only-package":
+      return "Import the browser-safe exports from a package subpath that does not reach this module, or use the module only from a @ServerComponent() or the server-owned components it renders and pass plain data to the island through [strataClient]. Only this entry is refused, not the package.";
+    case "server-only-emitted":
+      return "Do not reference a server-only module from browser code by URL. Move the reference behind the Server Component boundary.";
     case "server-component":
       return "Import the Server Component only through Angular component imports, so its module resolves to the surrogate, and do not reach it through a glob import or a query.";
     case "server-only-optimized":
@@ -96,6 +118,19 @@ function adviceOf(forbidden: BrowserForbidden): string {
       return forbidden.module.reason === "server-only-assertion"
         ? "Move the dependency behind the Server Component boundary (use it only from a @ServerComponent() or the server-owned components it renders, and pass plain data to the island through [strataClient]), or remove the browser import."
         : "Import the browser-safe exports from a module that does not re-export server-only code, or move the dependency behind the Server Component boundary.";
+  }
+}
+
+function noImporter(forbidden: BrowserForbidden): string {
+  switch (forbidden.kind) {
+    case "server-only-optimized":
+      return "none known (it is an entry the dependency optimizer pre-bundles: a browser-visible import resolved to it directly)";
+    case "server-only-emitted":
+      return "not applicable (an emitted file has no importer; search the browser sources for the `new URL` or `url()` reference)";
+    case "server-only-package":
+      return "unavailable (another plugin resolved this module before the Strata plugin)";
+    default:
+      return "unavailable (the bundler did not report an importer for this module, e.g. it was reached through a glob import)";
   }
 }
 
@@ -117,7 +152,10 @@ export function browserGraphError(
 
   return [
     `[strata] ${title}: ${display(id, context)}`,
-    `Imported from: ${importer ? display(importer, context) : forbidden.kind === "server-only-optimized" ? "none known (it is an entry the dependency optimizer pre-bundles: a browser-visible import resolved to it directly)" : "unavailable (the bundler did not report an importer for this module, e.g. it was reached through a glob import)"}`,
+    ...(forbidden.kind === "server-only-package" && forbidden.entry !== undefined
+      ? [`Package entry: ${forbidden.entry}`]
+      : []),
+    `Imported from: ${importer ? display(importer, context) : noImporter(forbidden)}`,
     `Reason: ${reasonOf(forbidden, context)}`,
     adviceOf(forbidden),
     ...(chain.length > 1

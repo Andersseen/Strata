@@ -22,6 +22,7 @@ import { SERVER_ONLY_SPECIFIER } from "./server-only.js";
  * production builds are exercised by `pnpm test:server-component-server-only`.
  */
 
+const WORKER_FIREWALL = { plugins: expect.any(Function) as unknown };
 const OPTIMIZER_FIREWALL = {
   plugins: [expect.objectContaining({ name: "strata:server-only-optimizer" })],
 };
@@ -118,7 +119,30 @@ describe("config", () => {
         rolldownOptions: OPTIMIZER_FIREWALL,
       },
       ssr: { noExternal: ["@strata-sc/server-components"] },
+      worker: WORKER_FIREWALL,
     });
+  });
+
+  it("guards worker bundles with the browser-graph hooks, and only while enabled", () => {
+    const configure = (enabled: boolean) =>
+      (
+        strataServerComponents({
+          root,
+          sourceDir: "src/app",
+          generatedDir: "src/generated",
+          enabled,
+        }).config as Hook
+      ).call({}, {}, { command: "build", mode: "production" }) as {
+        worker?: { plugins(): Array<Record<string, unknown>> };
+      };
+    const [guard, ...rest] = configure(true).worker?.plugins() ?? [];
+
+    expect(rest).toEqual([]);
+    expect(guard?.["name"]).toBe("strata:server-components:worker");
+    expect(Object.keys(guard ?? {})).toEqual(
+      expect.arrayContaining(["resolveId", "load", "generateBundle"]),
+    );
+    expect(configure(false).worker).toBeUndefined();
   });
 
   it("defines the build identity for every environment only when one is given, and rejects an invalid one", () => {
@@ -166,6 +190,7 @@ describe("config", () => {
         rolldownOptions: OPTIMIZER_FIREWALL,
       },
       ssr: { noExternal: ["@strata-sc/server-components"] },
+      worker: WORKER_FIREWALL,
     });
   });
 
@@ -191,6 +216,7 @@ describe("config", () => {
         rolldownOptions: OPTIMIZER_FIREWALL,
       },
       ssr: { noExternal: ["@strata-sc/server-components", "@acme/angular-widgets"] },
+      worker: WORKER_FIREWALL,
     });
   });
 

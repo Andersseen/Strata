@@ -1,5 +1,18 @@
 # Current implementation audit
 
+## Installed package graph integrity (branch `fix/server-only-installed-package-graph`)
+
+Package change: `@strata-sc/server-components` minor, no new API
+([report](research/installed-package-graph-hardening.md)).
+
+- **Defect**: `?raw`, `?url`, `new URL()` and every worker graph shipped marked modules in successful builds, workers and
+  `new URL()` for app modules too. Package re-exports through ordinary imports already failed safely, with a weaker
+  diagnostic.
+- **Change**: re-export walk from the reached entry through Vite's client resolver; the same hooks in `worker.plugins`;
+  a query guard in `load`; an emitted-output check. Diagnostics name importer, package entry, chain, assertion and fix.
+- **Evidence**: UNIT, PACKED CONSUMER, LOCAL NODE, LOCAL WORKERD, CHROMIUM. Firewall-off controls per scenario and per-guard
+  mutation runs. Not deployed. Unmarked package code is still not classified.
+
 ## SSR failure contract (branch `feat/ssr-failure-contract`)
 
 Package change: `@strata-sc/server-components` minor, new opt-in `/ssr` entry
