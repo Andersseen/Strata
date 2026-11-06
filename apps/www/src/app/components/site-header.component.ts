@@ -3,13 +3,17 @@ import {
   afterNextRender,
   ChangeDetectionStrategy,
   Component,
+  computed,
   DestroyRef,
   DOCUMENT,
   inject,
+  Injector,
   NgZone,
   PLATFORM_ID,
   signal,
 } from "@angular/core";
+import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
+import { NavigationEnd, Router } from "@angular/router";
 import {
   VoltDialogRoot,
   VoltDrawerClose,
@@ -31,6 +35,9 @@ import { LmnXMarkIcon } from "lumen-icons/x-mark";
 import { SECTION_LINKS, SITE_LINKS } from "../links";
 
 import { ThemeToggleComponent } from "./theme-toggle.component";
+
+/** How far down the viewport a section must start to count as the one being read. */
+const SECTION_LINE = 0.35;
 
 @Component({
   selector: "strata-site-header",
@@ -56,7 +63,7 @@ import { ThemeToggleComponent } from "./theme-toggle.component";
   template: `<header class="site-header" [class.is-scrolled]="scrolled()">
       <a class="skip-link" href="#main">Skip to content</a>
       <nav class="nav-wrap" aria-label="Primary navigation">
-        <a class="brand" href="#top" aria-label="Strata home"
+        <a class="brand" href="/" aria-label="Strata home"
           ><img class="brand-logo" src="/strata-mark.svg" width="28" height="28" alt="" /><span
             >strata</span
           ></a
@@ -67,22 +74,17 @@ import { ThemeToggleComponent } from "./theme-toggle.component";
               <volt-navigation-menu-item
                 ><a
                   voltNavigationMenuLink
-                  [href]="'#' + link.id"
+                  [href]="'/#' + link.id"
                   [active]="active() === link.id"
-                  [attr.aria-current]="active() === link.id ? 'location' : null"
                   >{{ link.label }}</a
                 ></volt-navigation-menu-item
               >
             }
             <volt-navigation-menu-item
-              ><a
-                voltNavigationMenuLink
-                class="nav-external"
-                [href]="links.docs"
-                target="_blank"
-                rel="noopener noreferrer"
-                >Docs <lmn-arrow-up-right [size]="12" /></a
-            ></volt-navigation-menu-item>
+              ><a voltNavigationMenuLink [href]="links.docs" [active]="onDocs()"
+                >Docs</a
+              ></volt-navigation-menu-item
+            >
           </volt-navigation-menu-list>
         </volt-navigation-menu>
         <div class="nav-actions">
@@ -138,23 +140,22 @@ import { ThemeToggleComponent } from "./theme-toggle.component";
               <volt-navigation-menu-item move="fade-left"
                 ><a
                   voltNavigationMenuLink
-                  [href]="'#' + link.id"
+                  [href]="'/#' + link.id"
                   [active]="active() === link.id"
                   (click)="close()"
                   >{{ link.label }}</a
                 ></volt-navigation-menu-item
               >
             }
+            <volt-navigation-menu-item move="fade-left"
+              ><a voltNavigationMenuLink [href]="links.docs" [active]="onDocs()" (click)="close()"
+                >Docs</a
+              ></volt-navigation-menu-item
+            >
           </volt-navigation-menu-list>
         </volt-navigation-menu>
         <div class="mobile-menu-foot">
-          <a
-            voltButton
-            class="primary-action"
-            [href]="links.gettingStarted"
-            target="_blank"
-            rel="noopener noreferrer"
-            moveWhileTap="press"
+          <a voltButton class="primary-action" [href]="links.gettingStarted" moveWhileTap="press"
             >Read the docs <lmn-arrow-up-right [size]="16"
           /></a>
           <a
@@ -180,42 +181,69 @@ export class SiteHeaderComponent {
   private readonly document = inject(DOCUMENT);
   private readonly zone = inject(NgZone);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly injector = inject(Injector);
+  private readonly router = inject(Router);
+  private readonly url = signal(this.router.url);
+
+  protected readonly onDocs = computed(() => /^\/docs(\/|$|[?#])/.test(this.url()));
 
   constructor() {
-    if (!isPlatformBrowser(inject(PLATFORM_ID))) return;
-    afterNextRender(() => this.watchScroll());
+    const browser = isPlatformBrowser(inject(PLATFORM_ID));
+
+    this.router.events.pipe(takeUntilDestroyed()).subscribe((event) => {
+      if (!(event instanceof NavigationEnd)) return;
+      this.url.set(event.urlAfterRedirects);
+      // The sections belong to the routed page, which renders after this shell.
+      if (browser) afterNextRender(() => this.updateActive(), { injector: this.injector });
+    });
+
+    if (browser) afterNextRender(() => this.watchScroll());
+  }
+
+  /**
+   * The current section is the last one whose top has passed a line under the header, so the
+   * parts of a section without a link of their own still count as that section. Looked up on every
+   * update because the page, and therefore its sections, can change under this shell.
+   */
+  private updateActive(): void {
+    const view = this.document.defaultView;
+    if (!view) return;
+
+    const line = view.innerHeight * SECTION_LINE;
+    const atEnd = view.innerHeight + view.scrollY >= this.document.documentElement.scrollHeight - 2;
+    const present = this.sections.filter(({ id }) => this.document.getElementById(id));
+    const passed = present.filter(
+      ({ id }) => this.document.getElementById(id)!.getBoundingClientRect().top <= line,
+    );
+    const current = (atEnd ? present : passed).at(-1)?.id ?? null;
+
+    if (current !== this.active()) this.zone.run(() => this.active.set(current));
   }
 
   private watchScroll(): void {
     const view = this.document.defaultView;
     if (!view) return;
 
-    const onScroll = () => {
+    let frame: number | undefined;
+    const update = () => {
+      frame = undefined;
       const scrolled = view.scrollY > 8;
       if (scrolled !== this.scrolled()) this.zone.run(() => this.scrolled.set(scrolled));
+      this.updateActive();
     };
-    this.zone.runOutsideAngular(() => view.addEventListener("scroll", onScroll, { passive: true }));
-    onScroll();
-    this.destroyRef.onDestroy(() => view.removeEventListener("scroll", onScroll));
+    const onScroll = () => {
+      frame ??= view.requestAnimationFrame(update);
+    };
 
-    if (typeof view.IntersectionObserver !== "function") return;
-    // A section is "current" while it crosses a band just under the header.
-    const visible = new Set<string>();
-    const observer = new view.IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) visible.add(entry.target.id);
-          else visible.delete(entry.target.id);
-        }
-        const current = this.sections.find((section) => visible.has(section.id))?.id ?? null;
-        this.zone.run(() => this.active.set(current));
-      },
-      { rootMargin: "-30% 0px -60% 0px" },
-    );
-    for (const section of this.sections) {
-      const element = this.document.getElementById(section.id);
-      if (element) observer.observe(element);
-    }
-    this.destroyRef.onDestroy(() => observer.disconnect());
+    this.zone.runOutsideAngular(() => {
+      view.addEventListener("scroll", onScroll, { passive: true });
+      view.addEventListener("resize", onScroll, { passive: true });
+    });
+    update();
+    this.destroyRef.onDestroy(() => {
+      view.removeEventListener("scroll", onScroll);
+      view.removeEventListener("resize", onScroll);
+      if (frame !== undefined) view.cancelAnimationFrame(frame);
+    });
   }
 }

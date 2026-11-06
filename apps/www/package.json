@@ -31,6 +31,7 @@
     "@angular/platform-browser": "^22.2.3",
     "@angular/platform-server": "^22.2.3",
     "@angular/router": "^22.2.3",
+    "@doqs/analog": "0.15.0",
     "@strata-sc/analog": "workspace:*",
     "@strata-sc/core": "workspace:*",
     "@strata-sc/server-components": "workspace:*",
@@ -39,6 +40,7 @@
     "angular-movement": "1.2.0",
     "front-matter": "4.0.2",
     "lumen-icons": "0.2.0",
+    "prismjs": "^1.30.0",
     "rxjs": "~7.8.0",
     "tailwindcss": "4.3.3",
     "tslib": "^2.3.0"

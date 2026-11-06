@@ -45,8 +45,6 @@ import { SITE_LINKS } from "../links";
               moveWhileHover="lift"
               moveWhileTap="press"
               [href]="links.docs"
-              target="_blank"
-              rel="noopener noreferrer"
               ><lmn-book-open [size]="16" />Documentation</a
             >
           </div>
@@ -55,7 +53,7 @@ import { SITE_LINKS } from "../links";
     </section>
     <footer class="footer section-wrap">
       <div class="footer-brand">
-        <a class="brand" href="#top"
+        <a class="brand" href="/"
           ><img class="brand-logo" src="/strata-mark.svg" width="28" height="28" alt="" /><span
             >strata</span
           ></a
@@ -69,9 +67,12 @@ import { SITE_LINKS } from "../links";
             <ul>
               @for (item of column.items; track item.label) {
                 <li>
-                  <a [href]="item.href" target="_blank" rel="noopener noreferrer">{{
-                    item.label
-                  }}</a>
+                  <a
+                    [href]="item.href"
+                    [attr.target]="item.href.startsWith('/') ? null : '_blank'"
+                    [attr.rel]="item.href.startsWith('/') ? null : 'noopener noreferrer'"
+                    >{{ item.label }}</a
+                  >
                 </li>
               }
             </ul>

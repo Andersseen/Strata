@@ -590,3 +590,35 @@ jobs:
         run: >-
           pnpm --filter @strata-sc/www exec wrangler pages deploy dist/analog/public
           --project-name=strata-www --branch=main
+
+  # GitHub Pages used to publish the internal Entwine site. A Pages site stays live until it is
+  # replaced, so it now serves a redirect to the Doqs documentation in the official website,
+  # deployed after that website so the target always exists.
+  deploy-docs-redirect:
+    name: Redirect GitHub Pages to the official documentation
+    needs: deploy-www
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Prepare the redirect
+        run: cp apps/www/pages-redirect/index.html apps/www/pages-redirect/404.html
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: apps/www/pages-redirect
+
+      - id: deployment
+        uses: actions/deploy-pages@v5

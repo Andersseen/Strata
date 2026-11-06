@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "@voltui/components/themes.css";
+@import "@doqs/analog/styles.css";
 
 :root,
 :root[data-theme="dark"] {
@@ -35,6 +36,27 @@
   --code: #192018;
   --shadow: rgb(51 59 37 / 12%);
   --layer: rgb(22 25 21 / 16%);
+}
+
+/* Doqs follows the site theme through its host tokens; the header stays sticky above it. */
+:root {
+  --host-docs-background: var(--page);
+  --host-docs-foreground: var(--ink);
+  --host-docs-primary: var(--strata-accent);
+  --host-docs-secondary: var(--strata-muted);
+  --host-docs-muted: var(--faint);
+  --host-docs-border: var(--line);
+  --host-docs-surface: var(--card);
+  --host-docs-focus: var(--strata-accent);
+  --host-docs-code-background: var(--code);
+  --host-docs-code-foreground: #e8edf5;
+  --host-docs-scroll-offset: 5rem;
+  --host-docs-sticky-offset: 5rem;
+}
+
+/* Doqs paints inline code on the code background but keeps the text color. */
+.doq-markdown :not(pre) > code {
+  color: var(--host-docs-code-foreground);
 }
 
 /* Map Volt's semantic design tokens to Strata's palette. The landing keeps its
@@ -169,6 +191,7 @@ main:focus {
   margin-left: auto;
 }
 .nav-links a {
+  background: transparent;
   color: var(--strata-muted);
   font-size: 0.86rem;
   font-weight: 660;

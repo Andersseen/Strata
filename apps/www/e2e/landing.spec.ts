@@ -106,3 +106,72 @@ test("offers a mobile menu, a copyable install command and the quick start", asy
 
   expect(errors).toEqual([]);
 });
+
+test("serves the Doqs documentation inside the site shell", async ({ page }) => {
+  const errors = collectAngularErrors(page);
+
+  await page.goto("/docs/getting-started");
+
+  await expect(page.locator("html")).toHaveAttribute("data-app-ready", "true");
+  await expect(page.getByRole("heading", { level: 1, name: "Getting started" })).toBeVisible();
+  await expect(page.locator("main")).toHaveCount(1);
+  await expect(page.getByRole("link", { name: "Strata home" })).toHaveAttribute("href", "/");
+
+  await page.getByRole("link", { name: "Compatibility" }).first().click();
+  await expect(page).toHaveURL(/\/docs\/compatibility$/);
+  await expect(page.getByRole("heading", { level: 1, name: "Compatibility" })).toBeVisible();
+
+  await page.getByRole("link", { name: "Why Strata" }).first().click();
+  await expect(page).toHaveURL(/\/#why$/);
+  await expect(page.locator("#why")).toBeVisible();
+
+  expect(errors).toEqual([]);
+});
+
+test("reaches the documentation from the landing page in the same tab", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator("html")).toHaveAttribute("data-app-ready", "true");
+
+  await page.getByRole("link", { name: "Read the docs" }).first().click();
+
+  await expect(page).toHaveURL(/\/docs\/getting-started$/);
+});
+
+test("answers an unknown page with a real 404", async ({ page }) => {
+  const response = await page.goto("/no-such-page");
+
+  expect(response?.status()).toBe(404);
+  await expect(page.getByRole("heading", { level: 1, name: "Page not found" })).toBeVisible();
+});
+
+test("the navigation marks where the reader is", async ({ page }) => {
+  const nav = page.getByRole("navigation", { name: "Primary navigation" });
+  const current = nav.locator("[aria-current]");
+
+  await page.goto("/");
+  await expect(page.locator("html")).toHaveAttribute("data-app-ready", "true");
+  await expect(current).toHaveCount(0);
+
+  for (const [id, label] of [
+    ["server-components", "Server Components"],
+    ["why", "Why Strata"],
+    ["controllers", "Controllers"],
+    ["architecture", "Architecture"],
+    ["start", "Quick start"],
+  ]) {
+    await page.locator(`#${id}`).evaluate((section) => section.scrollIntoView());
+    await expect(current).toHaveText(label);
+  }
+
+  // A part of a section with no link of its own still belongs to that section.
+  await page.locator("#server-components-code").evaluate((section) => section.scrollIntoView());
+  await expect(current).toHaveText("Server Components");
+
+  await page.goto("/docs/getting-started");
+  await expect(page.locator("html")).toHaveAttribute("data-app-ready", "true");
+  await expect(current).toHaveText("Docs");
+
+  await page.getByRole("link", { name: "Compatibility" }).first().click();
+  await expect(page).toHaveURL(/\/docs\/compatibility$/);
+  await expect(current).toHaveText("Docs");
+});

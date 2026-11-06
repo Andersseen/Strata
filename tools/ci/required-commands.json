@@ -2,7 +2,7 @@
   "$comment": "Every command the mandatory CI pipeline must run. Baseline: the five-job .github/workflows/ci.yml at 94347ea3b6a991ab68d7e5d1a0c9b397b26b3da5 (`baselineJob`); commands added since carry `baselineJob: null` and an `added` reason. A command may move between jobs; it may not disappear, run twice, become conditional, tolerate failure, or leave the jobs that the aggregate `Verify` depends on. Removing an entry is a coverage change and needs its own review. Checked by tools/ci/lib/coverage.ts (`pnpm test:ci`).",
   "aggregateJob": "ci",
   "aggregateName": "Verify",
-  "nonMandatoryJobs": ["deploy-www"],
+  "nonMandatoryJobs": ["deploy-www", "deploy-docs-redirect"],
   "commands": [
     {
       "run": "\"$RUNNER_TEMP/actionlint\" -color -shellcheck= -pyflakes=",

@@ -24,10 +24,20 @@
       "note": "the /ssr fix is unpublished; recapture after the next publish"
     },
     {
+      "id": "island-double-request",
+      "requirement": "Explain the arm D workerd smoke reporting 2 API requests",
+      "gate": "blocker",
+      "rank": 3,
+      "status": "FAIL",
+      "candidate": null,
+      "link": null,
+      "note": "Extended 42207479355; unproven event-replay hypothesis"
+    },
+    {
       "id": "support-contract-review",
       "requirement": "Maintainer review of the RC0 support contract",
       "gate": "blocker",
-      "rank": 3,
+      "rank": 4,
       "status": "NOT RUN",
       "candidate": null,
       "link": null,

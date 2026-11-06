@@ -104,8 +104,8 @@ import { CodePanelComponent } from "./code-panel.component";
         <a
           class="resource-link"
           [href]="resource.href"
-          target="_blank"
-          rel="noopener noreferrer"
+          [attr.target]="resource.href.startsWith('/') ? null : '_blank'"
+          [attr.rel]="resource.href.startsWith('/') ? null : 'noopener noreferrer'"
           [moveInView]="{ opacity: [0, 1], y: [20, 0] }"
           moveInViewOnce="true"
           [moveDelay]="index * 80"

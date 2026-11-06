@@ -48,6 +48,8 @@ export interface AppGateConfig {
   readonly clientModules: readonly string[];
   /** Name fragments that would reveal a server-only module as a browser file. */
   readonly serverFileNames: readonly string[];
+  /** Text of published documentation chunks, exempt from the build-tool scan only. */
+  readonly documentationMarker?: string;
 }
 
 export const all = (results: readonly boolean[]): boolean => results.every(Boolean);
@@ -151,7 +153,13 @@ export function createAppGate(config: AppGateConfig) {
       ),
     ];
 
-    checkNoBuildTools(output);
+    checkNoBuildTools(output, (file) =>
+      config.documentationMarker === undefined
+        ? false
+        : readFileSync(join(output.root ?? distDir, file), "utf8").includes(
+            config.documentationMarker,
+          ),
+    );
 
     if (sourceMaps) {
       const sources = bundledSources(output);

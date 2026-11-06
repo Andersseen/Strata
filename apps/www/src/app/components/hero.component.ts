@@ -76,8 +76,6 @@ const INSTALL_COMMAND = "pnpm add @strata-sc/server-components";
             moveWhileHover="lift"
             moveWhileTap="press"
             [href]="links.gettingStarted"
-            target="_blank"
-            rel="noopener noreferrer"
             ><lmn-book-open [size]="16" />Read the docs</a
           >
         </div>
