@@ -1,3 +1,4 @@
+import { appendFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -5,6 +6,7 @@ import { run } from "../consumer/lib/exec.ts";
 
 import { awaitCompliantDistTags, awaitVersionVisible, planDistTags } from "./lib/dist-tags.ts";
 import { readManifest, REGISTRY_PACKAGES } from "./lib/packages.ts";
+import { createAuthoritativeReader } from "./lib/registry.ts";
 
 /**
  * Brings the npm dist-tags of every registry package in line with the policy in
@@ -15,11 +17,24 @@ import { readManifest, REGISTRY_PACKAGES } from "./lib/packages.ts";
  * just published (`--published=a,b`): that one is re-read with a bounded backoff
  * and fails the step if it never becomes visible.
  *
- * Runs in .github/workflows/release.yml after `changeset publish`, which is
- * what repairs releases published before this policy.
+ * Every read is the uncached registry state (tools/release/lib/registry.ts), so a
+ * stale cached packument can neither hide a committed version nor plan a move from
+ * an old tag. A registry that cannot be read fails the package; it is never "not
+ * on npm".
+ *
+ * Runs in .github/workflows/release.yml after `changeset publish`, and before the
+ * Version Packages step when Changesets are pending: a run that died between
+ * publishing and aligning (42181130222) is repaired by whichever run comes next.
+ * The step output `server-components-repaired` tells the workflow that such a
+ * recovery happened, so the post-publish registry gate that run never reached
+ * can still execute.
  *
  *   --dry-run          print the planned moves without changing the registry
- *   --published=a,b    packages `changeset publish` just published (must become visible)
+ *   --published=a,b    packages this run expected `changeset publish` to publish
+ *
+ * STRATA_ACCEPTED_PACKAGES holds changesets/action's `publishedPackages` output.
+ * A package in --published that npm never accepted fails at once, without spending
+ * the visibility bound on something that cannot appear.
  */
 
 const REGISTRY = "https://registry.npmjs.org/";
@@ -48,39 +63,46 @@ function npm(npmArgs: readonly string[]) {
   return run("npm", [...npmArgs, "--registry", REGISTRY], { cwd: repoRoot });
 }
 
-function distTags(name: string): Record<string, string> {
-  // --prefer-online: revalidate npm's local metadata cache on every read.
-  const view = npm(["view", name, "dist-tags", "--json", "--prefer-online"]);
+const readRegistry = createAuthoritativeReader();
+const pause = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
-  if (view.status !== 0) throw new Error(`npm view ${name} dist-tags failed:\n${view.stderr}`);
-
-  return JSON.parse(view.stdout || "{}") as Record<string, string>;
-}
+const acceptedJson = process.env["STRATA_ACCEPTED_PACKAGES"];
+const accepted =
+  acceptedJson === undefined || acceptedJson === ""
+    ? undefined
+    : new Set((JSON.parse(acceptedJson) as readonly { name: string }[]).map(({ name }) => name));
 
 let failed = false;
+const repaired: string[] = [];
 
 for (const pkg of REGISTRY_PACKAGES) {
   const { name, version } = readManifest(join(repoRoot, pkg.dir));
 
   try {
-    const visible = (): boolean => {
-      const view = npm(["view", `${name}@${version}`, "version", "--prefer-online"]);
-
-      return view.status === 0 && view.stdout.trim() === version;
+    const lookup = () => readRegistry(name, version);
+    const distTags = async () => {
+      const state = await lookup();
+      return state.status === "found" ? state.distTags : {};
+    };
+    const visible = async (): Promise<boolean> => {
+      const state = await lookup();
+      return state.status === "found" && version in state.versions;
     };
 
     if (justPublished.has(name)) {
-      const reads = await awaitVersionVisible(
-        visible,
-        (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
-      );
-      console.log(`${label} ${name}@${version} visible on npm after ${reads} read(s).`);
-    } else if (!visible()) {
+      if (accepted && !accepted.has(name)) {
+        throw new Error(
+          `npm never accepted ${version}: changeset publish did not report it. This is a failed publish, not visibility lag.`,
+        );
+      }
+      const reads = await awaitVersionVisible(visible, pause);
+      console.log(`${label} ${name}@${version} committed on npm after ${reads} read(s).`);
+    } else if (!(await visible())) {
       console.log(`${label} ${name}@${version} is not on npm; skipping.`);
       continue;
     }
 
-    const changes = planDistTags(distTags(name), version);
+    const changes = planDistTags(await distTags(), version);
     if (changes.length === 0) {
       console.log(`${label} ${name}@${version}: dist-tags already comply.`);
       continue;
@@ -95,14 +117,11 @@ for (const pkg of REGISTRY_PACKAGES) {
     }
 
     if (!dryRun) {
-      const { tags, attempts } = await awaitCompliantDistTags(
-        () => distTags(name),
-        version,
-        (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
-      );
+      const { tags, attempts } = await awaitCompliantDistTags(distTags, version, pause);
       console.log(
         `${label} ${name} dist-tags (visible after ${attempts} read(s)): ${JSON.stringify(tags)}`,
       );
+      if (!justPublished.has(name)) repaired.push(name);
     }
   } catch (error) {
     failed = true;
@@ -110,6 +129,13 @@ for (const pkg of REGISTRY_PACKAGES) {
       `${label} ${name} FAILED: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
+}
+
+if (process.env["GITHUB_OUTPUT"]) {
+  appendFileSync(
+    process.env["GITHUB_OUTPUT"],
+    `server-components-repaired=${repaired.includes("@strata-sc/server-components")}\n`,
+  );
 }
 
 process.exitCode = failed ? 1 : 0;

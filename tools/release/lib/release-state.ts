@@ -1,7 +1,8 @@
-import { readdirSync, readFileSync, rmSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { basename, join } from "node:path";
 
-import { planDistTags } from "./dist-tags.ts";
+import { VERSION_VISIBILITY, planDistTags } from "./dist-tags.ts";
+import type { RetryBound } from "./dist-tags.ts";
 import type { RegistryReader } from "./registry.ts";
 
 /**
@@ -51,11 +52,30 @@ export function changesetFiles(dir: string): string[] {
     .map((file) => join(dir, file));
 }
 
+/**
+ * The Changesets a pre-mode `changeset version` already consumed. Pre mode keeps those files on
+ * disk and lists them in `.changeset/pre.json`; `changesets/action` filters them out, so counting
+ * them would classify a versioned prerelease as VERSION_REQUIRED forever and never publish it.
+ */
+export function consumedPreChangesets(dir: string): ReadonlySet<string> {
+  const file = join(dir, "pre.json");
+  if (!existsSync(file)) return new Set();
+
+  const state = JSON.parse(readFileSync(file, "utf8")) as {
+    readonly mode?: string;
+    readonly changesets?: readonly string[];
+  };
+
+  return new Set(state.mode === "pre" ? (state.changesets ?? []) : []);
+}
+
 export function countChangesets(dir: string): ChangesetCounts & { readonly emptyFiles: string[] } {
   const emptyFiles: string[] = [];
+  const consumed = consumedPreChangesets(dir);
   let nonEmpty = 0;
 
   for (const file of changesetFiles(dir)) {
+    if (consumed.has(basename(file, ".md"))) continue;
     if (isEmptyChangeset(readFileSync(file, "utf8"))) emptyFiles.push(file);
     else nonEmpty++;
   }
@@ -103,7 +123,7 @@ export async function classifyRelease(input: {
 
   for (const pkg of packages) {
     try {
-      const lookup = await readRegistry(pkg.name);
+      const lookup = await readRegistry(pkg.name, pkg.version);
       const present = lookup.status === "found" && pkg.version in lookup.versions;
       (present ? published : unpublished).push(pkg.name);
     } catch (error) {
@@ -175,6 +195,10 @@ export interface PublicationVerdict {
 export async function verifyPublication(input: {
   readonly packages: readonly LocalPackage[];
   readonly readRegistry: RegistryReader;
+  /** Downloads a tarball and returns its integrity; requires an authoritative reader. */
+  readonly readTarballIntegrity?: (tarball: string) => Promise<string>;
+  /** Packages that must carry an npm provenance attestation: the ones this run published. */
+  readonly requireProvenance?: ReadonlySet<string>;
 }): Promise<PublicationVerdict> {
   const packages = input.packages.filter((pkg) => !pkg.private);
   const local = new Map(packages.map((pkg) => [pkg.name, pkg]));
@@ -183,7 +207,7 @@ export async function verifyPublication(input: {
   for (const pkg of packages) {
     let lookup;
     try {
-      lookup = await input.readRegistry(pkg.name);
+      lookup = await input.readRegistry(pkg.name, pkg.version);
     } catch (error) {
       problems.push(
         `${pkg.name}: registry unreadable (${error instanceof Error ? error.message : String(error)})`,
@@ -209,6 +233,29 @@ export async function verifyPublication(input: {
     for (const { tag, from, to } of planDistTags(lookup.distTags, pkg.version)) {
       problems.push(`${pkg.name} dist-tag "${tag}" is ${from ?? "absent"}, expected ${to}`);
     }
+
+    if (input.requireProvenance?.has(pkg.name) && !published.dist?.provenance) {
+      problems.push(`${pkg.name}@${pkg.version} has no npm provenance attestation`);
+    }
+
+    if (input.readTarballIntegrity) {
+      if (!published.dist) {
+        problems.push(`${pkg.name}@${pkg.version} has no dist metadata to verify`);
+        continue;
+      }
+      try {
+        const actual = await input.readTarballIntegrity(published.dist.tarball);
+        if (actual !== published.dist.integrity) {
+          problems.push(
+            `${pkg.name}@${pkg.version} tarball integrity ${actual} does not match the registry's ${published.dist.integrity}`,
+          );
+        }
+      } catch (error) {
+        problems.push(
+          `${pkg.name}@${pkg.version}: tarball unreadable (${error instanceof Error ? error.message : String(error)})`,
+        );
+      }
+    }
   }
 
   return { ok: problems.length === 0, problems };
@@ -226,11 +273,7 @@ export async function verifyPublication(input: {
 export async function verifyPublicationEventually(
   verify: () => Promise<PublicationVerdict>,
   wait: (ms: number) => Promise<void>,
-  options: { attempts: number; firstDelayMs: number; maxDelayMs: number } = {
-    attempts: 6,
-    firstDelayMs: 2_000,
-    maxDelayMs: 16_000,
-  },
+  options: RetryBound = VERSION_VISIBILITY,
 ): Promise<PublicationVerdict & { readonly attempts: number }> {
   let delay = options.firstDelayMs;
   let verdict = await verify();

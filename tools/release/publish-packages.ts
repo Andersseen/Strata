@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import { run } from "../consumer/lib/exec.ts";
 
-import { distTagFor } from "./lib/dist-tags.ts";
+import { awaitCompliantDistTags, awaitVersionVisible, distTagFor } from "./lib/dist-tags.ts";
 import {
   assertPublishSelection,
   describeTarball,
@@ -13,6 +13,7 @@ import {
   packPackage,
   REGISTRY_PACKAGES,
 } from "./lib/packages.ts";
+import { createAuthoritativeReader } from "./lib/registry.ts";
 
 /**
  * Local pack → inspect → `npm publish` of the registry packages
@@ -90,10 +91,14 @@ function scopePreflight(): string | null {
   return `npm scope ownership blocker: npm user "${user}" is neither the "${SCOPE}" user nor a member of the "${SCOPE}" org.`;
 }
 
-function isPublished(name: string, version: string): boolean {
-  const view = npm(["view", `${name}@${version}`, "version", "--json"]);
+const readRegistry = createAuthoritativeReader();
+const pause = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
-  return view.status === 0 && view.stdout.trim().length > 0;
+/** Uncached, and throws on an unreadable registry: only a 404 can mean "publish it". */
+async function isPublished(name: string, version: string): Promise<boolean> {
+  const state = await readRegistry(name, version);
+
+  return state.status === "found" && version in state.versions;
 }
 
 const tarballDir = mkdtempSync(join(tmpdir(), "strata-release-"));
@@ -118,7 +123,7 @@ try {
       throw new Error(`${name} tarball failed inspection:\n- ${inspection.problems.join("\n- ")}`);
     }
 
-    if (isPublished(name, version)) {
+    if (await isPublished(name, version)) {
       console.log(`${label} ${name}@${version} is already on the registry; skipping.`);
       continue;
     }
@@ -136,14 +141,17 @@ try {
     if (publish.status !== 0) throw new Error(`npm publish failed for ${name}@${version}.`);
 
     if (!dryRun) {
-      const tags = JSON.parse(npm(["view", name, "dist-tags", "--json"]).stdout || "{}") as Record<
-        string,
-        string
-      >;
+      // npm accepted it; committing takes up to a minute and a half (see VERSION_VISIBILITY).
+      await awaitVersionVisible(() => isPublished(name, version), pause);
+      const { tags } = await awaitCompliantDistTags(
+        async () => {
+          const state = await readRegistry(name, version);
+          return state.status === "found" ? state.distTags : {};
+        },
+        version,
+        pause,
+      );
       console.log(`${label} ${name} dist-tags: ${JSON.stringify(tags)}`);
-      if (tags[distTag] !== version) {
-        throw new Error(`${name} dist-tag "${distTag}" does not point at ${version}.`);
-      }
     }
   }
 } catch (error) {

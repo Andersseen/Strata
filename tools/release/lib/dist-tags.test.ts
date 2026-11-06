@@ -175,7 +175,7 @@ describe("awaitVersionVisible (Release run 42034642481)", () => {
         () => Promise.resolve(),
         options,
       ),
-    ).rejects.toThrow(/still not visible on npm after 4 reads/);
+    ).rejects.toThrow(/VISIBILITY LAG/);
     expect(reads).toBe(4);
   });
 });
