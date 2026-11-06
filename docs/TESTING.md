@@ -229,6 +229,14 @@ force, HTML-entry scan, `include`, `exclude`, linked package) and `vite build` /
 diagnostic, the absence of private markers in bodies, error payloads, assets and source maps, and a positive control that
 the markers exist and are served with the firewall off.
 
+Installed-package graph ([report](research/installed-package-graph-hardening.md)): `server-only.test.ts` covers the
+re-export walk (forms, shortest chain, cycles, limit), the installed-file facts and the emitted-output check;
+`pnpm test:server-component-optimized-deps` adds re-export forms, an Angular Package Format tarball, cross-package
+chains, `?raw`/`?url`/worker/`new URL()` access, direct dev requests and cache states, each refusal with its firewall-off
+exposure measured (encoded data URLs included); `pnpm test:server-component-package-consumer` repeats the forms in a real
+Analog build (`@defer`, an ngc-compiled barrel, a worker, an Angular error alongside the refusal) and renders a Server
+Component that imports a server-only package module on Node, local workerd and Chromium.
+
 Server-only graph security (0.6 candidate; [report](research/server-component-graph-security-v06.md)):
 `resolve.test.ts` covers module identity (relative, index, `.js`, Vite string/RegExp aliases, tsconfig
 paths, packages never resolved) and alias-aware taint with cycles; the plugin tests cover the client

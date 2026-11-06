@@ -323,6 +323,26 @@ TypeScript 6.0.3 and 5.9.2); not a deployed Pages project. `serverFn` on workerd
 names, duplicates combined with `", "`. Qualified locally on that tuple, not on a deployed Pages project
 ([report](research/analog-header-validation-v09.md)).
 
+## Installed-package server-only contract (Server Components, next minor)
+
+What a browser graph refuses, by how the module is classified
+([report](research/installed-package-graph-hardening.md)):
+
+| Case                                                                       | Contract                                                                                                                            |
+| -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Explicitly marked module (plain side-effect import of the assertion)       | Refused in every browser graph: import, `import()`, `@defer`, query, worker, `new URL()`                                            |
+| Package entry re-exporting one (`export *`, named, namespace, chained)     | Refused at the entry, whichever export is selected, through Vite's client resolution; across packages and `#imports` too            |
+| Unrelated safe subpath, or the `browser` condition of a conditional export | Allowed: an entry is judged, never a package                                                                                        |
+| Type-only re-export, `export { type T } from`                              | Allowed: it loads nothing                                                                                                           |
+| Unmarked package code                                                      | **Not classified.** Reachable and shippable, including under `?raw`; the firewall reads assertions, not source semantics            |
+| Marker written as `require()` or `import {} from`                          | Refused when loaded as a module; **not recognized under a query**                                                                   |
+| Package export the consumer never imports                                  | Not exercised and not analyzed: the walk starts only from what a browser graph reaches                                              |
+| Editing `node_modules` in place                                            | Unsupported. The directly imported entry is re-read; a module behind an ordinary import stays stale until `--force` or a cold cache |
+
+Behavior change: a build that shipped a marked module through a query, `new URL()` or a worker now
+fails. There is no new option or export. `createIdResolver` (public in Vite) and `worker.plugins` are
+the seams used; the peer range stays `vite >=8.3.0 <9`.
+
 ## Deployment skew (Server Components 0.8)
 
 The build identity depends only on Vite `define` reaching every environment of one `vite build` and on the

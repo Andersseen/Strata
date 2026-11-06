@@ -1,5 +1,13 @@
 # Strata 1.0 exit criteria
 
+**Installed package graph (branch `fix/server-only-installed-package-graph`, [report](research/installed-package-graph-hardening.md)).**
+No item is ticked; the matrix is unchanged (PASS 1, PARTIAL 27, BLOCKED 0, NOT RUN 4). #7, #8, #9 and #23 stay PARTIAL with
+stronger evidence. Query access, `new URL()` and worker graphs shipped marked modules in successful builds and are now
+refused; package re-exports are refused at the entry with the full chain. Protected: explicitly marked modules and supported
+installed-package re-exports. Not protected: unmarked package dependencies (ownership only). Not analyzed: package exports a
+consumer never imports. Evidence is packed consumer, local Node, local workerd and Chromium; see the report for hosted CI. No
+real deployed run of this change.
+
 **SSR failure contract (branch `feat/ssr-failure-contract`, [report](research/ssr-failure-contract.md)).**
 No item is ticked; the matrix is unchanged (PASS 1, PARTIAL 27, BLOCKED 0, NOT RUN 4). #15 stays
 PARTIAL with stronger evidence: the unexpected-render contract is now an opt-in Strata API
@@ -192,8 +200,11 @@ complete M4, M5 or Strata 1.0; see the
       aliased re-exports (Vite aliases, tsconfig paths, index files) are followed by the pre-scan
       and a package module that asserts server-only fails the client build, with the importer and
       import chain the bundler knows (0.6 candidate,
-      [report](research/server-component-graph-security-v06.md)); package re-exports are not
-      crawled, a package that leaks without asserting is not detected; in dev, pre-bundled package
+      [report](research/server-component-graph-security-v06.md)); a package entry that asserts or
+      re-exports an asserting module is refused at the entry through Vite's client resolution, and
+      query, `new URL()` and worker access is refused too
+      ([report](research/installed-package-graph-hardening.md)); a package that leaks without asserting
+      is not detected; in dev, pre-bundled package
       modules that assert are refused by the optimizer firewall (0.9 candidate,
       [report](research/server-component-optimized-dependency-firewall-v09.md)) but the importer above an optimizer entry is unavailable, a warm cache
       survives an in-place edit, and a failed first optimizer run ends `vite` dev; local Node and
