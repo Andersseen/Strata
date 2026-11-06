@@ -147,13 +147,19 @@ C3 lifecycle audit: Analog already covers cleanup on every rejected-input path, 
 test was added; more would be noise. The concrete gap was the `/ssr` slot lifecycle, now covered by 13 unit tests:
 slot removal on every path, a retained contract refusing late records, interleaved failure and success, nesting.
 
-Two test defects found and fixed, neither a product defect:
+One test defect found and fixed: Changesets hangs on a shallow clone with no remote, which timed out the RC job. It
+now uses full history, a timeout, and refuses a shallow checkout with a clear error.
 
-- The island smoke re-clicked every 150 ms, so a cold workerd isolate produced a second legitimate request and a
-  false `2 API request(s)` failure in Extended 42203589519. It now waits for an in-flight request. The exactly-one
-  assertion is unchanged.
-- Changesets hangs on a shallow clone with no remote, which timed out the RC job. It now uses full history, a
-  timeout, and refuses a shallow checkout with a clear error.
+**Open, not explained: `availability: 2 API request(s), expected exactly 1`.** It failed the arm D (full Strata)
+workerd smoke, repetition 1, in Extended 42203589519 and again in 42207479355. The second run already contained
+the change that stops re-clicking while a request is in flight, so that change did not fix it, and this report's first
+version wrongly recorded it as fixed. The current hypothesis is unproven: clicks before hydration are captured by
+Angular's event replay and replayed afterwards, adding one request per early click. Until a run shows which clicks
+produced which requests, a real double activation is not excluded. The exactly-one assertion stays.
+
+**CI flake, diagnosed, not fixed:** main run 42210806375 failed with `bind(): Address already in use` in the packed
+Angular DI consumer. `findFreePort` releases a port before workerd binds it. The suite passed on the PR, and Release
+42212123291 correctly refused to run on the failed source.
 
 ## Node production
 
@@ -182,6 +188,7 @@ Existing workflow and isolated project `strata-fullstack-qualification` only; no
 | ----------- | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
 | 42203639702 | B source-packed at `066bd13`                                       | **GO**, 408 checks: controllers, SSR, island, confidentiality, `/ssr` 500 contract, concurrency                |
 | 42204261334 | A published, server-components 0.15.0                              | **GO**, 405 checks                                                                                             |
+| 42209412051 | A published, server-components 0.16.0                              | **GO**                                                                                                         |
 | 42204751136 | A/B 0.14.0 → 0.15.0                                                | stopped before deploying: the older arm needs the recipe, so sources differed. Correct refusal; the pair moved |
 | 42207006348 | A/B published 0.15.0 → 0.16.0, candidate code SHA line (`9e2bba9`) | **GO**: release A, release B and A's retained artifact, both arms on the real `/ssr`                           |
 
@@ -210,14 +217,21 @@ the pre-mode classifier change first written here was unnecessary and was remove
 
 ## CI
 
-No mandatory job or command was added; `rc0` runs in Extended only. Run 42204608302 took 17.7 minutes of wall time
-against the usual 10 to 12, while Extended, deployment and superseded runs shared the runner allowance, so it is not
-a clean measurement.
+No mandatory job or command was added; `rc0` runs in Extended only. Run 42207481386 at the candidate SHA took 11.1
+minutes. Run 42204608302 took 17.7 minutes while it shared runners with Extended and deployments.
 
 ## Remaining upstream limitations
 
 Angular JIT on workerd; streaming SSR; client-disconnect cancellation without a transport signal; Router subtree
 Server Component activation; private H3 v2 adapter and strict-type blockers (SPEC-002 stays upstream-blocked).
+
+## Local verification
+
+Passed locally on the merged tree: build, lint, typecheck, format check, `pnpm test`, `test:ci`, every graph, runtime
+and Analog suite, the packed Server Components, package, island, Angular DI and full-stack consumers. The run was
+stopped before multi-isolate, adversarial smoke, deployment skew, Cloudflare rehearsal, website, Relay, Node production
+and upgrade suites, because the shared checkout moved. Those passed in hosted CI or Extended, except as listed above,
+and were not run locally on the final tree.
 
 ## Remaining blockers, ranked
 
@@ -225,7 +239,8 @@ Server Component activation; private H3 v2 adapter and strict-type blockers (SPE
    publish 0.17.0 without manual help. Failure here must stop the RC.
 2. **`/ssr` fix unpublished.** Candidate A lacks it. Resolved by the same publish.
 3. **Requalify the resulting tuple**: recapture, frozen, deployed `registry`, `upgrade-rollback`.
-4. **Maintainer review of the support contract**, the input to the RC-entry PR.
+4. **Unexplained double request** in the arm D workerd smoke, see above. It must be explained before an RC.
+5. **Maintainer review of the support contract**, the input to the RC-entry PR.
 
 `pnpm release:rc:check` prints the live version of this list.
 
