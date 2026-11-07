@@ -31,12 +31,12 @@ export const DEFAULT_PAIR: Readonly<Record<Side, VersionTuple>> = {
   a: {
     "@strata-sc/core": "0.2.2",
     "@strata-sc/analog": "0.12.1",
-    "@strata-sc/server-components": "0.15.0",
+    "@strata-sc/server-components": "0.16.0",
   },
   b: {
     "@strata-sc/core": "0.2.2",
     "@strata-sc/analog": "0.12.1",
-    "@strata-sc/server-components": "0.16.0",
+    "@strata-sc/server-components": "0.17.0",
   },
 };
 
@@ -45,8 +45,8 @@ export const DEFAULT_PAIR: Readonly<Record<Side, VersionTuple>> = {
  * package version: a redeploy with identical packages is still a different build.
  */
 export const DEFAULT_BUILD_IDS: Readonly<Record<Side, string>> = {
-  a: "upgrade-a-2026.11.5",
-  b: "upgrade-b-2026.11.6",
+  a: "upgrade-a-2026.11.6",
+  b: "upgrade-b-2026.11.7",
 };
 
 const SUFFIX: Readonly<Record<TuplePackage, string>> = {

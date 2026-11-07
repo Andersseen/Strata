@@ -152,13 +152,21 @@ work only where [the matrix](research/rc0-production-qualification.md#ssr-instal
 two copies both at 0.16 or older cannot be detected, and an old wrapper beside a new provider that loads a
 second Angular still answers HTTP 200.
 
-## Frozen release candidate (2026-11-06)
+## Frozen release candidate (2026-11-07)
 
-Current: `893a15145303f585` (core 0.2.2 / analog 0.12.1 / **server-components 0.16.0**), the first line with the real
-`/ssr` export and the PR #175 graph hardening as published. Source-packed work is a separate candidate
-([report](research/rc0-production-qualification.md)).
+Current: `983f7131e39574e0` (core 0.2.2 / analog 0.12.1 / **server-components 0.17.0**), the RC0 baseline: the published
+`/ssr` installation-integrity protocol, imported from the installed `/ssr` entry, not a recipe. Captured from npm at
+`3b497d9`, reproduced with `npm ci`; consumer lock 869 packages (Rollup 4.68.0 is the only transitive change), TS 5.9
+lock 80, framework tuple and toolchain unchanged. Integrities: core `sha512-Xr6bMt7f…`, analog `sha512-0ytlP1rp…`,
+server-components `sha512-SOrJTSac…`. Source-packed work is a separate candidate
+([report](research/rc0-production-qualification.md#update-rc0-release-train-2026-11-07)).
 
-## Previous frozen candidate (2026-11-05, recaptured)
+## Previous frozen candidate (2026-11-06)
+
+Then current: `893a15145303f585` (core 0.2.2 / analog 0.12.1 / server-components 0.16.0), the first line with the real
+`/ssr` export and the PR #175 graph hardening as published.
+
+## Earlier frozen candidate (2026-11-05, recaptured)
 
 Then current: `402f33e953f9a04b` (core 0.2.2 / **analog 0.12.1** / server-components 0.14.0), recaptured from
 a passing fresh registry run and reproduced with `npm ci`; consumer lock 869 packages, TS 5.9 lock 80,

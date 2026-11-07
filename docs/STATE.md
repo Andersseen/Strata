@@ -1,5 +1,12 @@
 # Current implementation audit
 
+## RC0 release train (2026-11-07)
+
+Published baseline: core 0.2.2, analog 0.12.1, **server-components 0.17.0**, through the corrected pipeline (Release
+run 42237367717, publish, tag alignment and registry verification all green). Frozen as `983f7131e39574e0`.
+**No RC exists.** Next: hosted baseline qualification on the recapture's merge commit, then the RC-entry PR.
+[Report](research/rc0-production-qualification.md#update-rc0-release-train-2026-11-07).
+
 ## RC0 blocker closure (branch `fix/rc0-qualification-reliability`)
 
 Published: core 0.2.2, analog 0.12.1, server-components 0.16.0. Manifest 0.17.0 (`/ssr` integrity) is unpublished:

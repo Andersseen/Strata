@@ -19,7 +19,7 @@
       "artifact": "none",
       "status": "NOT RUN",
       "proof": null,
-      "note": "Release 42219442850 only opened Version PR #179; nothing was published through the current pipeline, and this PR changes it"
+      "note": "Release 42237367717 on 3b497d9 published server-components 0.17.0 through the corrected pipeline; recorded once the candidate exists (pipeline binding)"
     },
     {
       "id": "baseline-frozen",
@@ -27,7 +27,7 @@
       "artifact": "baseline-registry",
       "status": "NOT RUN",
       "proof": null,
-      "note": "server-components 0.17.0 is not on npm yet; recapture after it publishes"
+      "note": "frozen 983f7131e39574e0 (core 0.2.2, analog 0.12.1, server-components 0.17.0); needs Extended suite=registry on the recapture's merge commit"
     },
     {
       "id": "baseline-deployed",
@@ -35,7 +35,7 @@
       "artifact": "baseline-registry",
       "status": "NOT RUN",
       "proof": null,
-      "note": "needs the published 0.17.0 tuple"
+      "note": "needs source=registry on the recapture's merge commit"
     },
     {
       "id": "baseline-upgrade-rollback",
@@ -43,7 +43,7 @@
       "artifact": "baseline-registry",
       "status": "NOT RUN",
       "proof": null,
-      "note": "needs the published 0.17.0 tuple; move DEFAULT_PAIR to 0.16.0 -> 0.17.0"
+      "note": "DEFAULT_PAIR is 0.16.0 -> 0.17.0; needs source=upgrade-rollback on the recapture's merge commit"
     },
     {
       "id": "island-interaction",
