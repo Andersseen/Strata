@@ -140,6 +140,25 @@ Maintainer-authorized, through the normal pipeline, from reviewed PRs. Never fro
 step's result decides the next; a failure stops the sequence. The commands were rehearsed by
 `pnpm release:rc:rehearse`.
 
+The order is fixed. Nothing under `.changeset/` changes on `main` before item 7:
+
+1. The published 0.x baseline is qualified (steps 1 and 2).
+2. The candidate commit is fixed.
+3. The mandatory hosted and deployed evidence runs on it (step 3).
+4. The ledger names that evidence and `pnpm release:rc:check --phase=pre` verifies it (step 4).
+5. The maintainer merges the ledger PR: the support-contract decision.
+6. On the merged `main`, `pnpm release:rc:check --phase=pre` prints GO.
+7. The RC entry is merged (step 5).
+8. Release opens the Version Packages PR from that entry.
+9. The maintainer merges it, and Release publishes after `--phase=pre --publishing` passes (step 6).
+10. The tuple installed from npm is qualified, and `--phase=post` prints GO (step 7).
+
+Release opens a Version Packages PR as soon as an entry reaches `main`, whether or not a GO exists. That is by
+design: the gate guards publishing, not versioning. On 2026-11-07 the entry (#182) was merged eleven minutes
+after the baseline recapture (#181), before steps 3 and 4. Release opened #184; #183 reverted the entry. No
+tooling misbehaved, and nothing was published, because the ledger named no candidate. #184 was generated on
+a pre-mode tree that no longer exists and must not be merged; the next entry regenerates it.
+
 **1. Baseline.** Merging to `main` with a pending version publishes it: the merge's CI, then Release. Confirm
 the Release run published, with `Align npm dist-tags` and `Verify npm registry, tags and GitHub Releases`
 green. That run is `release-pipeline-observed`.
