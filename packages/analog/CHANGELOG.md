@@ -1,5 +1,16 @@
 # @strata-sc/analog
 
+## 1.0.0-rc.0
+
+### Major Changes
+
+- 4e8ff83: First 1.0 release candidate. See docs/COMPATIBILITY.md for the supported combinations.
+
+### Patch Changes
+
+- Updated dependencies [4e8ff83]
+  - @strata-sc/core@1.0.0-rc.0
+
 ## 0.12.1
 
 ### Patch Changes
