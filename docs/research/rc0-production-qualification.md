@@ -8,6 +8,59 @@ Evidence levels, never interchangeable: UNIT, LOCAL NODE, LOCAL WORKERD, PACKED 
 HOSTED CI, PRODUCTION PROCESS (a real production build and process on a hosted runner), DEPLOYED (a public
 Cloudflare endpoint), REAL APPLICATION.
 
+## Update: RC0 recovery after the premature entry (2026-11-07)
+
+**What happened.** #181 (baseline recapture) merged at 11:20 UTC; #182 (RC entry) merged at 11:31, before any
+candidate evidence was recorded. Release run 42369339405 then opened Version Packages #184 (`1.0.0-rc.0` for all
+three), and #183 reverted the entry. Nothing was published, and the gate was never asked: publishing needs
+`--phase=pre --publishing`, and the ledger named no candidate. The release tooling behaved as designed; the order
+was not followed. SPEC-004 now lists the order as ten numbered items. #184 was generated from the pre-mode tree
+`b40a497`, which no longer exists on `main`; it must be closed, not merged, and the next entry regenerates it.
+
+`efff41c` (the revert's merge) has the same tree as `769928f` (#181's merge) and `a753c13` (#181's head), so the
+gate's diff rules let evidence from any of them count for the others.
+
+**Tooling defect found by recording the ledger.** With every row filled, the gate reported `island-interaction:
+step "Measure one island (PR #86 baseline)" is absent` on an Extended run whose one-island step had succeeded. The
+step was declared unquoted in `extended.yml`, and YAML reads ` #86 baseline)` as a comment: GitHub named it
+`Measure one island (PR`. That row could never pass. #185 quotes the name and adds
+`tools/ci/lib/rc-catalog-workflows.test.ts`, which requires every catalog job and step to exist in its workflow.
+Both stay outside `tools/release/`, so `release-pipeline-observed` stays valid. Because `.github/` is code, the RC0 candidate is #185's head `7f9a384`. Its merge commit must be a real merge (not a squash), so `7f9a384` stays in `main`'s history with the same tree, and the candidate-bound rows were taken again on it.
+
+**Evidence.** The frozen baseline is `983f7131e39574e0` (core 0.2.2, analog 0.12.1, server-components 0.17.0);
+npm serves the recorded integrities and provenance, and `latest` and `next` rest on it. The harness commit is
+`efff41c`.
+
+| Row                         | Run                                                                                                        | Commit              |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------- | ------------------- |
+| `release-pipeline-observed` | Release [42237367717](https://github.com/Andersseen/Strata/actions/runs/42237367717)                       | `3b497d9`           |
+| `baseline-frozen`           | Extended `all`/`both` [42364605046](https://github.com/Andersseen/Strata/actions/runs/42364605046)         | `a753c13`           |
+| `baseline-deployed`         | Cloudflare `registry` [42373841330](https://github.com/Andersseen/Strata/actions/runs/42373841330)         | `efff41c`           |
+| `baseline-upgrade-rollback` | Cloudflare `upgrade-rollback` [42374101914](https://github.com/Andersseen/Strata/actions/runs/42374101914) | `efff41c`           |
+| `ci-verify`                 | CI push to `main`, see the ledger                                                                          | candidate           |
+| candidate-bound Extended    | Extended `all`/`both` [42374195018](https://github.com/Andersseen/Strata/actions/runs/42374195018)         | #185 head `7f9a384` |
+| `deployed-source-packed`    | Cloudflare `packed` [42374571852](https://github.com/Andersseen/Strata/actions/runs/42374571852)           | #185 head `7f9a384` |
+
+The Cloudflare `packed` run [42373575226](https://github.com/Andersseen/Strata/actions/runs/42373575226) on
+`efff41c` also passed; it is superseded only because the candidate moved. All Cloudflare runs deployed to the
+isolated `strata-fullstack-qualification` project. Locally on `efff41c` (macOS arm64, Node 22): build, lint,
+typecheck, format check, `pnpm test` and `pnpm release:rc:rehearse` (15 of 15 checks) passed.
+
+**Consumer findings (ForgeCMS PR #125, published baseline).** Classified in the
+[support contract](../COMPATIBILITY.md#rc0-support-contract) and deferred to GA stabilization. Neither is an RC
+blocker:
+
+- `S-1`, medium. On Nitro `node-server`, `StrataAnalogRequest.url` is built from the path against
+  `http://localhost` (`getEventUrl`, `packages/analog/src/register-controllers.ts`). The demonstrated effect fails
+  closed: an origin check against `request.url.origin` refuses legitimate requests. No Strata guarantee depends on
+  that origin: CSRF and origin policy are consumer-owned, headers are complete, and Pages gives the real URL. A
+  consumer that trusted the placeholder would accept `Origin: http://localhost`, so the RC documents not to
+  derive the origin from `request.url`. A fix changes the URL a public type exposes on one runtime and needs a
+  stated proxy-trust policy; that is API work, not a release-train fix.
+- `S-2`, low. `ControllerClass = new () => object` rejects, at type level only, a controller with constructor
+  arguments that a `controllerFactory` builds correctly at runtime; the analog README example does not typecheck.
+  Widening it changes the public API inventory and so the candidate.
+
 ## Update: RC0 release train (2026-11-07)
 
 Start: `main` `3b497d9` (PR #180 merged). This section follows [SPEC-004](../specs/004-first-release-candidate.md)
