@@ -112,14 +112,6 @@ version is outside the contract until it is qualified.
 **Separate injectors.** Controller Angular DI and SSR rendering do not share an injector, and a request's
 controller scope is not visible to a Server Component. They are two runtimes that happen to use the same library.
 
-**Known limitations of RC0.** Found by an outside consumer (ForgeCMS PR #125) on the published baseline. Neither
-breaks a guarantee above, so RC0 ships with them; both are scheduled for GA stabilization.
-
-| Id    | Limitation                                                                                                                                                                                                                                                                                 | What to do in RC0                                                                                                                                                                                                                   |
-| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `S-1` | On Nitro `node-server`, `StrataAnalogRequest.url` has the placeholder origin `http://localhost`: only its path and query come from the request. On Pages it is the real request URL. An origin or CSRF check against `request.url.origin` refuses legitimate same-origin requests on Node. | Do not derive the application's origin from `request.url`. Compare `Origin` with an origin the application configures (or derives from `Host` behind a trusted proxy policy). CSRF stays consumer-owned, as the analog README says. |
-| `S-2` | `ControllerClass` is typed `new () => object`, so a controller whose constructor takes arguments does not typecheck in `registerControllers` even with a `controllerFactory` that builds it. Runtime behaviour is correct: the factory, not `new`, creates the instance.                   | Keep controller constructors parameterless (inject through the factory or properties), or cast the class at the registration site. The analog README example with a constructor argument does not typecheck as written.             |
-
 ### Experimental
 
 | Id                 | Capability                         | Limitation                                                                       |

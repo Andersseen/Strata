@@ -46,9 +46,10 @@ The Cloudflare `packed` run [42373575226](https://github.com/Andersseen/Strata/a
 isolated `strata-fullstack-qualification` project. Locally on `efff41c` (macOS arm64, Node 22): build, lint,
 typecheck, format check, `pnpm test` and `pnpm release:rc:rehearse` (15 of 15 checks) passed.
 
-**Consumer findings (ForgeCMS PR #125, published baseline).** Classified in the
-[support contract](../COMPATIBILITY.md#rc0-support-contract) and deferred to GA stabilization. Neither is an RC
-blocker:
+**Consumer findings (ForgeCMS PR #125, published baseline).** Deferred to GA stabilization; neither is an RC
+blocker. The RC0 release notes must list both as known limitations. They are not added to the public
+[support contract](../COMPATIBILITY.md#rc0-support-contract) here: that page is published by `apps/www`, and
+regenerating it would change code after the candidate.
 
 - `S-1`, medium. On Nitro `node-server`, `StrataAnalogRequest.url` is built from the path against
   `http://localhost` (`getEventUrl`, `packages/analog/src/register-controllers.ts`). The demonstrated effect fails

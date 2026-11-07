@@ -36,9 +36,12 @@
       "id": "ci-verify",
       "gate": "blocker",
       "artifact": "source-packed",
-      "status": "NOT RUN",
-      "proof": null,
-      "note": "needs the CI push run of #185 merge commit (tree identical to the candidate 7f9a384)"
+      "status": "PASS",
+      "proof": {
+        "kind": "hosted-run",
+        "runId": 42377373394
+      },
+      "note": "CI run 42377373394, push to main at c9c83ac (#185 merge, tree identical to the candidate 7f9a384), aggregate Verify success"
     },
     {
       "id": "release-pipeline-observed",
@@ -170,7 +173,7 @@
         "kind": "maintainer-decision",
         "pullRequest": 186
       },
-      "note": "maintainer merge of PR #186 reviews docs/COMPATIBILITY.md#rc0-support-contract, including S-1 and S-2"
+      "note": "maintainer merge of PR #186 reviews docs/COMPATIBILITY.md#rc0-support-contract and the S-1/S-2 deferral in the RC0 report"
     },
     {
       "id": "rc-publication",
