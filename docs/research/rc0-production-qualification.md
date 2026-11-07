@@ -8,6 +8,41 @@ Evidence levels, never interchangeable: UNIT, LOCAL NODE, LOCAL WORKERD, PACKED 
 HOSTED CI, PRODUCTION PROCESS (a real production build and process on a hosted runner), DEPLOYED (a public
 Cloudflare endpoint), REAL APPLICATION.
 
+## Update: RC0 release train (2026-11-07)
+
+Start: `main` `3b497d9` (PR #180 merged). This section follows [SPEC-004](../specs/004-first-release-candidate.md)
+step by step; earlier sections are the record of how the gate got here.
+
+**Step 1, baseline published.** Release run
+[42237367717](https://github.com/Andersseen/Strata/actions/runs/42237367717) on `3b497d9`, the first one through the
+corrected pipeline, published `@strata-sc/server-components@0.17.0` with no manual help: `Version PR or publish to
+npm`, `Align npm dist-tags` (`next` 0.16.0 → 0.17.0 after npm committed the version, six reads),
+`Verify npm registry, tags and GitHub Releases` (PASS) and the registry consumer (0 failing checks) all succeeded. Read
+back from npm on 2026-11-07:
+
+| Package                        | Version | Integrity                                                                                         | `latest` / `next` |
+| ------------------------------ | ------- | ------------------------------------------------------------------------------------------------- | ----------------- |
+| `@strata-sc/core`              | 0.2.2   | `sha512-Xr6bMt7funa/RtMhr/BTLX548alI8w5/tq/4QIgvk4INEc4nED5CweQUeEujPU6o9/NcJ1XFtqcXPNGjohkHFA==` | 0.2.2 / 0.2.2     |
+| `@strata-sc/analog`            | 0.12.1  | `sha512-0ytlP1rpn5zNhUUtFo2gB6oQzvim8h9jxNBFwMYyavnnUqgHbZYauXeDQXX6Q16Aa/a+wLkMAcqwGIfqLmV4aw==` | 0.12.1 / 0.12.1   |
+| `@strata-sc/server-components` | 0.17.0  | `sha512-SOrJTSac6qRhpI8cn3QL4Cr4jslHN0gwTHA9H9iSCepOHhVenzK/tpo0y0GbGh6JqoLd1/qBBx1QUj4uwMr/Og==` | 0.17.0 / 0.17.0   |
+
+`npm audit signatures` verifies registry signatures and SLSA provenance attestations for all three. The installed
+0.17.0 tarball exports `./ssr`, whose declarations return `EnvironmentProviders` and include the `"integration"`
+phase.
+
+**Step 2, baseline recaptured.** `DEFAULT_PAIR` moved to 0.16.0 → 0.17.0 (build ids `upgrade-a-2026.11.6`,
+`upgrade-b-2026.11.7`). Locally, on macOS arm64 with Node 22.23.1:
+
+| Command                                                                                             | Result                                                           |
+| --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `STRATA_CANDIDATE_CAPTURE="$PWD/tests/full-stack-candidate" pnpm test:full-stack-registry-consumer` | PASS, 0 failing; captured `983f7131e39574e0`                     |
+| `pnpm test:full-stack-frozen-candidate`                                                             | PASS, 0 failing, `npm ci` of both trees                          |
+| `pnpm test:full-stack-registry-upgrade-rollback`                                                    | PASS, 0 failing; local deployment rehearsal GO, DEPLOYED not run |
+
+The installed `/ssr` entry is what the fixture imports; no recipe bridge applies at 0.17.0. The only transitive
+change from `893a15145303f585` is Rollup 4.67.5 → 4.68.0. Local runs are LOCAL NODE, LOCAL WORKERD and CHROMIUM
+evidence of the published artifacts; the gate counts only the hosted runs on the merge commit of this recapture.
+
 ## Update: qualification blockers closed (2026-11-06, branch `fix/rc0-qualification-reliability`)
 
 Start: `main` `79f7764`. Published: core 0.2.2, analog 0.12.1, server-components 0.16.0; manifest 0.17.0 is
