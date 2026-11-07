@@ -1,5 +1,16 @@
 # @strata-sc/analog
 
+## 1.0.0-rc.0
+
+### Major Changes
+
+- 12dbf6c: First 1.0 release candidate. See docs/COMPATIBILITY.md for the supported combinations.
+
+### Patch Changes
+
+- Updated dependencies [12dbf6c]
+  - @strata-sc/core@1.0.0-rc.0
+
 ## 0.12.1
 
 ### Patch Changes
