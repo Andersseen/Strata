@@ -165,9 +165,12 @@
       "id": "support-contract-review",
       "gate": "blocker",
       "artifact": "none",
-      "status": "NOT RUN",
-      "proof": null,
-      "note": "the maintainer merge of the ledger PR; set to PASS with its number once the PR number exists"
+      "status": "PASS",
+      "proof": {
+        "kind": "maintainer-decision",
+        "pullRequest": 186
+      },
+      "note": "maintainer merge of PR #186 reviews docs/COMPATIBILITY.md#rc0-support-contract, including S-1 and S-2"
     },
     {
       "id": "rc-publication",
