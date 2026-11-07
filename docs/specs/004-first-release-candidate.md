@@ -152,10 +152,26 @@ STRATA_CANDIDATE_CAPTURE="$PWD/tests/full-stack-candidate" pnpm test:full-stack-
 pnpm test:full-stack-frozen-candidate
 ```
 
-Its merge commit is the baseline's `harnessSha`. On that commit run Extended (`suite=registry`) and
-`Qualify Full-Stack Strata on Cloudflare` with `source=registry` and `source=upgrade-rollback`.
+Its merge commit is both the baseline's `harnessSha` and **the candidate**, unless a later source change
+must ship in the RC; then the candidate is that later commit and the baseline rows still bind to the
+harness commit.
 
-**3. Enter the RC line.** The merge of this PR is the candidate.
+**3. Qualify the candidate.** On the candidate commit, before anything under `.changeset/` changes on
+`main`, run Extended with `suite=all`, `islands=both` (it includes `registry` and the rehearsal), and
+`Qualify Full-Stack Strata on Cloudflare` with `source=packed`, `source=registry` and
+`source=upgrade-rollback`.
+
+The rehearsal must run here, not after the RC entry: it performs the entry itself, and `changeset pre
+enter` refuses a tree that is already in pre mode (verified 2026-11-07 on the entry commit). The entry
+is versioning only, which is exactly the diff the gate allows between the candidate and the publishing
+commit, so placing it after the candidate weakens nothing.
+
+**4. Record and review.** In a PR that changes only the ledger and documentation, set `candidate` from
+`pnpm release:rc:check --print-candidate=<sha>`, set `baseline`, and fill each row with its run id. The
+maintainer's merge of this PR is `support-contract-review`: the row may name this PR's own number. On the
+merged `main`, `pnpm release:rc:check` must print GO.
+
+**5. Enter the RC line.** Only after that GO. The entry PR changes `.changeset/` only:
 
 ```sh
 git switch -c release/rc-entry origin/main
@@ -175,22 +191,15 @@ pnpm changeset pre enter rc
 git add .changeset && git commit -m "chore(release): enter the 1.0 release candidate line"
 ```
 
-Release then opens "Version Packages". **Do not merge it yet.**
-
-**4. Qualify the candidate.** On the candidate commit run Extended with `suite=all`, `islands=both`, and
-`Qualify Full-Stack Strata on Cloudflare` with `source=packed`.
-
-**5. Record and review.** In a PR that changes only the ledger and documentation, set `candidate` from
-`pnpm release:rc:check --print-candidate=<sha>`, set `baseline`, and fill each row with its run id. The
-maintainer's merge of this PR is `support-contract-review`: its number goes in that row in a further
-ledger-only PR, or the row names an earlier review PR. `pnpm release:rc:check` must print GO.
+Release then opens "Version Packages". From here, the plain (non-publishing) check reports `stale-ledger`,
+because the entry is not documentation; only `--publishing` accepts it, on the versioned commit.
 
 **6. Publish.** Check that "Version Packages" shows `1.0.0-rc.0` for all three and merge it. CI runs, and Release
 re-runs the gate with `--publishing` before publishing. Changesets publishes to the `rc` dist-tag, the
 pre-mode tag. `release:sync-dist-tags` then moves `next` to the RC, so ADR-005's `@next` holds; `latest`
 never moves.
 
-**7. Qualify the artifacts.** Repeat step 2's capture and runs for the RC, add Extended `suite=rc0` for
+**7. Qualify the artifacts.** Repeat step 2's capture and step 3's registry runs for the RC, add Extended `suite=rc0` for
 `rc-node-production`, fill `published` and the `rc-*` rows, and run `pnpm release:rc:check --phase=post`. RC0
 is finished only when that prints GO.
 
@@ -246,6 +255,12 @@ rerun it.
 An RC widens exposure of experimental behavior. The support contract, and the honest limits it lists, are the
 mitigation. A real publish through pre mode has never run: `changesets/action` is not exercised by the
 rehearsal, which is why the first RC must be watched and the recapture above is mandatory.
+
+Once the entry is on `main`, the rehearsal cannot run there (`pre enter` in pre mode), so the Extended `rc0`
+job and the weekly `all` run fail on it until the rehearsal starts from an already-entered tree. That fix is
+in `tools/release/`, so it also resets `release-pipeline-observed`: it lands after RC0 publishes, and the
+first RC published with it observes the new pipeline for the next one. Until then, a superseding `rc.N+1`
+cannot obtain `prerelease-rehearsal`.
 
 ## Definition of Done
 

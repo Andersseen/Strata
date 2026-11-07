@@ -43,6 +43,17 @@ The installed `/ssr` entry is what the fixture imports; no recipe bridge applies
 change from `893a15145303f585` is Rollup 4.67.5 → 4.68.0. Local runs are LOCAL NODE, LOCAL WORKERD and CHROMIUM
 evidence of the published artifacts; the gate counts only the hosted runs on the merge commit of this recapture.
 
+**Sequence defect found and corrected (documentation only).** SPEC-004 made the RC-entry merge the candidate and
+then asked for the prerelease rehearsal on it. The rehearsal performs the entry itself, and on the entry commit
+`changeset pre enter rc` fails: "pre enter cannot be run when in pre mode" (reproduced locally on
+`release/rc-entry`). A fix in `tools/release/` would reset `release-pipeline-observed` and force an artificial 0.x
+publish. Instead the candidate is the recapture's merge commit, all candidate and baseline evidence is taken there,
+and the entry follows the GO as a versioning-only change, the diff the gate already accepts between candidate
+and publishing commit under `--publishing`. The real entry commit was versioned in a throwaway clone: all three
+`1.0.0-rc.0`, analog's `@strata-sc/core` stays `workspace:*` (packed as the exact version), and the diff is
+`.changeset/` plus manifests and changelogs only. The rehearsal fix is deferred until after RC0 publishes; see
+SPEC-004, Risks.
+
 ## Update: qualification blockers closed (2026-11-06, branch `fix/rc0-qualification-reliability`)
 
 Start: `main` `79f7764`. Published: core 0.2.2, analog 0.12.1, server-components 0.16.0; manifest 0.17.0 is
