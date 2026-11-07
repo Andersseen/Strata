@@ -218,7 +218,9 @@ jobs:
       - name: Evidence directory
         run: echo "EVIDENCE=$RUNNER_TEMP/full-stack-performance-evidence" >> "$GITHUB_ENV"
 
-      - name: Measure one island (PR #86 baseline)
+      # Quoted: unquoted, YAML reads ` #86 baseline)` as a comment and the step is named "Measure one
+      # island (PR", which the RC gate (tools/release/lib/rc-catalog.ts) can never match.
+      - name: "Measure one island (PR #86 baseline)"
         if: env.PROFILE == 'one' || env.PROFILE == 'both'
         run: pnpm test:full-stack-performance
         env:
