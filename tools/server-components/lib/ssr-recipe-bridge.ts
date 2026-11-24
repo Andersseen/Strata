@@ -28,6 +28,13 @@ const ANALOG_EXAMPLE = "src/check/ssr-failure-analog.ts";
 /** `provideStrataSsrFailureHandler` returns `EnvironmentProviders`, and `integration` exists. */
 export const SSR_PROTOCOL_SINCE = "0.17.0";
 
+/**
+ * `@strata-sc/analog` gained `ControllerConstructor`, the factory-typed `registerControllers()`
+ * overload (S-2) and `publicOrigin` (S-1) here; the published 0.12.1 baseline cannot compile that
+ * example, so registry and frozen runs of an older tuple skip it.
+ */
+export const ANALOG_CONSTRUCTOR_CONTRACT_SINCE = "0.13.0";
+
 const parts = (version: string): number[] =>
   version
     .split("-")[0]!
@@ -47,6 +54,10 @@ export const predatesSsrEntry = (version: string): boolean => predates(version, 
 /** Whether a version predates the 0.17.0 `/ssr` types, so the migration check cannot apply. */
 export const predatesSsrProtocol = (version: string): boolean =>
   predates(version, SSR_PROTOCOL_SINCE);
+
+/** Whether an `@strata-sc/analog` version predates the S-1/S-2 contract. */
+export const predatesAnalogConstructorContract = (version: string): boolean =>
+  predates(version, ANALOG_CONSTRUCTOR_CONTRACT_SINCE);
 
 /** Rewrites the fixture copy to the consumer-owned recipe. Returns the touched files. */
 export function applySsrRecipeBridge(consumerDir: string): string[] {

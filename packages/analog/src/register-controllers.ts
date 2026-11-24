@@ -32,6 +32,7 @@ import { StrataAnalogHttpError } from "./http-error.js";
 import { StrataAnalogInputError } from "./input-error.js";
 import { InvocationObservation } from "./request-observation.js";
 import type { StrataAnalogRequestObserver } from "./request-observation.js";
+import { parsePublicOrigin, resolveRequestUrl } from "./request-url.js";
 import { claimStreamResponse } from "./stream-lifecycle.js";
 import { buildRoutePath } from "./utils/build-route-path.js";
 
@@ -124,14 +125,25 @@ export type StrataAnalogGuard = (
 ) => StrataAnalogGuardDecision | Promise<StrataAnalogGuardDecision>;
 
 /**
- * A Strata controller class, as passed to {@link registerControllers}.
+ * A controller class Strata can construct by itself, with `new Controller()`:
+ * the requirement when {@link registerControllers} gets no `controllerFactory`.
  *
  * `@strata-sc/core` types controller classes as abstract constructors (it only
  * ever reads their metadata), but this adapter must be able to instantiate
- * them, so it narrows the requirement to a concrete, no-argument
- * constructor.
+ * them, so without a factory it narrows the requirement to a concrete,
+ * no-argument constructor. Optional constructor parameters are fine.
  */
 export type ControllerClass = new () => object;
+
+/**
+ * Any concrete controller class, whatever its constructor parameters. Accepted
+ * by {@link registerControllers} only together with a `controllerFactory`
+ * that handles it: a value of this type cannot be called with `new` and no
+ * arguments, so a factory receives either the exact classes it was registered
+ * with or must construct through something that supplies the arguments (an
+ * injector, for example).
+ */
+export type ControllerConstructor = new (...args: never) => object;
 
 /**
  * What a {@link StrataAnalogControllerFactory} receives besides the controller
@@ -178,18 +190,36 @@ export interface StrataAnalogControllerFactoryContext {
  * owns — can take part in controller creation. Strata itself provides no
  * injector or container.
  */
-export type StrataAnalogControllerFactory = (
-  controller: ControllerClass,
+export type StrataAnalogControllerFactory<
+  Controller extends ControllerConstructor = ControllerClass,
+> = (
+  controller: Controller,
   context: StrataAnalogControllerFactoryContext,
 ) => object | Promise<object>;
 
-/** Options accepted by {@link registerControllers}. Experimental. */
-export interface RegisterControllersOptions {
+/**
+ * Options accepted by {@link registerControllers}. Experimental. `Controller`
+ * is the type of the registered classes, which the factory must accept.
+ */
+export interface RegisterControllersOptions<
+  Controller extends ControllerConstructor = ControllerClass,
+> {
   /**
    * Creates each request's controller instance. Defaults to
-   * `new controller()`.
+   * `new controller()`, which is why controllers with required constructor
+   * parameters need one.
    */
-  readonly controllerFactory?: StrataAnalogControllerFactory;
+  readonly controllerFactory?: StrataAnalogControllerFactory<Controller>;
+  /**
+   * The application's public origin, e.g. `"https://app.example.com"`: the
+   * consumer's statement of where it is deployed. When set, every
+   * `request.url` of this registration has exactly this origin, on every
+   * runtime, whatever the `Host` or `X-Forwarded-*` headers say. It is the
+   * only origin Strata reports that may be compared with a browser's `Origin`
+   * header. Without it, `request.url.origin` is transport information (see
+   * the package README) and must not be used for security decisions.
+   */
+  readonly publicOrigin?: string;
   /** Opt-in request guards, evaluated in order before controller creation. */
   readonly guards?: readonly StrataAnalogGuard[];
   /** Opt-in onion-style wrappers, entered in order after guards. */
@@ -221,7 +251,13 @@ export interface RegisterControllersOptions {
 
 type ControllerHandler = (this: object, request: StrataAnalogRequest) => unknown;
 
-const defaultControllerFactory: StrataAnalogControllerFactory = (controller) => new controller();
+/**
+ * `new controller()`. Only reachable through the first {@link registerControllers}
+ * overload, whose controllers are typed {@link ControllerClass}.
+ */
+const defaultControllerFactory: StrataAnalogControllerFactory<ControllerConstructor> = (
+  controller,
+): object => Reflect.construct(controller, []) as object;
 
 /**
  * Strata's HTTP method names → the lowercase names Nitro's router expects.
@@ -340,7 +376,27 @@ export interface NitroRouter {
 export function registerControllers<Router extends NitroRouter>(
   router: Router,
   controllers: readonly ControllerClass[],
-  options: RegisterControllersOptions = {},
+  options?: RegisterControllersOptions,
+): Router;
+/**
+ * Registers controllers whose constructors take parameters. The
+ * `controllerFactory` is required and must accept every registered class; it
+ * is the only code that constructs them.
+ */
+export function registerControllers<
+  Router extends NitroRouter,
+  Controller extends ControllerConstructor,
+>(
+  router: Router,
+  controllers: readonly Controller[],
+  options: RegisterControllersOptions<Controller> & {
+    readonly controllerFactory: StrataAnalogControllerFactory<Controller>;
+  },
+): Router;
+export function registerControllers<Router extends NitroRouter>(
+  router: Router,
+  controllers: readonly ControllerConstructor[],
+  options: RegisterControllersOptions<ControllerConstructor> = {},
 ): Router {
   if (options === null || typeof options !== "object" || Array.isArray(options)) {
     throw new StrataAnalogConfigurationError("registerControllers() options must be an object.");
@@ -383,6 +439,8 @@ export function registerControllers<Router extends NitroRouter>(
     );
   }
 
+  const publicOrigin = parsePublicOrigin(options.publicOrigin);
+
   const boundary =
     options.apiBoundary === undefined ? undefined : parseApiBoundary(options.apiBoundary);
 
@@ -395,6 +453,7 @@ export function registerControllers<Router extends NitroRouter>(
     boundary,
     observer as StrataAnalogRequestObserver | undefined,
     correlation === true,
+    publicOrigin,
   );
 
   commitRegistration(router, plan);
@@ -477,13 +536,14 @@ interface BoundaryPlan {
  */
 function planRegistration(
   router: NitroRouter,
-  controllers: readonly ControllerClass[],
-  controllerFactory: StrataAnalogControllerFactory,
+  controllers: readonly ControllerConstructor[],
+  controllerFactory: StrataAnalogControllerFactory<ControllerConstructor>,
   guards: readonly StrataAnalogGuard[],
   interceptors: readonly StrataAnalogInterceptor[],
   boundary: BoundaryRequest | undefined,
   observer: StrataAnalogRequestObserver | undefined,
   correlate: boolean,
+  publicOrigin: string | undefined,
 ): { routes: PlannedRoute[]; boundary: BoundaryPlan | undefined } {
   const state = routerStates.get(router);
   const registered = state?.routes;
@@ -584,6 +644,7 @@ function planRegistration(
           }),
           observer,
           correlate,
+          publicOrigin,
         ),
       });
     }
@@ -833,21 +894,22 @@ function createBoundaryHandler(entry: BoundaryEntry): (event: NitroEvent) => Pro
 }
 
 function createRouteHandler(
-  controllerClass: ControllerClass,
+  controllerClass: ControllerConstructor,
   handler: ControllerHandler,
-  controllerFactory: StrataAnalogControllerFactory,
+  controllerFactory: StrataAnalogControllerFactory<ControllerConstructor>,
   guards: readonly StrataAnalogGuard[],
   interceptors: readonly StrataAnalogInterceptor[],
   route: StrataAnalogRouteInfo,
   observer: StrataAnalogRequestObserver | undefined,
   correlate: boolean,
+  publicOrigin: string | undefined,
 ): (event: NitroEvent) => Promise<unknown> {
   return async (event) => {
     const correlationId = correlate ? globalThis.crypto.randomUUID() : undefined;
     const tracker = observer
       ? new InvocationObservation(route, observer, correlationId)
       : undefined;
-    const request = createStrataAnalogRequest(event, correlationId);
+    const request = createStrataAnalogRequest(event, correlationId, publicOrigin);
     const scope = new CleanupScope();
     let result: unknown;
     let denied = false;
@@ -1042,7 +1104,7 @@ function describeController(value: unknown): string {
  * are not handlers (HTTP route decorators only decorate methods).
  */
 function resolveRouteHandler(
-  controllerClass: ControllerClass,
+  controllerClass: ControllerConstructor,
   route: RouteDefinition,
 ): ControllerHandler {
   for (
@@ -1069,7 +1131,7 @@ function resolveRouteHandler(
 }
 
 function assertControllerInstance(
-  controllerClass: ControllerClass,
+  controllerClass: ControllerConstructor,
   controller: unknown,
 ): asserts controller is object {
   if (!(controller instanceof controllerClass)) {
@@ -1146,8 +1208,9 @@ function isNodeReadable(request: object): request is NodeReadableRequest {
 function createStrataAnalogRequest(
   event: NitroEvent,
   correlationId: string | undefined,
+  publicOrigin: string | undefined,
 ): StrataAnalogRequest {
-  const url = getEventUrl(event);
+  const url = resolveRequestUrl(event, publicOrigin);
   const headers = getEventHeaders(event);
   let textBody: Promise<string> | undefined;
   let bodyReader: "raw" | "validated-json" | "validated-form" | undefined;
@@ -1265,21 +1328,6 @@ function createStrataAnalogRequest(
     readValidatedJson,
     readValidatedForm,
   });
-}
-
-function getEventUrl(event: NitroEvent): URL {
-  if (event.web?.url) {
-    return new URL(event.web.url);
-  }
-
-  if (event.web?.request) {
-    return new URL(event.web.request.url);
-  }
-
-  return new URL(
-    event.path ?? event.node?.req?.originalUrl ?? event.node?.req?.url ?? "/",
-    "http://localhost",
-  );
 }
 
 function getEventHeaders(event: NitroEvent): Headers {

@@ -14,12 +14,14 @@ import {
 
 import { observeHeaderValidation } from "./lib/headers.ts";
 import { findFreePort, spawnManaged, waitForHttp } from "./lib/process.ts";
+import { observeRequestUrl } from "./lib/request-url.ts";
 import { observeServerFunctions } from "./lib/streaming.ts";
 import type { Runtime } from "./lib/streaming.ts";
 
 /**
  * `pnpm test:analog-headers`: `request.validateHeaders()` of `@strata-sc/analog`
- * on the real fixture (docs/research/analog-header-validation-v09.md).
+ * on the real fixture (docs/research/analog-header-validation-v09.md), and the
+ * `request.url` contract (S-1, docs/research/pre-rc0-consolidation.md).
  *
  *   1. Node production server (Nitro `node-server`)
  *   2. Vite dev server (Analog development mode)
@@ -34,6 +36,7 @@ const wants = (runtime: Runtime): boolean => selected.includes(runtime);
 
 async function observe(baseUrl: string, runtime: Runtime, output: () => string): Promise<void> {
   await observeHeaderValidation(baseUrl, runtime, check);
+  await observeRequestUrl(baseUrl, runtime, check);
   const serverFns = await observeServerFunctions(baseUrl, runtime, check, output);
 
   console.log(`${runtime}: serverFn statuses ${JSON.stringify(serverFns.status)}`);

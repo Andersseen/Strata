@@ -63,7 +63,11 @@ import {
 } from "./lib/package-consumer.ts";
 import type { RunningServer, Snapshot } from "./lib/package-consumer.ts";
 import { checkPublicApi } from "./lib/public-api.ts";
-import { predatesSsrProtocol, ssrBridged } from "./lib/ssr-recipe-bridge.ts";
+import {
+  predatesAnalogConstructorContract,
+  predatesSsrProtocol,
+  ssrBridged,
+} from "./lib/ssr-recipe-bridge.ts";
 import { treeDigest } from "./lib/upgrade-rollback.ts";
 import { COMPATIBILITY_DATE } from "./lib/wrangler.ts";
 
@@ -240,9 +244,27 @@ try {
   section("Declaration portability (TypeScript 6 and 5.9, skipLibCheck: false)");
 
   const ssrMigration = !bridged && !predatesSsrProtocol(installedServerComponents.version);
+  const installedAnalog = JSON.parse(
+    readFileSync(join(consumerDir, "node_modules", "@strata-sc", "analog", "package.json"), "utf8"),
+  ) as { version: string };
+  // S-1/S-2 (docs/research/pre-rc0-consolidation.md): source-packed candidates must compile the
+  // README's constructor-injection example from installed declarations; an older published
+  // tuple cannot, so only its absence is reported.
+  const analogConstructorContract = !predatesAnalogConstructorContract(installedAnalog.version);
+  if (!REGISTRY) {
+    check(
+      `the source-packed @strata-sc/analog ${installedAnalog.version} carries the S-1/S-2 contract`,
+      analogConstructorContract,
+    );
+  } else if (!analogConstructorContract) {
+    console.log(
+      `published @strata-sc/analog ${installedAnalog.version} predates the S-1/S-2 contract: its example is not compiled`,
+    );
+  }
   const ts6 = tscDeclarations(consumerDir, "TypeScript 6", env, {
     ssrEntry: !bridged,
     ssrMigration,
+    analogConstructorContract,
   });
 
   check("TypeScript 6.0.3 is the declaration consumer", ts6.version === "6.0.3", ts6.version);
@@ -273,6 +295,9 @@ try {
           "src/check/ssr-failure-analog.ts",
         ]),
     ...(ssrMigration ? ["tsconfig.check.ssr-migration.json", "src/check/ssr-migration.ts"] : []),
+    ...(analogConstructorContract
+      ? ["tsconfig.check.analog-contract.json", "src/check/analog-contract-example.ts"]
+      : []),
   ]) {
     const destination = join(ts59Dir, file);
     mkdirSync(dirname(destination), { recursive: true });
@@ -325,6 +350,7 @@ try {
   const ts59 = tscDeclarations(ts59Dir, "TypeScript 5.9", env, {
     ssrEntry: !bridged,
     ssrMigration,
+    analogConstructorContract,
   });
 
   check(
