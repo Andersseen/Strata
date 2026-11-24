@@ -14,8 +14,7 @@ import type { CodeLanguage } from "../highlight";
   template: `<div class="code-window">
     <div class="window-bar">
       <div class="window-dots" aria-hidden="true"><i></i><i></i><i></i></div>
-      <span class="window-file">{{ filename() }}</span
-      ><volt-button
+      <span class="window-file">{{ filename() }}</span><volt-button
         class="copy-button"
         variant="ghost"
         size="sm"

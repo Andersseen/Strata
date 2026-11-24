@@ -20,8 +20,7 @@ export const RELAY_RELEASE_SERVER_MARKER = "RELAY_RELEASE_GATE_SERVER_IMPLEMENTA
           {{ assessment.service }} <span>{{ assessment.version }}</span>
         </h2>
         <div class="risk-score">
-          <strong>{{ assessment.riskScore }}</strong
-          ><span>/ 100 risk</span>
+          <strong>{{ assessment.riskScore }}</strong><span>/ 100 risk</span>
         </div>
         <h3>{{ assessment.recommendation }}</h3>
         <p>{{ assessment.reason }}</p>

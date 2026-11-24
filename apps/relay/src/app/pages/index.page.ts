@@ -218,8 +218,7 @@ import { OperationsBriefingServerComponent } from "../server-components/briefing
                         <div class="service-name">
                           <span class="service-glyph">{{ service.name.slice(0, 1) }}</span>
                           <div>
-                            <strong>{{ service.name }}</strong
-                            ><span>{{ service.owner }}</span>
+                            <strong>{{ service.name }}</strong><span>{{ service.owner }}</span>
                           </div>
                         </div>
                       </volt-table-cell>
@@ -302,16 +301,14 @@ import { OperationsBriefingServerComponent } from "../server-components/briefing
                   <div class="incident-meta">
                     <volt-badge [variant]="severityBadge(incident.severity)">{{
                       incident.severity
-                    }}</volt-badge
-                    ><span>{{ incident.id }}</span>
+                    }}</volt-badge><span>{{ incident.id }}</span>
                   </div>
                   <volt-card-title>{{ incident.title }}</volt-card-title>
                   <volt-card-description>{{ incident.summary }}</volt-card-description>
                 </volt-card-header>
                 <volt-card-content>
                   <div class="incident-footer">
-                    <span>{{ serviceName(incident) }}</span
-                    ><strong>{{ incident.status }}</strong>
+                    <span>{{ serviceName(incident) }}</span><strong>{{ incident.status }}</strong>
                   </div>
                   @if (incident.status !== "resolved") {
                     <div class="incident-actions">
@@ -347,8 +344,10 @@ import { OperationsBriefingServerComponent } from "../server-components/briefing
               (click)="$event.stopPropagation()"
             >
               <div class="detail-header">
-                <span class="service-glyph large">{{ service.name.slice(0, 1) }}</span
-                ><volt-button variant="ghost" size="sm" (click)="api.selectedService.set(null)"
+                <span class="service-glyph large">{{ service.name.slice(0, 1) }}</span><volt-button
+                  variant="ghost"
+                  size="sm"
+                  (click)="api.selectedService.set(null)"
                   >Close</volt-button
                 >
               </div>
