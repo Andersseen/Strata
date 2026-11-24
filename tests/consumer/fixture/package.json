@@ -9,9 +9,9 @@
     "h3": "2.0.1-rc.32"
   },
   "devDependencies": {
-    "@types/node": "22.20.3",
+    "@types/node": "22.20.5",
     "typescript": "6.0.3",
-    "vite": "8.3.0"
+    "vite": "8.3.8"
   },
   "overrides": {
     "@strata-sc/core": "$@strata-sc/core"
