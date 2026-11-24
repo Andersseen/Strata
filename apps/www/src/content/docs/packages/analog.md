@@ -542,16 +542,22 @@ adapter owns it fails the invocation the same way; so does returning one
 **HEAD.** A derived `HEAD` request cancels the body, which releases the resources.
 
 **What the transport decides.** Release depends on the transport reading the body
-to its end or cancelling it. Qualified on the pinned tuple (Analog 2.7.2, Nitro
-2.13.4, H3 1.15.11), see
-[the evidence](https://github.com/Andersseen/Strata/blob/main/docs/research/analog-stream-lifecycle-v07.md):
+to its end or cancelling it. Qualified on Analog 2.7.2 / Nitro 2.13.4 and again on
+Analog 2.9.7 / Nitro 2.13.6 (H3 1.15.11 both), see
+[the evidence](https://github.com/Andersseen/Strata/blob/main/docs/research/analog-stream-lifecycle-v07.md) and
+[the requalification](https://github.com/Andersseen/Strata/blob/main/docs/research/pre-rc0-consolidation.md):
 
-| Behavior                                 | Node (`node-server`, Vite dev) | Cloudflare Pages (local workerd) |
-| ---------------------------------------- | ------------------------------ | -------------------------------- |
-| Chunks delivered incrementally           | yes                            | **no: the body is buffered**     |
-| Resources released once after the body   | yes                            | yes                              |
-| Client disconnect releases the resources | **no**: when the body ends     | **no**: when the body ends       |
-| Body error after the first chunk         | connection left open, no end   | empty `200`, indistinguishable   |
+| Behavior                                 | Node (`node-server`, Vite dev) | Cloudflare Pages (local workerd)                            |
+| ---------------------------------------- | ------------------------------ | ----------------------------------------------------------- |
+| Chunks delivered incrementally           | yes                            | **no: the body is buffered**                                |
+| Resources released once after the body   | yes                            | yes, once per invocation                                    |
+| Client disconnect releases the resources | **no**: when the body ends     | **no**: when the body ends                                  |
+| Body error after the first chunk         | connection left open, no end   | Wrangler 4.135: empty `200`; 4.161: `500`, request replayed |
+
+Under `wrangler pages dev` 4.161.0, a GET whose Worker response fails is replayed by
+Wrangler's dev proxy, up to three attempts, so the controller runs again for each attempt;
+every attempt cleans up once. A native Nitro route behaves the same. Whether the deployed
+Cloudflare edge retries is not measured.
 
 Client disconnect is **not** propagated to the body on either runtime, so a body
 must be finite: an unbounded producer is not released when its client goes away.

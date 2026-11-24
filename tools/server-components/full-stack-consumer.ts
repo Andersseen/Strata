@@ -367,12 +367,14 @@ try {
   // ------------------------------------------------------------------------
   section("Public API surface (installed declarations, runtime exports, reviewed baseline)");
 
-  verdict.publicApi = checkPublicApi(
-    consumerDir,
-    env,
-    REGISTRY ? "registry" : "packed",
-    bridged ? [["@strata-sc/server-components", "./ssr"]] : [],
-  );
+  verdict.publicApi = checkPublicApi(consumerDir, env, REGISTRY ? "registry" : "packed", [
+    ...(bridged ? [["@strata-sc/server-components", "./ssr"] as const] : []),
+    // A published analog older than the S-1/S-2 contract lacks this one type export; a
+    // source-packed candidate must carry it.
+    ...(REGISTRY && !analogConstructorContract
+      ? [["@strata-sc/analog", ".", "ControllerConstructor"] as const]
+      : []),
+  ]);
 
   // ------------------------------------------------------------------------
   section("External production build (Node): graph separation");

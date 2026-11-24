@@ -198,14 +198,16 @@ The full list is under [Experimental restrictions](#experimental-restrictions).
 
 Qualified (what the repository's gates and the external packed-package consumer actually run):
 
-- Angular core/compiler **22.1.7**, Analog **2.7.2**, Vite **8.3.0**
+- Angular **22.2.7**, Analog **2.9.7**, Nitro **2.13.6**, Vite **8.3.8** (since 2026-11-24)
 - TypeScript **5.9.2** and **6.0.3** (declaration consumers)
-- Node **22**, Nitro `node-server`, and Cloudflare/workerd (local, via wrangler)
+- Node **22**, Nitro `node-server`, and Cloudflare/workerd (local, via wrangler 4.161.0)
 
-Peer ranges are deliberately tied to that evidence rather than to what might work:
+Peer ranges are deliberately tied to evidence rather than to what might work:
 `@angular/core` and `@angular/compiler` `^22.1.7`, `vite` `>=8.3.0 <9`, `typescript`
-`^5.9.0 || ^6.0.0`. Older Angular 22.0.x and Vite 8.0–8.2 were never qualified: the hydration path
-and the Vite environment-aware `hotUpdate` dev integration have only been tested on the versions above.
+`^5.9.0 || ^6.0.0`. The lower bounds were qualified earlier (Angular 22.1.7, Analog 2.7.2, Vite 8.3.0)
+and are no longer exercised: only the versions above are run today. Older Angular 22.0.x and Vite
+8.0–8.2 were never qualified: the hydration path and the Vite environment-aware `hotUpdate` dev
+integration have only been tested on the versions named here.
 
 ## Qualification
 
@@ -267,7 +269,7 @@ and the Vite environment-aware `hotUpdate` dev integration have only been tested
 | `@strata-sc/server-components/server-only` | nothing: an empty module whose side-effect import is a build-time assertion                                     | server only (never browser) |
 
 The runtime entry imports only `@angular/core`. It is Angular partial-compiled by `ngc` into
-`dist/fesm2022/`; Analog 2.7.2's build optimizer runs the Angular linker only on paths matching
+`dist/fesm2022/`; Analog's build optimizer (2.7.2 through 2.9.7) runs the Angular linker only on paths matching
 `/fesm20/`. The `/vite` entry imports `typescript`, `@angular/compiler` (template parsing), `vite`
 types and Node built-ins; nothing in the runtime entry imports it.
 
@@ -738,7 +740,8 @@ or render the server content directly.
 Use `provideClientHydration()` alone: Angular 22 enables incremental hydration and event replay by
 default. **Analog 2.7.2 needs one Vite setting** for any `@defer (hydrate …)` to render its main
 content in SSR, because its production build defines `ngServerMode` as `false` for the SSR graph
-too:
+too. The qualified applications keep it on Analog 2.9.7; whether 2.9.7 still needs it was not
+re-measured:
 
 ```ts
 // vite.config.ts
