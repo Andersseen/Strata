@@ -1,5 +1,21 @@
 # Technical risk register
 
+Pre-RC0 consolidation (2026-11-24, [report](research/pre-rc0-consolidation.md)). Closed: `S-1` (a `request.url`
+origin a consumer could mistake for deployment identity; it is now `publicOrigin` or transport information, and
+`http://strata.invalid` instead of `localhost`), `S-2` (constructor-injected controllers needed a cast) and the
+rehearsal's `pre enter` failure on an entered tree. New or changed:
+
+- The framework tuple moved. R21 (template-AST exports) and the `ngh` hydration dependency were requalified locally
+  on Angular 22.2.7; hosted and deployed runs are pending. The Angular peer range `^22.1.7` is no longer exercised
+  at its lower bound.
+- Wrangler 4.161.0's dev proxy replays a GET whose Worker response fails, up to three times, so a failing
+  request can run a controller three times under `wrangler pages dev`. Local only; whether the deployed edge
+  retries is not measured. Each invocation still cleans up exactly once.
+- nitropack 2.13.6 reports itself as 2.13.5 in `nitro.json` (upstream); the harness names it.
+- `release-pipeline-observed` is reset by the rehearsal fix: the corrected pipeline has not published yet.
+- Transport origins (`Host`, a runtime's URL) are client-chosen on every runtime. Consumers who compare
+  `Origin` with anything but `publicOrigin` stay exposed to DNS rebinding; this is documented, not enforced.
+
 RC0 blocker closure (2026-11-06, [report](research/rc0-production-qualification.md)): the workerd port race is closed
 at its cause. Node and Vite harness servers keep a much smaller pick-then-bind window. The three-island double request
 was a harness defect, not a runtime one. Open: run 42220794647's Analog G2 trace variation, unreproduced in 12 local

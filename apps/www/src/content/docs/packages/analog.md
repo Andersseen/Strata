@@ -224,6 +224,75 @@ creates each request's controller and can register `onCleanup` callbacks that
 run after the invocation settles. A handler that returns
 [`streamResponse()`](#streaming-responses) keeps them open until its body ends.
 
+## Request URL: what `request.url` may be trusted for
+
+`request.path`, `request.url.pathname` and `request.url.search` are always the
+routed request target, exactly as received. An absolute-form target
+(`GET http://other.example/x`) or one that starts with `//` never changes the
+origin.
+
+`request.url.origin` comes from one of these sources, in this order:
+
+| Source                                                     | When                                               | Trust                                         |
+| ---------------------------------------------------------- | -------------------------------------------------- | --------------------------------------------- |
+| `publicOrigin` option of `registerControllers()`           | when you set it                                    | **your deployment identity**: compare with it |
+| The URL the runtime received                               | Cloudflare (Pages, Workers, local workerd), H3 web | transport information                         |
+| `Host` header (syntax-checked) + the socket's TLS state    | Nitro `node-server`, Vite dev                      | transport information                         |
+| `http://strata.invalid` (reserved, never a browser origin) | none of the above is usable                        | fails closed                                  |
+
+`X-Forwarded-Host`, `X-Forwarded-Proto` and `Forwarded` are never read, so a
+TLS-terminating proxy makes the transport origin `http://…`. The `Host` header
+and every runtime URL are chosen by the client or an intermediary: a
+DNS-rebinding page can make them equal to its own origin. Use only
+`publicOrigin` for origin, CSRF or redirect decisions:
+
+```ts
+registerControllers(nitroApp.router, [AccountController], {
+  publicOrigin: "https://app.example.com",
+  guards: [
+    ({ request }) =>
+      request.method === "GET" || request.headers.get("origin") === request.url.origin
+        ? { allow: true }
+        : { allow: false, status: 403 },
+  ],
+});
+```
+
+`publicOrigin` must be an absolute `http:` or `https:` origin without
+credentials, path, query or fragment; anything else throws a
+`StrataAnalogConfigurationError` at registration. It applies to the controllers
+of that call. Strata provides no CSRF, session or proxy-trust framework; the
+policy stays yours.
+
+## Controller construction
+
+Without a `controllerFactory`, Strata builds each controller with
+`new Controller()`, so only classes without required constructor parameters
+are accepted (`ControllerClass`; optional parameters are fine). A class whose
+constructor needs arguments is registered together with the factory that
+builds it; TypeScript rejects it without one, and rejects a factory that would
+call `new Controller()` without the arguments:
+
+```ts
+const factory: StrataAnalogControllerFactory<typeof OrdersController> = () =>
+  new OrdersController(new OrderStore());
+
+registerControllers(router, [OrdersController], { controllerFactory: factory });
+```
+
+A factory for any class (an injector, for example) is typed with
+`ControllerConstructor`, which cannot be called with `new` and no arguments:
+
+```ts
+const fromInjector: StrataAnalogControllerFactory<ControllerConstructor> = (Controller) =>
+  injector.get(Controller);
+```
+
+Whatever the factory returns must still be an instance of the registered class;
+anything else fails the request after its cleanups ran. Constructor arity is not
+checked at runtime (`Function.length` counts optional parameters), so plain
+JavaScript callers get no such check.
+
 ## Application HTTP contract
 
 Controllers and interceptors can throw an expected application error with a
@@ -397,7 +466,7 @@ response body that is still being read: an ordinary `Response` over a
 
 ```ts
 import { Controller, Get } from "@strata-sc/core";
-import { streamResponse } from "@strata-sc/analog";
+import { registerControllers, streamResponse } from "@strata-sc/analog";
 import type { StrataAnalogControllerFactory } from "@strata-sc/analog";
 
 class OrderCursor {
@@ -419,12 +488,20 @@ class OrdersController {
   }
 }
 
-const controllerFactory: StrataAnalogControllerFactory = (_Controller, { onCleanup }) => {
+const controllerFactory: StrataAnalogControllerFactory<typeof OrdersController> = (
+  _Controller,
+  { onCleanup },
+) => {
   const cursor = new OrderCursor();
   onCleanup(() => cursor.close());
   return new OrdersController(cursor);
 };
+
+registerControllers(router, [OrdersController], { controllerFactory });
 ```
+
+This example is compiled from the installed package under TypeScript 6.0 and
+5.9 (`tests/full-stack-package-consumer/fixture/src/check/analog-contract-example.ts`).
 
 `streamResponse(body, init?)` takes an async iterable of strings (UTF-8 encoded)
 or `Uint8Array` and returns a native `Response`. It is opt-in: Strata never

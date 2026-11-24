@@ -4,6 +4,12 @@ Date: 2026-11-06. Branch `stabilize/rc0-production-qualification`, PR #177. Star
 `ff3f1a4e94cd632dec8141b39113a759cfb19cb2`. Candidate code SHA: `ea580f018a43b7cf6493f0927844f7002600788d`
 (later commits on the branch change documentation only).
 
+**Superseded 2026-11-24** by the [pre-RC0 consolidation](pre-rc0-consolidation.md). No RC was published.
+The RC0 entry (#187) was withdrawn and Version Packages #188 closed; the candidate `7f9a384`, its framework
+tuple and frozen baseline `983f7131e39574e0` no longer authorize anything, and every pre-phase ledger row
+was reset. `S-1` and `S-2` below are resolved there. This report stays the record of what was proven on that
+candidate.
+
 Evidence levels, never interchangeable: UNIT, LOCAL NODE, LOCAL WORKERD, PACKED CONSUMER, PUBLISHED REGISTRY,
 HOSTED CI, PRODUCTION PROCESS (a real production build and process on a hosted runner), DEPLOYED (a public
 Cloudflare endpoint), REAL APPLICATION.

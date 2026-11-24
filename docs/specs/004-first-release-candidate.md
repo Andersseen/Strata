@@ -1,8 +1,10 @@
 # SPEC-004: First 1.0 release candidate
 
 - Status: **Ready.** The gate and its rehearsal are implemented; the release itself needs maintainer
-  authorization and is not started by this spec. The current verdict is in the
-  [RC0 report](../research/rc0-production-qualification.md).
+  authorization and is not started by this spec. Revised 2026-11-24 by the
+  [pre-RC0 consolidation](../research/pre-rc0-consolidation.md): the unpublished RC0 entry was withdrawn,
+  the rehearsal starts from the repository's real Changesets state, and the ledger holds no candidate. The
+  earlier record is the [RC0 report](../research/rc0-production-qualification.md).
 - Baseline: `ff3f1a4` (`main`, after PR #175)
 - Milestone: M5
 - Owner: maintainer (Andersseen) decides; release engineering prepares
@@ -180,10 +182,13 @@ harness commit.
 `Qualify Full-Stack Strata on Cloudflare` with `source=packed`, `source=registry` and
 `source=upgrade-rollback`.
 
-The rehearsal must run here, not after the RC entry: it performs the entry itself, and `changeset pre
-enter` refuses a tree that is already in pre mode (verified 2026-11-07 on the entry commit). The entry
-is versioning only, which is exactly the diff the gate allows between the candidate and the publishing
-commit, so placing it after the candidate weakens nothing.
+The rehearsal runs here as well. Since 2026-11-24 it reads the tree it is given
+(`tools/release/lib/rc-rehearsal.ts`): on a 0.x line it performs the entry itself; on a tree already in
+`rc` pre mode it versions the merged entry without `changeset pre enter`, which Changesets refuses there;
+on an RC line it rehearses `rc.N+1`. A pending `pre exit`, another pre tag, a split tuple or an entry
+without the fixed group is refused. The entry is versioning only, which is exactly the diff the gate
+allows between the candidate and the publishing commit, so placing it after the candidate weakens
+nothing.
 
 **4. Record and review.** In a PR that changes only the ledger and documentation, set `candidate` from
 `pnpm release:rc:check --print-candidate=<sha>`, set `baseline`, and fill each row with its run id. The
@@ -222,6 +227,22 @@ never moves.
 `rc-node-production`, fill `published` and the `rc-*` rows, and run `pnpm release:rc:check --phase=post`. RC0
 is finished only when that prints GO.
 
+## Withdrawing an unpublished RC entry
+
+Used on 2026-11-24 for the first entry (#187, Version Packages #188), when the dependency tuple and the
+candidate's code had to change before anything was published. It applies only while npm holds no
+`-rc.` version of any of the three packages and no `rc` dist-tag; once one exists, supersede instead.
+
+1. Read npm: no `1.0.0-rc.*` version and no `rc` tag for any package.
+2. Revert the entry commit: `.changeset/pre.json`, the RC-entry Changeset and the `fixed` group go
+   together. Nothing was consumed into `.changeset/pre/`, because the Version Packages PR was never merged.
+3. Do not run `changeset pre exit`: with the entry's three `major` Changesets still pending, the next
+   `changeset version` would propose a stable `1.0.0`.
+4. Clear the ledger's `candidate` and `baseline` and reset every row the change invalidates to `NOT RUN`,
+   naming the superseded proof.
+5. Close, never merge, the Version Packages PR, once the replacement is merged and Release has
+   regenerated a `0.x` Version Packages PR from it.
+
 ## Superseding an RC
 
 A later RC replaces the previous one for evaluation; nothing is unpublished. Add Changesets for the fix and
@@ -253,15 +274,17 @@ Remaining evidence is listed per criterion in the [RC0 report](../research/rc0-p
 2. A ledger that omits, adds or reclassifies a requirement, or claims a PASS without proof, is NO-GO.
 3. A PASS counts only if its run reads back as successful on an allowed commit for the right artifact.
 4. A release candidate cannot publish through Release without a GO for its own code.
-5. The rehearsal shows all three at `1.0.0-rc.0` with installed exports and exact dependencies, then
-   `1.0.0-rc.1` after a one-package fix, `latest` unmoved, and a stable `1.0.0` refused without
-   authorization, without network writes.
+5. From a 0.x line or an entered tree, the rehearsal shows all three at `1.0.0-rc.0` with installed
+   exports and exact dependencies, then `1.0.0-rc.1` after a one-package fix; from an RC line, `rc.N+1`
+   then `rc.N+2`. `latest` stays unmoved, a stable `1.0.0` is refused without authorization, and no network
+   write happens.
 
 ## Required tests
 
 `tools/release/lib/rc-readiness.test.ts` (adversarial ledgers, hosted results, identities and tuples),
-`tools/release/lib/publication-visibility.test.ts` (stable guard), and `pnpm release:rc:rehearse`, also run
-by the Extended `rc0` suite.
+`tools/release/lib/publication-visibility.test.ts` (stable guard), `tools/release/lib/rc-rehearsal.test.ts`
+(the rehearsal from each Changesets state, with the real CLI, including the `pre enter` refusal that failed
+Extended) and `pnpm release:rc:rehearse`, also run by the Extended `rc0` suite.
 
 ## Compatibility concerns
 
@@ -275,11 +298,11 @@ An RC widens exposure of experimental behavior. The support contract, and the ho
 mitigation. A real publish through pre mode has never run: `changesets/action` is not exercised by the
 rehearsal, which is why the first RC must be watched and the recapture above is mandatory.
 
-Once the entry is on `main`, the rehearsal cannot run there (`pre enter` in pre mode), so the Extended `rc0`
-job and the weekly `all` run fail on it until the rehearsal starts from an already-entered tree. That fix is
-in `tools/release/`, so it also resets `release-pipeline-observed`: it lands after RC0 publishes, and the
-first RC published with it observes the new pipeline for the next one. Until then, a superseding `rc.N+1`
-cannot obtain `prerelease-rehearsal`.
+Resolved 2026-11-24: the rehearsal no longer runs `pre enter` on a tree already in pre mode, so the
+Extended `rc0` job works on an entered `main` and a superseding `rc.N+1` can obtain
+`prerelease-rehearsal`. The fix is in `tools/release/`, so it reset `release-pipeline-observed`: the next
+real publish through Release, a legitimate `0.x` release, observes the corrected pipeline before an RC
+can count on it.
 
 ## Definition of Done
 

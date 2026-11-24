@@ -1,5 +1,12 @@
 # Strata 1.0 exit criteria
 
+**Pre-RC0 consolidation 2026-11-24 ([report](research/pre-rc0-consolidation.md)).** No item is ticked; the matrix
+is unchanged (PASS 1, PARTIAL 27, BLOCKED 0, NOT RUN 4). The RC0 entry was withdrawn before any RC was published,
+and every pre-phase RC evidence row was reset, because the framework tuple, the candidate's code and the release
+tooling changed. Evidence on the proposed tuple is local (Node, workerd, packed consumers) until hosted CI,
+Extended and the Cloudflare qualification take it again. Real-application adoption remains outside the RC
+tooling.
+
 **RC0 blocker closure 2026-11-06.** No item is ticked; the matrix is unchanged (PASS 1, PARTIAL 27, BLOCKED 0, NOT RUN
 4). The four real-application requirements stay open and the RC tooling cannot mark them: they have no proof kind.
 Cloudflare isolate cold start and memory stay unmeasured, with the decision on them pending. Stable requirement ids

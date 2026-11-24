@@ -69,7 +69,7 @@ export default defineNitroPlugin((nitroApp) => {
 });
 ```
 
-Verified behaviour (Analog 2.7.2, Nitro 2.13.4; see the
+Verified behaviour (Analog 2.7.2 with Nitro 2.13.4, requalified on Analog 2.9.7 with Nitro 2.13.6; see the
 [integration baseline](research/analog-integration-baseline.md)):
 
 - Controllers are **request-scoped**: a new instance per request, `new Controller()` by default,

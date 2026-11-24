@@ -1,5 +1,19 @@
 # Current implementation audit
 
+## Pre-RC0 consolidation (branch `stabilize/pre-rc0-consolidation`, PR #196)
+
+[Report](research/pre-rc0-consolidation.md). Published, unchanged: core 0.2.2, analog 0.12.1, server-components 0.17.0;
+`latest` and `next` on them; **no RC exists**. The RC0 entry (#187) is withdrawn and Version Packages #188 superseded.
+
+- **Dependencies**: Dependabot #191–#195 consolidated. Proposed tuple: Angular 22.2.7, Analog 2.9.7, Nitro 2.13.6,
+  Vite 8.3.8, Wrangler 4.161.0, Playwright 1.65.0, `@types/node` 22.20.5. Every external fixture moved to it.
+- **S-1** (`@strata-sc/analog`, unpublished minor): `request.url` origin is `publicOrigin` or transport information,
+  never `localhost`, never `X-Forwarded-*`. UNIT, LOCAL NODE, Vite dev, LOCAL WORKERD. Not deployed.
+- **S-2**: constructor-injected controllers with a typed factory; additive types. UNIT, PACKED (declarations, TS 6.0/5.9).
+- **Release**: the rehearsal starts from the repository's real Changesets state. UNIT and local from three real
+  trees. `release-pipeline-observed` reset; the ledger names no candidate.
+- **Next**: merge, then Release publishes analog 0.13.0 through the corrected pipeline; then SPEC-004 from step 1.
+
 ## RC0 release train (2026-11-07)
 
 Published baseline: core 0.2.2, analog 0.12.1, **server-components 0.17.0**, through the corrected pipeline (Release
