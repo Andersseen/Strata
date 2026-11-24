@@ -891,7 +891,7 @@ try {
         return passed;
       };
 
-      await observeStreaming(base, label, record);
+      await observeStreaming(base, label, record, () => server.output());
       await observeCorrelation(base, label, record);
 
       const html = (await httpGet(`${base}${PAGE}`)).body;

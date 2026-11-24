@@ -64,7 +64,7 @@ import {
 import type { RunningServer, Snapshot } from "./lib/package-consumer.ts";
 import { checkPublicApi } from "./lib/public-api.ts";
 import {
-  predatesAnalogConstructorContract,
+  analogDeclaresConstructorContract,
   predatesSsrProtocol,
   ssrBridged,
 } from "./lib/ssr-recipe-bridge.ts";
@@ -250,7 +250,11 @@ try {
   // S-1/S-2 (docs/research/pre-rc0-consolidation.md): source-packed candidates must compile the
   // README's constructor-injection example from installed declarations; an older published
   // tuple cannot, so only its absence is reported.
-  const analogConstructorContract = !predatesAnalogConstructorContract(installedAnalog.version);
+  // The version cannot say it: a source-packed candidate keeps the manifest version until Release
+  // applies its Changeset. The installed declarations do.
+  const analogConstructorContract = analogDeclaresConstructorContract(
+    join(consumerDir, "node_modules", "@strata-sc", "analog"),
+  );
   if (!REGISTRY) {
     check(
       `the source-packed @strata-sc/analog ${installedAnalog.version} carries the S-1/S-2 contract`,
@@ -696,11 +700,16 @@ try {
 
   const cfStreaming: boolean[] = [];
 
-  await observeStreaming(wrangler.baseUrl, "workerd", (name, passed, detail) => {
-    cfStreaming.push(check(name, passed, detail));
+  await observeStreaming(
+    wrangler.baseUrl,
+    "workerd",
+    (name, passed, detail) => {
+      cfStreaming.push(check(name, passed, detail));
 
-    return passed;
-  });
+      return passed;
+    },
+    () => wrangler.output(),
+  );
 
   const cfCorrelation: boolean[] = [];
 
