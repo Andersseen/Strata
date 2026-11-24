@@ -17,6 +17,7 @@ import { fileURLToPath } from "node:url";
 import { planDistTags } from "./lib/dist-tags.ts";
 import { readManifest, REGISTRY_PACKAGES } from "./lib/packages.ts";
 import { assessRc, candidateIdentity, LEDGER_PATH, onlyVersioning } from "./lib/rc-readiness.ts";
+import { applyRehearsalEntry, planRehearsal, readRehearsalInput } from "./lib/rc-rehearsal.ts";
 import { createGitFacts, createHostedReader } from "./lib/rc-sources.ts";
 import { createAuthoritativeReader } from "./lib/registry.ts";
 import type { RegistryReader } from "./lib/registry.ts";
@@ -34,9 +35,11 @@ import { classifyRelease, countChangesets, isEmptyChangeset } from "./lib/releas
  *   --report               print the verdict and exit 0. NOT an authorization: see the banner it prints
  *   --prerelease-dry-run   also rehearse the Changesets prerelease flow in a throwaway clone
  *
- * The rehearsal runs `changeset pre enter`, `changeset version` and `changeset pre exit` only, in a
- * clone with no remote and with no npm or GitHub credentials in its environment. It cannot publish,
- * tag or push: `changeset publish` is never invoked. It proves the commands in
+ * The rehearsal runs `changeset pre enter` (only when the tree is not in pre mode yet),
+ * `changeset version` and `changeset pre exit` only, in a clone with no remote and with no npm or
+ * GitHub credentials in its environment. It cannot publish, tag or push: `changeset publish` is
+ * never invoked. It starts from the repository's real state (a 0.x line, an RC entry already in pre
+ * mode, or an RC line preparing rc.N+1; see lib/rc-rehearsal.ts), proves the commands in
  * docs/specs/004-first-release-candidate.md produce the intended versions and that a stable 1.0.0
  * is refused.
  */
@@ -74,6 +77,7 @@ const RC_ENTRY_CHANGESET = "rc-entry.md";
 function installedTuple(
   clone: string,
   dir: string,
+  version: string,
   expect: (label: string, passed: boolean, detail?: string) => void,
 ): void {
   const tarballs = join(dir, "tarballs");
@@ -142,13 +146,13 @@ function installedTuple(
   );
 
   expect(
-    "installed: all three tarballs are 1.0.0-rc.0",
-    installed.every(({ version }) => version === "1.0.0-rc.0"),
-    installed.map(({ version }) => version).join(", "),
+    `installed: all three tarballs are ${version}`,
+    installed.every((manifest) => manifest.version === version),
+    installed.map((manifest) => manifest.version).join(", "),
   );
   expect(
     "installed: every Strata dependency is the exact RC, so no 0.x copy can join the tuple",
-    strataPins.length > 0 && strataPins.every(([, range]) => range === "1.0.0-rc.0"),
+    strataPins.length > 0 && strataPins.every(([, range]) => range === version),
     JSON.stringify(strataPins),
   );
   expect(
@@ -216,13 +220,24 @@ async function rehearsePrerelease(): Promise<string[]> {
         stableAuthorized,
       });
 
-    // The RC-entry commit of the spec: one fixed version line, and a major for every package.
-    const configPath = join(clone, ".changeset", "config.json");
-    const config = JSON.parse(readFileSync(configPath, "utf8")) as Record<string, unknown>;
-    writeFileSync(configPath, JSON.stringify({ ...config, fixed: [NAMES] }, null, 2));
-    write(
-      "rc-entry.md",
-      `---\n${NAMES.map((name) => `"${name}": major`).join("\n")}\n---\n\nFirst release candidate.\n`,
+    // Start from whatever the repository is: a 0.x line, an RC entry already in pre mode, or an
+    // RC line preparing rc.N+1. Only the missing entry steps are performed (lib/rc-rehearsal.ts).
+    const plan = planRehearsal(
+      readRehearsalInput(
+        clone,
+        NAMES,
+        versions(),
+        countChangesets(join(clone, ".changeset")).nonEmpty,
+      ),
+    );
+
+    if (!plan.ok) {
+      expect("the repository is in a state the RC line can be rehearsed from", false, plan.reason);
+      return problems;
+    }
+    console.log(
+      `  rehearsal starts from the ${plan.state} state: ${versions().join(", ")}` +
+        (plan.enterPre ? "; entering pre mode" : "; already in pre mode, `pre enter` is not run"),
     );
 
     const commit = (message: string): string => {
@@ -239,14 +254,16 @@ async function rehearsePrerelease(): Promise<string[]> {
       return execFileSync("git", ["rev-parse", "HEAD"], { cwd: clone, encoding: "utf8" }).trim();
     };
 
-    changeset("pre", "enter", "rc");
+    applyRehearsalEntry(clone, plan, NAMES, (...command) => {
+      changeset(...command);
+    });
 
-    const entry = commit("rc entry");
+    const entry = commit(plan.state === "rc" ? "rc fix" : "rc entry");
 
     changeset("version");
     expect(
-      "`changeset pre enter rc` + `version`: one tuple, all three at 1.0.0-rc.0",
-      versions().every((version) => version === "1.0.0-rc.0"),
+      `\`changeset version\` from the ${plan.state} state: one tuple, all three at ${plan.first}`,
+      versions().every((version) => version === plan.first),
       versions().join(", "),
     );
 
@@ -259,7 +276,7 @@ async function rehearsePrerelease(): Promise<string[]> {
       changed.length > 0 && onlyVersioning(changed, entry, versioned, facts),
       changed.join(", "),
     );
-    installedTuple(clone, dir, expect);
+    installedTuple(clone, dir, plan.first, expect);
 
     const first = countChangesets(join(clone, ".changeset"));
     expect(
@@ -270,35 +287,34 @@ async function rehearsePrerelease(): Promise<string[]> {
 
     const decision = await classify();
     expect(
-      "the Release classifier publishes rc.0 instead of versioning again",
+      `the Release classifier publishes ${plan.first} instead of versioning again`,
       decision.state === "PUBLISH_REQUIRED",
       decision.reason,
     );
     expect(
       "dist-tags: `next` moves to the RC, `latest` is never touched",
       JSON.stringify(
-        planDistTags({ latest: "0.16.0", next: "0.16.0", rc: "1.0.0-rc.0" }, "1.0.0-rc.0"),
-      ) === JSON.stringify([{ tag: "next", from: "0.16.0", to: "1.0.0-rc.0" }]),
+        planDistTags({ latest: "0.17.0", next: plan.previousNext, rc: plan.first }, plan.first),
+      ) === JSON.stringify([{ tag: "next", from: plan.previousNext, to: plan.first }]),
     );
 
     expect(
       "dist-tags: an aligned prerelease moves nothing, `latest` stays on the 0.x line",
-      planDistTags({ latest: "0.17.0", next: "1.0.0-rc.0", rc: "1.0.0-rc.0" }, "1.0.0-rc.0")
-        .length === 0,
+      planDistTags({ latest: "0.17.0", next: plan.first, rc: plan.first }, plan.first).length === 0,
     );
 
     write("rc-fix.md", `---\n"${NAMES[1]}": patch\n---\n\nFix.\n`);
     changeset("version");
     expect(
-      "a fix to one package supersedes the whole tuple: all three at 1.0.0-rc.1",
-      versions().every((version) => version === "1.0.0-rc.1"),
+      `a fix to one package supersedes the whole tuple: all three at ${plan.next}`,
+      versions().every((version) => version === plan.next),
       versions().join(", "),
     );
     expect(
-      "dist-tags: rc.1 moves `next` forward and never `latest`",
+      `dist-tags: ${plan.next} moves \`next\` forward and never \`latest\``,
       JSON.stringify(
-        planDistTags({ latest: "0.17.0", next: "1.0.0-rc.0", rc: "1.0.0-rc.1" }, "1.0.0-rc.1"),
-      ) === JSON.stringify([{ tag: "next", from: "1.0.0-rc.0", to: "1.0.0-rc.1" }]),
+        planDistTags({ latest: "0.17.0", next: plan.first, rc: plan.next }, plan.next),
+      ) === JSON.stringify([{ tag: "next", from: plan.first, to: plan.next }]),
     );
 
     changeset("pre", "exit");
