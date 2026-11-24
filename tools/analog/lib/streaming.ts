@@ -133,10 +133,28 @@ const describeOutcome = (outcome: Outcome): string =>
 /** `window` bounds how long a blocked producer may stay silent before the body counts as buffered. */
 const BUFFER_WINDOW = 3_000;
 
+/**
+ * Wrangler's local dev proxy (4.161.0) replays a GET whose Worker response fails and logs
+ * "(failed after N attempts)"; 4.135.0 delivered the partial body instead. Each attempt is a
+ * separate controller invocation. On workerd one client request may therefore be N invocations,
+ * and N must be exactly what Wrangler reports for that request; elsewhere it must be 1. The
+ * invariant stays per invocation: every reader is released once and every cleanup runs once.
+ */
+function invocationsOf(runtime: Runtime, output: (() => string) | undefined, path: string): number {
+  if (runtime !== "workerd" || !output) return 1;
+  const escaped = path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const plain = output().replace(new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, "g"), "");
+  const reported = [
+    ...plain.matchAll(new RegExp(`${escaped} \\(failed after (\\d+) attempts\\)`, "g")),
+  ];
+  return reported.length === 0 ? 1 : Number(reported.at(-1)![1]);
+}
+
 export async function observeStreaming(
   baseUrl: string,
   runtime: Runtime,
   report: Report,
+  output?: () => string,
 ): Promise<StreamingObservation> {
   const label = `${runtime}:`;
   const expected = runtime === "workerd" ? "buffered" : "incremental";
@@ -340,11 +358,16 @@ export async function observeStreaming(
   let strataOutcome: Outcome;
   {
     const before = await stats(baseUrl);
-    strataOutcome = await outcomeOf(baseUrl, `${STREAM}/fail?id=f1`);
-    const released = await until(
-      async () => (await stats(baseUrl)).closed === before.closed + 1,
-      5_000,
-    );
+    const path = `${STREAM}/fail?id=f1`;
+    strataOutcome = await outcomeOf(baseUrl, path);
+    let invocations = 1;
+    const released = await until(async () => {
+      invocations = invocationsOf(runtime, output, path);
+      const now = await stats(baseUrl);
+      return (
+        now.opened === before.opened + invocations && now.closed === before.closed + invocations
+      );
+    }, 5_000);
     report(
       `${label} a producer failure is surfaced exactly as the transport surfaces a native stream failure`,
       strataOutcome.status === nativeOutcome.status &&
@@ -359,9 +382,17 @@ export async function observeStreaming(
       incremental ? strataOutcome.end !== "done" : strataOutcome.text !== "f1:0;f1:1;f1:2;",
       describeOutcome(strataOutcome),
     );
+    const afterFailure = await stats(baseUrl);
     report(
-      `${label} the reader is released exactly once after the failure`,
-      released && (await stats(baseUrl)).closed === before.closed + 1,
+      `${label} the reader is released exactly once after the failure` +
+        (invocations > 1
+          ? ` (each of ${String(invocations)} invocations Wrangler's dev proxy replayed)`
+          : ""),
+      released &&
+        afterFailure.opened === before.opened + invocations &&
+        afterFailure.closed === before.closed + invocations &&
+        afterFailure.open.length === 0,
+      JSON.stringify(afterFailure),
     );
     report(
       `${label} the private error message is not in the response`,
@@ -372,7 +403,13 @@ export async function observeStreaming(
   // 7. A failing cleanup after a complete body must not look like a clean success.
   {
     const before = await stats(baseUrl);
-    const outcome = await outcomeOf(baseUrl, `${STREAM}/owned?id=c1&cleanupFailure=1`);
+    const path = `${STREAM}/owned?id=c1&cleanupFailure=1`;
+    const outcome = await outcomeOf(baseUrl, path);
+    let invocations = 1;
+    await until(async () => {
+      invocations = invocationsOf(runtime, output, path);
+      return (await stats(baseUrl)).cleanups === before.cleanups + invocations;
+    }, 5_000);
     const after = await stats(baseUrl);
     report(
       `${label} a cleanup failure after the last chunk does not end the body cleanly`,
@@ -382,9 +419,10 @@ export async function observeStreaming(
       describeOutcome(outcome),
     );
     report(
-      `${label} that cleanup ran once and its private message is not in the response`,
-      after.cleanups === before.cleanups + 1 &&
-        after.closed === before.closed + 1 &&
+      `${label} that cleanup ran once and its private message is not in the response` +
+        (invocations > 1 ? ` (once per each of ${String(invocations)} replayed invocations)` : ""),
+      after.cleanups === before.cleanups + invocations &&
+        after.closed === before.closed + invocations &&
         !outcome.text.includes(STREAM_CANARY),
       JSON.stringify(after),
     );

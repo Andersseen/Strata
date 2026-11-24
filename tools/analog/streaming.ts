@@ -45,7 +45,7 @@ const wants = (runtime: Runtime): boolean => selected.includes(runtime);
 const observations: Record<string, unknown> = {};
 
 async function observe(baseUrl: string, runtime: Runtime, output: () => string): Promise<void> {
-  const streaming = await observeStreaming(baseUrl, runtime, check);
+  const streaming = await observeStreaming(baseUrl, runtime, check, output);
   const serverFns = await observeServerFunctions(baseUrl, runtime, check, output);
 
   observations[runtime] = { ...streaming, serverFn: serverFns.status };

@@ -146,7 +146,8 @@ export async function observeRequestUrl(
   report(
     `${label} with publicOrigin is exactly the configured origin, whatever Host and forwarded headers say`,
     echoes[0] !== undefined &&
-      echoes[1] !== undefined &&
+      // Vite refuses a foreign Host itself (see 3); Node and workerd must answer it.
+      (runtime === "dev" ? configured[1]?.status === 403 : echoes[1] !== undefined) &&
       echoes.every(
         (echo) => echo === undefined || echo.href === `${PUBLIC_ORIGIN}${PUBLIC}${query}`,
       ),
