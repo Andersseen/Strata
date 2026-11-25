@@ -154,6 +154,12 @@ export class AliasOrigin {
 export interface StaleAssets {
   /** Asset requests answered from the previous deployment. */
   readonly served: string[];
+  /**
+   * Absolute URLs the previous deployment answered with 404: files of the current document's
+   * build that the old deployment never had. A browser reports each as "Failed to load
+   * resource"; that is the skew being simulated, not a separate failure.
+   */
+  readonly missing: string[];
   /** Document requests seen by this context so far. */
   documents(): number;
   dispose(): Promise<void>;
@@ -175,6 +181,7 @@ export async function staleAssets(
 ): Promise<StaleAssets> {
   const origin = new URL(options.origin);
   const served: string[] = [];
+  const missing: string[] = [];
   let documents = 0;
   const onRequest = (request: { resourceType(): string; url(): string }): void => {
     if (request.resourceType() === "document" && new URL(request.url()).host === origin.host) {
@@ -196,11 +203,13 @@ export async function staleAssets(
     const response = await route.fetch({ url: `${options.previous}${url.pathname}${url.search}` });
 
     served.push(url.pathname);
+    if (response.status() === 404) missing.push(url.href);
     await route.fulfill({ response });
   });
 
   return {
     served,
+    missing,
     documents: () => documents,
     dispose: async () => {
       context.off("request", onRequest);

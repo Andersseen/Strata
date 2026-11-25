@@ -1,0 +1,53 @@
+name: GitHub Pages redirect
+
+# GitHub Pages used to publish the internal Entwine site. A Pages site stays live until it is
+# replaced, so it serves a redirect to the Doqs documentation in the official website.
+#
+# It runs after CI on main has completed successfully, so the website it points to was deployed
+# first. It used to be a job of CI itself, where a GitHub Pages outage failed the whole CI run and
+# Release then refused to publish the packages (2026-11-25: `deploy-pages` could not see the
+# artifact its own job had uploaded, three attempts in a row). A redirect must not gate npm.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy-docs-redirect:
+    name: Redirect GitHub Pages to the official documentation
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Prepare the redirect
+        run: cp apps/www/pages-redirect/index.html apps/www/pages-redirect/404.html
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: apps/www/pages-redirect
+
+      - id: deployment
+        uses: actions/deploy-pages@v5
