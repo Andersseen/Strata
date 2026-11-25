@@ -528,9 +528,63 @@ export interface Tracked {
   readonly page: Page;
   readonly errors: string[];
   readonly requests: RequestRecord[];
-  /** `requestfailed` events as `type url: error` (aborted navigations included). */
+  /**
+   * `requestfailed` events as `type url: error`, except a request that Chromium aborted because
+   * a main-frame navigation replaced its document (see `abortedByNavigation`).
+   */
   readonly failedRequests: string[];
+  /**
+   * `net::ERR_ABORTED` requests of a document a later main-frame navigation replaced, e.g. a
+   * lazy chunk still loading when the test called `page.goto`. Reported, never a failure.
+   */
+  readonly abortedByNavigation: string[];
   close(): Promise<void>;
+}
+
+/**
+ * Records failed requests, separating those Chromium aborted because a main-frame navigation
+ * replaced the document they were issued for (`net::ERR_ABORTED` of a non-navigation request
+ * issued before a later main-frame navigation request). Everything else, an abort within the same document included,
+ * stays a failure.
+ */
+export function trackFailedRequests(page: Page): {
+  readonly failedRequests: string[];
+  readonly abortedByNavigation: string[];
+} {
+  const failedRequests: string[] = [];
+  const abortedByNavigation: string[] = [];
+  // A document can issue requests only after it commits (`framenavigated`), so a request belongs
+  // to the document committed when it was issued, even when the next navigation has already been
+  // requested. Chromium aborts that document's pending loads when the next one replaces it, and
+  // may report the aborts before `framenavigated`; the main-frame navigation request is earlier.
+  // Navigation requests are counted at each commit, so redirect hops and navigations that never
+  // commit cannot make a later document's own failures look replaced.
+  let committed = 0;
+  let requested = 0;
+  const requestedAtCommit: number[] = [0];
+  const issuedFor = new WeakMap<object, number>();
+
+  page.on("framenavigated", (frame) => {
+    if (frame !== page.mainFrame()) return;
+    committed++;
+    requestedAtCommit[committed] = requested;
+  });
+  page.on("request", (request) => {
+    if (request.isNavigationRequest() && request.frame() === page.mainFrame()) requested++;
+    else issuedFor.set(request, committed);
+  });
+  page.on("requestfailed", (request) => {
+    const error = request.failure()?.errorText ?? "failed";
+    const entry = `${request.resourceType()} ${request.url()}: ${error}`;
+    const replaced =
+      !request.isNavigationRequest() &&
+      error === "net::ERR_ABORTED" &&
+      requested > (requestedAtCommit[issuedFor.get(request) ?? committed] ?? requested);
+
+    (replaced ? abortedByNavigation : failedRequests).push(entry);
+  });
+
+  return { failedRequests, abortedByNavigation };
 }
 
 export async function openTracked(): Promise<Tracked> {
@@ -538,13 +592,7 @@ export async function openTracked(): Promise<Tracked> {
   const page = await (await browser.newContext()).newPage();
   const errors: string[] = [];
   const requests: RequestRecord[] = [];
-  const failedRequests: string[] = [];
-
-  page.on("requestfailed", (request) =>
-    failedRequests.push(
-      `${request.resourceType()} ${request.url()}: ${request.failure()?.errorText ?? "failed"}`,
-    ),
-  );
+  const { failedRequests, abortedByNavigation } = trackFailedRequests(page);
   page.on("console", (message) => {
     if (message.type() === "error" || message.type() === "warning") {
       errors.push(`console.${message.type()}: ${message.text()}`);
@@ -562,7 +610,14 @@ export async function openTracked(): Promise<Tracked> {
     });
   });
 
-  return { page, errors, requests, failedRequests, close: () => browser.close() };
+  return {
+    page,
+    errors,
+    requests,
+    failedRequests,
+    abortedByNavigation,
+    close: () => browser.close(),
+  };
 }
 
 /** `evaluate` of a source string: the tools' tsconfig has no DOM lib. */

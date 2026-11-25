@@ -1862,11 +1862,26 @@ async function main(): Promise<void> {
     join(distDir, "analog", "nitro.json"),
   );
 
+  // `nitro.json` records the `version` constant of `nitropack/meta`, not package.json. The
+  // published nitropack 2.13.6 still carries "2.13.5" there (an upstream release slip), so the
+  // build is tied to the resolved package through that package's own constant, and any other
+  // disagreement between the two is reported by name instead of passing silently.
+  const metaVersion = /const version = "([^"]+)"/.exec(
+    readFileSync(join(nitropack.dir, "dist", "meta", "index.mjs"), "utf8"),
+  )?.[1];
+  const knownMislabel = nitropack.version === "2.13.6" && metaVersion === "2.13.5";
+
   check(
     "Built server records the resolved Nitro version",
-    nitroMeta.versions.nitro === nitropack.version,
-    `nitro.json ${nitroMeta.versions.nitro}, resolved ${nitropack.version}`,
+    nitroMeta.versions.nitro === metaVersion &&
+      (metaVersion === nitropack.version || knownMislabel),
+    `nitro.json ${nitroMeta.versions.nitro}, resolved ${nitropack.version}, nitropack/meta ${String(metaVersion)}`,
   );
+  if (knownMislabel) {
+    console.log(
+      "note: nitropack 2.13.6 reports itself as 2.13.5 in nitropack/meta and nitro.json (upstream)",
+    );
+  }
 
   const strataCoreChunk = readFileSync(
     join(distDir, "analog", "server", "chunks", "routes", "api", "strata-core.mjs"),

@@ -1246,6 +1246,11 @@ export async function islandSuite(
         tracked.failedRequests.join(" | "),
       ),
     );
+    if (tracked.abortedByNavigation.length > 0) {
+      console.log(
+        `  info ${label}: aborted by a later document navigation (not failures): ${tracked.abortedByNavigation.join(" | ")}`,
+      );
+    }
   } finally {
     release();
     await tracked.close();

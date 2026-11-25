@@ -18,7 +18,7 @@ import { get } from "./full-stack-verify.ts";
 import { check, failureCount, section } from "./harness.ts";
 import { captureResponse, headerBlock, variantsOf } from "./leak-scan.ts";
 import type { CapturedResponse } from "./leak-scan.ts";
-import { openTracked } from "./package-consumer.ts";
+import { openTracked, trackFailedRequests } from "./package-consumer.ts";
 import type { Tracked } from "./package-consumer.ts";
 import { classifyReply, classifyTransportError, sameDocument } from "./response-classification.ts";
 import type { AnomalySample } from "./response-classification.ts";
@@ -132,7 +132,7 @@ export function diagnosedOpener(
     const page = await context.newPage();
     const errors: string[] = [];
     const requests: Tracked["requests"] = [];
-    const failedRequests: string[] = [];
+    const { failedRequests, abortedByNavigation } = trackFailedRequests(page);
     const failuresAtOpen = failureCount();
 
     await context.tracing.start({ screenshots: true, snapshots: true });
@@ -148,17 +148,12 @@ export function diagnosedOpener(
         navigation: request.isNavigationRequest(),
       }),
     );
-    page.on("requestfailed", (request) =>
-      failedRequests.push(
-        `${request.resourceType()} ${request.url()}: ${request.failure()?.errorText ?? "failed"}`,
-      ),
-    );
-
     return {
       page,
       errors,
       requests,
       failedRequests,
+      abortedByNavigation,
       close: async () => {
         const failed = failureCount() > failuresAtOpen;
 

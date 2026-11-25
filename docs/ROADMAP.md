@@ -1,5 +1,20 @@
 # Roadmap to 1.0
 
+**Pre-RC0 consolidation (2026-11-24, [report](research/pre-rc0-consolidation.md)).** The unpublished RC0 entry
+was withdrawn, the framework tuple moved (Angular 22.2.7, Analog 2.9.7, Nitro 2.13.6, Vite 8.3.8, Wrangler
+4.161.0), `S-1` and `S-2` are resolved in `@strata-sc/analog`, and the prerelease rehearsal works from any
+Changesets state. RC0 is back to the start of [SPEC-004](specs/004-first-release-candidate.md#publishing-an-rc):
+publish the pending 0.x release through the corrected pipeline, requalify the published tuple, then qualify a
+new candidate. Milestone labels are reconciled below; none is closed.
+
+| Milestone | Highest evidence, reviewed tuple (Angular 22.2.3)                                          | On the proposed tuple (this branch)                             | Not reached                                                                     |
+| --------- | ------------------------------------------------------------------------------------------ | --------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| M1        | runtime proven; strict consumer types BLOCKED for `@strata-sc/h3` (SPEC-001/002)           | unchanged, out of scope                                         | unblocked upstream types                                                        |
+| M2        | IMPLEMENTED through DEPLOYED QUALIFIED on the synthetic full-stack fixture                 | LOCAL NODE, LOCAL WORKERD, PACKED CONSUMER; hosted pending      | REAL APPLICATION ADOPTED                                                        |
+| M3        | PUBLISHED REGISTRY QUALIFIED (analog 0.12.1), HOSTED CI, DEPLOYED on the synthetic fixture | S-1/S-2: UNIT, LOCAL NODE, LOCAL WORKERD, PACKED (declarations) | shared SSR/controller DI, Angular DI on workerd, cancellation, real application |
+| M4        | PUBLISHED REGISTRY QUALIFIED (server-components 0.17.0), HOSTED CI, DEPLOYED (synthetic)   | LOCAL NODE, LOCAL WORKERD, PACKED CONSUMER; hosted pending      | Router subtree navigation, streaming SSR, real application                      |
+| M5        | RC process IMPLEMENTED and rehearsed; production process on hosted Linux; deployed A/B     | rehearsal fixed (UNIT, local from three real states)            | a published RC, `release-pipeline-observed` on the new tooling, GA QUALIFIED    |
+
 **RC0 blocker closure (2026-11-06).** The technical blockers of the qualification are closed in tooling and the
 gate verifies its evidence. What remains is operational and ordered in
 [SPEC-004](specs/004-first-release-candidate.md#publishing-an-rc): publish 0.17.0, requalify it, enter the RC line,
@@ -99,7 +114,9 @@ implementation assignment. Baseline prototype endpoints are sufficient to exerci
 
 ## M2 — Prove the integration path and the hardest UI requirement
 
-**Status:** in progress on the Analog track; prototype-only, not production-ready. M1 remains
+**Status (reconciled 2026-11-24):** in progress on the Analog track. The integration path is implemented and,
+on the reviewed tuple, deployed-qualified on a synthetic fixture; it is not real-application adopted, so it is
+not production-ready. The paragraph below is the original record. M1 remains
 Blocked for `@strata-sc/h3` (see the two-track note above). Experiment 1 is partially evidenced by the
 [Analog integration baseline](research/analog-integration-baseline.md): Nitro 2 / H3 v1 seam,
 `@strata-sc/analog` rather than an H3 bridge, standard decorators in dev and production, and Angular-graph
@@ -152,7 +169,9 @@ Analog and navigation strategy. Write relevant ADRs only after the evidence exis
 
 ## M3 — Usable HTTP domains inside Analog
 
-**Status:** in progress; the 0.5.0 candidate adds the typed HTTP error and
+**Status (reconciled 2026-11-24):** in progress. Published (analog 0.12.1) and deployed-qualified on the synthetic
+fixture; S-1 and S-2 are resolved on this branch, unpublished. Open: shared SSR/controller DI, Angular DI on
+workerd, cancellation, real-application adoption. Original record: the 0.5.0 candidate adds the typed HTTP error and
 response contracts, and extends real Node/workerd and packed-consumer checks.
 Broader M3 adoption and lifecycle gates remain open; see the
 [HTTP contract report](research/analog-http-contract-v05.md).
@@ -229,7 +248,10 @@ The 0.11.0 candidate adds per-host browser preflight budgets (128 owned boundari
 serialized payload UTF-8). This is an incremental bound on hydration work, not completion of M4; see
 the [candidate evidence](research/server-component-hydration-budgets-v011.md).
 
-**Status:** planned; depends on M2 component feasibility and M3 request/security contracts.
+**Status (reconciled 2026-11-24):** in progress, not planned: published (server-components 0.17.0) and
+deployed-qualified on the synthetic fixture for the reviewed tuple. Open: Router subtree navigation,
+streaming SSR, real-application adoption. The line it replaces said "planned; depends on M2 component
+feasibility and M3 request/security contracts".
 
 The 0.3.0 candidate advances one bounded part of this milestone: structured client-boundary data
 and protocol v2, with v1 compatibility. It does not close M4: protocol stability, router subtree
@@ -288,7 +310,8 @@ consumer, and hosted CI evidence must be recorded separately ([report](research/
 
 ## M5 — Production evidence and release candidates
 
-**Status:** planned; depends on M4.
+**Status (reconciled 2026-11-24):** in progress, not planned. The RC process, gate and rehearsal are
+implemented; no RC is published; GA is not qualified. The line it replaces said "planned; depends on M4".
 
 - Capability: a deployed production fixture and a real application use the complete path.
 - Hypothesis: deployment, packaging, upgrades and real traffic do not invalidate fixture guarantees.

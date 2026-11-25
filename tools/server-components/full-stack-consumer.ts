@@ -63,7 +63,11 @@ import {
 } from "./lib/package-consumer.ts";
 import type { RunningServer, Snapshot } from "./lib/package-consumer.ts";
 import { checkPublicApi } from "./lib/public-api.ts";
-import { predatesSsrProtocol, ssrBridged } from "./lib/ssr-recipe-bridge.ts";
+import {
+  analogDeclaresConstructorContract,
+  predatesSsrProtocol,
+  ssrBridged,
+} from "./lib/ssr-recipe-bridge.ts";
 import { treeDigest } from "./lib/upgrade-rollback.ts";
 import { COMPATIBILITY_DATE } from "./lib/wrangler.ts";
 
@@ -240,9 +244,31 @@ try {
   section("Declaration portability (TypeScript 6 and 5.9, skipLibCheck: false)");
 
   const ssrMigration = !bridged && !predatesSsrProtocol(installedServerComponents.version);
+  const installedAnalog = JSON.parse(
+    readFileSync(join(consumerDir, "node_modules", "@strata-sc", "analog", "package.json"), "utf8"),
+  ) as { version: string };
+  // S-1/S-2 (docs/research/pre-rc0-consolidation.md): source-packed candidates must compile the
+  // README's constructor-injection example from installed declarations; an older published
+  // tuple cannot, so only its absence is reported.
+  // The version cannot say it: a source-packed candidate keeps the manifest version until Release
+  // applies its Changeset. The installed declarations do.
+  const analogConstructorContract = analogDeclaresConstructorContract(
+    join(consumerDir, "node_modules", "@strata-sc", "analog"),
+  );
+  if (!REGISTRY) {
+    check(
+      `the source-packed @strata-sc/analog ${installedAnalog.version} carries the S-1/S-2 contract`,
+      analogConstructorContract,
+    );
+  } else if (!analogConstructorContract) {
+    console.log(
+      `published @strata-sc/analog ${installedAnalog.version} predates the S-1/S-2 contract: its example is not compiled`,
+    );
+  }
   const ts6 = tscDeclarations(consumerDir, "TypeScript 6", env, {
     ssrEntry: !bridged,
     ssrMigration,
+    analogConstructorContract,
   });
 
   check("TypeScript 6.0.3 is the declaration consumer", ts6.version === "6.0.3", ts6.version);
@@ -273,6 +299,9 @@ try {
           "src/check/ssr-failure-analog.ts",
         ]),
     ...(ssrMigration ? ["tsconfig.check.ssr-migration.json", "src/check/ssr-migration.ts"] : []),
+    ...(analogConstructorContract
+      ? ["tsconfig.check.analog-contract.json", "src/check/analog-contract-example.ts"]
+      : []),
   ]) {
     const destination = join(ts59Dir, file);
     mkdirSync(dirname(destination), { recursive: true });
@@ -325,6 +354,7 @@ try {
   const ts59 = tscDeclarations(ts59Dir, "TypeScript 5.9", env, {
     ssrEntry: !bridged,
     ssrMigration,
+    analogConstructorContract,
   });
 
   check(
@@ -337,12 +367,14 @@ try {
   // ------------------------------------------------------------------------
   section("Public API surface (installed declarations, runtime exports, reviewed baseline)");
 
-  verdict.publicApi = checkPublicApi(
-    consumerDir,
-    env,
-    REGISTRY ? "registry" : "packed",
-    bridged ? [["@strata-sc/server-components", "./ssr"]] : [],
-  );
+  verdict.publicApi = checkPublicApi(consumerDir, env, REGISTRY ? "registry" : "packed", [
+    ...(bridged ? [["@strata-sc/server-components", "./ssr"] as const] : []),
+    // A published analog older than the S-1/S-2 contract lacks this one type export; a
+    // source-packed candidate must carry it.
+    ...(REGISTRY && !analogConstructorContract
+      ? [["@strata-sc/analog", ".", "ControllerConstructor"] as const]
+      : []),
+  ]);
 
   // ------------------------------------------------------------------------
   section("External production build (Node): graph separation");
@@ -670,11 +702,16 @@ try {
 
   const cfStreaming: boolean[] = [];
 
-  await observeStreaming(wrangler.baseUrl, "workerd", (name, passed, detail) => {
-    cfStreaming.push(check(name, passed, detail));
+  await observeStreaming(
+    wrangler.baseUrl,
+    "workerd",
+    (name, passed, detail) => {
+      cfStreaming.push(check(name, passed, detail));
 
-    return passed;
-  });
+      return passed;
+    },
+    () => wrangler.output(),
+  );
 
   const cfCorrelation: boolean[] = [];
 

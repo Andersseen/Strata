@@ -224,6 +224,75 @@ creates each request's controller and can register `onCleanup` callbacks that
 run after the invocation settles. A handler that returns
 [`streamResponse()`](#streaming-responses) keeps them open until its body ends.
 
+## Request URL: what `request.url` may be trusted for
+
+`request.path`, `request.url.pathname` and `request.url.search` are always the
+routed request target, exactly as received. An absolute-form target
+(`GET http://other.example/x`) or one that starts with `//` never changes the
+origin.
+
+`request.url.origin` comes from one of these sources, in this order:
+
+| Source                                                     | When                                               | Trust                                         |
+| ---------------------------------------------------------- | -------------------------------------------------- | --------------------------------------------- |
+| `publicOrigin` option of `registerControllers()`           | when you set it                                    | **your deployment identity**: compare with it |
+| The URL the runtime received                               | Cloudflare (Pages, Workers, local workerd), H3 web | transport information                         |
+| `Host` header (syntax-checked) + the socket's TLS state    | Nitro `node-server`, Vite dev                      | transport information                         |
+| `http://strata.invalid` (reserved, never a browser origin) | none of the above is usable                        | fails closed                                  |
+
+`X-Forwarded-Host`, `X-Forwarded-Proto` and `Forwarded` are never read, so a
+TLS-terminating proxy makes the transport origin `http://…`. The `Host` header
+and every runtime URL are chosen by the client or an intermediary: a
+DNS-rebinding page can make them equal to its own origin. Use only
+`publicOrigin` for origin, CSRF or redirect decisions:
+
+```ts
+registerControllers(nitroApp.router, [AccountController], {
+  publicOrigin: "https://app.example.com",
+  guards: [
+    ({ request }) =>
+      request.method === "GET" || request.headers.get("origin") === request.url.origin
+        ? { allow: true }
+        : { allow: false, status: 403 },
+  ],
+});
+```
+
+`publicOrigin` must be an absolute `http:` or `https:` origin without
+credentials, path, query or fragment; anything else throws a
+`StrataAnalogConfigurationError` at registration. It applies to the controllers
+of that call. Strata provides no CSRF, session or proxy-trust framework; the
+policy stays yours.
+
+## Controller construction
+
+Without a `controllerFactory`, Strata builds each controller with
+`new Controller()`, so only classes without required constructor parameters
+are accepted (`ControllerClass`; optional parameters are fine). A class whose
+constructor needs arguments is registered together with the factory that
+builds it; TypeScript rejects it without one, and rejects a factory that would
+call `new Controller()` without the arguments:
+
+```ts
+const factory: StrataAnalogControllerFactory<typeof OrdersController> = () =>
+  new OrdersController(new OrderStore());
+
+registerControllers(router, [OrdersController], { controllerFactory: factory });
+```
+
+A factory for any class (an injector, for example) is typed with
+`ControllerConstructor`, which cannot be called with `new` and no arguments:
+
+```ts
+const fromInjector: StrataAnalogControllerFactory<ControllerConstructor> = (Controller) =>
+  injector.get(Controller);
+```
+
+Whatever the factory returns must still be an instance of the registered class;
+anything else fails the request after its cleanups ran. Constructor arity is not
+checked at runtime (`Function.length` counts optional parameters), so plain
+JavaScript callers get no such check.
+
 ## Application HTTP contract
 
 Controllers and interceptors can throw an expected application error with a
@@ -397,7 +466,7 @@ response body that is still being read: an ordinary `Response` over a
 
 ```ts
 import { Controller, Get } from "@strata-sc/core";
-import { streamResponse } from "@strata-sc/analog";
+import { registerControllers, streamResponse } from "@strata-sc/analog";
 import type { StrataAnalogControllerFactory } from "@strata-sc/analog";
 
 class OrderCursor {
@@ -419,12 +488,20 @@ class OrdersController {
   }
 }
 
-const controllerFactory: StrataAnalogControllerFactory = (_Controller, { onCleanup }) => {
+const controllerFactory: StrataAnalogControllerFactory<typeof OrdersController> = (
+  _Controller,
+  { onCleanup },
+) => {
   const cursor = new OrderCursor();
   onCleanup(() => cursor.close());
   return new OrdersController(cursor);
 };
+
+registerControllers(router, [OrdersController], { controllerFactory });
 ```
+
+This example is compiled from the installed package under TypeScript 6.0 and
+5.9 (`tests/full-stack-package-consumer/fixture/src/check/analog-contract-example.ts`).
 
 `streamResponse(body, init?)` takes an async iterable of strings (UTF-8 encoded)
 or `Uint8Array` and returns a native `Response`. It is opt-in: Strata never
@@ -465,16 +542,22 @@ adapter owns it fails the invocation the same way; so does returning one
 **HEAD.** A derived `HEAD` request cancels the body, which releases the resources.
 
 **What the transport decides.** Release depends on the transport reading the body
-to its end or cancelling it. Qualified on the pinned tuple (Analog 2.7.2, Nitro
-2.13.4, H3 1.15.11), see
-[the evidence](https://github.com/Andersseen/Strata/blob/main/docs/research/analog-stream-lifecycle-v07.md):
+to its end or cancelling it. Qualified on Analog 2.7.2 / Nitro 2.13.4 and again on
+Analog 2.9.7 / Nitro 2.13.6 (H3 1.15.11 both), see
+[the evidence](https://github.com/Andersseen/Strata/blob/main/docs/research/analog-stream-lifecycle-v07.md) and
+[the requalification](https://github.com/Andersseen/Strata/blob/main/docs/research/pre-rc0-consolidation.md):
 
-| Behavior                                 | Node (`node-server`, Vite dev) | Cloudflare Pages (local workerd) |
-| ---------------------------------------- | ------------------------------ | -------------------------------- |
-| Chunks delivered incrementally           | yes                            | **no: the body is buffered**     |
-| Resources released once after the body   | yes                            | yes                              |
-| Client disconnect releases the resources | **no**: when the body ends     | **no**: when the body ends       |
-| Body error after the first chunk         | connection left open, no end   | empty `200`, indistinguishable   |
+| Behavior                                 | Node (`node-server`, Vite dev) | Cloudflare Pages (local workerd)                            |
+| ---------------------------------------- | ------------------------------ | ----------------------------------------------------------- |
+| Chunks delivered incrementally           | yes                            | **no: the body is buffered**                                |
+| Resources released once after the body   | yes                            | yes, once per invocation                                    |
+| Client disconnect releases the resources | **no**: when the body ends     | **no**: when the body ends                                  |
+| Body error after the first chunk         | connection left open, no end   | Wrangler 4.135: empty `200`; 4.161: `500`, request replayed |
+
+Under `wrangler pages dev` 4.161.0, a GET whose Worker response fails is replayed by
+Wrangler's dev proxy, up to three attempts, so the controller runs again for each attempt;
+every attempt cleans up once. A native Nitro route behaves the same. Whether the deployed
+Cloudflare edge retries is not measured.
 
 Client disconnect is **not** propagated to the body on either runtime, so a body
 must be finite: an unbounded producer is not released when its client goes away.

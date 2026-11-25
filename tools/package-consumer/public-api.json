@@ -17,6 +17,7 @@
   "@strata-sc/analog": {
     ".": {
       "ControllerClass": "type",
+      "ControllerConstructor": "type",
       "jsonResponse": "function",
       "NitroRouter": "interface",
       "noContent": "function",

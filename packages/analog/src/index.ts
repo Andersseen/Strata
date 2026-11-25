@@ -6,6 +6,7 @@ export type {
 export { registerControllers } from "./register-controllers.js";
 export type {
   ControllerClass,
+  ControllerConstructor,
   NitroRouter,
   RegisterControllersOptions,
   StrataAnalogGuard,

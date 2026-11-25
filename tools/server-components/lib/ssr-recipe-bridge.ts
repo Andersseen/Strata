@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, rmSync, writeFileSync, cpSync } from "node:fs";
+import { cpSync, existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { repoRoot } from "./harness.ts";
@@ -47,6 +47,35 @@ export const predatesSsrEntry = (version: string): boolean => predates(version, 
 /** Whether a version predates the 0.17.0 `/ssr` types, so the migration check cannot apply. */
 export const predatesSsrProtocol = (version: string): boolean =>
   predates(version, SSR_PROTOCOL_SINCE);
+
+/**
+ * Whether an installed `@strata-sc/analog` exports the S-1/S-2 contract (`ControllerConstructor`,
+ * the factory-typed overload, `publicOrigin`). Read from its declarations: a source-packed candidate
+ * still carries the previous manifest version until Release applies its Changeset, and the published
+ * 0.12.1 baseline lacks the contract.
+ */
+export function analogDeclaresConstructorContract(packageDir: string): boolean {
+  const manifest = JSON.parse(readFileSync(join(packageDir, "package.json"), "utf8")) as {
+    types?: string;
+    exports?: { ".": { types?: string } };
+  };
+  const entry = manifest.exports?.["."]?.types ?? manifest.types;
+  if (!entry) return false;
+  const declarations = readFileSync(join(packageDir, entry), "utf8");
+  return (
+    /\bControllerConstructor\b/.test(declarations) &&
+    /\bpublicOrigin\b/.test(readDeclarationTree(packageDir, entry))
+  );
+}
+
+function readDeclarationTree(packageDir: string, entry: string): string {
+  const dir = join(packageDir, entry, "..");
+  return readdirSync(dir, { recursive: true })
+    .map(String)
+    .filter((file) => file.endsWith(".d.ts"))
+    .map((file) => readFileSync(join(dir, file), "utf8"))
+    .join("\n");
+}
 
 /** Rewrites the fixture copy to the consumer-owned recipe. Returns the touched files. */
 export function applySsrRecipeBridge(consumerDir: string): string[] {

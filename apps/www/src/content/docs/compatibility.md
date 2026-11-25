@@ -9,16 +9,23 @@ order: 2
 
 ## RC0 support contract
 
-Proposed 2026-11-06 for maintainer review ([report](https://github.com/Andersseen/Strata/blob/main/docs/research/rc0-production-qualification.md),
-[SPEC-004](https://github.com/Andersseen/Strata/blob/main/docs/specs/004-first-release-candidate.md)). No RC exists yet. This narrows what an RC may promise. Ids
-are stable; cite them instead of a table position.
+Proposed 2026-11-06 and reviewed in #186 ([report](https://github.com/Andersseen/Strata/blob/main/docs/research/rc0-production-qualification.md),
+[SPEC-004](https://github.com/Andersseen/Strata/blob/main/docs/specs/004-first-release-candidate.md)). Revised 2026-11-24 by the
+[pre-RC0 consolidation](https://github.com/Andersseen/Strata/blob/main/docs/research/pre-rc0-consolidation.md): the framework tuple moved, S-1 and S-2 are
+resolved, and the unpublished RC0 entry was withdrawn. No RC exists, and the revised contract needs a new
+maintainer review before one can. This narrows what an RC may promise. Ids are stable; cite them instead of a
+table position.
 
 **Strata tuple.** `@strata-sc/core`, `@strata-sc/analog` and `@strata-sc/server-components`, all at the same
 `1.0.0-rc.N`. A mix with any other version, including a `0.x` line, is outside the contract.
 
-**Framework tuple.** Node 22; Angular 22.2.3; Analog 2.7.2; Vite 8.3.0; Nitro 2.13.4; H3 1.15.11; TypeScript 6.0.3 or
-5.9.2; Wrangler 4.135.0; compatibility date 2026-09-21, no flags. One exact tuple, not a range. No peer range
-widens for it.
+**Framework tuple (proposed, not yet RC-qualified).** Node 22; Angular 22.2.7; Analog 2.9.7 (router 2.8.1);
+Vite 8.3.8; Nitro 2.13.6; H3 1.15.11; TypeScript 6.0.3 or 5.9.2; Wrangler 4.161.0; compatibility date
+2026-09-21, no flags; Chromium through Playwright 1.65.0. One exact tuple, not a range. No peer range widens for
+it, and none narrows: the Angular peer range `^22.1.7` is no longer exercised at its lower bound, so only 22.2.7
+is qualified. It replaces the reviewed tuple (Angular 22.2.3, Analog 2.7.2, Vite 8.3.0, Nitro 2.13.4, Wrangler
+4.135.0); the local evidence for it is in the [report](https://github.com/Andersseen/Strata/blob/main/docs/research/pre-rc0-consolidation.md#evidence), and the
+hosted and deployed RC rows must be taken again.
 
 ### Supported for RC evaluation
 
@@ -27,6 +34,8 @@ widens for it.
 | `SC-NODE`            | Node 22 with Nitro `node-server`                                           | PRODUCTION PROCESS on hosted Linux; no persistent deployment    |
 | `SC-PAGES`           | Cloudflare Pages preset, pinned compatibility settings                     | DEPLOYED, source-packed and published                           |
 | `SC-API`             | Standard decorators and the reviewed public API                            | installed declarations = runtime exports = inventory            |
+| `SC-CONTROLLER-CTOR` | Controllers with constructor parameters, built by a typed factory          | installed declarations, TypeScript 6.0 and 5.9; unit            |
+| `SC-REQUEST-URL`     | `request.url` path and query; origin trusted only with `publicOrigin`      | unit (Node HTTP/TLS), Node production, Vite dev, local workerd  |
 | `SC-SSR`             | Buffered Server Component SSR                                              | packed, published, deployed                                     |
 | `SC-SSR-FAILURE`     | Opt-in `/ssr` failure handling, the safe SSR configuration of this profile | packed, deployed; integration refusal on Node and local workerd |
 | `SC-NAVIGATION`      | Explicit document navigation                                               | Chromium, packed and deployed                                   |
@@ -44,6 +53,13 @@ them a failed render can still answer HTTP 200.
 **Dependencies the contract carries.** The build plugin reads `@angular/compiler` template-AST exports ([R21](https://github.com/Andersseen/Strata/blob/main/docs/RISKS.md))
 and islands hydrate from the `ngh` annotation Angular writes. Both are why this is one exact tuple: another Angular
 version is outside the contract until it is qualified.
+
+**Request URL.** `request.url.pathname` and `request.url.search` are the routed target. Only an origin set
+with the `publicOrigin` option of `registerControllers()` is deployment identity. Without it the origin is
+transport information (the runtime's URL, or on Node the checked `Host` header and the socket's TLS
+state), never `X-Forwarded-*`, and `http://strata.invalid` when nothing usable exists
+([details](/docs/packages/analog#request-url-what-requesturl-may-be-trusted-for)). Deployed Cloudflare
+evidence for it is still to be taken.
 
 **Separate injectors.** Controller Angular DI and SSR rendering do not share an injector, and a request's
 controller scope is not visible to a Server Component. They are two runtimes that happen to use the same library.

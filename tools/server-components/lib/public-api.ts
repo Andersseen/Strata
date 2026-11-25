@@ -151,10 +151,14 @@ export function checkPublicApi(
   env: NodeJS.ProcessEnv,
   label: string,
   /**
-   * Baseline subpaths a PUBLISHED tuple predates (registry bridge only, ssr-recipe-bridge.ts): removed
-   * from the expected surface, never from the installed one, so an unexpected extra entry still fails.
+   * Baseline subpaths, or single exports of one, that a PUBLISHED tuple predates (registry runs
+   * only, ssr-recipe-bridge.ts): removed from the expected surface, never from the installed one,
+   * so an unexpected extra entry still fails.
    */
-  predates: readonly (readonly [pkg: string, subpath: string])[] = [],
+  predates: readonly (
+    | readonly [pkg: string, subpath: string]
+    | readonly [pkg: string, subpath: string, exported: string]
+  )[] = [],
 ): boolean {
   const results: boolean[] = [];
   const surface: PublicSurface = {};
@@ -233,10 +237,12 @@ export function checkPublicApi(
     ? (JSON.parse(readFileSync(PUBLIC_API_BASELINE, "utf8")) as PublicSurface)
     : undefined;
 
-  for (const [pkg, subpath] of predates) {
-    if (baseline?.[pkg]) delete baseline[pkg][subpath];
+  for (const [pkg, subpath, exported] of predates) {
+    const entry = baseline?.[pkg];
+    if (entry && exported === undefined) delete entry[subpath];
+    if (entry?.[subpath] && exported !== undefined) delete entry[subpath][exported];
     console.log(
-      `${label}: expected surface omits ${pkg} ${subpath} (the published version predates it)`,
+      `${label}: expected surface omits ${pkg} ${subpath}${exported === undefined ? "" : ` ${exported}`} (the published version predates it)`,
     );
   }
   results.push(

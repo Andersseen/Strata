@@ -700,7 +700,13 @@ try {
     check(
       "L: a package version that lacks the used input or export fails the production build closed",
       downgrade.status !== 0 &&
-        /heading|Package subpath|not exported|Failed to resolve|extra/.test(downgradeOutput),
+        (/heading|Package subpath|not exported|Failed to resolve|extra/.test(downgradeOutput) ||
+          // Which refusal Rolldown reports first is ordering-dependent (42053069517, PR #196):
+          // Strata's AOT-integrity guard may refuse the very component that uses the removed
+          // export before the resolver error surfaces. Only that component counts.
+          new RegExp(
+            `AOT integrity: "${stockPanel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}" \\(ssr build\\) reached the bundle without Angular compilation`,
+          ).test(downgradeOutput)),
       downgradeOutput
         .split("\n")
         .filter((line) => /error|heading|extra/i.test(line))

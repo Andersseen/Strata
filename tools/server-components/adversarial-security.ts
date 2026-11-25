@@ -66,7 +66,13 @@ try {
     check(
       "healthy external packed consumer is a valid shared package/install seed",
       healthyPassed,
-      healthyPassed ? reuseRoot : healthyTranscript.split("\n").slice(-24).join("\n"),
+      healthyPassed
+        ? reuseRoot
+        : [
+            // The failing checks first: the tail alone shows only the aggregate verdicts.
+            ...healthyTranscript.split("\n").filter((line) => line.startsWith(" FAIL ")),
+            ...healthyTranscript.split("\n").slice(-24),
+          ].join("\n"),
     );
     failed ||= !healthyPassed;
     ownsReuseRoot = healthyPassed;
