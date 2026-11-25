@@ -1,6 +1,6 @@
 # Entwine is the maintainer's internal documentation tool: this validates links, anchors and
 # repository references, and publishes nothing. Readers get Doqs in the official website, and
-# `deploy-docs-redirect` in ci.yml sends the old GitHub Pages address there. Build it locally with
+# `docs-redirect.yml` sends the old GitHub Pages address there. Build it locally with
 # `npx --yes @entwine/cli@0.5.1 build`. Do not regenerate this file with `entwine setup`: that would
 # restore a public Pages deployment.
 name: Entwine docs

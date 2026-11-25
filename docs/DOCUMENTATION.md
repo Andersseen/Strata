@@ -19,7 +19,7 @@ point at GitHub.
 
 Entwine stays the maintainer's internal tool and dogfooding. Every pull request and push to `main` runs
 `entwine check` through [`entwine.yml`](../.github/workflows/entwine.yml); it publishes nothing. GitHub
-Pages serves only a redirect to the Doqs documentation (`deploy-docs-redirect` in `ci.yml`).
+Pages serves only a redirect to the Doqs documentation (`.github/workflows/docs-redirect.yml`, after a successful CI run on `main`, so a Pages outage cannot block Release).
 
 ## Local commands
 
