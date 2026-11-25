@@ -380,7 +380,9 @@ function installArm(spec: ArmSpec, tarballs: readonly Tarball[]): ArmState {
   const listed = run("npm", ["ls", "--all", "--json"], { cwd: dir, env });
   const npmProblems = (
     (JSON.parse(listed.stdout || "{}") as { problems?: string[] }).problems ?? []
-  ).filter((problem) => !problem.startsWith("extraneous:") && !KNOWN_OPTIONAL_CONFLICTS.test(problem));
+  ).filter(
+    (problem) => !problem.startsWith("extraneous:") && !KNOWN_OPTIONAL_CONFLICTS.test(problem),
+  );
 
   check(
     `arm ${spec.id}: npm ls reports no unexpected missing or invalid package`,
