@@ -371,10 +371,13 @@ function installArm(spec: ArmSpec, tarballs: readonly Tarball[]): ArmState {
     ),
   );
 
-  // `--legacy-peer-deps` leaves Analog's markdown/content peers (unused: no content routes) and
-  // optional wasm fallbacks uninstalled. Anything else npm ls reports is a real tuple problem.
+  // `--legacy-peer-deps` leaves Analog's markdown peers (unused: no content routes) uninstalled.
+  // `@analogjs/content` itself is pinned in the fixture: router 2.8.1's server bundle imports it,
+  // and the Cloudflare preset cannot leave it external. oxc-parser 0.156 (through nitropack
+  // 2.13.6) installs its optional wasm32-wasi fallback with mismatched alpha @emnapi peers; the
+  // platform's native binding is what loads. Anything else npm ls reports is a real tuple problem.
   const ANALOG_CONTENT_PEER =
-    /^missing: (marked[\w-]*|@analogjs\/content)@\S+, required by @analogjs\/(platform|router)@/;
+    /^missing: (marked[\w-]*|@analogjs\/content)@\S+, required by @analogjs\/(platform|router|content)@|^invalid: (@oxc-parser\/binding-wasm32-wasi|@emnapi\/(core|runtime))@\S+ /;
   const listed = run("npm", ["ls", "--all", "--json"], { cwd: dir, env });
   const npmProblems = (
     (JSON.parse(listed.stdout || "{}") as { problems?: string[] }).problems ?? []

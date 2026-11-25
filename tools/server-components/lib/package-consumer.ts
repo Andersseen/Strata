@@ -544,7 +544,7 @@ export interface Tracked {
 /**
  * Records failed requests, separating those Chromium aborted because a main-frame navigation
  * replaced the document they were issued for (`net::ERR_ABORTED` of a non-navigation request
- * after a later `framenavigated`). Everything else, an abort within the same document included,
+ * issued before a later main-frame navigation request). Everything else, an abort within the same document included,
  * stays a failure.
  */
 export function trackFailedRequests(page: Page): {
@@ -553,14 +553,25 @@ export function trackFailedRequests(page: Page): {
 } {
   const failedRequests: string[] = [];
   const abortedByNavigation: string[] = [];
-  let document = 0;
+  // A document can issue requests only after it commits (`framenavigated`), so a request belongs
+  // to the document committed when it was issued, even when the next navigation has already been
+  // requested. Chromium aborts that document's pending loads when the next one replaces it, and
+  // may report the aborts before `framenavigated`; the main-frame navigation request is earlier.
+  // Navigation requests are counted at each commit, so redirect hops and navigations that never
+  // commit cannot make a later document's own failures look replaced.
+  let committed = 0;
+  let requested = 0;
+  const requestedAtCommit: number[] = [0];
   const issuedFor = new WeakMap<object, number>();
 
   page.on("framenavigated", (frame) => {
-    if (frame === page.mainFrame()) document++;
+    if (frame !== page.mainFrame()) return;
+    committed++;
+    requestedAtCommit[committed] = requested;
   });
   page.on("request", (request) => {
-    issuedFor.set(request, document);
+    if (request.isNavigationRequest() && request.frame() === page.mainFrame()) requested++;
+    else issuedFor.set(request, committed);
   });
   page.on("requestfailed", (request) => {
     const error = request.failure()?.errorText ?? "failed";
@@ -568,7 +579,7 @@ export function trackFailedRequests(page: Page): {
     const replaced =
       !request.isNavigationRequest() &&
       error === "net::ERR_ABORTED" &&
-      (issuedFor.get(request) ?? document) < document;
+      requested > (requestedAtCommit[issuedFor.get(request) ?? committed] ?? requested);
 
     (replaced ? abortedByNavigation : failedRequests).push(entry);
   });
