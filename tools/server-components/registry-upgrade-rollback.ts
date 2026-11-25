@@ -168,8 +168,14 @@ async function visit(extraInit = ""): Promise<Visit> {
 
   await context.addInitScript(INIT_SCRIPT + extraInit);
   page.on("console", (message) => {
-    if (message.type() === "error" || message.type() === "warning")
-      consoleLines.push(message.text());
+    if (message.type() !== "error" && message.type() !== "warning") return;
+    // Chromium's "Failed to load resource" names no resource; its location does.
+    const { url } = message.location();
+    consoleLines.push(
+      /^Failed to load resource/.test(message.text()) && url
+        ? `${message.text()} [${url}]`
+        : message.text(),
+    );
   });
   page.on("pageerror", (error) => pageErrors.push(error.message));
   page.on("response", (response) => {

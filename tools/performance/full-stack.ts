@@ -290,15 +290,14 @@ function installArm(spec: ArmSpec, tarballs: readonly Tarball[]): ArmState {
     controllers,
   });
 
-  // npm 10's peer-dependency resolver crashes (`Cannot read properties of null (reading
-  // 'edgesOut')`) on the current registry state for @angular/build's optional vitest peer, as it
-  // does for every existing external consumer on main. All required peers are declared directly,
-  // so the tuple is exactly the declared one.
-  const install = run(
-    "npm",
-    ["install", "--legacy-peer-deps", "--no-audit", "--no-fund", "--loglevel=error"],
-    { cwd: dir, env },
-  );
+  // A normal install, peers included. `--legacy-peer-deps` was needed while npm 10's resolver
+  // crashed on @angular/build's optional vitest peer; it does not on the 2026-11-24 tuple, and
+  // Analog router 2.8.1 needs its `@analogjs/content` peer chain (content, marked, ...) in the
+  // server bundle, which the Cloudflare preset cannot leave external.
+  const install = run("npm", ["install", "--no-audit", "--no-fund", "--loglevel=error"], {
+    cwd: dir,
+    env,
+  });
 
   must(install, `arm ${spec.id}: npm install`);
 
@@ -371,17 +370,17 @@ function installArm(spec: ArmSpec, tarballs: readonly Tarball[]): ArmState {
     ),
   );
 
-  // `--legacy-peer-deps` leaves Analog's markdown peers (unused: no content routes) uninstalled.
-  // `@analogjs/content` itself is pinned in the fixture: router 2.8.1's server bundle imports it,
-  // and the Cloudflare preset cannot leave it external. oxc-parser 0.156 (through nitropack
-  // 2.13.6) installs its optional wasm32-wasi fallback with mismatched alpha @emnapi peers; the
-  // platform's native binding is what loads. Anything else npm ls reports is a real tuple problem.
-  const ANALOG_CONTENT_PEER =
-    /^missing: (marked[\w-]*|@analogjs\/content)@\S+, required by @analogjs\/(platform|router|content)@|^invalid: (@oxc-parser\/binding-wasm32-wasi|@emnapi\/(core|runtime))@\S+ /;
+  // Two known upstream conflicts of optional native code, never loaded by this fixture (no
+  // content routes, no image bindings): oxc-parser 0.156's wasm32-wasi fallback with alpha
+  // @emnapi peers (through nitropack 2.13.6), and sharp, which @analogjs/content 2.9.7 wants at
+  // ^0.33.5 while Wrangler's miniflare pins 0.35.5. Anything else npm ls reports is a real
+  // tuple problem.
+  const KNOWN_OPTIONAL_CONFLICTS =
+    /^invalid: (@oxc-parser\/binding-wasm32-wasi|@emnapi\/(core|runtime)|sharp)@\S+ /;
   const listed = run("npm", ["ls", "--all", "--json"], { cwd: dir, env });
   const npmProblems = (
     (JSON.parse(listed.stdout || "{}") as { problems?: string[] }).problems ?? []
-  ).filter((problem) => !problem.startsWith("extraneous:") && !ANALOG_CONTENT_PEER.test(problem));
+  ).filter((problem) => !problem.startsWith("extraneous:") && !KNOWN_OPTIONAL_CONFLICTS.test(problem));
 
   check(
     `arm ${spec.id}: npm ls reports no unexpected missing or invalid package`,
