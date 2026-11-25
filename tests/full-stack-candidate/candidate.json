@@ -1,9 +1,9 @@
 {
   "schema": 1,
-  "id": "983f7131e39574e0",
-  "capturedAt": "2026-11-07T10:16:38.772Z",
-  "sourceSha": "3b497d9a65eb8ee821a81a473448b7816a54263f",
-  "fixtureSourceDigest": "f2ba99e0fd554ace4fa39d959329d588aa7c03f75aebd57b6f7f7589d3b69433",
+  "id": "e04b7bb1180795f3",
+  "capturedAt": "2026-11-25T20:43:09.988Z",
+  "sourceSha": "cf137c56449a4fdfe97e06d43b92972db3c21bef",
+  "fixtureSourceDigest": "19d8e3e837e842007dc385b0853523b5615a7764a9986fe28f0564505cc3ed50",
   "registry": "https://registry.npmjs.org",
   "strata": {
     "@strata-sc/core": {
@@ -12,9 +12,9 @@
       "integrity": "sha512-Xr6bMt7funa/RtMhr/BTLX548alI8w5/tq/4QIgvk4INEc4nED5CweQUeEujPU6o9/NcJ1XFtqcXPNGjohkHFA=="
     },
     "@strata-sc/analog": {
-      "version": "0.12.1",
-      "tarball": "https://registry.npmjs.org/@strata-sc/analog/-/analog-0.12.1.tgz",
-      "integrity": "sha512-0ytlP1rpn5zNhUUtFo2gB6oQzvim8h9jxNBFwMYyavnnUqgHbZYauXeDQXX6Q16Aa/a+wLkMAcqwGIfqLmV4aw=="
+      "version": "0.13.0",
+      "tarball": "https://registry.npmjs.org/@strata-sc/analog/-/analog-0.13.0.tgz",
+      "integrity": "sha512-AI3RioayTDdWT+Y0VA3FslbVzNTMtWGump6N1XEWtGk2qqSIb4pWR58QPGnMucCKLN6NVzSXCly9dSeA66OipA=="
     },
     "@strata-sc/server-components": {
       "version": "0.17.0",
@@ -24,78 +24,80 @@
   },
   "direct": {
     "dependencies": {
-      "@analogjs/router": "2.7.2",
-      "@angular/common": "22.2.3",
-      "@angular/compiler": "22.2.3",
-      "@angular/core": "22.2.3",
-      "@angular/platform-browser": "22.2.3",
-      "@angular/platform-server": "22.2.3",
-      "@angular/router": "22.2.3",
-      "@strata-sc/analog": "0.12.1",
+      "@analogjs/content": "2.9.7",
+      "@analogjs/router": "2.8.1",
+      "@angular/common": "22.2.7",
+      "@angular/compiler": "22.2.7",
+      "@angular/core": "22.2.7",
+      "@angular/platform-browser": "22.2.7",
+      "@angular/platform-server": "22.2.7",
+      "@angular/router": "22.2.7",
+      "@strata-sc/analog": "0.13.0",
       "@strata-sc/core": "0.2.2",
       "@strata-sc/server-components": "0.17.0",
       "h3": "1.15.11",
       "rxjs": "7.8.2",
-      "zod": "4.6.5",
-      "tslib": "2.8.1"
+      "tslib": "2.9.1",
+      "zod": "4.6.7"
     },
     "devDependencies": {
-      "@analogjs/platform": "2.7.2",
-      "@analogjs/vite-plugin-angular": "2.7.2",
-      "@angular/build": "22.1.8",
-      "@angular/compiler-cli": "22.2.3",
-      "@types/node": "22.20.3",
-      "nitropack": "2.13.4",
+      "@analogjs/platform": "2.9.7",
+      "@analogjs/vite-plugin-angular": "2.9.7",
+      "@analogjs/vite-plugin-nitro": "2.9.7",
+      "@angular/build": "22.2.7",
+      "@angular/compiler-cli": "22.2.7",
+      "@types/node": "22.20.5",
+      "nitropack": "2.13.6",
       "typescript": "6.0.3",
-      "vite": "8.3.0",
+      "vite": "8.3.8",
       "vitest": "4.0.18",
-      "wrangler": "4.135.0"
+      "wrangler": "4.161.0"
     }
   },
   "trees": {
     "consumer": {
-      "digest": "46dbae2f005db13b7181cbf470b9b6fec0e365c41bb2d51ef904e1a342c906cc",
-      "packages": 869,
+      "digest": "9f27f87c01b0499f3fb27564910c26219875ce3ceccaac22ed9e8991838c22b9",
+      "packages": 832,
       "lockfileVersion": 3
     },
     "consumer-ts59": {
-      "digest": "febfd940089c188521cb5c76d5574c8ec1f718d95c45bc7a3419bb01e2f14327",
-      "packages": 80,
+      "digest": "22703d051eac14772f06227501a47e3cf7c6f8309d8bb821378369a468250ba6",
+      "packages": 86,
       "lockfileVersion": 3
     }
   },
   "resolved": {
-    "@angular/core": "22.2.3",
-    "@angular/common": "22.2.3",
-    "@angular/compiler": "22.2.3",
-    "@angular/compiler-cli": "22.2.3",
-    "@angular/platform-browser": "22.2.3",
-    "@angular/platform-server": "22.2.3",
-    "@angular/router": "22.2.3",
-    "@angular/build": "22.1.8",
-    "@analogjs/platform": "2.7.2",
-    "@analogjs/router": "2.7.2",
-    "@analogjs/vite-plugin-angular": "2.7.2",
-    "@analogjs/vite-plugin-nitro": "2.9.6",
-    "nitropack": "2.13.4",
+    "@angular/core": "22.2.7",
+    "@angular/common": "22.2.7",
+    "@angular/compiler": "22.2.7",
+    "@angular/compiler-cli": "22.2.7",
+    "@angular/platform-browser": "22.2.7",
+    "@angular/platform-server": "22.2.7",
+    "@angular/router": "22.2.7",
+    "@angular/build": "22.2.7",
+    "@analogjs/platform": "2.9.7",
+    "@analogjs/router": "2.8.1",
+    "@analogjs/vite-plugin-angular": "2.9.7",
+    "@analogjs/vite-plugin-nitro": "2.9.7",
+    "nitropack": "2.13.6",
     "h3": "1.15.11",
-    "vite": "8.3.0",
-    "rolldown": "1.2.0",
+    "vite": "8.3.8",
+    "rolldown": "1.2.16",
     "esbuild": "0.27.7",
     "typescript": "6.0.3",
     "rxjs": "7.8.2",
-    "tslib": "2.8.1",
-    "zod": "4.6.5",
-    "wrangler": "4.135.0",
-    "workerd": "1.20260918.1",
-    "miniflare": "5.20260918.0-alpha"
+    "tslib": "2.9.1",
+    "zod": "4.6.7",
+    "wrangler": "4.161.0",
+    "workerd": "1.20261110.1",
+    "miniflare": "5.20261110.2-beta"
   },
   "toolchain": {
     "node": "v22.23.1",
     "npm": "10.9.8",
-    "playwright": "1.62.1",
-    "chromium": "151.0.7922.34",
-    "wrangler": "4.135.0",
+    "playwright": "1.65.0",
+    "chromium": "158.0.8127.18",
+    "wrangler": "4.161.0",
     "compatibilityDate": "2026-09-21",
     "compatibilityFlags": [],
     "platform": "darwin-arm64"
