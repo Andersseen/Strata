@@ -24,6 +24,7 @@ import {
   until,
 } from "./lib/package-consumer.ts";
 import type { RunningServer } from "./lib/package-consumer.ts";
+import { analogDeclaresConstructorContract } from "./lib/ssr-recipe-bridge.ts";
 
 /**
  * `pnpm test:node-production [--frozen|--registry]`: one candidate, as one release identity, through
@@ -282,10 +283,21 @@ try {
 
   section("Functional contract on the same long-lived process");
 
+  // S-1 from the installed package, when its declarations carry the contract (analog 0.13.0+).
+  const requestOrigin = analogDeclaresConstructorContract(
+    join(consumerDir, "node_modules", "@strata-sc", "analog"),
+  );
+  check(
+    requestOrigin
+      ? "the installed @strata-sc/analog carries S-1: request URL integrity is exercised"
+      : "the installed @strata-sc/analog predates S-1: request URL integrity is not exercised",
+    requestOrigin || registryMode() || frozenMode(),
+  );
   const http = await httpSuite(server.baseUrl, "node-production", {
     lifecycle: true,
     log: () => server!.output(),
     keepAliveAfter413: true,
+    ...(requestOrigin ? { requestOrigin: { rawHost: true } } : {}),
   });
   const island = await islandSuite(server.baseUrl, "node-production");
   const navigation = await navigationSuite(server.baseUrl, "node-production");

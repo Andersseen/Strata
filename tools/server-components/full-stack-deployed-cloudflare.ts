@@ -53,6 +53,7 @@ import { isNodeBuiltin, moduleGraph } from "./lib/module-graph.ts";
 import { isolatedEnv, restoreDir, snapshotDiffers, startWrangler } from "./lib/package-consumer.ts";
 import type { RunningServer } from "./lib/package-consumer.ts";
 import { deployToPages } from "./lib/pages-deploy.ts";
+import { analogDeclaresConstructorContract } from "./lib/ssr-recipe-bridge.ts";
 import { COMPATIBILITY_DATE } from "./lib/wrangler.ts";
 
 /**
@@ -90,6 +91,8 @@ const TITLE = "full-stack deployed Cloudflare qualification";
 const PROJECT = "strata-fullstack-qualification";
 const WORKER_DIR = "analog/public/_worker.js";
 const REGISTRY = registryMode();
+/** Set once the candidate is installed: whether its analog carries S-1. */
+let requestOrigin = false;
 const CANDIDATE = REGISTRY ? "PUBLISHED-REGISTRY CANDIDATE" : "SOURCE-PACKED CANDIDATE";
 
 /** A deployment is ready after this many correct answers in a row. */
@@ -256,6 +259,7 @@ async function verify(
   const http = await httpSuite(base, label, {
     lifecycle: false,
     ...(options.log ? { log: options.log } : {}),
+    ...(requestOrigin ? { requestOrigin: { rawHost: false } } : {}),
   });
   const documents = await documentsSuite(base, label);
   const island = await islandSuite(base, label, open("island"));
@@ -312,6 +316,18 @@ async function main(): Promise<void> {
   check(
     "the packed candidate installs externally (tarballs, lock, single copies, entry points)",
     install.ok,
+  );
+
+  // S-1 on the deployed adapter (docs/research/rc0-production-requalification.md): exercised when the
+  // installed @strata-sc/analog declares it, mandatory for a source-packed candidate.
+  requestOrigin = analogDeclaresConstructorContract(
+    join(consumerDir, "node_modules", "@strata-sc", "analog"),
+  );
+  check(
+    requestOrigin
+      ? "the installed @strata-sc/analog carries S-1: request URL integrity is verified on workerd and the public URL"
+      : "the installed @strata-sc/analog predates S-1: request URL integrity is not exercised",
+    requestOrigin || REGISTRY,
   );
 
   evidence.packages = install.evidence

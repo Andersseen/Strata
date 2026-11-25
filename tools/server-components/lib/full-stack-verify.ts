@@ -167,6 +167,184 @@ export interface HttpOptions {
    * connection usable (the @strata-sc/analog 0.12.1 fix). Needs a raw local TCP socket.
    */
   readonly keepAliveAfter413?: boolean;
+  /**
+   * S-1 request URL integrity from the installed `@strata-sc/analog` (0.13.0 and later). The runner
+   * sets it only when the installed declarations carry the contract. `rawHost` sends a malformed
+   * `Host` on a raw local socket, which only a local Node server accepts.
+   */
+  readonly requestOrigin?: { readonly rawHost: boolean };
+}
+
+/** The fixture's `publicOrigin` (tests/full-stack-package-consumer/fixture/src/server/strata/request-origin.controller.ts). */
+export const PINNED_ORIGIN = "https://consumer.strata-qualification.example";
+/** `@strata-sc/analog`'s fallback when no usable origin exists (RFC 6761 `.invalid`). */
+export const UNKNOWN_ORIGIN = "http://strata.invalid";
+
+interface OriginEcho {
+  readonly scope: string;
+  readonly origin: string;
+  readonly pathname: string;
+  readonly search: string;
+  readonly path: string;
+  readonly query: Record<string, unknown>;
+}
+
+const FORWARDED_SPOOF = {
+  "x-forwarded-host": "evil.strata-qualification.example",
+  "x-forwarded-proto": "https",
+  "x-forwarded-port": "8443",
+  forwarded: "for=203.0.113.9;host=evil.strata-qualification.example;proto=https",
+} as const;
+
+const parseEcho = (body: string): OriginEcho | undefined => {
+  try {
+    return JSON.parse(body) as OriginEcho;
+  } catch {
+    return undefined;
+  }
+};
+
+/** The body of one raw HTTP/1.1 response, de-chunked when the server chose chunked encoding. */
+export function rawResponseBody(raw: string): string {
+  const split = raw.indexOf("\r\n\r\n");
+  if (split < 0) return "";
+  const head = raw.slice(0, split).toLowerCase();
+  let rest = raw.slice(split + 4);
+  if (!/\r\ntransfer-encoding:\s*chunked/.test(head)) return rest;
+  let body = "";
+  for (;;) {
+    const line = rest.indexOf("\r\n");
+    const size = Number.parseInt(rest.slice(0, line), 16);
+    if (line < 0 || !Number.isFinite(size) || size === 0) return body;
+    body += rest.slice(line + 2, line + 2 + size);
+    rest = rest.slice(line + 2 + size + 2);
+  }
+}
+
+/** One raw request with a `Host` no client library would send; returns the raw response. */
+function rawGet(base: URL, target: string, host: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const socket = connect(Number(base.port), base.hostname);
+    let received = "";
+    socket.on("data", (chunk: Buffer) => {
+      received += chunk.toString("utf8");
+    });
+    socket.on("error", reject);
+    socket.on("close", () => resolve(received));
+    socket.write(`GET ${target} HTTP/1.1\r\nhost: ${host}\r\nconnection: close\r\n\r\n`);
+    setTimeout(() => socket.destroy(), 15_000).unref();
+  });
+}
+
+/**
+ * S-1 (docs/research/rc0-production-requalification.md): `publicOrigin` is the only trusted origin,
+ * forwarded headers are never read, a missing usable origin is `strata.invalid`, and the routed path
+ * and query stay authoritative. Black-box: the same checks run locally and on a public URL.
+ */
+export async function requestOriginSuite(
+  base: string,
+  label: string,
+  options: { readonly rawHost: boolean },
+): Promise<boolean[]> {
+  const ok: boolean[] = [];
+  const transport = new URL(base).origin;
+  const query = "?b=2&a=one%20two&a=three";
+
+  const pinned = await fetch(`${base}/api/request-origin/pinned/echo${query}`, {
+    headers: FORWARDED_SPOOF,
+    signal: AbortSignal.timeout(30_000),
+  });
+  const pinnedBody = await pinned.text();
+  const pinnedEcho = parseEcho(pinnedBody);
+  ok.push(
+    check(
+      `${label}: S-1 publicOrigin is request.url.origin, whatever the transport and forwarded headers say`,
+      pinned.status === 200 && pinnedEcho?.origin === PINNED_ORIGIN,
+      `${pinned.status} ${pinnedBody.slice(0, 300)}`,
+    ),
+    check(
+      `${label}: S-1 the routed path and exact query string stay authoritative`,
+      pinnedEcho?.pathname === "/api/request-origin/pinned/echo" &&
+        pinnedEcho.search === query &&
+        pinnedEcho.path === "/api/request-origin/pinned/echo",
+      JSON.stringify(pinnedEcho),
+    ),
+  );
+
+  const mutate = (headers: Record<string, string>) =>
+    fetch(`${base}/api/request-origin/pinned/mutate`, {
+      method: "POST",
+      headers,
+      signal: AbortSignal.timeout(30_000),
+    }).then(async (response) => {
+      await response.arrayBuffer();
+      return response.status;
+    });
+  const [fromPinned, fromTransport, spoofed, withoutOrigin] = await Promise.all([
+    mutate({ origin: PINNED_ORIGIN }),
+    mutate({ origin: transport }),
+    mutate({ origin: "https://evil.strata-qualification.example", ...FORWARDED_SPOOF }),
+    mutate({}),
+  ]);
+  ok.push(
+    check(
+      `${label}: S-1 a consumer same-origin guard admits only the publicOrigin (204), refuses the transport origin, a forwarded spoof and no Origin (403)`,
+      fromPinned === 204 && fromTransport === 403 && spoofed === 403 && withoutOrigin === 403,
+      `pinned=${fromPinned} transport=${fromTransport} spoofed=${spoofed} none=${withoutOrigin}`,
+    ),
+  );
+
+  const [plain, forwarded] = await Promise.all(
+    [{}, FORWARDED_SPOOF].map(async (headers) => {
+      const response = await fetch(`${base}/api/request-origin/transport/echo?n=1`, {
+        headers,
+        signal: AbortSignal.timeout(30_000),
+      });
+      return { status: response.status, echo: parseEcho(await response.text()) };
+    }),
+  );
+  ok.push(
+    check(
+      `${label}: S-1 without publicOrigin the origin is the one the runtime received (${transport})`,
+      plain?.status === 200 && plain.echo?.origin === transport,
+      JSON.stringify(plain),
+    ),
+    check(
+      `${label}: S-1 X-Forwarded-* and Forwarded never change request.url`,
+      forwarded?.status === 200 &&
+        forwarded.echo?.origin === transport &&
+        !JSON.stringify(forwarded.echo).includes("evil.strata-qualification.example"),
+      JSON.stringify(forwarded),
+    ),
+  );
+
+  if (options.rawHost) {
+    const target = "/api/request-origin/transport/echo?raw=1";
+    const malformed = await rawGet(new URL(base), target, "evil host!");
+    const echo = parseEcho(rawResponseBody(malformed));
+    const pinnedRaw = await rawGet(
+      new URL(base),
+      "/api/request-origin/pinned/echo?raw=1",
+      "evil host!",
+    );
+    const pinnedRawEcho = parseEcho(rawResponseBody(pinnedRaw));
+    ok.push(
+      check(
+        `${label}: S-1 a malformed Host leaves no usable origin, so request.url.origin is ${UNKNOWN_ORIGIN} (path and query kept)`,
+        echo?.origin === UNKNOWN_ORIGIN &&
+          echo.pathname === "/api/request-origin/transport/echo" &&
+          echo.search === "?raw=1",
+        rawResponseBody(malformed).slice(0, 300) || malformed.slice(0, 300),
+      ),
+      check(
+        `${label}: S-1 the same malformed Host cannot displace publicOrigin`,
+        pinnedRawEcho?.origin === PINNED_ORIGIN,
+        rawResponseBody(pinnedRaw).slice(0, 300) || pinnedRaw.slice(0, 300),
+      ),
+    );
+  }
+
+  return ok;
 }
 
 /**
@@ -422,6 +600,10 @@ export async function httpSuite(
       native.body,
     ),
   );
+
+  if (options.requestOrigin) {
+    ok.push(...(await requestOriginSuite(base, label, options.requestOrigin)));
+  }
 
   const controller = [...ok];
 
