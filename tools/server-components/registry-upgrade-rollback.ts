@@ -546,12 +546,26 @@ async function deploymentPhase(
           stale.served.length > 0,
         JSON.stringify({ errors: seen.errors, served: stale.served.length }),
       );
+      // Only the exact files the stale deployment lacked may fail to load (their 404 is the
+      // skew itself); any other console error still fails.
+      const skewOnly = (lines: string[]): string[] =>
+        lines.filter(
+          (line) =>
+            !stale.missing.some(
+              (url) =>
+                line ===
+                `Failed to load resource: the server responded with a status of 404 (Not Found) [${url}]`,
+            ),
+        );
       ck(
         `${step}: no unexpected exception and no private canary in the DOM or console`,
-        unexpected(v, await observe(v.page)).length === 0 &&
+        skewOnly(unexpected(v, await observe(v.page))).length === 0 &&
           leaks(await v.page.evaluate("document.documentElement.outerHTML"), v.console.join("\n"))
             .length === 0,
-        unexpected(v, seen).join(" | "),
+        skewOnly(unexpected(v, seen)).join(" | ") +
+          (stale.missing.length > 0
+            ? ` (missing from the stale deployment: ${stale.missing.join(", ")})`
+            : ""),
       );
       await stale.dispose();
       await v.close();
