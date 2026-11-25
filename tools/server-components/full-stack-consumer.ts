@@ -508,6 +508,7 @@ try {
     lifecycle: true,
     log: () => node.output(),
     keepAliveAfter413: true,
+    ...(analogConstructorContract ? { requestOrigin: { rawHost: true } } : {}),
   });
   const nodeIsland = await islandSuite(node.baseUrl, "node");
   const nodeNavigation = await navigationSuite(node.baseUrl, "node");
@@ -689,6 +690,7 @@ try {
   const cfHttp = await httpSuite(wrangler.baseUrl, "workerd", {
     lifecycle: true,
     log: () => wrangler.output(),
+    ...(analogConstructorContract ? { requestOrigin: { rawHost: false } } : {}),
   });
   const cfIsland = await islandSuite(wrangler.baseUrl, "workerd");
   const cfNavigation = await navigationSuite(wrangler.baseUrl, "workerd");
