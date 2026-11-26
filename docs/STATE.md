@@ -1,6 +1,6 @@
 # Current implementation audit
 
-## RC0 final qualification (2026-11-26, PRs #200 and the ledger PR)
+## RC0 final qualification (2026-11-26, PRs #200 and #201)
 
 [Report](research/rc0-production-requalification.md#final-rc0-qualification-2026-11-26). The support contract now cites S-1 on deployed Cloudflare Pages, and the declared Angular range
 `^22.1.7` is kept apart from the qualified version 22.2.7 (#200, merged).

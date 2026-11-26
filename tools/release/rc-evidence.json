@@ -168,9 +168,12 @@
       "id": "support-contract-review",
       "gate": "blocker",
       "artifact": "none",
-      "status": "NOT RUN",
-      "proof": null,
-      "note": "invalidated by the pre-RC0 consolidation: the support contract changed (new framework tuple, S-1 and S-2 resolved). Previous PASS: maintainer merge of #186"
+      "status": "PASS",
+      "proof": {
+        "kind": "maintainer-decision",
+        "pullRequest": 201
+      },
+      "note": "the maintainer merge of #201 reviews the RC0 support contract as revised in #200 (S-1 deployed, declared vs qualified Angular)"
     },
     {
       "id": "rc-publication",
