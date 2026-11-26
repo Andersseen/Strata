@@ -1,5 +1,9 @@
 # Strata 1.0 exit criteria
 
+**RC0 final qualification 2026-11-26 ([report](research/rc0-production-requalification.md#final-rc0-qualification-2026-11-26)).** No item is ticked, and the matrix is unchanged. The
+pre-publication RC rows pass on the candidate `e030175`. That authorizes at most an evaluation release, and it is
+not GA evidence.
+
 **RC0 production requalification 2026-11-25 ([report](research/rc0-production-requalification.md)).** No item is
 ticked; the matrix is unchanged (PASS 1, PARTIAL 27, BLOCKED 0, NOT RUN 4). The published baseline (core 0.2.2,
 analog 0.13.0, server-components 0.17.0) is frozen and qualified on the PR branch, locally and on hosted and

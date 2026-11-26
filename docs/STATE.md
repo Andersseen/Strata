@@ -1,5 +1,21 @@
 # Current implementation audit
 
+## RC0 final qualification (2026-11-26, PRs #200 and #201)
+
+[Report](research/rc0-production-requalification.md#final-rc0-qualification-2026-11-26). The support contract now cites S-1 on deployed Cloudflare Pages, and the declared Angular range
+`^22.1.7` is kept apart from the qualified version 22.2.7 (#200, merged).
+
+- **Candidate:** #200's merge commit, `e030175238efdee85ae7c443c4bf48970ff364bc`. Its `packages/` tree is the
+  same as at `4888fe6`.
+- **Baseline:** unchanged; frozen `e04b7bb1180795f3`, harness `4888fe6cfa6ece91901f80b243f66fcbd3358b22`.
+- **Evidence:** the twelve pre rows pass in `tools/release/rc-evidence.json`. The candidate-bound runs are CI
+  45798002521, Extended 45798227520 and Cloudflare packed 45798239344. The baseline-bound runs on `9a9a943` are
+  Extended 45779687445, Cloudflare registry 45779695332 and upgrade-rollback 45780901828. Release 45694359277 is
+  the observed publication.
+- **Gate:** `--phase=pre` is NO-GO on one blocker, `support-contract-review`, which the maintainer's merge of the
+  ledger PR supplies.
+- **Registry:** no RC exists; `latest` and `next` are on 0.2.2, 0.13.0 and 0.17.0.
+
 ## RC0 production requalification (branch `stabilize/rc0-production-requalification`, PR #198)
 
 [Report](research/rc0-production-requalification.md). Published through the corrected pipeline (Release 45694359277):

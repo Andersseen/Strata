@@ -1,113 +1,179 @@
 {
   "schema": 2,
   "target": "1.0.0-rc.0",
-  "candidate": null,
-  "baseline": null,
+  "candidate": {
+    "sha": "e030175238efdee85ae7c443c4bf48970ff364bc",
+    "sourceTree": "c46d5442a80d4c6e366dc33dd068c49a0216827e",
+    "lockDigest": "bef09182b2920d6e1148c6369878e187deb3c54bb901c04b881491ba6a23e5c6",
+    "configDigest": "f44b9fac45dec31c8f593e36b4a5e0d2d6e1623046a95580093a1135fa59a1f3",
+    "versions": {
+      "@strata-sc/core": "0.2.2",
+      "@strata-sc/analog": "0.13.0",
+      "@strata-sc/server-components": "0.17.0"
+    }
+  },
+  "baseline": {
+    "harnessSha": "4888fe6cfa6ece91901f80b243f66fcbd3358b22",
+    "frozenId": "e04b7bb1180795f3",
+    "packages": {
+      "@strata-sc/core": {
+        "version": "0.2.2",
+        "integrity": "sha512-Xr6bMt7funa/RtMhr/BTLX548alI8w5/tq/4QIgvk4INEc4nED5CweQUeEujPU6o9/NcJ1XFtqcXPNGjohkHFA=="
+      },
+      "@strata-sc/analog": {
+        "version": "0.13.0",
+        "integrity": "sha512-AI3RioayTDdWT+Y0VA3FslbVzNTMtWGump6N1XEWtGk2qqSIb4pWR58QPGnMucCKLN6NVzSXCly9dSeA66OipA=="
+      },
+      "@strata-sc/server-components": {
+        "version": "0.17.0",
+        "integrity": "sha512-SOrJTSac6qRhpI8cn3QL4Cr4jslHN0gwTHA9H9iSCepOHhVenzK/tpo0y0GbGh6JqoLd1/qBBx1QUj4uwMr/Og=="
+      }
+    }
+  },
   "published": null,
   "rows": [
     {
       "id": "ci-verify",
       "gate": "blocker",
       "artifact": "source-packed",
-      "status": "NOT RUN",
-      "proof": null,
-      "note": "invalidated by the pre-RC0 consolidation: the candidate 7f9a384 and its framework tuple are superseded. Previous PASS: run 42377373394 (docs/research/rc0-production-qualification.md)"
+      "status": "PASS",
+      "proof": {
+        "kind": "hosted-run",
+        "runId": 45798002521
+      },
+      "note": "CI push on main, candidate e030175: aggregate Verify success"
     },
     {
       "id": "release-pipeline-observed",
       "gate": "blocker",
       "artifact": "none",
-      "status": "NOT RUN",
-      "proof": null,
-      "note": "invalidated by the pre-RC0 consolidation: tools/release changed (state-aware rehearsal), so the next real publish through the corrected pipeline must be observed. Previous PASS: Release 42237367717 on 3b497d9"
+      "status": "PASS",
+      "proof": {
+        "kind": "hosted-run",
+        "runId": 45694359277
+      },
+      "note": "Release workflow_run on 36dbd4c: real publish of analog 0.13.0; Version PR or publish, Align npm dist-tags and Verify npm registry steps success; tools/release and release.yml unchanged since"
     },
     {
       "id": "baseline-frozen",
       "gate": "blocker",
       "artifact": "baseline-registry",
-      "status": "NOT RUN",
-      "proof": null,
-      "note": "invalidated by the pre-RC0 consolidation: the candidate 7f9a384 and its framework tuple are superseded. Previous PASS: run 42364605046 (docs/research/rc0-production-qualification.md)"
+      "status": "PASS",
+      "proof": {
+        "kind": "hosted-run",
+        "runId": 45779687445
+      },
+      "note": "Extended suite=all islands=both on 9a9a943 (docs-only from harness 4888fe6): npm ci of frozen e04b7bb1180795f3, 0 failing checks"
     },
     {
       "id": "baseline-deployed",
       "gate": "blocker",
       "artifact": "baseline-registry",
-      "status": "NOT RUN",
-      "proof": null,
-      "note": "invalidated by the pre-RC0 consolidation: the candidate 7f9a384 and its framework tuple are superseded. Previous PASS: run 42373841330 (docs/research/rc0-production-qualification.md)"
+      "status": "PASS",
+      "proof": {
+        "kind": "hosted-run",
+        "runId": 45779695332
+      },
+      "note": "Cloudflare registry 0.2.2/0.13.0/0.17.0 on 9a9a943: deployed 9cf0f7a2.strata-fullstack-qualification.pages.dev, S-1 deployed, 0 failing checks"
     },
     {
       "id": "baseline-upgrade-rollback",
       "gate": "blocker",
       "artifact": "baseline-registry",
-      "status": "NOT RUN",
-      "proof": null,
-      "note": "invalidated by the pre-RC0 consolidation: the candidate 7f9a384 and its framework tuple are superseded. Previous PASS: run 42374101914 (docs/research/rc0-production-qualification.md)"
+      "status": "PASS",
+      "proof": {
+        "kind": "hosted-run",
+        "runId": 45780901828
+      },
+      "note": "Cloudflare upgrade-rollback on 9a9a943: sc 0.16.0 -> 0.17.0 -> retained 0.16.0 on alias m5-upgrade-rollback, 0 failing checks"
     },
     {
       "id": "island-interaction",
       "gate": "blocker",
       "artifact": "source-packed",
-      "status": "NOT RUN",
-      "proof": null,
-      "note": "invalidated by the pre-RC0 consolidation: the candidate 7f9a384 and its framework tuple are superseded. Previous PASS: run 42374195018 (docs/research/rc0-production-qualification.md)"
+      "status": "PASS",
+      "proof": {
+        "kind": "hosted-run",
+        "runId": 45798227520
+      },
+      "note": "Extended suite=all islands=both on e030175: one and three islands measured"
     },
     {
       "id": "performance-scaling",
       "gate": "blocker",
       "artifact": "source-packed",
-      "status": "NOT RUN",
-      "proof": null,
-      "note": "invalidated by the pre-RC0 consolidation: the candidate 7f9a384 and its framework tuple are superseded. Previous PASS: run 42374195018 (docs/research/rc0-production-qualification.md)"
+      "status": "PASS",
+      "proof": {
+        "kind": "hosted-run",
+        "runId": 45798227520
+      },
+      "note": "Extended on e030175: controller scaling profile and browser size budgets"
     },
     {
       "id": "ssr-duplicate-install",
       "gate": "blocker",
       "artifact": "source-packed",
-      "status": "NOT RUN",
-      "proof": null,
-      "note": "invalidated by the pre-RC0 consolidation: the candidate 7f9a384 and its framework tuple are superseded. Previous PASS: run 42374195018 (docs/research/rc0-production-qualification.md)"
+      "status": "PASS",
+      "proof": {
+        "kind": "hosted-run",
+        "runId": 45798227520
+      },
+      "note": "Extended on e030175: SSR contract with a duplicated package installation"
     },
     {
       "id": "node-production-source",
       "gate": "blocker",
       "artifact": "source-packed",
-      "status": "NOT RUN",
-      "proof": null,
-      "note": "invalidated by the pre-RC0 consolidation: the candidate 7f9a384 and its framework tuple are superseded. Previous PASS: run 42374195018 (docs/research/rc0-production-qualification.md)"
+      "status": "PASS",
+      "proof": {
+        "kind": "hosted-run",
+        "runId": 45798227520
+      },
+      "note": "Extended on e030175: Node production process, source-packed candidate, hosted Linux"
     },
     {
       "id": "adversarial-security",
       "gate": "blocker",
       "artifact": "source-packed",
-      "status": "NOT RUN",
-      "proof": null,
-      "note": "invalidated by the pre-RC0 consolidation: the candidate 7f9a384 and its framework tuple are superseded. Previous PASS: run 42374195018 (docs/research/rc0-production-qualification.md)"
+      "status": "PASS",
+      "proof": {
+        "kind": "hosted-run",
+        "runId": 45798227520
+      },
+      "note": "Extended on e030175: source-mutated adversarial security qualification"
     },
     {
       "id": "deployed-source-packed",
       "gate": "blocker",
       "artifact": "source-packed",
-      "status": "NOT RUN",
-      "proof": null,
-      "note": "invalidated by the pre-RC0 consolidation: the candidate 7f9a384 and its framework tuple are superseded. Previous PASS: run 42374571852 (docs/research/rc0-production-qualification.md)"
+      "status": "PASS",
+      "proof": {
+        "kind": "hosted-run",
+        "runId": 45798239344
+      },
+      "note": "Cloudflare packed on e030175: deployed 6ab4cbac.strata-fullstack-qualification.pages.dev; S-1, authorization isolation, hydration, confidentiality, console clean; 0 failing checks"
     },
     {
       "id": "prerelease-rehearsal",
       "gate": "blocker",
       "artifact": "none",
-      "status": "NOT RUN",
-      "proof": null,
-      "note": "invalidated by the pre-RC0 consolidation: the candidate 7f9a384 and its framework tuple are superseded. Previous PASS: run 42374195018 (docs/research/rc0-production-qualification.md)"
+      "status": "PASS",
+      "proof": {
+        "kind": "hosted-run",
+        "runId": 45798227520
+      },
+      "note": "Extended on e030175: RC readiness report and non-publishing prerelease rehearsal"
     },
     {
       "id": "support-contract-review",
       "gate": "blocker",
       "artifact": "none",
-      "status": "NOT RUN",
-      "proof": null,
-      "note": "invalidated by the pre-RC0 consolidation: the support contract changed (new framework tuple, S-1 and S-2 resolved). Previous PASS: maintainer merge of #186"
+      "status": "PASS",
+      "proof": {
+        "kind": "maintainer-decision",
+        "pullRequest": 201
+      },
+      "note": "the maintainer merge of #201 reviews the RC0 support contract as revised in #200 (S-1 deployed, declared vs qualified Angular)"
     },
     {
       "id": "rc-publication",

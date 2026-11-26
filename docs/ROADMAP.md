@@ -1,5 +1,14 @@
 # Roadmap to 1.0
 
+**RC0 final qualification (2026-11-26, [report](research/rc0-production-requalification.md#final-rc0-qualification-2026-11-26)).** SPEC-004 steps 3 and 4 are done on the candidate
+`e030175`, the merge of the support-contract PR #200, and every pre row is recorded. The next steps are:
+
+1. The maintainer merges the ledger PR.
+2. `pnpm release:rc:check` prints GO on `main`.
+3. The RC entry (step 5).
+
+No milestone closes, and RC0 is an evaluation release, not GA.
+
 **RC0 production requalification (2026-11-25, [report](research/rc0-production-requalification.md)).** Analog
 0.13.0 is published through the corrected pipeline, and the published tuple (core 0.2.2, analog 0.13.0,
 server-components 0.17.0) is frozen as `e04b7bb1180795f3` on the consolidated framework tuple. Every hosted
