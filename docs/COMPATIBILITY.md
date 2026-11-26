@@ -168,18 +168,48 @@ work only where [the matrix](research/rc0-production-qualification.md#ssr-instal
 two copies both at 0.16 or older cannot be detected, and an old wrapper beside a new provider that loads a
 second Angular still answers HTTP 200.
 
-## Consolidated tuple (2026-11-24)
+## Frozen baseline (2026-11-25): `e04b7bb1180795f3`
 
-The [pre-RC0 consolidation](research/pre-rc0-consolidation.md) moved every external consumer fixture to the
-tuple above and recaptured the frozen candidate on it, from the same published Strata versions
-(core 0.2.2, analog 0.12.1, server-components 0.17.0). The capture below is that baseline; it is local
-evidence until the hosted Extended and Cloudflare runs take it again.
+Current. The published 0.x baseline after `@strata-sc/analog` 0.13.0 (S-1, S-2), captured from npm by the
+[RC0 production requalification](research/rc0-production-requalification.md#frozen-baseline) with
+`STRATA_CANDIDATE_CAPTURE` and reproduced with `npm ci` (`pnpm test:full-stack-frozen-candidate`). It is the
+`baseline` tuple of [SPEC-004](specs/004-first-release-candidate.md) step 2; its hosted rows are taken on the
+merge commit of that requalification.
 
-FROZEN_CAPTURE_PLACEHOLDER
+| Field            | Value                                                                                                        |
+| ---------------- | ------------------------------------------------------------------------------------------------------------ |
+| Strata           | core 0.2.2 `sha512-Xr6bMt7f…`, analog 0.13.0 `sha512-AI3Rioay…`, server-components 0.17.0 `sha512-SOrJTSac…` |
+| Angular          | 22.2.7 (core, common, compiler, compiler-cli, platform-browser, platform-server, router, build)              |
+| Analog           | platform, Angular Vite plugin and Nitro plugin 2.9.7; router 2.8.1                                           |
+| Server and build | nitropack 2.13.6, h3 1.15.11, Vite 8.3.8, Rolldown 1.2.16, esbuild 0.27.7                                    |
+| Language         | TypeScript 6.0.3 (consumer) and 5.9.2 (declaration consumer); rxjs 7.8.2, tslib 2.9.1, zod 4.6.7             |
+| Cloudflare       | Wrangler 4.161.0, workerd 1.20261110.1, compatibility date 2026-09-21, no flags                              |
+| Toolchain        | Node 22 (captured on 22.23.1), npm 10.9.8, Playwright 1.65.0 (Chromium 158.0.8127.18)                        |
+| Trees            | consumer lock 832 packages, TypeScript 5.9 lock 86                                                           |
+| Captured         | 2026-11-25 at `cf137c5`, fixture source digest `19d8e3e8…`                                                   |
+
+**Request URL (S-1) on deployed Pages.** Verified from the installed packages on deployed Cloudflare Pages,
+packed and registry, on the requalification branch; the main-bound deployed runs are still to be taken, and a
+real TLS-terminating reverse proxy in front of Node is not covered
+([requalification](research/rc0-production-requalification.md#s-1-and-s-2-from-installed-packages)).
+
+**Declared Angular peers versus the qualified Angular (reviewed 2026-11-25).** `@strata-sc/server-components`
+0.17.0 declares `@angular/*` `^22.1.7`; only 22.2.7 is qualified, and nothing exercises 22.1.7 any more. The
+range is left unchanged on the 0.x line: narrowing it is a package change that would need another publish and
+another baseline, and widening it would claim untested versions. An installed Angular other than 22.2.7 is
+outside the exact tuple even though npm accepts it. Whether the RC manifests should declare
+`>=22.2.7 <22.3.0` is a decision for the RC entry review
+([requalification](research/rc0-production-requalification.md#angular-peer-range)).
+
+The [pre-RC0 consolidation](research/pre-rc0-consolidation.md) moved the fixtures to this framework tuple but
+did not recapture: the 2026-11-24 text here said it had, which was wrong. Between `983f7131e39574e0` and this
+capture the Strata change is analog 0.12.1 → 0.13.0; the framework change is the consolidated tuple. The
+consumer lock shrank from 869 to 832 packages and the TypeScript 5.9 lock grew from 80 to 86, both from the
+framework updates (no Strata package gained a dependency).
 
 ## Frozen release candidate (2026-11-07)
 
-Historical since 2026-11-24, kept in git at `efff41c`: `983f7131e39574e0` (core 0.2.2 / analog 0.12.1 / **server-components 0.17.0**), the RC0 baseline: the published
+Historical since 2026-11-24 and superseded by `e04b7bb1180795f3` on 2026-11-25; kept in git at `d85a60c`: `983f7131e39574e0` (core 0.2.2 / analog 0.12.1 / **server-components 0.17.0**), the RC0 baseline: the published
 `/ssr` installation-integrity protocol, imported from the installed `/ssr` entry, not a recipe. Captured from npm at
 `3b497d9`, reproduced with `npm ci`; consumer lock 869 packages (Rollup 4.68.0 is the only transitive change), TS 5.9
 lock 80, framework tuple and toolchain unchanged. Integrities: core `sha512-Xr6bMt7f…`, analog `sha512-0ytlP1rp…`,

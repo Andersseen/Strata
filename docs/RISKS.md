@@ -1,5 +1,17 @@
 # Technical risk register
 
+RC0 production requalification (2026-11-25, [report](research/rc0-production-requalification.md)). Closed:
+`release-pipeline-observed` has a real publish through the corrected pipeline (Release 45694359277), and S-1 is
+now verified on deployed Cloudflare Pages from installed packages. New or changed:
+
+- On the consolidated tuple the Cloudflare Worker graph of an application **without** Strata is about 1.57 MiB raw
+  (441 KiB gzip), up from about 0.72 MiB: Analog router 2.8.1 bundles `@analogjs/content`. Strata's share is flat
+  (about 35 KiB). Inside the Pages limits; an upstream size risk for consumers, not a Strata regression.
+- S-1 behind a real TLS-terminating reverse proxy stays unverified (no target); the unit evidence is the only
+  claim.
+- The declared Angular peer range `^22.1.7` is wider than the single qualified version 22.2.7; unchanged, see
+  [COMPATIBILITY](COMPATIBILITY.md#rc0-support-contract).
+
 Pre-RC0 consolidation (2026-11-24, [report](research/pre-rc0-consolidation.md)). Closed: `S-1` (a `request.url`
 origin a consumer could mistake for deployment identity; it is now `publicOrigin` or transport information, and
 `http://strata.invalid` instead of `localhost`), `S-2` (constructor-injected controllers needed a cast) and the
@@ -12,7 +24,8 @@ rehearsal's `pre enter` failure on an entered tree. New or changed:
   request can run a controller three times under `wrangler pages dev`. Local only; whether the deployed edge
   retries is not measured. Each invocation still cleans up exactly once.
 - nitropack 2.13.6 reports itself as 2.13.5 in `nitro.json` (upstream); the harness names it.
-- `release-pipeline-observed` is reset by the rehearsal fix: the corrected pipeline has not published yet.
+- `release-pipeline-observed` is reset by the rehearsal fix: the corrected pipeline has not published yet
+  (resolved 2026-11-25, Release 45694359277).
 - Transport origins (`Host`, a runtime's URL) are client-chosen on every runtime. Consumers who compare
   `Origin` with anything but `publicOrigin` stay exposed to DNS rebinding; this is documented, not enforced.
 
