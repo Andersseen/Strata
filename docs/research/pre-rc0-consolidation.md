@@ -1,8 +1,14 @@
 # Pre-RC0 consolidation and contract hardening
 
 Date: 2026-11-24. Branch `stabilize/pre-rc0-consolidation`. Starting `main`:
-`1b09a42839ada621e54942233902d44748951dd5` (fast-forwarded from `origin/main`, same SHA). PR: see
-[Hosted CI](#hosted-ci).
+`1b09a42839ada621e54942233902d44748951dd5` (fast-forwarded from `origin/main`, same SHA).
+
+**Outcome (completed 2026-11-25 by the [RC0 production requalification](rc0-production-requalification.md)).**
+Merged as #196 (`43fd963`). Version Packages #188 was regenerated from it on the 0.x line and merged
+(`f16fe1e`); #197 (`36dbd4c`) removed the CI job that blocked publication; Release run 45694359277 then
+published `@strata-sc/analog` 0.13.0 with S-1 and S-2. The published tuple is core 0.2.2, analog 0.13.0,
+server-components 0.17.0. The sections below are the branch-time record; the results after merge are in
+[Evidence](#evidence) and [Hosted CI](#hosted-ci).
 
 This work supersedes the RC0 candidate of the [RC0 report](rc0-production-qualification.md). It consolidates
 five Dependabot PRs, withdraws the unpublished RC0 entry, resolves `S-1` and `S-2`, repairs the prerelease
@@ -209,12 +215,96 @@ test:analog` now ties the build to the resolved package through that package's o
 
 ## Evidence
 
-EVIDENCE_PLACEHOLDER
+Two kinds of evidence, kept apart. **Historical**: what #196 and #197 recorded, reconstructed from their
+commits, PR descriptions and hosted runs. **This development**: results obtained on 2026-11-25 in the
+[RC0 production requalification](rc0-production-requalification.md); they are not repeated here.
+
+**Historical, from #196 (`6a19b3a`, merged `43fd963`).** The PR description was never completed (it still
+reads "Description in progress"), so no local matrix of that branch can be established beyond what this
+report and the commits record:
+
+| Claim                                                       | Source                                                     | Level     |
+| ----------------------------------------------------------- | ---------------------------------------------------------- | --------- |
+| `request-url.test.ts`, 33 tests (S-1)                       | the test file at `ac3021b`, re-run by every `pnpm test`    | UNIT      |
+| `controller-constructor.test.ts` and compile assertions     | the test file at `ac3021b`, `pnpm typecheck`               | UNIT      |
+| S-1 on Nitro `node-server`, Vite dev and local workerd      | `pnpm test:analog-headers`, adapted in `677de2a`           | LOCAL     |
+| Rehearsal 15 of 15 from three real trees                    | [Prerelease rehearsal](#prerelease-rehearsal), this report | LOCAL     |
+| `rc-rehearsal.test.ts`, 15 tests on the real Changesets CLI | the test file at `ec3da08`                                 | UNIT      |
+| S-2 example from installed declarations, TS 6.0.3 and 5.9.2 | packed consumer in hosted CI 45633829823                   | HOSTED CI |
+
+Three hosted CI failures of the consolidated tuple were fixed on the branch rather than accepted
+(`5d5c551`, `f8ff9f2`, `6a19b3a`): the S-1/S-2 declaration gate read the manifest version instead of the
+installed declarations; Wrangler 4.161.0's dev proxy replays a failed streaming GET; and Chromium aborts a
+lazy chunk of a document being replaced. Each fix keeps the original claim and is described in its commit.
+
+**Not done by #196, contrary to the earlier text of [COMPATIBILITY](../COMPATIBILITY.md).** The frozen
+candidate was not recaptured on the consolidated tuple: `tests/full-stack-candidate/candidate.json` stayed
+`983f7131e39574e0` (analog 0.12.1, Angular 22.2.3, captured 2026-11-07 at `3b497d9`). #197 deferred the
+capture on purpose, because analog 0.12.1 was about to be superseded. The capture on the published 0.13.0
+tuple is in the [requalification](rc0-production-requalification.md#frozen-baseline).
+
+**Historical, from #197 (`467d948`, merged `36dbd4c`).** Its description records, on macOS arm64 with Node
+22.23.1: `pnpm format:check`, `pnpm lint`, actionlint 1.7.12, `pnpm test`,
+`pnpm test:full-stack-registry-upgrade-rollback` (the 0.16.0 → 0.17.0 pair on analog 0.12.1),
+`pnpm test:full-stack-adversarial-security` (smoke and full), the one- and three-island performance profiles
+with the comparison, and the controller-scaling profile, all passing. These are maintainer-reported local
+results; no artifact of them is retained. The suite fixes were: performance arms installed with their peers
+(Analog router 2.8.1 needs `@analogjs/content` in the Cloudflare server bundle) and, in the skew scenarios,
+acceptance of exactly the files the stale deployment answers with 404, never a broader console filter.
+
+**Consolidated dependency versions, as merged.** The table in [Framework tuple](#framework-tuple) is what
+`main` resolves at `36dbd4c` and what the 2026-11-25 capture recorded from a fresh registry install; the
+capture is the authority for transitive versions. Deviations from the Dependabot proposals stay as decided
+above: `@types/node` held at 22.20.5 (Node 22 line, matching `engines` `>=22.22.3`, so declarations never
+admit APIs the supported runtime lacks), resolution held at Angular 22.2.7, Analog 2.9.7 and nitropack 2.13.6
+rather than the newer releases a fresh resolution would pick, and the `h3` `packageExtensions` kept.
 
 ## Hosted CI
 
-HOSTED_PLACEHOLDER
+Every run below was read from the GitHub API on 2026-11-25. Runs on a pull-request head are branch
+evidence; only runs on a `main` push or dispatched on the candidate count for the RC gate.
+
+| Run         | Workflow (event)         | Commit                      | Result                                                                                     |
+| ----------- | ------------------------ | --------------------------- | ------------------------------------------------------------------------------------------ |
+| 45406810583 | CI (pull_request)        | #196 head, first push       | failure, fixed by `5d5c551`                                                                |
+| 45411437742 | CI (pull_request)        | #196 head                   | failure, fixed by `f8ff9f2` and `6a19b3a`                                                  |
+| 45633829823 | CI (pull_request)        | `6a19b3a` (#196 final head) | success: 11 jobs and `Verify`; deploy and redirect skipped (main only)                     |
+| 45633829670 | Verify published SC (PR) | `6a19b3a`                   | success                                                                                    |
+| 45635597736 | CI (push)                | `43fd963` (#196 merge)      | success                                                                                    |
+| 45637428004 | Release (workflow_run)   | `43fd963`                   | success; opened Version Packages #188 on the 0.x line (publish steps skipped)              |
+| 45638575614 | CI (push)                | `f16fe1e` (#188 merge)      | **failure**: only "Redirect GitHub Pages to the official documentation" (`deploy-pages`)   |
+| 45641324276 | Release (workflow_run)   | `f16fe1e`                   | failure at "Verify exact main CI result": the main CI run was not green; nothing published |
+| 45646864876 | Release (workflow_run)   | `f16fe1e`                   | same refusal after a CI re-run                                                             |
+| 45647626060 | Release (workflow_run)   | `f16fe1e`                   | same refusal after a CI re-run                                                             |
+| 45681199882 | CI (pull_request)        | `467d948` (#197 head)       | success: 11 jobs and `Verify`                                                              |
+| 45692799424 | CI (push)                | `36dbd4c` (#197 merge)      | success                                                                                    |
+| 45694359277 | Release (workflow_run)   | `36dbd4c`                   | **success: published analog 0.13.0**, see below                                            |
+| 45694359275 | GitHub Pages redirect    | `36dbd4c`                   | success (the job #197 moved out of CI)                                                     |
+
+Release 45694359277, step by step: "Verify exact main CI result" success; "Classify release state"
+`PUBLISH_REQUIRED` ("1 unpublished version(s) (partial release; 2 already published)"); "Authorize
+release candidate" skipped (no `-rc.` version); "Repair dist-tags of already published versions"
+skipped; "Version PR or publish to npm" ran `changeset publish` (Changesets 3.0.3, `NPM_CONFIG_PROVENANCE`
+true) and printed "Successfully published: @strata-sc/analog@0.13.0"; "Align npm dist-tags" moved analog
+`next` 0.12.1 → 0.13.0 and found core and server-components compliant; "Verify npm registry, tags and
+GitHub Releases" printed `Registry verification: PASS`. The two registry-consumer steps were skipped:
+they run only when server-components is published. No manual publish and no manual dist-tag change took
+place. This run is the `release-pipeline-observed` candidate proof: neither `tools/release/**` nor
+`release.yml` has changed since.
+
+Not run since #196 on any ref: Extended (the last, scheduled 45189500731 on 2026-11-23, predates the
+consolidation) and Qualify Full-Stack Strata on Cloudflare (the last, 42374571852, on 2026-11-07).
 
 ## Remaining RC0 blockers
 
-REMAINING_PLACEHOLDER
+Superseded by the [RC0 production requalification](rc0-production-requalification.md#remaining-rc-blockers),
+which carries the current list. In short, after this consolidation and the 0.13.0 publication:
+
+- **Done**: dependency consolidation, S-1, S-2, rehearsal repair, RC0 withdrawal, the real publish through
+  the corrected pipeline (`release-pipeline-observed` can cite Release 45694359277).
+- **Pending the next main merge**: the candidate commit itself, and every row bound to it (`ci-verify`,
+  Extended `suite=all`, the three Cloudflare dispatches).
+- **Pending maintainer authorization**: `support-contract-review` for the revised contract, then the ledger
+  PR and the RC entry.
+- **Accepted, not closable by tooling**: real-application adoption, persistent Node, Cloudflare cold start
+  and memory, issue #117 transitions.

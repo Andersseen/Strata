@@ -1,5 +1,12 @@
 # Roadmap to 1.0
 
+**RC0 production requalification (2026-11-25, [report](research/rc0-production-requalification.md)).** Analog
+0.13.0 is published through the corrected pipeline, and the published tuple (core 0.2.2, analog 0.13.0,
+server-components 0.17.0) is frozen as `e04b7bb1180795f3` on the consolidated framework tuple. Every hosted
+qualification passed on the PR branch, including S-1 on deployed Cloudflare Pages. SPEC-004 steps 1 and 2 are
+done; the candidate is #198's merge commit `4888fe6`. Step 3 (Extended and Cloudflare on `main`) is next, then
+the ledger PR and the maintainer's review. No milestone closes.
+
 **Pre-RC0 consolidation (2026-11-24, [report](research/pre-rc0-consolidation.md)).** The unpublished RC0 entry
 was withdrawn, the framework tuple moved (Angular 22.2.7, Analog 2.9.7, Nitro 2.13.6, Vite 8.3.8, Wrangler
 4.161.0), `S-1` and `S-2` are resolved in `@strata-sc/analog`, and the prerelease rehearsal works from any

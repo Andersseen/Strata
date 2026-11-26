@@ -1,5 +1,11 @@
 # Strata 1.0 exit criteria
 
+**RC0 production requalification 2026-11-25 ([report](research/rc0-production-requalification.md)).** No item is
+ticked; the matrix is unchanged (PASS 1, PARTIAL 27, BLOCKED 0, NOT RUN 4). The published baseline (core 0.2.2,
+analog 0.13.0, server-components 0.17.0) is frozen and qualified on the PR branch, locally and on hosted and
+deployed runs. That is RC evidence, not GA evidence: real-application adoption, persistent Node and Cloudflare
+cold start and memory remain open.
+
 **Pre-RC0 consolidation 2026-11-24 ([report](research/pre-rc0-consolidation.md)).** No item is ticked; the matrix
 is unchanged (PASS 1, PARTIAL 27, BLOCKED 0, NOT RUN 4). The RC0 entry was withdrawn before any RC was published,
 and every pre-phase RC evidence row was reset, because the framework tuple, the candidate's code and the release

@@ -1,5 +1,22 @@
 # Current implementation audit
 
+## RC0 production requalification (branch `stabilize/rc0-production-requalification`, PR #198)
+
+[Report](research/rc0-production-requalification.md). Published through the corrected pipeline (Release 45694359277):
+core 0.2.2, **analog 0.13.0**, server-components 0.17.0; `latest` and `next` on them, provenance attested, **no RC
+exists**. Frozen as `e04b7bb1180795f3` on Angular 22.2.7, Analog 2.9.7, Nitro 2.13.6, Vite 8.3.8, Wrangler 4.161.0.
+
+- **S-1**: exercised from the installed packages on Node, Node production, local workerd and DEPLOYED Cloudflare
+  Pages (packed and registry). A real reverse proxy is not covered.
+- **S-2**: the README example compiles from the published 0.13.0 declarations, TypeScript 6.0.3 and 5.9.2.
+- **A/B**: server-components 0.16.0 → 0.17.0 on analog 0.13.0; DEPLOYED upgrade and retained-artifact rollback
+  pass on the branch.
+- **Branch evidence**: CI, Extended `suite=all islands=both` (13 of 13) and the three Cloudflare qualifications
+  pass. Merged as `4888fe6`, the candidate; CI on it is green. Extended and Cloudflare on `main` are still to
+  be dispatched; the ledger is unchanged.
+- **Performance**: browser budgets unchanged; the native Worker graph doubled (Analog router 2.8.1 bundles
+  `@analogjs/content`), Strata's share did not move.
+
 ## Pre-RC0 consolidation (branch `stabilize/pre-rc0-consolidation`, PR #196)
 
 [Report](research/pre-rc0-consolidation.md). Published, unchanged: core 0.2.2, analog 0.12.1, server-components 0.17.0;
@@ -13,6 +30,7 @@
 - **Release**: the rehearsal starts from the repository's real Changesets state. UNIT and local from three real
   trees. `release-pipeline-observed` reset; the ledger names no candidate.
 - **Next**: merge, then Release publishes analog 0.13.0 through the corrected pipeline; then SPEC-004 from step 1.
+  Done on 2026-11-25: #196 merged, Release 45694359277 published analog 0.13.0 (see above).
 
 ## RC0 release train (2026-11-07)
 
