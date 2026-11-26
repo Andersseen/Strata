@@ -76,39 +76,56 @@ already-committed responses are not covered.
 Proposed 2026-11-06 and reviewed in #186 ([report](research/rc0-production-qualification.md),
 [SPEC-004](specs/004-first-release-candidate.md)). Revised 2026-11-24 by the
 [pre-RC0 consolidation](research/pre-rc0-consolidation.md): the framework tuple moved, S-1 and S-2 are
-resolved, and the unpublished RC0 entry was withdrawn. No RC exists, and the revised contract needs a new
-maintainer review before one can. This narrows what an RC may promise. Ids are stable; cite them instead of a
-table position.
+resolved, and the unpublished RC0 entry was withdrawn. Aligned 2026-11-26 with the deployed evidence of the
+[RC0 requalification](research/rc0-production-requalification.md): S-1 on deployed Cloudflare Pages, and the
+declared Angular range kept apart from the qualified version. No RC exists. The maintainer's merge of the RC
+evidence ledger records the review of this contract; until then it is proposed. This narrows what an RC may
+promise. Ids are stable; cite them instead of a table position.
 
 **Strata tuple.** `@strata-sc/core`, `@strata-sc/analog` and `@strata-sc/server-components`, all at the same
 `1.0.0-rc.N`. A mix with any other version, including a `0.x` line, is outside the contract.
 
-**Framework tuple (proposed, not yet RC-qualified).** Node 22; Angular 22.2.7; Analog 2.9.7 (router 2.8.1);
-Vite 8.3.8; Nitro 2.13.6; H3 1.15.11; TypeScript 6.0.3 or 5.9.2; Wrangler 4.161.0; compatibility date
-2026-09-21, no flags; Chromium through Playwright 1.65.0. One exact tuple, not a range. No peer range widens for
-it, and none narrows: the Angular peer range `^22.1.7` is no longer exercised at its lower bound, so only 22.2.7
-is qualified. It replaces the reviewed tuple (Angular 22.2.3, Analog 2.7.2, Vite 8.3.0, Nitro 2.13.4, Wrangler
-4.135.0); the local evidence for it is in the [report](research/pre-rc0-consolidation.md#evidence), and the
-hosted and deployed RC rows must be taken again.
+**Framework tuple (the RC evaluation tuple).** Node 22; Angular 22.2.7; Analog 2.9.7 (router 2.8.1); Vite
+8.3.8 (Rolldown 1.2.16); Nitro 2.13.6; H3 1.15.11; TypeScript 6.0.3 or 5.9.2; Wrangler 4.161.0 (workerd
+1.20261110.1); compatibility date 2026-09-21, no flags; Chromium through Playwright 1.65.0. One exact tuple, not
+a range. It replaces the tuple reviewed in #186 (Angular 22.2.3, Analog 2.7.2, Vite 8.3.0, Nitro 2.13.4,
+Wrangler 4.135.0). The published 0.x baseline is qualified on it, hosted and deployed; the RC candidate's
+hosted and deployed rows are taken on the commit that publishes this text.
+
+**Angular: declared range, qualified version, supported tuple.** Three different things, and only the last is
+a promise.
+
+| What                          | Value                        | Meaning                                                                          |
+| ----------------------------- | ---------------------------- | -------------------------------------------------------------------------------- |
+| Declared installation range   | `@angular/*` `^22.1.7`       | what `@strata-sc/server-components` lets npm install; not a support claim        |
+| Actually qualified version    | 22.2.7                       | the only Angular any fixture, frozen tree or deployed qualification runs         |
+| Supported RC evaluation tuple | 22.2.7, with the tuple above | another Angular, even one npm accepts inside `^22.1.7`, is outside this contract |
+
+The range is neither widened nor narrowed for the RC. Widening would claim versions nothing has run. Narrowing
+(for example to `>=22.2.7 <22.3.0`) is a manifest change under `packages/`: it moves the candidate, so every
+candidate-bound row would be taken again, and it cannot be made in the RC entry itself, because the release gate
+lets the publishing commit differ from the authorized candidate only by what versioning writes. No technical
+requirement for it has been demonstrated: no known defect ties Strata to 22.2.7, other versions are simply
+unqualified.
 
 ### Supported for RC evaluation
 
-| Id                   | Capability                                                                 | Evidence                                                        |
-| -------------------- | -------------------------------------------------------------------------- | --------------------------------------------------------------- |
-| `SC-NODE`            | Node 22 with Nitro `node-server`                                           | PRODUCTION PROCESS on hosted Linux; no persistent deployment    |
-| `SC-PAGES`           | Cloudflare Pages preset, pinned compatibility settings                     | DEPLOYED, source-packed and published                           |
-| `SC-API`             | Standard decorators and the reviewed public API                            | installed declarations = runtime exports = inventory            |
-| `SC-CONTROLLER-CTOR` | Controllers with constructor parameters, built by a typed factory          | installed declarations, TypeScript 6.0 and 5.9; unit            |
-| `SC-REQUEST-URL`     | `request.url` path and query; origin trusted only with `publicOrigin`      | unit (Node HTTP/TLS), Node production, Vite dev, local workerd  |
-| `SC-SSR`             | Buffered Server Component SSR                                              | packed, published, deployed                                     |
-| `SC-SSR-FAILURE`     | Opt-in `/ssr` failure handling, the safe SSR configuration of this profile | packed, deployed; integration refusal on Node and local workerd |
-| `SC-NAVIGATION`      | Explicit document navigation                                               | Chromium, packed and deployed                                   |
-| `SC-ISLANDS`         | Client islands: one and three per page, installed Angular library islands  | packed, Chromium, hydrated and replayed interaction             |
-| `SC-AUTHORIZATION`   | Application-owned authorization, request isolation                         | packed, multi-isolate, adversarial, deployed                    |
-| `SC-CONFIDENTIALITY` | Graph confidentiality of **explicitly marked** code                        | tarballs, Node and workerd builds                               |
-| `SC-PROTOCOL`        | Serialization and boundary protocol v1/v2                                  | unchanged; `1`/`2` accepted as documented                       |
-| `SC-BUILD-IDENTITY`  | Build identity, and one bounded reload on deployment skew                  | deployed A/B on published tuples                                |
-| `SC-ROLLBACK`        | Release, retained-artifact rollback                                        | deployed A/B on published tuples                                |
+| Id                   | Capability                                                                 | Evidence                                                                                                    |
+| -------------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `SC-NODE`            | Node 22 with Nitro `node-server`                                           | PRODUCTION PROCESS on hosted Linux; no persistent deployment                                                |
+| `SC-PAGES`           | Cloudflare Pages preset, pinned compatibility settings                     | DEPLOYED, source-packed and published                                                                       |
+| `SC-API`             | Standard decorators and the reviewed public API                            | installed declarations = runtime exports = inventory                                                        |
+| `SC-CONTROLLER-CTOR` | Controllers with constructor parameters, built by a typed factory          | installed declarations, TypeScript 6.0 and 5.9; unit                                                        |
+| `SC-REQUEST-URL`     | `request.url` path and query; origin trusted only with `publicOrigin`      | unit (Node HTTP/TLS), Node production, Vite dev, local workerd; DEPLOYED Pages, source-packed and published |
+| `SC-SSR`             | Buffered Server Component SSR                                              | packed, published, deployed                                                                                 |
+| `SC-SSR-FAILURE`     | Opt-in `/ssr` failure handling, the safe SSR configuration of this profile | packed, deployed; integration refusal on Node and local workerd                                             |
+| `SC-NAVIGATION`      | Explicit document navigation                                               | Chromium, packed and deployed                                                                               |
+| `SC-ISLANDS`         | Client islands: one and three per page, installed Angular library islands  | packed, Chromium, hydrated and replayed interaction                                                         |
+| `SC-AUTHORIZATION`   | Application-owned authorization, request isolation                         | packed, multi-isolate, adversarial, deployed                                                                |
+| `SC-CONFIDENTIALITY` | Graph confidentiality of **explicitly marked** code                        | tarballs, Node and workerd builds                                                                           |
+| `SC-PROTOCOL`        | Serialization and boundary protocol v1/v2                                  | unchanged; `1`/`2` accepted as documented                                                                   |
+| `SC-BUILD-IDENTITY`  | Build identity, and one bounded reload on deployment skew                  | deployed A/B on published tuples                                                                            |
+| `SC-ROLLBACK`        | Release, retained-artifact rollback                                        | deployed A/B on published tuples                                                                            |
 
 `SC-SSR-FAILURE` is required for the supported SSR profile: both halves, `withStrataSsrFailureContract` around the
 real Angular render and `provideStrataSsrFailureHandler` in the server application configuration. Without
@@ -118,12 +135,27 @@ them a failed render can still answer HTTP 200.
 and islands hydrate from the `ngh` annotation Angular writes. Both are why this is one exact tuple: another Angular
 version is outside the contract until it is qualified.
 
-**Request URL.** `request.url.pathname` and `request.url.search` are the routed target. Only an origin set
-with the `publicOrigin` option of `registerControllers()` is deployment identity. Without it the origin is
-transport information (the runtime's URL, or on Node the checked `Host` header and the socket's TLS
-state), never `X-Forwarded-*`, and `http://strata.invalid` when nothing usable exists
-([details](../packages/analog/README.md#request-url-what-requesturl-may-be-trusted-for)). Deployed Cloudflare
-evidence for it is still to be taken.
+**Request URL (S-1).** What `request.url` may be trusted for
+([details](../packages/analog/README.md#request-url-what-requesturl-may-be-trusted-for)):
+
+- **Deployment identity.** Only an origin set with the `publicOrigin` option of `registerControllers()` is the
+  application's identity. It is the only origin a same-origin or CSRF check may compare with.
+- **Routed target.** `request.url.pathname` and `request.url.search` are authoritative, with or without
+  `publicOrigin`; the exact query string is kept.
+- **Forwarding headers.** `X-Forwarded-Host`, `X-Forwarded-Proto`, `X-Forwarded-Port` and `Forwarded` are never
+  trusted and never change `request.url`.
+- **Transport origin.** Without `publicOrigin` the origin is what the runtime received (the runtime's URL, or on
+  Node the checked `Host` header and the socket's TLS state). It describes the connection, not the deployment,
+  and is no substitute for `publicOrigin`.
+- **Fallback.** `http://strata.invalid` when no usable origin exists (for example a malformed `Host` on Node);
+  path and query are kept, and it never displaces `publicOrigin`.
+
+Qualified from the installed packages on Node, local workerd and **deployed Cloudflare Pages**, both
+source-packed and from the published npm tuple: `publicOrigin` held against forwarded spoofs, a guard built on it
+refused the transport origin, and forwarded headers sent by the client did not reach `request.url`
+([evidence](research/rc0-production-requalification.md#s-1-and-s-2-from-installed-packages)). **Not tested:** a
+real TLS-terminating reverse proxy in front of Node. Behind one, the transport origin is the proxy's plain
+`http://` hop, so set `publicOrigin`; the expected behavior there is unit evidence only.
 
 **Separate injectors.** Controller Angular DI and SSR rendering do not share an injector, and a request's
 controller scope is not visible to a Server Component. They are two runtimes that happen to use the same library.
@@ -149,7 +181,9 @@ controller scope is not visible to a Server Component. They are two runtimes tha
 | `NO-H3-V2`         | `@strata-sc/h3` and its H3 v2 adapter                                                          | private; upstream strict-type blockers (SPEC-002)               |
 | `NO-UNMARKED`      | Confidentiality of unmarked modules                                                            | ownership only; mark them `server-only`                         |
 | `NO-DUPLICATES`    | Duplicated Strata or Angular installs                                                          | `/ssr` refuses incompatible ones; other entries are unqualified |
-| `NO-OTHER`         | Other package compositions or framework versions                                               | not qualified                                                   |
+| `NO-FORWARDED`     | Request origin from `X-Forwarded-*` or `Forwarded`                                             | never trusted; set `publicOrigin`                               |
+| `NO-PROXY`         | A TLS-terminating reverse proxy in front of Node                                               | untested; the deployed evidence is Cloudflare Pages only        |
+| `NO-OTHER`         | Other package compositions or framework versions, including another Angular inside `^22.1.7`   | not qualified                                                   |
 
 ### Migration: `/ssr` in server-components 0.17.0
 
@@ -189,17 +223,19 @@ merge commit of that requalification.
 | Captured         | 2026-11-25 at `cf137c5`, fixture source digest `19d8e3e8…`                                                   |
 
 **Request URL (S-1) on deployed Pages.** Verified from the installed packages on deployed Cloudflare Pages,
-packed and registry, on the requalification branch; the main-bound deployed runs are still to be taken, and a
-real TLS-terminating reverse proxy in front of Node is not covered
+packed and registry, on the requalification branch (45698725389, 45699513690), and again for this published
+tuple on `main` at `9a9a943` (registry, 45779695332, deployment `9cf0f7a2.strata-fullstack-qualification.pages.dev`).
+A real TLS-terminating reverse proxy in front of Node is not covered
 ([requalification](research/rc0-production-requalification.md#s-1-and-s-2-from-installed-packages)).
 
 **Declared Angular peers versus the qualified Angular (reviewed 2026-11-25).** `@strata-sc/server-components`
 0.17.0 declares `@angular/*` `^22.1.7`; only 22.2.7 is qualified, and nothing exercises 22.1.7 any more. The
 range is left unchanged on the 0.x line: narrowing it is a package change that would need another publish and
 another baseline, and widening it would claim untested versions. An installed Angular other than 22.2.7 is
-outside the exact tuple even though npm accepts it. Whether the RC manifests should declare
-`>=22.2.7 <22.3.0` is a decision for the RC entry review
-([requalification](research/rc0-production-requalification.md#angular-peer-range)).
+outside the exact tuple even though npm accepts it. Decided 2026-11-26: the RC keeps `^22.1.7` too, and the
+contract separates the declared range from the qualified version ([above](#rc0-support-contract)). Narrowing
+could not be part of the RC entry anyway: the gate accepts only versioning between the candidate and the
+publishing commit ([requalification](research/rc0-production-requalification.md#angular-peer-range)).
 
 The [pre-RC0 consolidation](research/pre-rc0-consolidation.md) moved the fixtures to this framework tuple but
 did not recapture: the 2026-11-24 text here said it had, which was wrong. Between `983f7131e39574e0` and this
