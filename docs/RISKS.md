@@ -1,5 +1,13 @@
 # Technical risk register
 
+RC0 final qualification (2026-11-26, [report](research/rc0-production-requalification.md#final-rc0-qualification-2026-11-26)). No new risk.
+
+- S-1 behind a real TLS-terminating reverse proxy is now explicitly unsupported (`NO-PROXY`) instead of an open
+  note.
+- The Angular peer range stays `^22.1.7`, and the contract names 22.2.7 as the only qualified version.
+- The GitHub Pages redirect failures (45704889421, 45776093153) were on GitHub's side, and the redirect succeeded
+  on `e030175` (45799525389). They are independent of Release and are not an RC risk.
+
 RC0 production requalification (2026-11-25, [report](research/rc0-production-requalification.md)). Closed:
 `release-pipeline-observed` has a real publish through the corrected pipeline (Release 45694359277), and S-1 is
 now verified on deployed Cloudflare Pages from installed packages. New or changed:

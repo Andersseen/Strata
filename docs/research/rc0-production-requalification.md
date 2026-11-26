@@ -404,3 +404,132 @@ support contract (S-1 deployed evidence, the Angular peer note), the website cop
 must move to that commit, so those edits are best made together with any other change that already moves it. The
 maintainer's merge of the ledger PR is `support-contract-review`; `pnpm release:rc:check` must then print GO on
 `main` before the RC entry.
+
+## Final RC0 qualification (2026-11-26)
+
+Everything above is kept as the record of #198 and #199. This section records the final pre-publication
+qualification (SPEC-004 steps 3 and 4) and supersedes the [Next steps](#next-steps) above.
+
+**Starting state.** `main` = `9a9a9430552ab72318b448db8bb217f4fa8d5bc0`, which differs from the baseline harness
+`4888fe6cfa6ece91901f80b243f66fcbd3358b22` only under `docs/` (seven files).
+
+**Order of work.** The baseline-bound runs were taken first, on `9a9a943`, while `main` still differed from the
+harness by documentation only. Only then did the support contract change (#200). That change updates the
+generated website page under `apps/www`, which the gate counts as code, so **the merge commit of #200 is the new
+candidate**:
+
+- **Candidate (M2):** `e030175238efdee85ae7c443c4bf48970ff364bc`.
+- **What M2 changes from `4888fe6`:** `docs/**` and `apps/www/src/content/docs/compatibility.md` only. The
+  `packages/` tree is the same (`c46d5442a80d4c6e366dc33dd068c49a0216827e`), and the lockfile, Changesets
+  configuration, workflows and `tools/release` are unchanged.
+- **Baseline:** stays frozen `e04b7bb1180795f3`, with harness `4888fe6`.
+
+### Candidate identity
+
+From `pnpm release:rc:check --print-candidate=e030175238efdee85ae7c443c4bf48970ff364bc`:
+
+| Field          | Value                                                              |
+| -------------- | ------------------------------------------------------------------ |
+| `sourceTree`   | `c46d5442a80d4c6e366dc33dd068c49a0216827e`                         |
+| `lockDigest`   | `bef09182b2920d6e1148c6369878e187deb3c54bb901c04b881491ba6a23e5c6` |
+| `configDigest` | `f44b9fac45dec31c8f593e36b4a5e0d2d6e1623046a95580093a1135fa59a1f3` |
+| Versions       | core 0.2.2, analog 0.13.0, server-components 0.17.0                |
+
+### Registry (read 2026-11-26)
+
+- `pnpm release:state` reports `ALREADY_PUBLISHED`, and `pnpm release:verify` passes.
+- `latest` and `next` both point to 0.2.2, 0.13.0 and 0.17.0.
+- Provenance is attested (SLSA v1).
+- No `1.0.0-rc.*` version and no `rc` tag exist.
+
+### Hosted evidence
+
+Every run below was read back through the GitHub API, job by job and step by step:
+
+| Requirement                 | Run         | Workflow, event                             | Head      | Result                                                                                                                                                        |
+| --------------------------- | ----------- | ------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ci-verify`                 | 45798002521 | CI, `push` to `main`                        | `e030175` | `Verify` success                                                                                                                                              |
+| `release-pipeline-observed` | 45694359277 | Release, `workflow_run`                     | `36dbd4c` | real publish; the three required steps success; pipeline paths unchanged since                                                                                |
+| `baseline-frozen`           | 45779687445 | Extended `suite=all islands=both`, dispatch | `9a9a943` | 13 of 13 jobs; `npm ci` of `e04b7bb1180795f3`, 0 failing checks                                                                                               |
+| `baseline-deployed`         | 45779695332 | Cloudflare `(registry)` 0.2.2/0.13.0/0.17.0 | `9a9a943` | `9cf0f7a2.strata-fullstack-qualification.pages.dev`; S-1 deployed; 0 failing checks                                                                           |
+| `baseline-upgrade-rollback` | 45780901828 | Cloudflare `(upgrade-rollback)`             | `9a9a943` | sc 0.16.0 → 0.17.0 → retained 0.16.0 on alias `m5-upgrade-rollback`; 0 failing checks                                                                         |
+| six candidate Extended rows | 45798227520 | Extended `suite=all islands=both`, dispatch | `e030175` | 13 of 13 jobs; `island-interaction`, `performance-scaling`, `ssr-duplicate-install`, `node-production-source`, `adversarial-security`, `prerelease-rehearsal` |
+| `deployed-source-packed`    | 45798239344 | Cloudflare `(packed)`                       | `e030175` | `6ab4cbac.strata-fullstack-qualification.pages.dev`; packed from the checkout; 0 failing                                                                      |
+
+**The packed deployment.**
+
+- It went to the isolated project `strata-fullstack-qualification`, never `strata-www`.
+- **S-1:**
+  - `publicOrigin` held against forwarded spoofs.
+  - The routed path and exact query string stayed authoritative.
+  - The guard returned 204 only for `publicOrigin`, and 403 otherwise.
+  - Without `publicOrigin`, the origin was the deployment URL itself.
+  - `X-Forwarded-*` and `Forwarded` never changed `request.url`.
+- **Authorization:** 24 overlapping SSR and API requests stayed isolated per owner, and an alpha credential could
+  not read beta data.
+- **Islands and navigation:** the island hydrated by reusing the SSR nodes; document navigation and refresh
+  worked.
+- **Confidentiality:** no private canary appeared in the document, the assets or the hydrated DOM.
+- **Console:** no unexpected errors (only the expected 403s from the denial controls).
+
+**Main after the merge of #200.**
+
+- **Release 45799525216:** `ALREADY_PUBLISHED`; it published nothing and moved no tag.
+- **GitHub Pages redirect 45799525389:** succeeded.
+
+### GitHub Pages redirect failures
+
+Runs 45704889421 (on `4888fe6`) and 45776093153 (on `9a9a943`) failed in `actions/deploy-pages@v5`:
+
+- 45704889421: "Deployment failed, try again later".
+- 45776093153: 0 artifacts listed about 350 ms after `upload-pages-artifact` finalized artifact 15096431631,
+  which the API lists on that run.
+
+The workflow and the pinned action SHAs were identical to the successful runs 45694359275 and 45799525389. The
+cause is on GitHub's side, and the failures are independent of Release. They are not an RC blocker, and nothing
+was changed.
+
+### Support contract (#200, merged by the maintainer)
+
+- **`SC-REQUEST-URL`** cites deployed Pages, source-packed and published.
+- **S-1** is stated in full: `publicOrigin` is the only deployment identity; the routed path and query are
+  authoritative; `X-Forwarded-*` and `Forwarded` are never trusted; the transport origin is no substitute; the
+  fallback is `http://strata.invalid`.
+- **New unsupported rows:** `NO-FORWARDED`, and `NO-PROXY` for the untested TLS-terminating reverse proxy.
+- **Angular peer range:** the contract separates the declared `^22.1.7`, the qualified 22.2.7 and the supported
+  RC tuple (22.2.7). The range is unchanged, and no manifest changed.
+  - Narrowing it would move the candidate.
+  - Narrowing cannot happen in the RC entry, because the gate accepts only versioning between the candidate and
+    the publishing commit.
+  - No technical requirement for narrowing was demonstrated.
+
+The `support-contract-review` row cites the maintainer's merge of the ledger PR, per SPEC-004 step 4.
+
+### RC gate
+
+`pnpm release:rc:check --phase=pre` on the ledger branch, before the merge: **NO-GO**, with one blocker,
+`support-contract-review`. That is expected: the row can only pass on the maintainer's merge of the ledger PR.
+
+The gate read back and accepted everything else:
+
+- the candidate identity;
+- the frozen baseline at the harness;
+- npm integrity and dist-tags;
+- all twelve hosted runs, with their workflows, events, jobs, steps and commit bindings.
+
+After the merge, the same command on `main` must print GO. Only then may the RC entry (SPEC-004 step 5) be
+prepared. The five `rc-*` post rows stay NOT RUN until RC0 is published. The four accepted risks stay accepted for
+the RC and are never accepted for GA.
+
+### Remaining limitations
+
+| Kind                        | Items                                                                                                                |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Runtime defects             | none known                                                                                                           |
+| Missing infrastructure      | a real TLS-terminating reverse proxy; a persistent Node deployment; Cloudflare cold-start and memory measurement     |
+| Missing hosted evidence     | the five post-publication rows (RC0 does not exist)                                                                  |
+| Pending maintainer approval | the merge of the ledger PR (`support-contract-review`), the RC entry, the generated Version Packages PR              |
+| Explicitly unsupported      | `NO-*` in [COMPATIBILITY](../COMPATIBILITY.md#unsupported), including `NO-FORWARDED`, `NO-PROXY` and another Angular |
+| GA-only                     | real application, persistent Node, cold start and memory, issue #117 transitions, every PARTIAL of RELEASE-1.0       |
+
+A GO authorizes publishing an **evaluation** release. It does not make Strata 1.0-ready.
