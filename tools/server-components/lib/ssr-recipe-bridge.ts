@@ -28,17 +28,29 @@ const ANALOG_EXAMPLE = "src/check/ssr-failure-analog.ts";
 /** `provideStrataSsrFailureHandler` returns `EnvironmentProviders`, and `integration` exists. */
 export const SSR_PROTOCOL_SINCE = "0.17.0";
 
+/** `@strata-sc/analog` shipped S-1 (`publicOrigin`) and S-2 (`ControllerConstructor`) in 0.13.0. */
+export const ANALOG_CONTRACT_SINCE = "0.13.0";
+
 const parts = (version: string): number[] =>
   version
     .split("-")[0]!
     .split(".")
     .map((part) => Number.parseInt(part, 10));
 
-function predates(version: string, since: string): boolean {
+/**
+ * Semver precedence on the release triple, where a prerelease precedes its own release
+ * (`0.13.0-rc.0` predates `0.13.0`) and follows every earlier triple (`1.0.0-rc.0` does not predate
+ * `0.17.0`).
+ */
+export function predates(version: string, since: string): boolean {
   const [a, b, c] = parts(version);
   const [x, y, z] = parts(since);
 
-  return a! !== x! ? a! < x! : b! !== y! ? b! < y! : c! < z!;
+  if (a !== x || b !== y || c !== z) {
+    return a! !== x! ? a! < x! : b! !== y! ? b! < y! : c! < z!;
+  }
+
+  return version.includes("-") && !since.includes("-");
 }
 
 /** Whether an exact published version predates the `/ssr` entry. */
@@ -67,6 +79,35 @@ export function analogDeclaresConstructorContract(packageDir: string): boolean {
     /\bpublicOrigin\b/.test(readDeclarationTree(packageDir, entry))
   );
 }
+
+export interface AnalogContractPresence {
+  readonly version: string;
+  /** The installed declarations carry S-1/S-2. */
+  readonly declared: boolean;
+  /** The installed version is 0.13.0 or later (prereleases included), so it must carry them. */
+  readonly required: boolean;
+}
+
+/**
+ * What the installed `@strata-sc/analog` declares, and whether its version obliges it to. A published
+ * tuple at 0.13.0 or later (1.0.0-rc.0 included) that lacks the contract is a defect, never a
+ * reason to skip S-1: only a tuple that predates 0.13.0 may run without it.
+ */
+export function installedAnalogContract(packageDir: string): AnalogContractPresence {
+  const { version } = JSON.parse(readFileSync(join(packageDir, "package.json"), "utf8")) as {
+    version: string;
+  };
+
+  return {
+    version,
+    declared: analogDeclaresConstructorContract(packageDir),
+    required: !predates(version, ANALOG_CONTRACT_SINCE),
+  };
+}
+
+/** Whether a published run may proceed without S-1/S-2: only when the version predates them. */
+export const analogContractSatisfied = ({ declared, required }: AnalogContractPresence): boolean =>
+  declared || !required;
 
 function readDeclarationTree(packageDir: string, entry: string): string {
   const dir = join(packageDir, entry, "..");

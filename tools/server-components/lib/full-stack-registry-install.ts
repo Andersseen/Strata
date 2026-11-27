@@ -39,7 +39,7 @@ import type {
   PackageLock,
   Toolchain,
 } from "../../release/lib/candidate.ts";
-import { inspectTarball, readManifest } from "../../release/lib/packages.ts";
+import { inspectPackedPackage, readManifest } from "../../release/lib/packages.ts";
 import {
   TUPLE_PACKAGES,
   lockProblems,
@@ -77,6 +77,7 @@ import {
   readTarball,
   snapshotDir,
 } from "./package-consumer.ts";
+import { tuplePin } from "./registry-pins.ts";
 import { SSR_ENTRY_SINCE, applySsrRecipeBridge, predatesSsrEntry } from "./ssr-recipe-bridge.ts";
 import { COMPATIBILITY_DATE } from "./wrangler.ts";
 
@@ -318,8 +319,17 @@ export function installRegistryConsumer(context: {
       tarballPath,
       join(tmpRoot, "registry-extracted", pkg.name.replace("@strata-sc/", "")),
     );
-    const inspection = inspectTarball(repoRoot, tarballPath);
     const files = listFiles(extracted.extractedDir);
+    // A registry artifact's internal pins are checked against the SELECTED tuple. The workspace
+    // manifests describe this checkout: 1.0.0-rc.0 since the RC was published, so the 0.x arm's correct
+    // `@strata-sc/core@0.2.2` pin read as a mismatch. It matched only while the checkout held 0.x.
+    const inspection = {
+      problems: inspectPackedPackage({
+        manifest: extracted.manifest,
+        files: [...files].sort(),
+        workspaceVersion: tuplePin(tuple),
+      }),
+    };
     const differing = files.filter(
       (file) =>
         !existsSync(join(installed, file)) ||

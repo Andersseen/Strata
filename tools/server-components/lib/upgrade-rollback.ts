@@ -19,27 +19,29 @@ import { sanitize } from "./deployment-skew.ts";
 export type Side = "a" | "b";
 
 /**
- * Release A → release B. The default pair is the latest two published server-components minors
- * on the latest published core and analog. Since 2026-11-25 that analog is 0.13.0 (S-1 request URL
- * integrity, S-2 controller constructor typing), on BOTH arms: the only package that differs between
- * A and B stays @strata-sc/server-components, whose client assets are what the skew and rollback
- * checks exercise. Analog ships no browser asset, so an Analog-only pair would exercise no skew; the
- * 0.12.1 → 0.13.0 server transition is run separately through the STRATA_UPGRADE_* inputs
- * (docs/research/rc0-production-requalification.md). Earlier runs used analog 0.12.1 (2026-11-05 to
- * 2026-11-24) and 0.12.0 (M5, docs/research/m5-production-qualification.md) on both arms.
- * Since 2026-11-06 both arms carry the real `/ssr` entry. A pair across that boundary cannot run: the
- * older arm needs the consumer recipe, so the two installations would no longer share one source.
+ * Release A → release B. The default pair is the upgrade an evaluator makes: the last published 0.x
+ * tuple (the `latest` channel and the RC0 baseline) to the 1.0.0-rc.0 tuple (`next`). All three
+ * packages differ between the arms; the attribution checks still require one consumer source and
+ * identical non-Strata dependencies, so every difference is a Strata package's. Both arms carry the
+ * real `/ssr` entry (0.15.0+) and the S-1/S-2 analog contract (0.13.0+).
+ *
+ * Historical pairs stay reproducible through the STRATA_UPGRADE_* inputs: server-components
+ * 0.16.0 → 0.17.0 on core 0.2.2 / analog 0.13.0 (2026-11-25, RC0 baseline requalification,
+ * docs/research/rc0-production-requalification.md), earlier with analog 0.12.1 (2026-11-05 to
+ * 2026-11-24) and 0.12.0 (M5, docs/research/m5-production-qualification.md). A pair across the
+ * 2026-11-06 `/ssr` boundary cannot run: the older arm needs the consumer recipe, so the two
+ * installations would no longer share one source.
  */
 export const DEFAULT_PAIR: Readonly<Record<Side, VersionTuple>> = {
   a: {
     "@strata-sc/core": "0.2.2",
     "@strata-sc/analog": "0.13.0",
-    "@strata-sc/server-components": "0.16.0",
+    "@strata-sc/server-components": "0.17.0",
   },
   b: {
-    "@strata-sc/core": "0.2.2",
-    "@strata-sc/analog": "0.13.0",
-    "@strata-sc/server-components": "0.17.0",
+    "@strata-sc/core": "1.0.0-rc.0",
+    "@strata-sc/analog": "1.0.0-rc.0",
+    "@strata-sc/server-components": "1.0.0-rc.0",
   },
 };
 

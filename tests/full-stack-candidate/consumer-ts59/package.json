@@ -3,9 +3,9 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@strata-sc/core": "0.2.2",
-    "@strata-sc/analog": "0.13.0",
-    "@strata-sc/server-components": "0.17.0",
+    "@strata-sc/core": "1.0.0-rc.0",
+    "@strata-sc/analog": "1.0.0-rc.0",
+    "@strata-sc/server-components": "1.0.0-rc.0",
     "@analogjs/router": "2.8.1",
     "@angular/core": "22.2.7",
     "@angular/common": "22.2.7",

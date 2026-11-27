@@ -14,8 +14,9 @@ Proposed 2026-11-06 and reviewed in #186 ([report](https://github.com/Andersseen
 [pre-RC0 consolidation](https://github.com/Andersseen/Strata/blob/main/docs/research/pre-rc0-consolidation.md): the framework tuple moved, S-1 and S-2 are
 resolved, and the unpublished RC0 entry was withdrawn. Aligned 2026-11-26 with the deployed evidence of the
 [RC0 requalification](https://github.com/Andersseen/Strata/blob/main/docs/research/rc0-production-requalification.md): S-1 on deployed Cloudflare Pages, and the
-declared Angular range kept apart from the qualified version. No RC exists. The maintainer's merge of the RC
-evidence ledger records the review of this contract; until then it is proposed. This narrows what an RC may
+declared Angular range kept apart from the qualified version. Reviewed by the maintainer's merge of #207 for the
+corrected candidate `97d4029`, and published as **`1.0.0-rc.0`** on 2026-11-27 (`next`; `latest` stays on 0.x;
+[record](https://github.com/Andersseen/Strata/blob/main/docs/research/rc0-published-qualification.md#publication-2026-11-27)). This narrows what an RC may
 promise. Ids are stable; cite them instead of a table position.
 
 **Strata tuple.** `@strata-sc/core`, `@strata-sc/analog` and `@strata-sc/server-components`, all at the same

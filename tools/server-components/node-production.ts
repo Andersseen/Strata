@@ -24,7 +24,7 @@ import {
   until,
 } from "./lib/package-consumer.ts";
 import type { RunningServer } from "./lib/package-consumer.ts";
-import { analogDeclaresConstructorContract } from "./lib/ssr-recipe-bridge.ts";
+import { analogContractSatisfied, installedAnalogContract } from "./lib/ssr-recipe-bridge.ts";
 
 /**
  * `pnpm test:node-production [--frozen|--registry]`: one candidate, as one release identity, through
@@ -283,15 +283,18 @@ try {
 
   section("Functional contract on the same long-lived process");
 
-  // S-1 from the installed package, when its declarations carry the contract (analog 0.13.0+).
-  const requestOrigin = analogDeclaresConstructorContract(
+  // S-1 from the installed package. A source-packed candidate must carry it; a published tuple may
+  // lack it only when its analog predates 0.13.0 (a 1.0.0-rc.N never does).
+  const analogContract = installedAnalogContract(
     join(consumerDir, "node_modules", "@strata-sc", "analog"),
   );
+  const requestOrigin = analogContract.declared;
   check(
     requestOrigin
       ? "the installed @strata-sc/analog carries S-1: request URL integrity is exercised"
-      : "the installed @strata-sc/analog predates S-1: request URL integrity is not exercised",
-    requestOrigin || registryMode() || frozenMode(),
+      : `the installed @strata-sc/analog ${analogContract.version} lacks S-1: request URL integrity is not exercised`,
+    registryMode() || frozenMode() ? analogContractSatisfied(analogContract) : requestOrigin,
+    `declared=${analogContract.declared} required=${analogContract.required}`,
   );
   const http = await httpSuite(server.baseUrl, "node-production", {
     lifecycle: true,

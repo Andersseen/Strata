@@ -1,5 +1,17 @@
 # Roadmap to 1.0
 
+**RC0 published (2026-11-27, [report](research/rc0-published-qualification.md)).** `1.0.0-rc.0` is on npm
+(`next`, `rc`); `latest` stays on 0.x. SPEC-004 steps 5 and 6 are done, after a corrected candidate (`97d4029`).
+The next steps are:
+
+1. Step 7: freeze and qualify the published tuple, and record the five `rc-*` rows. RC0 is finished only when
+   `--phase=post` prints GO.
+2. The finite GA roadmap in the [report](research/rc0-published-qualification.md#ga-traceability): one external
+   adoption against its checklist, one persistent Node deployment, and maintainer decisions on Cloudflare cold
+   start and memory and on the Angular range, issue #117, the release audit record and the RISKS review.
+
+No milestone closes, and RC0 is an evaluation release, not GA.
+
 **RC0 final qualification (2026-11-26, [report](research/rc0-production-requalification.md#final-rc0-qualification-2026-11-26)).** SPEC-004 steps 3 and 4 are done on the candidate
 `e030175`, the merge of the support-contract PR #200, and every pre row is recorded. The next steps are:
 
