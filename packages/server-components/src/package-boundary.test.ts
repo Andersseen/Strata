@@ -19,6 +19,24 @@ const manifest = JSON.parse(readFileSync(join(packageDir, "package.json"), "utf8
   exports: Record<string, unknown>;
 };
 
+/**
+ * The Changesets pre-mode tag of the 1.0 release-candidate line (`changeset pre enter rc`,
+ * docs/specs/004-first-release-candidate.md). It is the only prerelease identifier a version may carry.
+ */
+const PRERELEASE_TAG = "rc";
+const VERSION_POLICY = new RegExp(`^\\d+\\.\\d+\\.\\d+(-${PRERELEASE_TAG}\\.\\d+)?$`);
+
+/** `.changeset/pre.json` while the repository is in pre mode, otherwise null. */
+function preModeState(): { mode: string; tag: string } | null {
+  try {
+    return JSON.parse(
+      readFileSync(join(packageDir, "..", "..", ".changeset", "pre.json"), "utf8"),
+    ) as { mode: string; tag: string };
+  } catch {
+    return null;
+  }
+}
+
 function importsOf(dir: string): string[] {
   return readdirSync(dir)
     .filter((name) => name.endsWith(".ts") && !name.endsWith(".test.ts"))
@@ -35,10 +53,26 @@ function importsOf(dir: string): string[] {
 describe("package boundary", () => {
   it("is public with Changesets owning the version and the release workflow owning the dist-tag", () => {
     expect(manifest.private).toBeUndefined();
-    // Prerelease versions come from Changesets pre mode (`changeset pre enter next`).
-    expect(manifest.version).toMatch(/^\d+\.\d+\.\d+(-next\.\d+)?$/);
+    // Prerelease versions come from Changesets pre mode (`changeset pre enter rc`).
+    expect(manifest.version).toMatch(VERSION_POLICY);
     // No `tag`: release.yml picks the dist-tag from the version (ADR-005).
     expect(manifest.publishConfig).toEqual({ access: "public" });
+  });
+
+  // The Version Packages PR is the first place a prerelease version exists, and its CI is the
+  // first to read it. Comparing the entered tag here fails the entry itself instead (1.0.0-rc.0
+  // was blocked on #203 by a policy that still expected `-next.N`).
+  it("accepts every version the entered pre mode will write", () => {
+    for (const version of ["1.0.0", `1.0.0-${PRERELEASE_TAG}.0`, `1.0.0-${PRERELEASE_TAG}.12`]) {
+      expect(version).toMatch(VERSION_POLICY);
+    }
+    for (const version of ["1.0.0-next.0", "1.0.0-rc", "1.0.0-beta.1"]) {
+      expect(version).not.toMatch(VERSION_POLICY);
+    }
+
+    const pre = preModeState();
+
+    if (pre?.mode === "pre") expect(pre.tag).toBe(PRERELEASE_TAG);
   });
 
   it("exports the server-only assertion entry the plugin recognises", () => {
