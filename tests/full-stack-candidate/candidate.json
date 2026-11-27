@@ -1,25 +1,25 @@
 {
   "schema": 1,
-  "id": "e04b7bb1180795f3",
-  "capturedAt": "2026-11-25T20:43:09.988Z",
-  "sourceSha": "cf137c56449a4fdfe97e06d43b92972db3c21bef",
+  "id": "2fc5213b0a046580",
+  "capturedAt": "2026-11-27T15:47:02.857Z",
+  "sourceSha": "77722adb31c061879bdc664a51eb6a98cfffb5b1",
   "fixtureSourceDigest": "19d8e3e837e842007dc385b0853523b5615a7764a9986fe28f0564505cc3ed50",
   "registry": "https://registry.npmjs.org",
   "strata": {
     "@strata-sc/core": {
-      "version": "0.2.2",
-      "tarball": "https://registry.npmjs.org/@strata-sc/core/-/core-0.2.2.tgz",
-      "integrity": "sha512-Xr6bMt7funa/RtMhr/BTLX548alI8w5/tq/4QIgvk4INEc4nED5CweQUeEujPU6o9/NcJ1XFtqcXPNGjohkHFA=="
+      "version": "1.0.0-rc.0",
+      "tarball": "https://registry.npmjs.org/@strata-sc/core/-/core-1.0.0-rc.0.tgz",
+      "integrity": "sha512-bWViceY3fIFrUDPwAHJkIUTr/PfYAWzK3Qy1nzA3ihh1FGlXcxLcGbP5lGDd8A6O5TjVYsmG8KWN4M/9/tFEMA=="
     },
     "@strata-sc/analog": {
-      "version": "0.13.0",
-      "tarball": "https://registry.npmjs.org/@strata-sc/analog/-/analog-0.13.0.tgz",
-      "integrity": "sha512-AI3RioayTDdWT+Y0VA3FslbVzNTMtWGump6N1XEWtGk2qqSIb4pWR58QPGnMucCKLN6NVzSXCly9dSeA66OipA=="
+      "version": "1.0.0-rc.0",
+      "tarball": "https://registry.npmjs.org/@strata-sc/analog/-/analog-1.0.0-rc.0.tgz",
+      "integrity": "sha512-NgcmdxJTzuUY2UUNhXDo1hviRwQ/e6RllWClLfYA+pxgPIGPTd6dHf0PRNm+PROllfP+NU5h2XOO00ovUR7LFw=="
     },
     "@strata-sc/server-components": {
-      "version": "0.17.0",
-      "tarball": "https://registry.npmjs.org/@strata-sc/server-components/-/server-components-0.17.0.tgz",
-      "integrity": "sha512-SOrJTSac6qRhpI8cn3QL4Cr4jslHN0gwTHA9H9iSCepOHhVenzK/tpo0y0GbGh6JqoLd1/qBBx1QUj4uwMr/Og=="
+      "version": "1.0.0-rc.0",
+      "tarball": "https://registry.npmjs.org/@strata-sc/server-components/-/server-components-1.0.0-rc.0.tgz",
+      "integrity": "sha512-WuZYJsed9FWj7eB9QdsXvngtwMciOvw65IOb/fb+2C3bLRnzrMpzfW/PFZT2CzVgDAJoJCxFc0N2lk1z0TyyHA=="
     }
   },
   "direct": {
@@ -32,9 +32,9 @@
       "@angular/platform-browser": "22.2.7",
       "@angular/platform-server": "22.2.7",
       "@angular/router": "22.2.7",
-      "@strata-sc/analog": "0.13.0",
-      "@strata-sc/core": "0.2.2",
-      "@strata-sc/server-components": "0.17.0",
+      "@strata-sc/analog": "1.0.0-rc.0",
+      "@strata-sc/core": "1.0.0-rc.0",
+      "@strata-sc/server-components": "1.0.0-rc.0",
       "h3": "1.15.11",
       "rxjs": "7.8.2",
       "tslib": "2.9.1",
@@ -56,12 +56,12 @@
   },
   "trees": {
     "consumer": {
-      "digest": "9f27f87c01b0499f3fb27564910c26219875ce3ceccaac22ed9e8991838c22b9",
+      "digest": "e92e6faa7110970382511e2d00130be25bffa278e26d15dc1974e2c0c608dfc9",
       "packages": 832,
       "lockfileVersion": 3
     },
     "consumer-ts59": {
-      "digest": "22703d051eac14772f06227501a47e3cf7c6f8309d8bb821378369a468250ba6",
+      "digest": "8370d444f7f42bdfbf8ff93e868bf91abac0f8213493276d769df0f8c997e389",
       "packages": 86,
       "lockfileVersion": 3
     }
