@@ -1,5 +1,18 @@
 # @strata-sc/analog
 
+## 1.0.0-rc.0
+
+### Major Changes
+
+- a6ffa8e: First Strata 1.0 release candidate.
+  See docs/COMPATIBILITY.md for the supported combinations and
+  evaluation limitations.
+
+### Patch Changes
+
+- Updated dependencies [a6ffa8e]
+  - @strata-sc/core@1.0.0-rc.0
+
 ## 0.13.0
 
 ### Minor Changes

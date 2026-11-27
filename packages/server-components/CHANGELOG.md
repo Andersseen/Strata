@@ -1,5 +1,13 @@
 # @strata-sc/server-components
 
+## 1.0.0-rc.0
+
+### Major Changes
+
+- a6ffa8e: First Strata 1.0 release candidate.
+  See docs/COMPATIBILITY.md for the supported combinations and
+  evaluation limitations.
+
 ## 0.17.0
 
 ### Minor Changes
