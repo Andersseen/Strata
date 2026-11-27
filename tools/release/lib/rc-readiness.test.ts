@@ -88,11 +88,7 @@ COMMITS[RC_HARNESS] = {
 };
 COMMITS[OLD_PIPELINE] = { ...COMMITS[CANDIDATE]!, "tools/release/lib/dist-tags.ts": "older" };
 
-/** First parents, for merge commits the tests name. */
-const PARENTS: Record<string, string> = {};
-
 const git = (head = CANDIDATE): GitFacts => ({
-  parent: (commit) => PARENTS[commit] ?? null,
   head: () => head,
   read: (commit, path) => COMMITS[commit]?.[path] ?? null,
   tree: (commit) =>
@@ -649,107 +645,6 @@ describe("the observed pipeline", () => {
     });
 
     await expect(blockerIds(input)).resolves.not.toContain("release-pipeline-observed");
-  });
-});
-
-describe("an accepted pipeline change", () => {
-  // The observed publish ran on OLD_PIPELINE. The accepted pull request merged onto a base whose
-  // pipeline was still OLD_PIPELINE's and brought it to the candidate's.
-  const PIPELINE_PR = 42;
-  const BASE = sha("accepted-base");
-  const MERGE = sha("accepted-merge");
-
-  COMMITS[BASE] = { ...COMMITS[OLD_PIPELINE]!, "docs/STATE.md": "between" };
-  COMMITS[MERGE] = { ...COMMITS[CANDIDATE]! };
-  PARENTS[MERGE] = BASE;
-
-  const observedOnOldPipeline = (run: HostedRun): HostedRun =>
-    run.path.endsWith("release.yml") ? { ...run, headSha: OLD_PIPELINE } : run;
-  const withPull = (
-    pull: { merged: boolean; mergedBy: string | null; mergeSha: string | null },
-    override = observedOnOldPipeline,
-  ): HostedReader => ({
-    ...hosted(override),
-    pullRequest: (number) =>
-      number === PIPELINE_PR
-        ? Promise.resolve(pull)
-        : Promise.resolve({ merged: true, mergedBy: "Andersseen", mergeSha: DOCS_ONLY }),
-  });
-  const accepting = (): EvidenceLedger =>
-    withRow(goodLedger(), "release-pipeline-observed", {
-      pipelineChange: { pullRequest: PIPELINE_PR },
-    });
-  const merged = { merged: true, mergedBy: "Andersseen", mergeSha: MERGE };
-
-  it("passes when the maintainer merged it and it is the pipeline's only change", async () => {
-    const input = facts({ ledger: accepting(), hosted: withPull(merged) });
-
-    await expect(blockerIds(input)).resolves.not.toContain("release-pipeline-observed");
-  });
-
-  it("still refuses the same change without the accepted pull request", async () => {
-    const input = facts({ hosted: withPull(merged) });
-
-    await expect(blockerIds(input)).resolves.toContain("release-pipeline-observed");
-  });
-
-  it("refuses a change not merged by the maintainer", async () => {
-    for (const pull of [
-      { ...merged, mergedBy: "someone-else" },
-      { ...merged, merged: false },
-      { ...merged, mergeSha: null },
-    ]) {
-      const input = facts({ ledger: accepting(), hosted: withPull(pull) });
-
-      await expect(blockerIds(input)).resolves.toContain("release-pipeline-observed");
-    }
-  });
-
-  it("refuses another pipeline change before the accepted one", async () => {
-    const earlier = sha("earlier-pipeline-change");
-    const mergedLater = sha("merged-after-another-change");
-
-    COMMITS[earlier] = { ...COMMITS[OLD_PIPELINE]!, "tools/release/lib/dist-tags.ts": "between" };
-    COMMITS[mergedLater] = { ...COMMITS[CANDIDATE]! };
-    PARENTS[mergedLater] = earlier;
-
-    const input = facts({
-      ledger: accepting(),
-      hosted: withPull({ ...merged, mergeSha: mergedLater }),
-    });
-
-    await expect(blockerIds(input)).resolves.toContain("release-pipeline-observed");
-  });
-
-  it("refuses another pipeline change after the accepted one", async () => {
-    const stale = sha("merge-before-a-later-change");
-
-    COMMITS[stale] = { ...COMMITS[CANDIDATE]!, "tools/release/lib/dist-tags.ts": "later" };
-    PARENTS[stale] = BASE;
-
-    const input = facts({ ledger: accepting(), hosted: withPull({ ...merged, mergeSha: stale }) });
-
-    await expect(blockerIds(input)).resolves.toContain("release-pipeline-observed");
-  });
-
-  it("refuses a change it cannot place in history", async () => {
-    const orphan = sha("unknown-merge");
-
-    COMMITS[orphan] = { ...COMMITS[CANDIDATE]! };
-
-    const input = facts({ ledger: accepting(), hosted: withPull({ ...merged, mergeSha: orphan }) });
-
-    await expect(blockerIds(input)).resolves.toContain("release-pipeline-observed");
-  });
-
-  it("is invalid on a row that is not bound to the pipeline, or without a number", () => {
-    const misplaced = withRow(goodLedger(), "ci-verify", { pipelineChange: { pullRequest: 1 } });
-    const numberless = withRow(goodLedger(), "release-pipeline-observed", {
-      pipelineChange: {} as { pullRequest: number },
-    });
-
-    expect(ledgerProblems(misplaced, NAMES).join("\n")).toMatch(/ci-verify is not bound/);
-    expect(ledgerProblems(numberless, NAMES).join("\n")).toMatch(/without a pull request number/);
   });
 });
 

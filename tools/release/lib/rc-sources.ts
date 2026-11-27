@@ -27,7 +27,6 @@ export function createGitFacts(cwd: string): GitFacts {
 
       return paths === null ? null : paths.split("\n").filter(Boolean);
     },
-    parent: (sha) => git(cwd, ["rev-parse", "--verify", "--quiet", `${sha}^1`])?.trim() || null,
   };
 }
 

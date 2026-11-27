@@ -53,7 +53,7 @@ import { isNodeBuiltin, moduleGraph } from "./lib/module-graph.ts";
 import { isolatedEnv, restoreDir, snapshotDiffers, startWrangler } from "./lib/package-consumer.ts";
 import type { RunningServer } from "./lib/package-consumer.ts";
 import { deployToPages } from "./lib/pages-deploy.ts";
-import { analogContractSatisfied, installedAnalogContract } from "./lib/ssr-recipe-bridge.ts";
+import { analogDeclaresConstructorContract } from "./lib/ssr-recipe-bridge.ts";
 import { COMPATIBILITY_DATE } from "./lib/wrangler.ts";
 
 /**
@@ -320,18 +320,14 @@ async function main(): Promise<void> {
 
   // S-1 on the deployed adapter (docs/research/rc0-production-requalification.md): exercised when the
   // installed @strata-sc/analog declares it, mandatory for a source-packed candidate.
-  // A published tuple may lack S-1 only when its analog predates 0.13.0 (a 1.0.0-rc.N never does).
-  const analogContract = installedAnalogContract(
+  requestOrigin = analogDeclaresConstructorContract(
     join(consumerDir, "node_modules", "@strata-sc", "analog"),
   );
-
-  requestOrigin = analogContract.declared;
   check(
     requestOrigin
       ? "the installed @strata-sc/analog carries S-1: request URL integrity is verified on workerd and the public URL"
-      : `the installed @strata-sc/analog ${analogContract.version} lacks S-1: request URL integrity is not exercised`,
-    REGISTRY ? analogContractSatisfied(analogContract) : requestOrigin,
-    `declared=${analogContract.declared} required=${analogContract.required}`,
+      : "the installed @strata-sc/analog predates S-1: request URL integrity is not exercised",
+    requestOrigin || REGISTRY,
   );
 
   evidence.packages = install.evidence

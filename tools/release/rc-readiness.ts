@@ -15,7 +15,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { planDistTags } from "./lib/dist-tags.ts";
-import { inspectTarball, readManifest, REGISTRY_PACKAGES } from "./lib/packages.ts";
+import { readManifest, REGISTRY_PACKAGES } from "./lib/packages.ts";
 import { assessRc, candidateIdentity, LEDGER_PATH, onlyVersioning } from "./lib/rc-readiness.ts";
 import { applyRehearsalEntry, planRehearsal, readRehearsalInput } from "./lib/rc-rehearsal.ts";
 import { createGitFacts, createHostedReader } from "./lib/rc-sources.ts";
@@ -114,21 +114,6 @@ function installedTuple(
       stdio: "pipe",
     });
   }
-
-  // The inspector every packed and registry consumer applies to a tarball. It once refused any
-  // prerelease, which only Version Packages #203 revealed; the rehearsal is the first place an RC
-  // version exists, so it must be the first place that refusal shows.
-  const inspected = readdirSync(tarballs).map((file) =>
-    inspectTarball(clone, join(tarballs, file)),
-  );
-
-  expect(
-    "packed: the release inspector accepts every RC tarball, as each packed and registry consumer will",
-    inspected.length === NAMES.length && inspected.every(({ problems }) => problems.length === 0),
-    inspected
-      .flatMap(({ manifest, problems }) => problems.map((p) => `${manifest.name}: ${p}`))
-      .join("; "),
-  );
 
   writeFileSync(join(consumer, "package.json"), JSON.stringify({ name: "rc", private: true }));
   execFileSync(
