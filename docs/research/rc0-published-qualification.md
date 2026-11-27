@@ -106,10 +106,12 @@ versioning-only files.
 The nine candidate-bound rows, taken again on `97d4029`. The three baseline rows are bound to the unchanged
 baseline harness and stay valid.
 
-| Row                                                                                                                                            | Run                                                            | Result         |
-| ---------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- | -------------- |
-| `ci-verify`                                                                                                                                    | CI push 45981200362                                            | Verify success |
-| `release-pipeline-observed`                                                                                                                    | Release 45694359277 (analog 0.13.0) with `pipelineChange` #206 | see the gate   |
-| `deployed-source-packed`                                                                                                                       | Cloudflare packed 45981222817                                  | success        |
-| `island-interaction`, `performance-scaling`, `ssr-duplicate-install`, `node-production-source`, `adversarial-security`, `prerelease-rehearsal` | Extended `suite=all`, `islands=both` 45981218495               | pending        |
-| `support-contract-review`                                                                                                                      | this pull request, merged by the maintainer                    | pending        |
+| Row                                                                                                                                            | Run                                                            | Result            |
+| ---------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- | ----------------- |
+| `ci-verify`                                                                                                                                    | CI push 45981200362                                            | Verify success    |
+| `release-pipeline-observed`                                                                                                                    | Release 45694359277 (analog 0.13.0) with `pipelineChange` #206 | see the gate      |
+| `deployed-source-packed`                                                                                                                       | Cloudflare packed 45981222817                                  | success           |
+| `island-interaction`, `performance-scaling`, `ssr-duplicate-install`, `node-production-source`, `adversarial-security`, `prerelease-rehearsal` | Extended `suite=all`, `islands=both` 45981218495               | every job success |
+| `support-contract-review`                                                                                                                      | this pull request, merged by the maintainer                    | #207              |
+
+With this ledger, `pnpm release:rc:check --phase=pre` re-reads every row live, and its only blocker is `support-contract-review: pull request 207 was not merged by Andersseen`: the decision this pull request records. Version Packages #203 at `b1ae687` (the candidate plus versioning only) passed CI 45983116849 after its bot-triggered runs were approved.
