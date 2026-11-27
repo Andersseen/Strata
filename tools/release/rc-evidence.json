@@ -2,10 +2,10 @@
   "schema": 2,
   "target": "1.0.0-rc.0",
   "candidate": {
-    "sha": "e030175238efdee85ae7c443c4bf48970ff364bc",
-    "sourceTree": "c46d5442a80d4c6e366dc33dd068c49a0216827e",
+    "sha": "97d4029866218c61ac606f0f4196cb0766bb5117",
+    "sourceTree": "ddbe33560d3db649f0a26c078863cdf3ea59249c",
     "lockDigest": "bef09182b2920d6e1148c6369878e187deb3c54bb901c04b881491ba6a23e5c6",
-    "configDigest": "f44b9fac45dec31c8f593e36b4a5e0d2d6e1623046a95580093a1135fa59a1f3",
+    "configDigest": "bc8de03d27efc8bd6c94e225b922d93cfd434206e8d4379ba786259b6c163628",
     "versions": {
       "@strata-sc/core": "0.2.2",
       "@strata-sc/analog": "0.13.0",
@@ -39,9 +39,9 @@
       "status": "PASS",
       "proof": {
         "kind": "hosted-run",
-        "runId": 45798002521
+        "runId": 45981200362
       },
-      "note": "CI push on main, candidate e030175: aggregate Verify success"
+      "note": "CI push on main, corrected candidate 97d4029 (merge of #206): aggregate Verify success"
     },
     {
       "id": "release-pipeline-observed",
@@ -52,7 +52,10 @@
         "kind": "hosted-run",
         "runId": 45694359277
       },
-      "note": "Release workflow_run on 36dbd4c: real publish of analog 0.13.0; Version PR or publish, Align npm dist-tags and Verify npm registry steps success; tools/release and release.yml unchanged since"
+      "note": "Release workflow_run on 36dbd4c: real publish of analog 0.13.0; Version PR or publish, Align npm dist-tags and Verify npm registry steps success. The only pipeline change since is #206 (re-land of #204: the tarball inspector accepts rc prereleases, the rehearsal inspects its tarballs, this acceptance), merged by the maintainer onto 508bb81, whose pipeline equals the observed one. RC0's own publishing run is the first publish through the changed pipeline.",
+      "pipelineChange": {
+        "pullRequest": 206
+      }
     },
     {
       "id": "baseline-frozen",
@@ -94,9 +97,9 @@
       "status": "PASS",
       "proof": {
         "kind": "hosted-run",
-        "runId": 45798227520
+        "runId": 45981218495
       },
-      "note": "Extended suite=all islands=both on e030175: one and three islands measured"
+      "note": "Extended suite=all islands=both on main 97d4029: Full-stack performance baseline (islands=both) success"
     },
     {
       "id": "performance-scaling",
@@ -105,9 +108,9 @@
       "status": "PASS",
       "proof": {
         "kind": "hosted-run",
-        "runId": 45798227520
+        "runId": 45981218495
       },
-      "note": "Extended on e030175: controller scaling profile and browser size budgets"
+      "note": "Extended suite=all islands=both on main 97d4029: controller scaling profile success"
     },
     {
       "id": "ssr-duplicate-install",
@@ -116,9 +119,9 @@
       "status": "PASS",
       "proof": {
         "kind": "hosted-run",
-        "runId": 45798227520
+        "runId": 45981218495
       },
-      "note": "Extended on e030175: SSR contract with a duplicated package installation"
+      "note": "Extended suite=all islands=both on main 97d4029: SSR contract with a duplicated package installation success"
     },
     {
       "id": "node-production-source",
@@ -127,9 +130,9 @@
       "status": "PASS",
       "proof": {
         "kind": "hosted-run",
-        "runId": 45798227520
+        "runId": 45981218495
       },
-      "note": "Extended on e030175: Node production process, source-packed candidate, hosted Linux"
+      "note": "Extended suite=all islands=both on main 97d4029: Node production process, source-packed candidate success"
     },
     {
       "id": "adversarial-security",
@@ -138,9 +141,9 @@
       "status": "PASS",
       "proof": {
         "kind": "hosted-run",
-        "runId": 45798227520
+        "runId": 45981218495
       },
-      "note": "Extended on e030175: source-mutated adversarial security qualification"
+      "note": "Extended suite=all islands=both on main 97d4029: source-mutated security qualification success"
     },
     {
       "id": "deployed-source-packed",
@@ -149,9 +152,9 @@
       "status": "PASS",
       "proof": {
         "kind": "hosted-run",
-        "runId": 45798239344
+        "runId": 45981222817
       },
-      "note": "Cloudflare packed on e030175: deployed 6ab4cbac.strata-fullstack-qualification.pages.dev; S-1, authorization isolation, hydration, confidentiality, console clean; 0 failing checks"
+      "note": "Qualify Full-Stack Strata on Cloudflare (packed) on main 97d4029: deployed to strata-fullstack-qualification, job success"
     },
     {
       "id": "prerelease-rehearsal",
@@ -160,9 +163,9 @@
       "status": "PASS",
       "proof": {
         "kind": "hosted-run",
-        "runId": 45798227520
+        "runId": 45981218495
       },
-      "note": "Extended on e030175: RC readiness report and non-publishing prerelease rehearsal"
+      "note": "Extended suite=all islands=both on main 97d4029: RC readiness report and non-publishing prerelease rehearsal (inspects the rehearsed tarballs) success"
     },
     {
       "id": "support-contract-review",
@@ -171,9 +174,9 @@
       "status": "PASS",
       "proof": {
         "kind": "maintainer-decision",
-        "pullRequest": 201
+        "pullRequest": 207
       },
-      "note": "the maintainer merge of #201 reviews the RC0 support contract as revised in #200 (S-1 deployed, declared vs qualified Angular)"
+      "note": "Maintainer merge of #207: the RC0 support contract (COMPATIBILITY.md, unchanged since #201) is reviewed for the corrected candidate 97d4029, and #206 is accepted as the one release-pipeline change"
     },
     {
       "id": "rc-publication",
