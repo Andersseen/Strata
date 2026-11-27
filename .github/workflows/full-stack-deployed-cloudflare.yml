@@ -27,8 +27,9 @@ run-name: Qualify Full-Stack Strata on Cloudflare (${{ inputs.source || 'packed'
 # See docs/research/full-stack-registry-qualification.md.
 #
 # `upgrade-rollback` runs `test:full-stack-registry-upgrade-rollback` on the cloudflare runtime with
-# STRATA_UPGRADE_DEPLOY=1: two exact PUBLISHED tuples (STRATA_UPGRADE_* defaults, the core/analog/
-# server_components inputs are ignored) are built and verified locally, the deployment rehearsal must
+# STRATA_UPGRADE_DEPLOY=1: two exact PUBLISHED tuples (the runner's DEFAULT_PAIR, since 2026-11-27 the
+# 0.x baseline core 0.2.2 / analog 0.13.0 / server-components 0.17.0 → all three at 1.0.0-rc.0; the
+# core/analog/server_components inputs are ignored) are built and verified locally, the deployment rehearsal must
 # pass, then release A, release B and A's RETAINED artifact are deployed in turn to the preview branch
 # `m5-upgrade-rollback` of the same isolated project and verified on its branch alias (stale clients get
 # the previous deployment's real assets from its immutable URL). See
