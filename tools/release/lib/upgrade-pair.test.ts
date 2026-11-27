@@ -10,12 +10,46 @@ import {
 } from "../../server-components/lib/upgrade-rollback.ts";
 
 describe("upgrade/rollback release pair selection", () => {
-  it("defaults to the two latest published server-components minors on one core and analog", () => {
+  it("defaults to the upgrade from the last published 0.x tuple to the RC0 tuple", () => {
     const pair = selectedPair({});
 
     expect(pair).toEqual(DEFAULT_PAIR);
-    expect(pair.a["@strata-sc/core"]).toBe(pair.b["@strata-sc/core"]);
-    expect(pair.a["@strata-sc/server-components"]).not.toBe(pair.b["@strata-sc/server-components"]);
+    expect(pair.a).toEqual({
+      "@strata-sc/core": "0.2.2",
+      "@strata-sc/analog": "0.13.0",
+      "@strata-sc/server-components": "0.17.0",
+    });
+    for (const version of Object.values(pair.b)) expect(version).toBe("1.0.0-rc.0");
+  });
+
+  it("still reproduces the historical server-components pair through explicit inputs", () => {
+    const pair = selectedPair({
+      STRATA_UPGRADE_A_SERVER_COMPONENTS_VERSION: "0.16.0",
+      STRATA_UPGRADE_B_CORE_VERSION: "0.2.2",
+      STRATA_UPGRADE_B_ANALOG_VERSION: "0.13.0",
+      STRATA_UPGRADE_B_SERVER_COMPONENTS_VERSION: "0.17.0",
+    });
+
+    expect(pair.a).toEqual({
+      "@strata-sc/core": "0.2.2",
+      "@strata-sc/analog": "0.13.0",
+      "@strata-sc/server-components": "0.16.0",
+    });
+    expect(pair.b).toEqual({
+      "@strata-sc/core": "0.2.2",
+      "@strata-sc/analog": "0.13.0",
+      "@strata-sc/server-components": "0.17.0",
+    });
+  });
+
+  it("labels deployments independently of the RC versions in the pair", () => {
+    const ids = selectedBuildIds({});
+
+    for (const side of ["a", "b"] as const) {
+      for (const version of Object.values(DEFAULT_PAIR[side])) {
+        expect(ids[side]).not.toContain(version);
+      }
+    }
   });
 
   it("takes each side's exact versions from its own environment variables", () => {
