@@ -11,9 +11,10 @@ re-landed as #206 after a revert (#205) of four work-in-progress commits that ha
 - **Published:** by Release 46026262608 from `3f6cd0b` (merge of #203). All three packages are at `1.0.0-rc.0`
   with provenance; `next` and `rc` point to the RC, and `latest` stays on 0.2.2, 0.13.0 and 0.17.0. No stable
   1.0. `@strata-sc/h3` remains private.
-- **Post-phase:** the frozen RC capture, the published-tuple Node production run, the deployed registry run, and
-  the 0.x → RC upgrade and rollback are pending on the harness PR. Until `--phase=post` prints GO, RC0 is
-  published but not fully qualified.
+- **Post-phase:** qualified. Frozen RC `2fc5213b0a046580`, harness `857fa82` (#208). Extended 46057150465 covers
+  frozen and Node production, Cloudflare registry 46057154593 the deployment, and upgrade-rollback 46057670068 the
+  deployed 0.x → RC upgrade with retained rollback. `--phase=post` prints **GO**. Not GA: the real application,
+  persistent Node, Cloudflare cold start and memory, and issue #117 remain open.
 
 ## RC0 final qualification (2026-11-26, PRs #200 and #201)
 
