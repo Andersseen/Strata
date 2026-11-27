@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 
@@ -85,8 +85,15 @@ export function announcedPort(output: string): number | null {
   return port > 0 ? port : null;
 }
 
-/** Every socket of the run bound by the kernel: see {@link startPagesDev}. */
-export function pagesDevArgs(bin: string, compatibilityDate?: string): string[] {
+/**
+ * Every socket of the run bound by the kernel: see {@link startPagesDev}. `persistTo` is the
+ * instance's own local state; {@link startPagesDev} never shares one between instances.
+ */
+export function pagesDevArgs(
+  bin: string,
+  compatibilityDate?: string,
+  persistTo = "dist/.wrangler-state",
+): string[] {
   return [
     bin,
     "pages",
@@ -100,7 +107,7 @@ export function pagesDevArgs(bin: string, compatibilityDate?: string): string[] 
     "0",
     ...(compatibilityDate ? ["--compatibility-date", compatibilityDate] : []),
     "--persist-to",
-    "dist/.wrangler-state",
+    persistTo,
     "--log-level",
     "info",
   ];
@@ -117,13 +124,21 @@ export function pagesDevArgs(bin: string, compatibilityDate?: string): string[] 
  *
  * There is no retry: without a chosen number there is no collision to recover from, and any other
  * startup failure is a real one. A failed start stops the whole process group before rejecting.
+ *
+ * Each instance persists to its own directory. A shared `--persist-to` made instances started together
+ * in one directory open the same workerd SQLite state, and one of them died at startup with
+ * `database is locked: SQLITE_BUSY` (reproduced by the simultaneous-instances test under host load).
  */
 export async function startPagesDev(options: PagesDevOptions): Promise<PagesDevServer> {
   const timeoutMs = options.timeoutMs ?? 120_000;
   const deadline = Date.now() + timeoutMs;
+
+  mkdirSync(join(options.cwd, "dist"), { recursive: true });
+
+  const persistTo = mkdtempSync(join(options.cwd, "dist", ".wrangler-state-"));
   const server = spawnManaged(
     process.execPath,
-    pagesDevArgs(options.bin, options.compatibilityDate),
+    pagesDevArgs(options.bin, options.compatibilityDate, persistTo),
     {
       cwd: options.cwd,
       env: {
@@ -153,9 +168,15 @@ export async function startPagesDev(options: PagesDevOptions): Promise<PagesDevS
 
     await waitForHttp(`${baseUrl}${options.readyPath}`, server, deadline - Date.now());
 
-    return { baseUrl, output: () => server.output(), stop: () => server.stop(), process: server };
+    const stop = async (): Promise<void> => {
+      await server.stop();
+      rmSync(persistTo, { recursive: true, force: true });
+    };
+
+    return { baseUrl, output: () => server.output(), stop, process: server };
   } catch (error) {
     await server.stop();
+    rmSync(persistTo, { recursive: true, force: true });
     throw error;
   }
 }
