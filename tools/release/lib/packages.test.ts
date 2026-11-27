@@ -123,6 +123,33 @@ describe("inspectPackedPackage", () => {
     );
   });
 
+  // 1.0.0-rc.0 failed every packed consumer of Version Packages #203: the inspector accepted only
+  // stable versions, though SPEC-004 publishes the RC line from `rc` pre mode.
+  it("accepts the rc prereleases SPEC-004 publishes and refuses every other prerelease", () => {
+    for (const version of ["1.0.0-rc.0", "1.0.0-rc.12", "1.2.3"]) {
+      assert.deepEqual(
+        inspectPackedPackage({ manifest: { ...classic, version }, files: classicFiles }),
+        [],
+        version,
+      );
+    }
+    for (const version of [
+      "0.0.0-stage",
+      "0.0.0-rc.0",
+      "1.0.0-next.0",
+      "1.0.0-beta.1",
+      "1.0.0-rc",
+      "1.0.0-rc.x",
+      "1.0.0-rc.0+build",
+    ]) {
+      assert.deepEqual(
+        inspectPackedPackage({ manifest: { ...classic, version }, files: classicFiles }),
+        [`version "${version}" is not a released semver version`],
+        version,
+      );
+    }
+  });
+
   it("rejects workspace:, link:, file: and portal: ranges", () => {
     for (const range of ["workspace:*", "link:../x", "file:../x", "portal:../x"]) {
       const problems = inspectPackedPackage({
