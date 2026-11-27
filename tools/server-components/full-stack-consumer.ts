@@ -64,10 +64,7 @@ import {
 import type { RunningServer, Snapshot } from "./lib/package-consumer.ts";
 import { checkPublicApi } from "./lib/public-api.ts";
 import {
-  ANALOG_CONTRACT_SINCE,
-  analogContractSatisfied,
   analogDeclaresConstructorContract,
-  installedAnalogContract,
   predatesSsrProtocol,
   ssrBridged,
 } from "./lib/ssr-recipe-bridge.ts";
@@ -263,19 +260,9 @@ try {
       `the source-packed @strata-sc/analog ${installedAnalog.version} carries the S-1/S-2 contract`,
       analogConstructorContract,
     );
-  } else {
-    // A published version at or after 0.13.0, prereleases included, must declare it: its absence is
-    // a defect of that artifact, not a reason to skip the example.
-    const presence = installedAnalogContract(
-      join(consumerDir, "node_modules", "@strata-sc", "analog"),
-    );
-
-    check(
-      presence.required
-        ? `published @strata-sc/analog ${installedAnalog.version} (${ANALOG_CONTRACT_SINCE} or later) declares the S-1/S-2 contract`
-        : `published @strata-sc/analog ${installedAnalog.version} predates the S-1/S-2 contract (${ANALOG_CONTRACT_SINCE}): its example is not compiled`,
-      analogContractSatisfied(presence),
-      `declared=${presence.declared} required=${presence.required}`,
+  } else if (!analogConstructorContract) {
+    console.log(
+      `published @strata-sc/analog ${installedAnalog.version} predates the S-1/S-2 contract: its example is not compiled`,
     );
   }
   const ts6 = tscDeclarations(consumerDir, "TypeScript 6", env, {

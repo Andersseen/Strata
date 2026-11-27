@@ -32,12 +32,6 @@ export interface EvidenceRow {
   readonly status: EvidenceStatus;
   readonly proof: EvidenceProof | null;
   readonly note: string;
-  /**
-   * Pipeline rows only: the one maintainer-merged pull request accepted as the release pipeline's
-   * only change since the observed publish. Recording it in the ledger is the maintainer's decision;
-   * the gate still proves that nothing else in the pipeline moved before or after it.
-   */
-  readonly pipelineChange?: { readonly pullRequest: number };
 }
 
 /** The code the evidence is about. Everything but `sha` is recomputed from that commit. */
@@ -82,8 +76,6 @@ export interface GitFacts {
   tree(sha: string, path: string): string | null;
   /** Paths that differ between two commits; null when either commit is unknown. */
   changedPaths(from: string, to: string): readonly string[] | null;
-  /** The first parent of a commit (the branch a merge landed on), or null. */
-  parent(sha: string): string | null;
 }
 
 export interface HostedStep {
@@ -169,7 +161,7 @@ const SHA = /^[0-9a-f]{40}$/;
 const RC_VERSION = /^1\.0\.0-rc\.\d+$/;
 const SHA256 = /^[0-9a-f]{64}$/;
 const INTEGRITY = /^sha512-[A-Za-z0-9+/]+=*$/;
-const ROW_KEYS = ["artifact", "gate", "id", "note", "pipelineChange", "proof", "status"];
+const ROW_KEYS = ["artifact", "gate", "id", "note", "proof", "status"];
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -251,15 +243,6 @@ function rowProblems(row: unknown, seen: Set<string>): string[] {
     problems.push(`${id} has an invalid status ${String(row["status"])}`);
   }
   if (typeof row["note"] !== "string") problems.push(`${id} has no note`);
-  if (row["pipelineChange"] !== undefined) {
-    const change = row["pipelineChange"];
-
-    if (spec.binding !== "pipeline") {
-      problems.push(`${id} is not bound to the release pipeline, so it accepts no pipeline change`);
-    } else if (!isRecord(change) || !Number.isSafeInteger(change["pullRequest"])) {
-      problems.push(`${id} names a pipeline change without a pull request number`);
-    }
-  }
 
   const proof = row["proof"];
 
@@ -561,7 +544,6 @@ function checkBinding(
   ledger: EvidenceLedger,
   git: GitFacts,
   block: (reason: string) => void,
-  acceptedChange: { readonly number: number; readonly mergeSha: string } | null = null,
 ): void {
   const tuple =
     spec.artifact === "baseline-registry"
@@ -586,35 +568,10 @@ function checkBinding(
   if (changed === null) {
     block(`commit ${headSha} is not in this repository's history`);
   } else if (spec.binding === "pipeline") {
-    const pipeline = (paths: readonly string[] | null): readonly string[] | null =>
-      paths && paths.filter((path) => RELEASE_PIPELINE_PATHS.some((p) => p.test(path)));
-    const moved = pipeline(changed)!;
+    const moved = changed.filter((path) => RELEASE_PIPELINE_PATHS.some((p) => p.test(path)));
 
-    if (moved.length === 0) return;
-    if (!acceptedChange) {
+    if (moved.length > 0)
       block(`the release pipeline changed since ${headSha}: ${moved.join(", ")}`);
-
-      return;
-    }
-
-    // An accepted change counts only if it is the pipeline's ONLY change: identical from the
-    // observed publish to the base it merged onto, and from its merge to the candidate.
-    const { number, mergeSha } = acceptedChange;
-    const base = git.parent(mergeSha);
-    const before = base === null ? null : pipeline(git.changedPaths(headSha, base));
-    const after = pipeline(git.changedPaths(mergeSha, anchor));
-
-    if (before === null || after === null) {
-      block(`pull request ${number} (${mergeSha}) is not in this repository's history`);
-    } else if (before.length > 0) {
-      block(
-        `the release pipeline changed before accepted pull request ${number}: ${before.join(", ")}`,
-      );
-    } else if (after.length > 0) {
-      block(
-        `the release pipeline changed after accepted pull request ${number}: ${after.join(", ")}`,
-      );
-    }
   } else if (!onlyDocumentation(changed)) {
     const code = changed.filter((path) => !isDocumentation(path)).slice(0, 5);
 
@@ -653,21 +610,8 @@ async function checkRow(
     const run = await facts.hosted.run(proof.runId);
 
     if (spec.proof.kind === "hosted-run") {
-      let accepted: { number: number; mergeSha: string } | null = null;
-
-      if (row.pipelineChange) {
-        const number = row.pipelineChange.pullRequest;
-        const pull = await facts.hosted.pullRequest(number);
-
-        if (!pull.merged || pull.mergedBy !== facts.maintainer || pull.mergeSha === null) {
-          block(`pipeline change ${number} was not merged by ${facts.maintainer}`);
-
-          return;
-        }
-        accepted = { number, mergeSha: pull.mergeSha };
-      }
       if (checkRunIdentity(run, spec.proof, facts.repository, block)) {
-        checkBinding(row, spec, run.headSha, ledger, facts.git, block, accepted);
+        checkBinding(row, spec, run.headSha, ledger, facts.git, block);
       }
     }
   } catch (error) {

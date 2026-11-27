@@ -249,24 +249,6 @@ A later RC replaces the previous one for evaluation; nothing is unpublished. Add
 merge the Version Packages PR: the `fixed` group moves all three to `1.0.0-rc.N+1`, and that tuple needs its
 own evidence rows. The previous RC stays installable by exact version.
 
-## Accepting a release-pipeline change
-
-`release-pipeline-observed` holds only while nothing under `RELEASE_PIPELINE_PATHS` changed since the observed
-publish. In pre mode that publish can only be an RC, so a pipeline fix needed before the first RC would block
-the RC it is meant to unblock. The maintainer may then accept exactly one change. The ledger row keeps the
-observed publish as its proof and names the change as `"pipelineChange": { "pullRequest": N }`, and merging
-that ledger change is the decision. The gate still proves that:
-
-1. pull request N was merged by the maintainer;
-2. the pipeline at its base (the merge's first parent) is identical to the observed publish's pipeline, so
-   nothing else changed before it;
-3. the pipeline at the candidate is identical to its merge, so nothing changed after it.
-
-Any other pipeline change still blocks. The RC's own publishing run (`rc-publication`) is then the first real
-publish through the changed pipeline. Used for 1.0.0-rc.0 on 2026-11-27: Version Packages #203 failed Verify
-because the tarball inspector in `tools/release/lib/packages.ts` refused every prerelease and a manifest test
-expected `-next.N`. Neither runs in `release.yml`, which publishes with `changeset publish`.
-
 ## Rolling back a bad RC
 
 npm versions are immutable; rollback moves consumers, not packages. Never unpublish, and never republish a
