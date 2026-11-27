@@ -1,5 +1,10 @@
 # Strata 1.0 exit criteria
 
+**RC0 published 2026-11-27 ([report](research/rc0-published-qualification.md#ga-traceability)).** No item is ticked;
+the matrix is unchanged (PASS 1, PARTIAL 27, BLOCKED 0, NOT RUN 4). The report traces every criterion to its RC
+evidence and lists what still needs a real application or a persistent deployment. Publishing a release candidate
+closes no GA criterion.
+
 **RC0 final qualification 2026-11-26 ([report](research/rc0-production-requalification.md#final-rc0-qualification-2026-11-26)).** No item is ticked, and the matrix is unchanged. The
 pre-publication RC rows pass on the candidate `e030175`. That authorizes at most an evaluation release, and it is
 not GA evidence.

@@ -1,5 +1,21 @@
 # Technical risk register
 
+RC0 publication (2026-11-27, [report](research/rc0-published-qualification.md)). No runtime risk is new.
+
+- **Prerelease-blind tooling.** Two tools assumed stable or `-next` versions and blocked publication; both are
+  fixed. The rehearsal now runs the inspector on the tarballs it versions, and a manifest test checks the
+  entered pre-mode tag.
+- **Silent capability skips.** Published-tuple runners detected S-1/S-2 from declarations and skipped when they
+  were absent. They now require the contract from any analog at 0.13.0 or later, prereleases included.
+- **Process.** Unreviewed commits reached main through a branch tracking `origin/main`, and were repaired by a
+  revert and a re-land (#205, #206). Branches are now created without an upstream. Bot-generated Version
+  Packages runs need manual approval under the `first_time_contributors` policy.
+- **Pipeline acceptance.** `release-pipeline-observed` was satisfied by a maintainer-accepted change (#206)
+  rather than by a new observed publish. RC0's own publish (Release 46026262608) observed the changed pipeline,
+  without manual repair.
+- **Open, maintainer action:** GitHub private vulnerability reporting is disabled, so outside reporters have no
+  private channel.
+
 RC0 final qualification (2026-11-26, [report](research/rc0-production-requalification.md#final-rc0-qualification-2026-11-26)). No new risk.
 
 - S-1 behind a real TLS-terminating reverse proxy is now explicitly unsupported (`NO-PROXY`) instead of an open
