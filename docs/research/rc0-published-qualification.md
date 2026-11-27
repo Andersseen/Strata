@@ -14,14 +14,14 @@ and the RC entry (#202). This report records what stood between the entered tree
 
 These SHAs serve different purposes. Do not substitute one for another.
 
-| Identity                           | Value                                      | Purpose                                                                   |
-| ---------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------- |
-| Original authorized candidate      | `e030175238efdee85ae7c443c4bf48970ff364bc` | the pre-phase GO of 2026-11-26 (#201); superseded                         |
-| Corrected candidate                | `97d4029866218c61ac606f0f4196cb0766bb5117` | merge of #206; the code the RC is published from                          |
-| Historical baseline harness        | `4888fe6cfa6ece91901f80b243f66fcbd3358b22` | qualified the published 0.x baseline; unchanged                           |
-| Historical baseline frozen id      | `e04b7bb1180795f3`                         | core 0.2.2, analog 0.13.0, server-components 0.17.0; unchanged            |
-| RC publishing SHA                  | `3f6cd0b1a7a14154a29fe6b1711288b0264e93f5` | merge of Version Packages #203; Release run 46026262608 published from it |
-| Published RC harness and frozen id | pending                                    | the merged harness that freezes and qualifies the npm tuple               |
+| Identity                           | Value                                                          | Purpose                                                                   |
+| ---------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| Original authorized candidate      | `e030175238efdee85ae7c443c4bf48970ff364bc`                     | the pre-phase GO of 2026-11-26 (#201); superseded                         |
+| Corrected candidate                | `97d4029866218c61ac606f0f4196cb0766bb5117`                     | merge of #206; the code the RC is published from                          |
+| Historical baseline harness        | `4888fe6cfa6ece91901f80b243f66fcbd3358b22`                     | qualified the published 0.x baseline; unchanged                           |
+| Historical baseline frozen id      | `e04b7bb1180795f3`                                             | core 0.2.2, analog 0.13.0, server-components 0.17.0; unchanged            |
+| RC publishing SHA                  | `3f6cd0b1a7a14154a29fe6b1711288b0264e93f5`                     | merge of Version Packages #203; Release run 46026262608 published from it |
+| Published RC harness and frozen id | `857fa821254f9d99c97f9109e3def33847807bc0`, `2fc5213b0a046580` | merge of #208; the main-bound post-phase runs are taken on it             |
 
 ## Publication was blocked by two prerelease defects
 
@@ -145,6 +145,64 @@ did not move. `@strata-sc/analog` depends on `@strata-sc/core` `1.0.0-rc.0` exac
 `@standard-schema/spec` `1.1.0`. The server-components peers are `@angular/*` `^22.1.7`, `typescript`
 `^5.9.0 || ^6.0.0`, and `vite` `>=8.3.0 <9`. No stable `1.0.0` exists, and `@strata-sc/h3` is not on npm. The
 GitHub Releases for the three packages are marked pre-release.
+
+## Post-phase qualification and verdict
+
+The frozen RC `2fc5213b0a046580` was captured from npm by `test:full-stack-registry-consumer` (0 failing
+checks), with every integrity equal to npm's, and reproduced by `test:full-stack-frozen-candidate` (0 failing).
+Harness #208 merged as `857fa82`. Every run below is on `main` at that SHA and dispatched there; branch
+pre-checks (Cloudflare registry 46029485059, upgrade-rollback 46030111912) passed too, but do not count.
+
+| Row                   | Evidence                                                                              | Result                                                         |
+| --------------------- | ------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `rc-publication`      | Release 46026262608 on `3f6cd0b`                                                      | published, tags aligned, registry and GitHub Releases verified |
+| `rc-frozen`           | Extended 46057150465, "Frozen release candidate"                                      | success                                                        |
+| `rc-node-production`  | Extended 46057150465, "Node production process (frozen candidate)"                    | success                                                        |
+| `rc-deployed`         | Cloudflare `registry` 46057154593, installed versions 1.0.0-rc.0                      | 0 failing checks                                               |
+| `rc-upgrade-rollback` | Cloudflare `upgrade-rollback` 46057670068, A = 0.2.2/0.13.0/0.17.0, B = 1.0.0-rc.0 ×3 | deployed upgrade, stale clients, retained rollback; 0 failing  |
+
+**`pnpm release:rc:check --phase=post`: VERDICT GO**, re-read live from GitHub, npm and git on the ledger
+branch. The accepted GA requirements (`real-application`, `persistent-node`, `cloudflare-cold-start-memory`,
+`issue-117-transitions`) stay NOT RUN. They are accepted for an RC, never for GA.
+
+**One Extended job failed and was re-run.** In 46057150465, "Full-stack performance baseline" failed in its
+three-island arm. `npm install` got `404 Not Found` for `https://registry.npmjs.org/@babel/helpers/-/helpers-8.1.4.tgz`,
+although the one-island arm of the same job had installed. Minutes later that tarball answered HTTP 200 and its
+metadata listed it, so this was a transient registry failure on an existing artifact. No post-phase row binds that
+job, and the frozen RC lock does not pin that tarball. Only the failed job was re-run: attempt 2 passed, with the one- and three-island profiles and the size budgets, and the whole run now reads `success`. A rerun is recorded as such, not as proof that a defect was fixed.
+
+**Not measured, and not invented.** There is no persistent Node deployment: the Node evidence is a production
+process on hosted Linux and locally. Cloudflare exposes no reliable isolate cold-start or memory measurement for
+this project.
+
+## Verification
+
+Local (macOS, Node 22.23.1), sequential:
+
+| Command                                                                                              | Result                          |
+| ---------------------------------------------------------------------------------------------------- | ------------------------------- |
+| `format:check`, `lint`, `typecheck`                                                                  | pass                            |
+| `test:release` (317), `test:performance-tools`, `test:ci`                                            | pass                            |
+| versioned tree of #203 with the fixes: build, unit gates and the 14 commands of the five failed jobs | pass                            |
+| `test:full-stack-registry-consumer` (capture of 1.0.0-rc.0)                                          | PASS, 0 failing                 |
+| `test:full-stack-frozen-candidate`                                                                   | PASS, 0 failing                 |
+| `test:full-stack-registry-upgrade-rollback` (0.x → RC)                                               | PASS, 0 failing, 1,486 ok       |
+| `test:node-production:frozen`                                                                        | PASS, RSS 210,720 → 216,784 KiB |
+| `release:rc:rehearse`                                                                                | all checks ok                   |
+| `release:rc:check --phase=pre --publishing` on #203 (`5def897`, `3747f04`)                           | GO                              |
+| `release:rc:check --phase=pre` on `668abea`                                                          | GO                              |
+| `release:rc:check --phase=post`                                                                      | GO                              |
+
+Not run locally, with the hosted run that covers each instead: `test:node-production` (source-packed: Extended
+45981218495 and 46057150465), `test:full-stack-adversarial-security` (Extended, both runs), the performance
+profiles (Extended), the `www:*` and `relay:*` suites and `test:www:server-components` / `test:relay:server-components`
+(CI "Website and Relay" on #204, #206, #207 and #208), and the Server Component and Analog contract scripts (CI on
+the same PRs). The private H3 v2 adapter's strict-type blocker (SPEC-002) is unchanged and outside this release.
+
+Hosted: CI on #204 (45966004163), #206 (45978891921), #203 (`b1ae687` 45983116849; `3747f04` 46023455446), main
+`97d4029` (45981200362), `668abea` (46021728610) and `3f6cd0b` (46024826137); Extended 45981218495 (candidate) and
+46057150465 (harness); Cloudflare packed 45981222817, registry 46057154593, and upgrade-rollback 46057670068;
+Release 46026262608.
 
 ## Prerelease-aware consumer coverage
 

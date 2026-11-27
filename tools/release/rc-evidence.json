@@ -30,7 +30,25 @@
       }
     }
   },
-  "published": null,
+  "published": {
+    "harnessSha": "857fa821254f9d99c97f9109e3def33847807bc0",
+    "frozenId": "2fc5213b0a046580",
+    "packages": {
+      "@strata-sc/core": {
+        "version": "1.0.0-rc.0",
+        "integrity": "sha512-bWViceY3fIFrUDPwAHJkIUTr/PfYAWzK3Qy1nzA3ihh1FGlXcxLcGbP5lGDd8A6O5TjVYsmG8KWN4M/9/tFEMA=="
+      },
+      "@strata-sc/analog": {
+        "version": "1.0.0-rc.0",
+        "integrity": "sha512-NgcmdxJTzuUY2UUNhXDo1hviRwQ/e6RllWClLfYA+pxgPIGPTd6dHf0PRNm+PROllfP+NU5h2XOO00ovUR7LFw=="
+      },
+      "@strata-sc/server-components": {
+        "version": "1.0.0-rc.0",
+        "integrity": "sha512-WuZYJsed9FWj7eB9QdsXvngtwMciOvw65IOb/fb+2C3bLRnzrMpzfW/PFZT2CzVgDAJoJCxFc0N2lk1z0TyyHA=="
+      }
+    },
+    "publishSha": "3f6cd0b1a7a14154a29fe6b1711288b0264e93f5"
+  },
   "rows": [
     {
       "id": "ci-verify",
@@ -182,41 +200,56 @@
       "id": "rc-publication",
       "gate": "blocker",
       "artifact": "rc-registry",
-      "status": "NOT RUN",
-      "proof": null,
-      "note": "post-publication: the RC does not exist yet"
+      "status": "PASS",
+      "proof": {
+        "kind": "hosted-run",
+        "runId": 46026262608
+      },
+      "note": "Release workflow_run on 3f6cd0b (merge of Version Packages #203): authorized, RC gate --publishing, Version PR or publish to npm, Align npm dist-tags and Verify npm registry, tags and GitHub Releases success; all three published at 1.0.0-rc.0 with provenance, next and rc on the RC, latest on 0.x"
     },
     {
       "id": "rc-frozen",
       "gate": "blocker",
       "artifact": "rc-registry",
-      "status": "NOT RUN",
-      "proof": null,
-      "note": "post-publication: the RC does not exist yet"
+      "status": "PASS",
+      "proof": {
+        "kind": "hosted-run",
+        "runId": 46057150465
+      },
+      "note": "Extended suite=all islands=both on main 857fa82 (published RC harness, merge of #208): npm ci of frozen 2fc5213b0a046580, Node + local workerd, success"
     },
     {
       "id": "rc-node-production",
       "gate": "blocker",
       "artifact": "rc-registry",
-      "status": "NOT RUN",
-      "proof": null,
-      "note": "post-publication: the RC does not exist yet"
+      "status": "PASS",
+      "proof": {
+        "kind": "hosted-run",
+        "runId": 46057150465
+      },
+      "note": "Extended on main 857fa82: Node production process, frozen candidate 2fc5213b0a046580, hosted Linux, success"
     },
     {
       "id": "rc-deployed",
       "gate": "blocker",
       "artifact": "rc-registry",
-      "status": "NOT RUN",
-      "proof": null,
-      "note": "post-publication: the RC does not exist yet"
+      "status": "PASS",
+      "proof": {
+        "kind": "hosted-run",
+        "runId": 46057154593
+      },
+      "note": "Qualify Full-Stack Strata on Cloudflare (registry) on main 857fa82: core, analog, server-components 1.0.0-rc.0 from npm deployed to strata-fullstack-qualification, 0 failing checks"
     },
     {
       "id": "rc-upgrade-rollback",
       "gate": "blocker",
       "artifact": "rc-registry",
-      "status": "NOT RUN",
-      "proof": null,
-      "note": "post-publication: the RC does not exist yet"
+      "status": "PASS",
+      "proof": {
+        "kind": "hosted-run",
+        "runId": 46057670068
+      },
+      "note": "Qualify Full-Stack Strata on Cloudflare (upgrade-rollback) on main 857fa82: A core 0.2.2/analog 0.13.0/server-components 0.17.0 -> B all three 1.0.0-rc.0, deployed upgrade, stale clients, retained-artifact rollback, 0 failing checks"
     },
     {
       "id": "real-application",
