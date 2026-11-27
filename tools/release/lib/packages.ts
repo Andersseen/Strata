@@ -95,6 +95,13 @@ export interface PackedPackage {
   readonly workspaceVersion?: (name: string) => string | undefined;
 }
 
+/**
+ * A version the release may ship: stable `X.Y.Z`, or a release candidate `X.Y.Z-rc.N` from the
+ * Changesets pre mode SPEC-004 enters (`changeset pre enter rc`). Any other prerelease identifier
+ * (`-stage`, `-next.N`, `-beta.N`) was never a release channel here.
+ */
+const RELEASED_VERSION = /^\d+\.\d+\.\d+(-rc\.\d+)?$/;
+
 const ROOT_FILES = ["package.json", "README.md", "LICENSE", "CHANGELOG.md"];
 const REQUIRED_ROOT_FILES = ["package.json", "README.md", "LICENSE"];
 
@@ -112,7 +119,7 @@ export function inspectPackedPackage({
   const problems: string[] = [];
 
   if (manifest.private) problems.push("package is private");
-  if (!/^\d+\.\d+\.\d+$/.test(manifest.version) || manifest.version === "0.0.0") {
+  if (!RELEASED_VERSION.test(manifest.version) || manifest.version.startsWith("0.0.0")) {
     problems.push(`version "${manifest.version}" is not a released semver version`);
   }
 
