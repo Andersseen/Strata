@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import type { Server } from "node:net";
 import { tmpdir } from "node:os";
@@ -206,9 +206,13 @@ describe("local workerd startup (real Wrangler)", { timeout: 120_000 }, () => {
   });
 
   it("runs simultaneous instances without interference, and stops one alone", async () => {
+    // One shared --persist-to made one of three instances die with `SQLITE_BUSY` under host load.
+    const states = (): string[] =>
+      readdirSync(join(dir, "dist")).filter((name) => name.startsWith(".wrangler-state-"));
     const servers = await Promise.all([start(), start(), start()]);
 
     try {
+      expect(states()).toHaveLength(3);
       expect(new Set(servers.map(({ baseUrl }) => baseUrl)).size).toBe(3);
       for (const { baseUrl } of servers) expect(await answers(baseUrl)).toBe(true);
 
@@ -220,6 +224,7 @@ describe("local workerd startup (real Wrangler)", { timeout: 120_000 }, () => {
     } finally {
       await Promise.all(servers.map((server) => server.stop()));
     }
+    expect(states()).toEqual([]);
   });
 
   it("starts again immediately after a stop, leaving nothing listening", async () => {
