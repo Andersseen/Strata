@@ -1,5 +1,20 @@
 # Current implementation audit
 
+## Strata 1.0.0-rc.0 published (2026-11-27)
+
+[Report](research/rc0-published-qualification.md). Version Packages #203 first failed Verify on two prerelease
+defects (a manifest test expected `-next.N`; the tarball inspector refused prereleases). They were fixed in #204,
+re-landed as #206 after a revert (#205) of four work-in-progress commits that had reached main without review.
+
+- **Corrected candidate:** `97d4029866218c61ac606f0f4196cb0766bb5117`, requalified (CI 45981200362, Extended
+  45981218495, Cloudflare packed 45981222817). Decision and ledger in #207; the pre-phase gate printed GO on `668abea`.
+- **Published:** by Release 46026262608 from `3f6cd0b` (merge of #203). All three packages are at `1.0.0-rc.0`
+  with provenance; `next` and `rc` point to the RC, and `latest` stays on 0.2.2, 0.13.0 and 0.17.0. No stable
+  1.0. `@strata-sc/h3` remains private.
+- **Post-phase:** the frozen RC capture, the published-tuple Node production run, the deployed registry run, and
+  the 0.x → RC upgrade and rollback are pending on the harness PR. Until `--phase=post` prints GO, RC0 is
+  published but not fully qualified.
+
 ## RC0 final qualification (2026-11-26, PRs #200 and #201)
 
 [Report](research/rc0-production-requalification.md#final-rc0-qualification-2026-11-26). The support contract now cites S-1 on deployed Cloudflare Pages, and the declared Angular range
